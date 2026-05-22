@@ -1,34 +1,26 @@
 <template>
 	<div class="project-notes-list">
 		<div class="project-notes-list__header">
-			<div class="project-notes-list__tabs">
+			<div class="project-notes-list__main-tabs">
 				<button
 					type="button"
-					class="project-notes-list__tab"
-					:class="{ 'project-notes-list__tab--active': activeTab === 'public' }"
-					@click="switchTab('public')">
-					<Earth :size="18" />
-					<span>Public</span>
+					class="project-notes-list__main-tab"
+					:class="{ 'project-notes-list__main-tab--active': mainTab === 'project' }"
+					@click="switchMainTab('project')">
+					<FileDocumentOutline :size="18" />
+					<span>Project Notes</span>
 				</button>
 				<button
 					type="button"
-					class="project-notes-list__tab"
-					:class="{ 'project-notes-list__tab--active': activeTab === 'private' }"
-					@click="switchTab('private')">
-					<Lock :size="18" />
-					<span>Private</span>
-				</button>
-				<button
-					type="button"
-					class="project-notes-list__tab"
-					:class="{ 'project-notes-list__tab--active': activeTab === 'cards' }"
-					@click="switchTab('cards')">
+					class="project-notes-list__main-tab"
+					:class="{ 'project-notes-list__main-tab--active': mainTab === 'cards' }"
+					@click="switchMainTab('cards')">
 					<CardTextOutline :size="18" />
-					<span>Cards</span>
+					<span>Card Notes</span>
 				</button>
 			</div>
 			<NcButton
-				v-if="activeTab !== 'cards'"
+				v-if="mainTab === 'project'"
 				type="secondary"
 				:disabled="!canCreateNote"
 				@click="openCreateModal">
@@ -37,6 +29,24 @@
 				</template>
 				Add note
 			</NcButton>
+		</div>
+		<div v-if="mainTab === 'project'" class="project-notes-list__sub-tabs">
+			<button
+				type="button"
+				class="project-notes-list__sub-tab"
+				:class="{ 'project-notes-list__sub-tab--active': subTab === 'public' }"
+				@click="switchSubTab('public')">
+				<Earth :size="14" />
+				<span>Public</span>
+			</button>
+			<button
+				type="button"
+				class="project-notes-list__sub-tab"
+				:class="{ 'project-notes-list__sub-tab--active': subTab === 'private' }"
+				@click="switchSubTab('private')">
+				<Lock :size="14" />
+				<span>Private</span>
+			</button>
 		</div>
 
 		<div v-if="loading" class="project-notes-list__loading">
@@ -131,7 +141,7 @@
 		<CreateNoteModal
 			:show="showCreateModal"
 			:project-id="projectId"
-			:visibility="activeTab"
+			:visibility="subTab"
 			@close="closeCreateModal"
 			@created="onNoteCreated" />
 
@@ -193,7 +203,8 @@ export default {
 	data() {
 		return {
 			loading: true,
-			activeTab: 'public',
+			mainTab: 'project',
+			subTab: 'public',
 			notes: [],
 			totalCount: 0,
 			currentPage: 1,
@@ -211,29 +222,29 @@ export default {
 			return Math.ceil(this.totalCount / this.perPage) || 1
 		},
 		canCreateNote() {
-			if (this.activeTab === 'cards') {
+			if (this.mainTab === 'cards') {
 				return false
 			}
-			if (this.activeTab === 'public') {
+			if (this.subTab === 'public') {
 				return true
 			}
 			return this.privateAvailable
 		},
 		emptyTitle() {
-			if (this.activeTab === 'private' && !this.canCreateNote) {
-				return 'Private notes are not available'
-			}
-			if (this.activeTab === 'cards') {
+			if (this.mainTab === 'cards') {
 				return 'No cards found'
 			}
-			return `No ${this.activeTab} notes yet`
+			if (this.subTab === 'private' && !this.canCreateNote) {
+				return 'Private notes are not available'
+			}
+			return `No ${this.subTab} notes yet`
 		},
 		emptySubtitle() {
-			if (this.activeTab === 'private' && !this.canCreateNote) {
-				return 'Private notes are not available for this project'
-			}
-			if (this.activeTab === 'cards') {
+			if (this.mainTab === 'cards') {
 				return 'This project does not have any visible cards in its deck board yet'
+			}
+			if (this.subTab === 'private' && !this.canCreateNote) {
+				return 'Private notes are not available for this project'
 			}
 			return 'Create your first note to start documenting this project'
 		},
@@ -247,7 +258,10 @@ export default {
 				}
 			},
 		},
-		activeTab() {
+		mainTab() {
+			this.loadNotes(1)
+		},
+		subTab() {
 			this.loadNotes(1)
 		},
 	},
@@ -255,9 +269,10 @@ export default {
 		async loadNotes(page) {
 			this.loading = true
 			this.currentPage = page
+			const visibility = this.mainTab === 'cards' ? 'cards' : this.subTab
 			try {
 				const result = await projectsService.listNotes(this.projectId, {
-					visibility: this.activeTab,
+					visibility,
 					page,
 					limit: this.perPage,
 				})
@@ -272,9 +287,14 @@ export default {
 				this.loading = false
 			}
 		},
-		switchTab(tab) {
-			if (this.activeTab !== tab) {
-				this.activeTab = tab
+		switchMainTab(tab) {
+			if (this.mainTab !== tab) {
+				this.mainTab = tab
+			}
+		},
+		switchSubTab(tab) {
+			if (this.subTab !== tab) {
+				this.subTab = tab
 			}
 		},
 		previousPage() {
@@ -374,7 +394,7 @@ export default {
 .project-notes-list {
 	display: flex;
 	flex-direction: column;
-	gap: 24px;
+	gap: 20px;
 	padding-bottom: 12px;
 }
 
@@ -385,7 +405,7 @@ export default {
 	gap: 32px;
 }
 
-.project-notes-list__tabs {
+.project-notes-list__main-tabs {
 	display: flex;
 	gap: 4px;
 	background: var(--color-background-dark);
@@ -394,30 +414,65 @@ export default {
 	flex-shrink: 0;
 }
 
-.project-notes-list__tab {
+.project-notes-list__main-tab {
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	padding: 10px 18px;
+	padding: 12px 22px;
 	border: none;
 	background: transparent;
 	color: var(--color-text-lighter);
-	font-size: 13px;
-	font-weight: 700;
+	font-size: 14px;
+	font-weight: 800;
 	cursor: pointer;
 	border-radius: 11px;
 	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.project-notes-list__tab:hover {
+.project-notes-list__main-tab:hover {
 	background: var(--color-background-hover);
 	color: var(--color-main-text);
 }
 
-.project-notes-list__tab--active {
+.project-notes-list__main-tab--active {
 	background: var(--color-main-background);
 	color: var(--color-main-text);
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.project-notes-list__sub-tabs {
+	display: flex;
+	gap: 2px;
+	background: var(--color-background-dark);
+	border-radius: 10px;
+	padding: 3px;
+	align-self: flex-start;
+}
+
+.project-notes-list__sub-tab {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 7px 14px;
+	border: none;
+	background: transparent;
+	color: var(--color-text-lighter);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	border-radius: 8px;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.project-notes-list__sub-tab:hover {
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
+}
+
+.project-notes-list__sub-tab--active {
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .project-notes-list__tab-badge {
@@ -683,11 +738,20 @@ export default {
 		gap: 20px;
 	}
 
-	.project-notes-list__tabs {
+	.project-notes-list__main-tabs {
 		width: 100%;
 	}
 
-	.project-notes-list__tab {
+	.project-notes-list__main-tab {
+		flex: 1;
+		justify-content: center;
+	}
+
+	.project-notes-list__sub-tabs {
+		align-self: stretch;
+	}
+
+	.project-notes-list__sub-tab {
 		flex: 1;
 		justify-content: center;
 	}
