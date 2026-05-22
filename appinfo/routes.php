@@ -60,6 +60,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#listCardComments",
+            "url" => "/api/v1/projects/{projectId}/card-comments",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#getNote",
             "url" => "/api/v1/projects/{projectId}/notes/{noteId}",
             "verb" => "GET",

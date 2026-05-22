@@ -1091,6 +1091,72 @@ class ProjectService
         ];
     }
 
+    public function getCardCommentsList(int $projectId, int $page = 1, int $limit = 20): array
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        $boardId = $project->getBoardId();
+        if ($boardId === null || $boardId === '') {
+            return [
+                'comments' => [],
+                'total' => 0,
+            ];
+        }
+
+        $offset = ($page - 1) * $limit;
+
+        $qb = $this->db->getQueryBuilder();
+
+        // Count total comments
+        $countQb = $this->db->getQueryBuilder();
+        $countQb->selectAlias($countQb->func()->count('c.id'), 'cnt')
+            ->from('comments', 'c')
+            ->innerJoin('c', 'deck_cards', 'card', $countQb->expr()->eq('c.object_id', $countQb->expr()->castColumn('card.id', IQueryBuilder::PARAM_STR)))
+            ->innerJoin('card', 'deck_stacks', 'stack', $countQb->expr()->eq('card.stack_id', 'stack.id'))
+            ->where($countQb->expr()->eq('stack.board_id', $countQb->createNamedParameter((int) $boardId, IQueryBuilder::PARAM_INT)))
+            ->andWhere($countQb->expr()->eq('c.object_type', $countQb->createNamedParameter('deckCard')));
+        $total = (int) $countQb->executeQuery()->fetchOne();
+
+        // Fetch comments with card info
+        $qb->select(
+            'c.id', 'c.object_id', 'c.message', 'c.actor_id', 'c.actor_type',
+            'c.creation_timestamp', 'c.parent_id',
+            'card.title as card_title', 'card.id as card_id'
+        )
+            ->from('comments', 'c')
+            ->innerJoin('c', 'deck_cards', 'card', $qb->expr()->eq('c.object_id', $qb->expr()->castColumn('card.id', IQueryBuilder::PARAM_STR)))
+            ->innerJoin('card', 'deck_stacks', 'stack', $qb->expr()->eq('card.stack_id', 'stack.id'))
+            ->where($qb->expr()->eq('stack.board_id', $qb->createNamedParameter((int) $boardId, IQueryBuilder::PARAM_INT)))
+            ->andWhere($qb->expr()->eq('c.object_type', $qb->createNamedParameter('deckCard')))
+            ->orderBy('c.creation_timestamp', 'DESC')
+            ->setMaxResults($limit)
+            ->setFirstResult($offset);
+
+        $rows = $qb->executeQuery()->fetchAll();
+
+        $comments = array_map(function ($row) {
+            $actorDisplayName = $this->userManager->getDisplayName($row['actor_id']) ?? $row['actor_id'];
+            return [
+                'id' => (int) $row['id'],
+                'cardId' => (int) $row['card_id'],
+                'cardTitle' => $row['card_title'],
+                'actorId' => $row['actor_id'],
+                'actorDisplayName' => $actorDisplayName,
+                'message' => $row['message'],
+                'createdAt' => $this->formatDeckTimestamp((int) $row['creation_timestamp']),
+                'parentId' => $row['parent_id'] !== '0' ? (int) $row['parent_id'] : null,
+            ];
+        }, $rows);
+
+        return [
+            'comments' => $comments,
+            'total' => $total,
+        ];
+    }
+
     private function formatDeckTimestamp(?int $timestamp): ?string
     {
         if ($timestamp === null || $timestamp <= 0) {

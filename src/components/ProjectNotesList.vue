@@ -48,10 +48,72 @@
 				<span>Private</span>
 			</button>
 		</div>
+		<div v-if="mainTab === 'cards'" class="project-notes-list__sub-tabs">
+			<button
+				type="button"
+				class="project-notes-list__sub-tab"
+				:class="{ 'project-notes-list__sub-tab--active': cardSubTab === 'notes' }"
+				@click="switchCardSubTab('notes')">
+				<CardTextOutline :size="14" />
+				<span>Notes</span>
+			</button>
+			<button
+				type="button"
+				class="project-notes-list__sub-tab"
+				:class="{ 'project-notes-list__sub-tab--active': cardSubTab === 'comments' }"
+				@click="switchCardSubTab('comments')">
+				<CommentOutline :size="14" />
+				<span>Comments</span>
+			</button>
+		</div>
 
 		<div v-if="loading" class="project-notes-list__loading">
 			<NcLoadingIcon :size="48" />
 			<span>Loading your notes...</span>
+		</div>
+
+		<div v-else-if="mainTab === 'cards' && cardSubTab === 'comments' && comments.length === 0" class="project-notes-list__empty">
+			<div class="project-notes-list__empty-icon-wrapper">
+				<CommentOutline :size="64" />
+			</div>
+			<p class="project-notes-list__empty-title">
+				{{ emptyTitle }}
+			</p>
+			<p class="project-notes-list__empty-subtitle">
+				{{ emptySubtitle }}
+			</p>
+		</div>
+
+		<div v-else-if="mainTab === 'cards' && cardSubTab === 'comments'" class="project-notes-list__comments-list">
+			<div
+				v-for="comment in comments"
+				:key="comment.id"
+				class="project-notes-list__comment-item">
+				<div class="project-notes-list__comment-header">
+					<div class="project-notes-list__comment-author">
+						<div class="project-notes-list__author-avatar" :title="comment.actorId">
+							{{ comment.actorDisplayName ? comment.actorDisplayName.charAt(0).toUpperCase() : '?' }}
+						</div>
+						<span class="project-notes-list__author-name">{{ comment.actorDisplayName }}</span>
+					</div>
+					<span class="project-notes-list__comment-date">
+						{{ formatDate(comment.createdAt) }}
+					</span>
+				</div>
+				<div class="project-notes-list__comment-body">
+					<p class="project-notes-list__comment-message">
+						{{ comment.message }}
+					</p>
+				</div>
+				<div class="project-notes-list__comment-footer">
+					<span
+						class="project-notes-list__comment-card-badge"
+						@click.stop="openCardDetailByCardId(comment.cardId, comment.cardTitle)">
+						<CardTextOutline :size="12" />
+						{{ comment.cardTitle }}
+					</span>
+				</div>
+			</div>
 		</div>
 
 		<div v-else-if="notes.length === 0" class="project-notes-list__empty">
@@ -172,6 +234,7 @@ import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import CardTextOutline from 'vue-material-design-icons/CardTextOutline.vue'
+import CommentOutline from 'vue-material-design-icons/CommentOutline.vue'
 import CreateNoteModal from './CreateNoteModal.vue'
 import CardDetailModal from './CardDetailModal.vue'
 import { ProjectsService } from '../Services/projects.js'
@@ -191,6 +254,7 @@ export default {
 		ChevronRight,
 		FileDocumentOutline,
 		CardTextOutline,
+		CommentOutline,
 		CreateNoteModal,
 		CardDetailModal,
 	},
@@ -205,7 +269,9 @@ export default {
 			loading: true,
 			mainTab: 'project',
 			subTab: 'public',
+			cardSubTab: 'notes',
 			notes: [],
+			comments: [],
 			totalCount: 0,
 			currentPage: 1,
 			perPage: 12,
@@ -231,6 +297,9 @@ export default {
 			return this.privateAvailable
 		},
 		emptyTitle() {
+			if (this.mainTab === 'cards' && this.cardSubTab === 'comments') {
+				return 'No comments found'
+			}
 			if (this.mainTab === 'cards') {
 				return 'No cards found'
 			}
@@ -240,6 +309,9 @@ export default {
 			return `No ${this.subTab} notes yet`
 		},
 		emptySubtitle() {
+			if (this.mainTab === 'cards' && this.cardSubTab === 'comments') {
+				return 'No one has commented on any cards in this project yet'
+			}
 			if (this.mainTab === 'cards') {
 				return 'This project does not have any visible cards in its deck board yet'
 			}
@@ -262,13 +334,41 @@ export default {
 			this.loadNotes(1)
 		},
 		subTab() {
-			this.loadNotes(1)
+			if (this.mainTab === 'project') {
+				this.loadNotes(1)
+			}
+		},
+		cardSubTab() {
+			if (this.mainTab === 'cards') {
+				this.loadNotes(1)
+			}
 		},
 	},
 	methods: {
 		async loadNotes(page) {
 			this.loading = true
 			this.currentPage = page
+
+			// Load card comments
+			if (this.mainTab === 'cards' && this.cardSubTab === 'comments') {
+				try {
+					const result = await projectsService.listCardComments(this.projectId, {
+						page,
+						limit: this.perPage,
+					})
+					if (result) {
+						this.comments = result.comments || []
+						this.totalCount = result.total || 0
+					}
+				} catch (error) {
+					console.error('Failed to load card comments:', error)
+				} finally {
+					this.loading = false
+				}
+				return
+			}
+
+			// Load notes (project or card)
 			const visibility = this.mainTab === 'cards' ? 'cards' : this.subTab
 			try {
 				const result = await projectsService.listNotes(this.projectId, {
@@ -295,6 +395,11 @@ export default {
 		switchSubTab(tab) {
 			if (this.subTab !== tab) {
 				this.subTab = tab
+			}
+		},
+		switchCardSubTab(tab) {
+			if (this.cardSubTab !== tab) {
+				this.cardSubTab = tab
 			}
 		},
 		previousPage() {
@@ -366,6 +471,17 @@ export default {
 		},
 		openCardDetail(note) {
 			this.viewingCard = note
+			this.showCardDetail = true
+		},
+		openCardDetailByCardId(cardId, cardTitle) {
+			this.viewingCard = {
+				id: 'card_' + cardId,
+				cardId,
+				title: cardTitle,
+				content: '',
+				visibility: 'card',
+				cardNotes: [],
+			}
 			this.showCardDetail = true
 		},
 		closeCardDetail() {
@@ -715,6 +831,88 @@ export default {
 	color: white;
 	border-color: var(--color-error);
 	box-shadow: 0 4px 10px var(--color-error-light);
+}
+
+.project-notes-list__comments-list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.project-notes-list__comment-item {
+	display: flex;
+	flex-direction: column;
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 16px;
+	overflow: hidden;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.project-notes-list__comment-item:hover {
+	border-color: var(--color-primary-element);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.project-notes-list__comment-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 16px 20px 12px;
+	gap: 12px;
+}
+
+.project-notes-list__comment-author {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+.project-notes-list__comment-date {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+	white-space: nowrap;
+}
+
+.project-notes-list__comment-body {
+	padding: 0 20px 12px;
+}
+
+.project-notes-list__comment-message {
+	margin: 0;
+	font-size: 14px;
+	color: var(--color-main-text);
+	line-height: 1.6;
+	white-space: pre-wrap;
+}
+
+.project-notes-list__comment-footer {
+	display: flex;
+	align-items: center;
+	padding: 12px 20px;
+	background: var(--color-background-hover);
+	border-top: 1px solid var(--color-border);
+}
+
+.project-notes-list__comment-card-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--color-primary-element);
+	background: var(--color-primary-element-light);
+	padding: 4px 10px;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.project-notes-list__comment-card-badge:hover {
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
 }
 
 .project-notes-list__pagination {

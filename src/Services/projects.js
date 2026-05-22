@@ -658,6 +658,30 @@ export class ProjectsService {
 	}
 
 	/**
+	 * List card comments for a project with pagination.
+	 *
+	 * @param {number} projectId
+	 * @param {{page?: number, limit?: number}} [options]
+	 * @returns {Promise<{comments: array, total: number, page: number, limit: number}|null>}
+	 */
+	async listCardComments(projectId, { page = 1, limit = 20 } = {}) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/card-comments`)
+			const response = await axios.get(url, {
+				params: { page, limit },
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to list card comments:', e)
+			return null
+		}
+	}
+
+	/**
 	 * Get a single note.
 	 *
 	 * @param {number} projectId

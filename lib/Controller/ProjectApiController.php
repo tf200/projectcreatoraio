@@ -237,6 +237,30 @@ class ProjectApiController extends Controller
 
     #[NoCSRFRequired]
     #[NoAdminRequired]
+    public function listCardComments(int $projectId, int $page = 1, int $limit = 20): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $limit = max(1, min(100, $limit));
+        $page = max(1, $page);
+
+        $result = $this->projectService->getCardCommentsList($projectId, $page, $limit);
+
+        return new DataResponse([
+            'comments' => $result['comments'],
+            'total' => $result['total'],
+            'page' => $page,
+            'limit' => $limit,
+        ]);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
     public function getNote(int $projectId, int $noteId): DataResponse
     {
         $project = $this->projectMapper->find($projectId);
