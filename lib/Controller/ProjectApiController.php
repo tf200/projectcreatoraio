@@ -1,14 +1,17 @@
 <?php
 namespace OCA\Projectcreatoraio\Controller;
 
+use OCA\ProjectCreatorAIO\BackgroundJob\GenerateProjectExportJob;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -16,6 +19,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\AppFramework\Http\OCS\OCSForbiddenException;
+use OCP\BackgroundJob\IJobList;
 use OCP\IGroupManager;
 use OCP\IUserSession;
 use OCP\IRequest;
@@ -37,9 +41,11 @@ class ProjectApiController extends Controller
         protected ProjectService $projectService,
         private ProjectActivityService $projectActivityService,
         private ProjectRetentionService $projectRetentionService,
+        private ProjectDownloadService $downloadService,
         private IGroupManager $iGroupManager,
         private OrganizationUserMapper $organizationUserMapper,
         private IRootFolder $rootFolder,
+        private IJobList $jobList,
     ) {
         parent::__construct($appName, $request);
         $this->request = $request;
@@ -1160,6 +1166,80 @@ class ProjectApiController extends Controller
             'deleted' => true,
             'projectId' => $projectId,
         ]);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function requestDownload(int $projectId): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
+        $argument = [
+            'projectId' => $projectId,
+            'userId' => $currentUser->getUID(),
+        ];
+
+        $this->jobList->add(GenerateProjectExportJob::class, $argument);
+
+        return new DataResponse([
+            'status' => 'queued',
+            'message' => 'Export is being prepared. You will be notified when it is ready.',
+        ]);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function downloadExport(int $projectId): StreamResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
+        $exportFolder = $this->downloadService->getExportFolder($currentUser);
+        if ($exportFolder === null) {
+            throw new OCSNotFoundException('No export available. Please request a download first.');
+        }
+
+        $safeName = preg_replace('/[^a-zA-Z0-9_\- ]/', '', (string) ($project->getName() ?? 'project'));
+        $safeName = preg_replace('/\s+/', '-', trim($safeName));
+
+        $zipFile = null;
+        foreach ($exportFolder->getDirectoryListing() as $node) {
+            if ($node instanceof File && str_contains($node->getName(), $safeName)) {
+                if ($zipFile === null || $node->getMTime() > $zipFile->getMTime()) {
+                    $zipFile = $node;
+                }
+            }
+        }
+
+        if ($zipFile === null) {
+            throw new OCSNotFoundException('No export file found for this project. Please request a download first.');
+        }
+
+        $response = new StreamResponse($zipFile->fopen('rb'));
+        $response->addHeader('Content-Type', 'application/zip');
+        $response->addHeader('Content-Disposition', 'attachment; filename="' . $zipFile->getName() . '"');
+        $response->addHeader('Content-Length', (string) $zipFile->getSize());
+
+        return $response;
     }
 
     private function canAdministerProject(Project $project): bool

@@ -16,9 +16,11 @@ class ProjectNotificationService {
 	public const SUBJECT_MEMBER_ADDED = 'project_member_added';
 	public const SUBJECT_WHITEBOARD_UPDATED = 'project_whiteboard_updated';
 	public const SUBJECT_DECK_STALE = 'project_deck_stale';
+	public const SUBJECT_EXPORT_READY = 'project_export_ready';
 	private const OBJECT_TYPE_PROJECT_MEMBER = 'project_member';
 	private const OBJECT_TYPE_PROJECT_WHITEBOARD = 'project_whiteboard';
 	private const OBJECT_TYPE_PROJECT_DECK_STALE = 'project_deck_stale';
+	private const OBJECT_TYPE_PROJECT_EXPORT = 'project_export';
 	private const WHITEBOARD_COOLDOWN_SECONDS = 120;
 	private ?ICache $cooldownCache;
 
@@ -164,6 +166,40 @@ class ProjectNotificationService {
 					'recipientUid' => $recipientUid,
 				]);
 			}
+		}
+	}
+
+	public function notifyExportReady(Project $project, IUser $user): void {
+		$projectId = (int) ($project->getId() ?? 0);
+		if ($projectId <= 0) {
+			return;
+		}
+
+		$projectName = trim((string) ($project->getName() ?? ''));
+
+		$notification = $this->notificationManager->createNotification();
+		$notification
+			->setApp(Application::APP_ID)
+			->setUser($user->getUID())
+			->setObject(self::OBJECT_TYPE_PROJECT_EXPORT, (string) $projectId)
+			->setSubject(
+				self::SUBJECT_EXPORT_READY,
+				[
+					'projectId' => (string) $projectId,
+					'projectName' => $projectName,
+				],
+			)
+			->setDateTime(new \DateTime());
+
+		try {
+			$this->notificationManager->notify($notification);
+		} catch (\Throwable $e) {
+			$this->logger->error('Failed to send export ready notification', [
+				'app' => Application::APP_ID,
+				'exception' => $e,
+				'projectId' => $projectId,
+				'userId' => $user->getUID(),
+			]);
 		}
 	}
 

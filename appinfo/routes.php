@@ -105,6 +105,16 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#requestDownload",
+            "url" => "/api/v1/projects/{projectId}/download",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "project_api#downloadExport",
+            "url" => "/api/v1/projects/{projectId}/download",
+            "verb" => "GET",
+        ],
+        [
             "name" => "ocr_api#listProjectDocumentTypes",
             "url" => "/api/v1/projects/{projectId}/ocr/document-types",
             "verb" => "GET",

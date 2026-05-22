@@ -3,8 +3,10 @@
 namespace OCA\ProjectCreatorAIO\AppInfo;
 
 use OCA\ProjectCreatorAIO\BackgroundJob\DetectStaleProjectsJob;
+use OCA\ProjectCreatorAIO\BackgroundJob\GenerateProjectExportJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\ProcessPendingFileProcessingJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\PurgeArchivedProjectsJob;
+use OCA\ProjectCreatorAIO\BackgroundJob\PurgeOldExportsJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\SendProjectDigestJob;
 use OCA\ProjectCreatorAIO\Db\PrivateFolderLinkMapper;
 use OCA\ProjectCreatorAIO\Dashboard\ProjectsWidget;
@@ -33,6 +35,7 @@ use OCA\ProjectCreatorAIO\Notification\Notifier;
 use OCA\ProjectCreatorAIO\Service\DeckDefaultCardsService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDigestService;
+use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCA\Talk\Events\AttendeeRemovedEvent;
@@ -152,6 +155,26 @@ class Application extends App implements IBootstrap {
 			);
 		});
 
+		$context->registerService(GenerateProjectExportJob::class, function (IAppContainer $c) {
+			return new GenerateProjectExportJob(
+				$c->getServer()->get(ITimeFactory::class),
+				$c->getServer()->query(\OCA\ProjectCreatorAIO\Db\ProjectMapper::class),
+				$c->getServer()->query(ProjectDownloadService::class),
+				$c->getServer()->query(\OCA\ProjectCreatorAIO\Service\ProjectNotificationService::class),
+				$c->getServer()->query(\OCP\IUserManager::class),
+				$c->getServer()->get(LoggerInterface::class),
+			);
+		});
+
+		$context->registerService(PurgeOldExportsJob::class, function (IAppContainer $c) {
+			return new PurgeOldExportsJob(
+				$c->getServer()->get(ITimeFactory::class),
+				$c->getServer()->query(ProjectDownloadService::class),
+				$c->getServer()->query(\OCP\IUserManager::class),
+				$c->getServer()->get(LoggerInterface::class),
+			);
+		});
+
 	}
 
 	public function boot(IBootContext $context): void {
@@ -167,6 +190,9 @@ class Application extends App implements IBootstrap {
 			}
 			if (!$jobList->has(ProcessPendingFileProcessingJob::class, null)) {
 				$jobList->add(ProcessPendingFileProcessingJob::class);
+			}
+			if (!$jobList->has(PurgeOldExportsJob::class, null)) {
+				$jobList->add(PurgeOldExportsJob::class);
 			}
 		});
 	}

@@ -579,6 +579,38 @@ export class ProjectsService {
 	}
 
 	/**
+	 * Request a project export (queues background job).
+	 *
+	 * @param {number} projectId
+	 * @returns {Promise<{status: string, message: string}|null>}
+	 */
+	async requestDownload(projectId) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/download`)
+			const response = await axios.post(url, {}, {
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to request project export:', e)
+			throw e
+		}
+	}
+
+	/**
+	 * Download the generated export ZIP for a project.
+	 *
+	 * @param {number} projectId
+	 */
+	downloadExport(projectId) {
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/download`)
+		window.location.href = url
+	}
+
+	/**
 	 * Update project notes.
 	 *
 	 * @param {number} projectId

@@ -252,50 +252,63 @@
 								{{ selectedProject.description || 'No description provided' }}
 							</p>
 						</div>
-						<div class="projects-home__hero-actions">
-							<NcButton
-								v-if="selectedProject.talk_url"
-								type="secondary"
-								aria-label="Open chat"
-								@click="openChat(selectedProject)">
-								<template #icon>
-									<Chat :size="16" />
-								</template>
-							</NcButton>
-							<label v-if="canEditProjectStatus" class="projects-home__status-editor" for="projects-status-editor">
-								<span class="projects-home__status-editor-label">Status</span>
-								<select
-									id="projects-status-editor"
-									class="projects-home__filter-select projects-home__status-select"
-									:value="String(selectedProjectStatusValue)"
-									:disabled="statusUpdating"
-									@change="updateSelectedProjectStatus($event.target.value)">
-									<option
-										v-for="option in projectStatusOptions"
-										:key="option.value"
-										:value="option.value">
-										{{ option.label }}
-									</option>
-								</select>
-							</label>
-							<NcButton
-								v-if="canDeleteSelectedProject"
-								type="tertiary"
-								:disabled="projectDeleting"
-								aria-label="Delete project"
-								class="projects-home__delete-button"
-								@click="deleteSelectedProject">
-								<template #icon>
-									<Delete :size="16" />
-								</template>
-							</NcButton>
-						</div>
+					<div class="projects-home__hero-actions">
+						<NcButton
+							v-if="selectedProject.talk_url"
+							type="secondary"
+							aria-label="Open chat"
+							@click="openChat(selectedProject)">
+							<template #icon>
+								<Chat :size="16" />
+							</template>
+						</NcButton>
+						<NcButton
+							type="secondary"
+							:disabled="exportRequesting"
+							aria-label="Download project export"
+							@click="requestProjectDownload">
+							<template #icon>
+								<Download :size="16" />
+							</template>
+							{{ exportRequesting ? 'Preparing...' : 'Download' }}
+						</NcButton>
+						<label v-if="canEditProjectStatus" class="projects-home__status-editor" for="projects-status-editor">
+							<span class="projects-home__status-editor-label">Status</span>
+							<select
+								id="projects-status-editor"
+								class="projects-home__filter-select projects-home__status-select"
+								:value="String(selectedProjectStatusValue)"
+								:disabled="statusUpdating"
+								@change="updateSelectedProjectStatus($event.target.value)">
+								<option
+									v-for="option in projectStatusOptions"
+									:key="option.value"
+									:value="option.value">
+									{{ option.label }}
+								</option>
+							</select>
+						</label>
+						<NcButton
+							v-if="canDeleteSelectedProject"
+							type="tertiary"
+							:disabled="projectDeleting"
+							aria-label="Delete project"
+							class="projects-home__delete-button"
+							@click="deleteSelectedProject">
+							<template #icon>
+								<Delete :size="16" />
+							</template>
+						</NcButton>
 					</div>
+				</div>
 					<p v-if="canEditProjectStatus && statusUpdateError" class="projects-home__inline-error">
 						{{ statusUpdateError }}
 					</p>
 					<p v-if="projectDeleteError" class="projects-home__inline-error">
 						{{ projectDeleteError }}
+					</p>
+					<p v-if="exportQueuedMessage" class="projects-home__inline-success">
+						{{ exportQueuedMessage }}
 					</p>
 				</header>
 
@@ -1062,6 +1075,8 @@ export default {
 			showOcrDocumentTypesModal: false,
 			ocrDocumentTypesVersion: 0,
 			showProjectProfileModal: false,
+			exportRequesting: false,
+			exportQueuedMessage: '',
 			projectProfileDraft: {
 				name: '',
 				description: '',
@@ -1533,6 +1548,7 @@ export default {
 			this.activeTab = tab
 			this.statusUpdateError = ''
 			this.projectDeleteError = ''
+			this.exportQueuedMessage = ''
 			this.memberInviteMessage = ''
 			this.membersError = ''
 			this.resetProjectProfileEditor()
@@ -1596,6 +1612,7 @@ export default {
 			this.resetProjectProfileEditor()
 			this.resetMembersState()
 			this.resetFilesState()
+			this.exportQueuedMessage = ''
 			this.selectedProject = null
 			this.selectedProjectId = null
 			this.activeTab = 'overview'
@@ -1839,6 +1856,21 @@ export default {
 			const downloadUrl = new URL(webdavClient.getFileDownloadLink(path))
 			downloadUrl.searchParams.append('accept', 'zip')
 			this.triggerDownload(downloadUrl.href)
+		},
+		async requestProjectDownload() {
+			if (!this.selectedProject?.id || this.exportRequesting) {
+				return
+			}
+			this.exportRequesting = true
+			this.exportQueuedMessage = ''
+			try {
+				const result = await projectsService.requestDownload(this.selectedProject.id)
+				this.exportQueuedMessage = result?.message || 'Export is being prepared. You will be notified when it is ready.'
+			} catch (error) {
+				this.exportQueuedMessage = error?.response?.data?.message || 'Could not start export.'
+			} finally {
+				this.exportRequesting = false
+			}
 		},
 		triggerDownload(href) {
 			const link = document.createElement('a')

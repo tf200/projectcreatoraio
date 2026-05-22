@@ -107,33 +107,59 @@ class Notifier implements INotifier {
 
 				return $notification;
 
-			case ProjectNotificationService::SUBJECT_DECK_STALE:
-				$params = $notification->getSubjectParameters();
-				$projectName = trim((string) ($params['projectName'] ?? ''));
+		case ProjectNotificationService::SUBJECT_DECK_STALE:
+			$params = $notification->getSubjectParameters();
+			$projectName = trim((string) ($params['projectName'] ?? ''));
 
-				if ($projectName === '') {
-					$projectName = $l->t('Unnamed project');
-				}
+			if ($projectName === '') {
+				$projectName = $l->t('Unnamed project');
+			}
 
-				$notification
-					->setRichSubject(
-						$l->t('Project {project} is waiting on customer because no cards moved for 90 days'),
-						[
-							'project' => [
-								'type' => 'highlight',
-								'id' => (string) ($params['projectId'] ?? ''),
-								'name' => $projectName,
-							],
+			$notification
+				->setRichSubject(
+					$l->t('Project {project} is waiting on customer because no cards moved for 90 days'),
+					[
+						'project' => [
+							'type' => 'highlight',
+							'id' => (string) ($params['projectId'] ?? ''),
+							'name' => $projectName,
 						],
-					)
-					->setLink($this->urlGenerator->linkToRouteAbsolute('projectcreatoraio.page.index'))
-					->setIcon($this->urlGenerator->getAbsoluteURL(
-						$this->urlGenerator->imagePath(Application::APP_ID, 'app.svg'),
-					));
+					],
+				)
+				->setLink($this->urlGenerator->linkToRouteAbsolute('projectcreatoraio.page.index'))
+				->setIcon($this->urlGenerator->getAbsoluteURL(
+					$this->urlGenerator->imagePath(Application::APP_ID, 'app.svg'),
+				));
 
-				return $notification;
+			return $notification;
 
-			default:
+		case ProjectNotificationService::SUBJECT_EXPORT_READY:
+			$params = $notification->getSubjectParameters();
+			$projectName = trim((string) ($params['projectName'] ?? ''));
+
+			if ($projectName === '') {
+				$projectName = $l->t('Unnamed project');
+			}
+
+			$notification
+				->setRichSubject(
+					$l->t('Your export for project {project} is ready to download'),
+					[
+						'project' => [
+							'type' => 'highlight',
+							'id' => (string) ($params['projectId'] ?? ''),
+							'name' => $projectName,
+						],
+					],
+				)
+				->setLink($this->urlGenerator->linkToRouteAbsolute('projectcreatoraio.page.index'))
+				->setIcon($this->urlGenerator->getAbsoluteURL(
+					$this->urlGenerator->imagePath(Application::APP_ID, 'app.svg'),
+				));
+
+			return $notification;
+
+		default:
 				throw new UnknownNotificationException();
 		}
 	}
