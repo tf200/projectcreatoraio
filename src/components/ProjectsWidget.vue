@@ -74,16 +74,12 @@
                             :variant="selectedProjectId !== project.id ? 'primary':'secondary'" />
                     </template>
 
-                    <template #actions>
-                        <NcActions :inline="1">
-                            <NcActionButton
-                                :title="t('projectcreatoraio', 'Go to project')"
-                                @click="onPreview(project)">
-                                <template #icon>
-                                    <ChevronRight :size="20" />
-                                </template>
-                            </NcActionButton>
-                        </NcActions>
+                    <template #extra>
+                        <button class="project-arrow-btn"
+                            :title="t('projectcreatoraio', 'Go to project')"
+                            @click.stop="navigateToProject(project)">
+                            <ChevronRight :size="20" />
+                        </button>
                     </template>
                 </NcListItem>
             </ul>
@@ -92,7 +88,7 @@
 </template>
 
 <script>
-import { NcActions, NcActionButton, NcEmptyContent, NcTextField } from '@nextcloud/vue'
+import { NcActions, NcEmptyContent, NcTextField } from '@nextcloud/vue'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcActionInput from '@nextcloud/vue/components/NcActionInput'
@@ -113,18 +109,15 @@ import {
 } from '../constants/project-statuses.js'
 import { UsersService } from '../Services/users'
 import { ProjectsService } from '../Services/projects'
-import { generateUrl, generateRemoteUrl } from '@nextcloud/router';
-import { createClient } from 'webdav';
+import { generateUrl } from '@nextcloud/router';
 
 const usersService = UsersService.getInstance();
 const projectsService = ProjectsService.getInstance();
-const client = createClient(generateRemoteUrl('dav'));
 
 export default {
 	name: 'ProjectsWidget',
 	components: {
 		NcActions,
-		NcActionButton,
 		NcEmptyContent,
         NcLoadingIcon,
         NcTextField,
@@ -222,43 +215,9 @@ export default {
             const event = new CustomEvent('projectcreatoraio:project-selected', { detail: eventPayload });
             document.dispatchEvent(event);
         },
-        navigateToProjectPage(boardId) {
-            const url = generateUrl(`/apps/deck/board/${boardId}`);
+        navigateToProject(project) {
+            const url = generateUrl(`/apps/projectcreatoraio/${project.id}`);
             window.open(url, "_blank");
-        },
-        onPreview(project) {
-            if (!project.boardId) {
-                return;
-            }
-
-            this.navigateToProjectPage(project.boardId);
-        },
-        onDownload(project) {
-            if (!project.folderPath) {
-                console.error('Cannot download project, folder name is missing.', project);
-                return;
-            }
-
-            const path = this.normalizedPath(project.folderPath);
-            const downloadUrl = new URL(client.getFileDownloadLink(path));
-
-            downloadUrl.searchParams.append('accept', 'zip')
-            this.triggerDownload(downloadUrl.href);
-        },
-        triggerDownload(href) {
-            const link = document.createElement('a');
-            link.href = href;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        },
-        normalizedPath(path) {
-            const parts = path.split('/');
-            if (parts.length >= 3) {
-                [parts[1], parts[2]] = [parts[2], parts[1]];
-            }
-            return parts.join('/');
         },
         currentProjectStatus(project) {
             if (!this.statuses || !project) {
@@ -272,4 +231,21 @@ export default {
 
 <style lang="css" scoped>
 @import '../styles/dashboard.css';
+
+.project-arrow-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    color: var(--color-main-text);
+    transition: background-color 0.2s;
+}
+
+.project-arrow-btn:hover {
+    background-color: var(--color-background-hover);
+}
 </style>
