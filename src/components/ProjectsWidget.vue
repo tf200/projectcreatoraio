@@ -56,7 +56,7 @@
                     v-for="project in filteredProjects"
                     :name="project.name"
                     :active="selectedProjectId === project.id"
-                    :force-display-actions="true"
+
                     @click="selectProject(project)">
 
                     <template #icon>
@@ -75,18 +75,15 @@
                     </template>
 
                     <template #actions>
-                        <NcActionButton
-                            icon="icon-download"
-                            :title="t('projectcreatoraio', 'Download project')"
-                            @click="onDownload(project)">
-                            Download
-                        </NcActionButton>
-                        <NcActionButton
-                            icon="icon-screen"
-                            :title="t('projectcreatoraio', 'View details')"
-                            @click="onPreview(project)">
-                            Project Page
-                        </NcActionButton>
+                        <NcActions :inline="1">
+                            <NcActionButton
+                                :title="t('projectcreatoraio', 'Go to project')"
+                                @click="onPreview(project)">
+                                <template #icon>
+                                    <ChevronRight :size="20" />
+                                </template>
+                            </NcActionButton>
+                        </NcActions>
                     </template>
                 </NcListItem>
             </ul>
@@ -95,28 +92,20 @@
 </template>
 
 <script>
-import { NcActions, NcActionButton, NcEmptyContent, NcNoteCard, NcTextField } from '@nextcloud/vue'
+import { NcActions, NcActionButton, NcEmptyContent, NcTextField } from '@nextcloud/vue'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import NcUserBubble from '@nextcloud/vue/components/NcUserBubble'
-import NcDialog from '@nextcloud/vue/components/NcDialog'
-import NcButton from '@nextcloud/vue/components/NcButton'
 import NcActionInput from '@nextcloud/vue/components/NcActionInput'
 import { t } from '@nextcloud/l10n'
 
 import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
-import Download from 'vue-material-design-icons/Download.vue';
-import EyeOutline from 'vue-material-design-icons/EyeOutline.vue';
-import Details from 'vue-material-design-icons/Details.vue';
-import FilterCog from 'vue-material-design-icons/FilterCog.vue';
 import AccountPlus from 'vue-material-design-icons/AccountPlus.vue';
 import Account from 'vue-material-design-icons/Account.vue';
-import AccountEdit from "vue-material-design-icons/AccountEdit.vue";
+import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import NcAvatar from '@nextcloud/vue/components/NcAvatar';
 import NcChip from '@nextcloud/vue/components/NcChip';
 import { getCurrentUser } from '@nextcloud/auth'
-import UsersFetcher from './UsersFetcher.vue'
 import { PROJECT_TYPES } from '../macros/project-types';
 import {
 	PROJECT_STATUS_OPTIONS,
@@ -137,25 +126,16 @@ export default {
 		NcActions,
 		NcActionButton,
 		NcEmptyContent,
-        NcNoteCard,
         NcLoadingIcon,
         NcTextField,
         FolderOutline,
         Magnify,
         NcListItem,
-        Download,
-        Details,
-        NcUserBubble,
-        NcDialog,
-        NcButton,
-        FilterCog,
-        UsersFetcher,
+        ChevronRight,
         NcActionInput,
         AccountPlus,
         Account,
-        AccountEdit,
         NcAvatar,
-        EyeOutline,
         NcChip
 	},
 	data() {
