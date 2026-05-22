@@ -23,7 +23,6 @@ class GenerateProjectExportJob extends QueuedJob
 		private readonly LoggerInterface $logger,
 	) {
 		parent::__construct($time);
-		$this->setTimeSensitive(self::TIME_INSENSITIVE);
 	}
 
 	protected function run($argument): void

@@ -56,7 +56,7 @@ class ProjectDownloadService
 
 		$safeName = $this->sanitizeFilename((string) ($project->getName() ?? 'project'));
 		$timestamp = (new DateTime())->format('Y-m-d_His');
-		$zipFileName = "{$safeName}-export-{$timestamp}.zip";
+		$zipFileName = "project-{$projectId}-{$safeName}-export-{$timestamp}.zip";
 
 		$zipPath = $this->getTempZipPath($zipFileName);
 
@@ -79,20 +79,19 @@ class ProjectDownloadService
 
 			$this->addSharedFilesToZip($project, $user, $zip);
 
-			$zip->close();
-
-			$finalPath = $exportDir->getPath() . '/' . $zipFileName;
-			if (!rename($zipPath, $finalPath)) {
-				$this->logger->error('Failed to move export ZIP to user folder', [
+			if (!$zip->close()) {
+				$this->logger->error('Failed to finalize ZIP archive for project export', [
 					'projectId' => $projectId,
-					'from' => $zipPath,
-					'to' => $finalPath,
+					'zipPath' => $zipPath,
 				]);
 				@unlink($zipPath);
 				return null;
 			}
 
-			return $finalPath;
+			$exportFile = $this->writeZipToExportFolder($exportDir, $zipFileName, $zipPath, $projectId);
+			@unlink($zipPath);
+
+			return $exportFile?->getPath();
 		} catch (\Throwable $e) {
 			$this->logger->error('Failed to generate project export ZIP', [
 				'projectId' => $projectId,
@@ -102,6 +101,11 @@ class ProjectDownloadService
 			@unlink($zipPath);
 			return null;
 		}
+	}
+
+	public static function getExportFilenamePrefix(int $projectId): string
+	{
+		return "project-{$projectId}-";
 	}
 
 	/**
@@ -184,6 +188,37 @@ class ProjectDownloadService
 	{
 		$tmpDir = sys_get_temp_dir();
 		return $tmpDir . '/projectcreatoraio_export_' . uniqid() . '_' . $fileName;
+	}
+
+	private function writeZipToExportFolder(Folder $exportDir, string $fileName, string $zipPath, int $projectId): ?Node
+	{
+		try {
+			if ($exportDir->nodeExists($fileName)) {
+				$exportDir->get($fileName)->delete();
+			}
+
+			$file = $exportDir->newFile($fileName);
+			$handle = fopen($zipPath, 'rb');
+			if ($handle === false) {
+				$file->delete();
+				return null;
+			}
+
+			try {
+				$file->putContent($handle);
+			} finally {
+				fclose($handle);
+			}
+
+			return $file;
+		} catch (\Throwable $e) {
+			$this->logger->error('Failed to write export ZIP to user folder', [
+				'projectId' => $projectId,
+				'fileName' => $fileName,
+				'exception' => $e,
+			]);
+			return null;
+		}
 	}
 
 	// ─── Markdown Builders ──────────────────────────────────────────

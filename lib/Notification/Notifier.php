@@ -152,7 +152,10 @@ class Notifier implements INotifier {
 						],
 					],
 				)
-				->setLink($this->urlGenerator->linkToRouteAbsolute('projectcreatoraio.page.index'))
+				->setLink($this->urlGenerator->linkToRouteAbsolute(
+					'projectcreatoraio.project_api.downloadExport',
+					['projectId' => (int) ($params['projectId'] ?? 0)],
+				))
 				->setIcon($this->urlGenerator->getAbsoluteURL(
 					$this->urlGenerator->imagePath(Application::APP_ID, 'app.svg'),
 				));

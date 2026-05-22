@@ -1242,12 +1242,11 @@ class ProjectApiController extends Controller
             throw new OCSNotFoundException('No export available. Please request a download first.');
         }
 
-        $safeName = preg_replace('/[^a-zA-Z0-9_\- ]/', '', (string) ($project->getName() ?? 'project'));
-        $safeName = preg_replace('/\s+/', '-', trim($safeName));
+        $filenamePrefix = ProjectDownloadService::getExportFilenamePrefix($projectId);
 
         $zipFile = null;
         foreach ($exportFolder->getDirectoryListing() as $node) {
-            if ($node instanceof File && str_contains($node->getName(), $safeName)) {
+            if ($node instanceof File && str_starts_with($node->getName(), $filenamePrefix)) {
                 if ($zipFile === null || $node->getMTime() > $zipFile->getMTime()) {
                     $zipFile = $node;
                 }
