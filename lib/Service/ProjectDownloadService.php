@@ -22,6 +22,7 @@ use Psr\Log\LoggerInterface;
 
 class ProjectDownloadService
 {
+	private const APP_ID = 'projectcreatoraio';
 	private const EXPORT_FOLDER_NAME = '.projectcreatoraio';
 	private const EXPORT_SUBFOLDER = 'exports';
 
@@ -63,6 +64,7 @@ class ProjectDownloadService
 		$zip = new \ZipArchive();
 		if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
 			$this->logger->error('Failed to create ZIP archive for project export', [
+				'app' => self::APP_ID,
 				'projectId' => $projectId,
 				'zipPath' => $zipPath,
 			]);
@@ -81,6 +83,7 @@ class ProjectDownloadService
 
 			if (!$zip->close()) {
 				$this->logger->error('Failed to finalize ZIP archive for project export', [
+					'app' => self::APP_ID,
 					'projectId' => $projectId,
 					'zipPath' => $zipPath,
 				]);
@@ -94,6 +97,7 @@ class ProjectDownloadService
 			return $exportFile?->getPath();
 		} catch (\Throwable $e) {
 			$this->logger->error('Failed to generate project export ZIP', [
+				'app' => self::APP_ID,
 				'projectId' => $projectId,
 				'exception' => $e,
 			]);
@@ -145,6 +149,7 @@ class ProjectDownloadService
 					$deleted++;
 				} catch (\Throwable $e) {
 					$this->logger->warning('Failed to delete old export file', [
+						'app' => self::APP_ID,
 						'path' => $node->getPath(),
 						'exception' => $e,
 					]);
@@ -177,6 +182,7 @@ class ProjectDownloadService
 			return $subfolder instanceof Folder ? $subfolder : null;
 		} catch (\Throwable $e) {
 			$this->logger->error('Failed to ensure export directory', [
+				'app' => self::APP_ID,
 				'userId' => $user->getUID(),
 				'exception' => $e,
 			]);
@@ -207,12 +213,15 @@ class ProjectDownloadService
 			try {
 				$file->putContent($handle);
 			} finally {
-				fclose($handle);
+				if (is_resource($handle)) {
+					fclose($handle);
+				}
 			}
 
 			return $file;
 		} catch (\Throwable $e) {
 			$this->logger->error('Failed to write export ZIP to user folder', [
+				'app' => self::APP_ID,
 				'projectId' => $projectId,
 				'fileName' => $fileName,
 				'exception' => $e,
@@ -465,6 +474,7 @@ class ProjectDownloadService
 			$this->addFolderToZip($node, $zip, 'files');
 		} catch (\Throwable $e) {
 			$this->logger->warning('Failed to add shared files to export ZIP', [
+				'app' => self::APP_ID,
 				'projectId' => (int) ($project->getId() ?? 0),
 				'exception' => $e,
 			]);
