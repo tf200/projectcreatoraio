@@ -12,6 +12,7 @@ use OCP\Files\IRootFolder;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\IServerContainer;
+use OCP\L10N\IFactory as IL10NFactory;
 use OCP\Share\IManager as IShareManager;
 use OCP\Share\IShare;
 use OCP\Talk\IBroker;
@@ -35,6 +36,7 @@ class ProjectTalkIntegrationService
         private readonly IURLGenerator $urlGenerator,
         private readonly IRootFolder $rootFolder,
         private readonly IShareManager $shareManager,
+        private readonly IL10NFactory $l10nFactory,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -192,7 +194,7 @@ class ProjectTalkIntegrationService
         try {
             $chatManager = $this->resolveTalkService('OCA\\Talk\\Chat\\ChatManager');
             $messageParser = $this->resolveTalkService('OCA\\Talk\\Chat\\MessageParser');
-            $l10n = $this->resolveTalkService('OCP\\IL10N');
+            $l10n = $this->l10nFactory->get('spreed');
 
             $comments = $chatManager->getHistory($room, $offset, $limit, true);
 

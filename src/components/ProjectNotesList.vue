@@ -509,9 +509,10 @@ export default {
 			if (this.loading) return
 			this.loading = true
 			try {
+				const oldestMessage = this.chatMessages[this.chatMessages.length - 1]
 				const result = await projectsService.getChatMessages(this.projectId, {
 					limit: this.perPage,
-					offset: this.chatOffset,
+					offset: Number(oldestMessage?.id) || 0,
 				})
 				if (result) {
 					this.chatMessages = [...this.chatMessages, ...(result.messages || [])]
