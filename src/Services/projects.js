@@ -212,11 +212,32 @@ export class ProjectsService {
      *
      * @param {number} projectId
      * @param {string} userId
+     * @param {string} drasciRole
      * @returns {Promise<{added:boolean,alreadyMember:boolean,member:object}|null>}
      */
-    async addMember(projectId, userId) {
+    async addMember(projectId, userId, drasciRole) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`)
-        const response = await axios.post(url, { userId }, {
+        const response = await axios.post(url, { userId, drasciRole }, {
+            headers: {
+                'OCS-APIRequest': 'true',
+                'Content-Type': 'application/json',
+            },
+        })
+
+        return response?.data ?? null
+    }
+
+    /**
+     * Update a member's DRASCI role.
+     *
+     * @param {number} projectId
+     * @param {string} userId
+     * @param {string} drasciRole
+     * @returns {Promise<{member:object}|null>}
+     */
+    async updateMemberRole(projectId, userId, drasciRole) {
+        const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members/${encodeURIComponent(userId)}/role`)
+        const response = await axios.put(url, { drasciRole }, {
             headers: {
                 'OCS-APIRequest': 'true',
                 'Content-Type': 'application/json',

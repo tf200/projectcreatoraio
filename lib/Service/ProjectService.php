@@ -6,6 +6,7 @@ use DateTime;
 use OC\Files\SetupManager;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
@@ -48,6 +49,15 @@ class ProjectService
     private const CV_FIELD_BUILDING_TYPE = 'cv_building_type';
     private const CV_FIELD_AVP_LOCATION = 'cv_avp_location';
 
+    public const DRASCI_ROLES = [
+        'driver'       => 'Driver',
+        'responsible'  => 'Responsible',
+        'accountable'  => 'Accountable',
+        'supportive'   => 'Supportive',
+        'consulted'    => 'Consulted',
+        'informed'     => 'Informed',
+    ];
+
 	// Card-visibility helpers live in CardVisibility.
 
     public function __construct(
@@ -76,6 +86,7 @@ class ProjectService
         private readonly CardMapper $cardMapper,
         private readonly DeckNoteMapper $deckNoteMapper,
         private readonly LoggerInterface $logger,
+        private readonly ProjectMemberRoleMapper $memberRoleMapper,
     ) {
     }
 
@@ -345,6 +356,12 @@ class ProjectService
             $memberIds[] = $ownerId;
         }
 
+        $roleRows = $this->memberRoleMapper->findByProject($projectId);
+        $rolesByUser = [];
+        foreach ($roleRows as $roleRow) {
+            $rolesByUser[$roleRow->getUserId()] = $roleRow->getDrasciRole();
+        }
+
         $members = [];
         foreach ($memberIds as $memberId) {
             $user = $this->userManager->get($memberId);
@@ -352,7 +369,8 @@ class ProjectService
                 continue;
             }
 
-            $members[] = $this->formatProjectMember($user, $ownerId);
+            $role = $rolesByUser[$memberId] ?? null;
+            $members[] = $this->formatProjectMember($user, $ownerId, $role);
         }
 
         usort($members, static function (array $a, array $b): int {
@@ -369,13 +387,18 @@ class ProjectService
     /**
      * Adds an organization member to the project group and provisions a private folder link.
      *
-     * @return array{added: bool, alreadyMember: bool, member: array{id: string, displayName: string, email: string, isOwner: bool}}
+     * @return array{added: bool, alreadyMember: bool, member: array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}}
      */
-    public function addMemberToProject(int $projectId, string $userId): array
+    public function addMemberToProject(int $projectId, string $userId, string $drasciRole = ''): array
     {
         $userId = trim($userId);
         if ($userId === '') {
             throw new OCSException('A user ID is required to add a project member.', 400);
+        }
+
+        $drasciRole = trim($drasciRole);
+        if ($drasciRole === '' || !array_key_exists($drasciRole, self::DRASCI_ROLES)) {
+            throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
         }
 
         $project = $this->projectMapper->find($projectId);
@@ -447,10 +470,56 @@ class ProjectService
             );
         }
 
+        $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+
         return [
             'added' => !$alreadyMember,
             'alreadyMember' => $alreadyMember,
-            'member' => $this->formatProjectMember($user, $ownerId),
+            'member' => $this->formatProjectMember($user, $ownerId, $drasciRole),
+        ];
+    }
+
+    /**
+     * Manually assign or update a DRASCI role for an existing project member.
+     *
+     * @return array{member: array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}}
+     */
+    public function updateProjectMemberDrasciRole(int $projectId, string $userId, string $drasciRole): array
+    {
+        $userId = trim($userId);
+        $drasciRole = trim($drasciRole);
+
+        if ($userId === '' || $drasciRole === '' || !array_key_exists($drasciRole, self::DRASCI_ROLES)) {
+            throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
+        }
+
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        $groupGid = trim((string) ($project->getProjectGroupGid() ?? ''));
+        $ownerId = trim((string) ($project->getOwnerId() ?? ''));
+
+        $isInGroup = $groupGid !== '' && $this->groupManager->isInGroup($userId, $groupGid);
+        if (!$isInGroup && $userId !== $ownerId) {
+            throw new OCSException('User is not a project member.', 404);
+        }
+
+        $memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
+        if ($memberOrganization === null || (int) $memberOrganization['organization_id'] !== (int) $project->getOrganizationId()) {
+            throw new OCSException('User does not belong to this organization.', 403);
+        }
+
+        $user = $this->userManager->get($userId);
+        if ($user === null) {
+            throw new OCSException(sprintf('User "%s" does not exist.', $userId), 404);
+        }
+
+        $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+
+        return [
+            'member' => $this->formatProjectMember($user, $ownerId, $drasciRole),
         ];
     }
 
@@ -546,17 +615,20 @@ class ProjectService
     }
 
     /**
-     * @return array{id: string, displayName: string, email: string, isOwner: bool}
+     * @return array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}
      */
-    private function formatProjectMember(IUser $user, string $ownerId): array
+    private function formatProjectMember(IUser $user, string $ownerId, ?string $drasciRole = null): array
     {
         $userId = $user->getUID();
+        $label = isset(self::DRASCI_ROLES[$drasciRole]) ? self::DRASCI_ROLES[$drasciRole] : 'Unassigned';
 
         return [
             'id' => $userId,
             'displayName' => $user->getDisplayName() ?: $userId,
             'email' => $user->getEMailAddress() ?: '',
             'isOwner' => $ownerId !== '' && $userId === $ownerId,
+            'drasciRole' => $drasciRole,
+            'drasciRoleLabel' => $label,
         ];
     }
 

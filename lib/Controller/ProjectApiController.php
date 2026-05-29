@@ -155,6 +155,11 @@ class ProjectApiController extends Controller
             $userId = $params['userId'];
         }
 
+        $drasciRole = '';
+        if (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
+            $drasciRole = $params['drasciRole'];
+        }
+
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
             throw new OCSNotFoundException("Project with ID $projectId not found");
@@ -162,9 +167,31 @@ class ProjectApiController extends Controller
 
         $this->assertCanAccessProject($project);
 
-        $result = $this->projectService->addMemberToProject($projectId, $userId);
+        $result = $this->projectService->addMemberToProject($projectId, $userId, $drasciRole);
 
         return new DataResponse($result, $result['added'] ? 201 : 200);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function updateMemberRole(int $projectId, string $userId): DataResponse
+    {
+        $params = $this->request->getParams();
+        $drasciRole = '';
+        if (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
+            $drasciRole = $params['drasciRole'];
+        }
+
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $result = $this->projectService->updateProjectMemberDrasciRole($projectId, $userId, $drasciRole);
+
+        return new DataResponse($result);
     }
 
     #[NoCSRFRequired]

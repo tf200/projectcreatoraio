@@ -13,6 +13,7 @@ use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCA\GroupFolders\Folder\FolderManager;
@@ -34,6 +35,7 @@ class ProjectRetentionService
 		private readonly PrivateFolderLinkMapper $privateFolderLinkMapper,
 		private readonly ProjectActivityEventMapper $projectActivityEventMapper,
 		private readonly ProjectDigestCursorMapper $projectDigestCursorMapper,
+		private readonly ProjectMemberRoleMapper $memberRoleMapper,
 		private readonly BoardMapper $boardMapper,
 		private readonly FolderManager $folderManager,
 		private readonly FolderStorageManager $folderStorageManager,
@@ -112,6 +114,7 @@ class ProjectRetentionService
 			$this->timelineItemMapper->deleteByProject($projectId);
 			$this->projectActivityEventMapper->deleteByProject($projectId);
 			$this->projectDigestCursorMapper->deleteByProject($projectId);
+			$this->memberRoleMapper->deleteByProject($projectId);
 			$this->deleteDeckDoneSyncRows($projectId);
 			$this->privateFolderLinkMapper->deleteByProject($projectId);
 			$this->projectMapper->deleteProject($project);

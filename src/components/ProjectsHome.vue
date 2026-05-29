@@ -620,9 +620,21 @@
 										placeholder="Search organization members"
 										@search="searchMemberCandidates"
 										@update:model-value="memberInviteSelection = $event" />
+									<NcSelect
+										:model-value="memberInviteRole"
+										:options="drasciRoleOptions"
+										:show-label="true"
+										:multiple="false"
+										:searchable="false"
+										:clearable="true"
+										input-label="DRASCI role"
+										label="label"
+										track-by="value"
+										placeholder="Select role"
+										@update:model-value="memberInviteRole = $event" />
 									<NcButton
 										type="primary"
-										:disabled="memberInviteLoading || !memberInviteSelection || !selectedProject.id"
+										:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || !selectedProject.id"
 										@click="inviteSelectedMember">
 										<template #icon>
 											<Plus :size="16" />
@@ -656,6 +668,22 @@
 										<div class="projects-home__member-main">
 											<span class="projects-home__member-name">{{ member.displayName || member.id }}</span>
 											<span class="projects-home__member-meta">{{ member.id }}</span>
+										</div>
+										<div class="projects-home__member-role">
+											<NcSelect
+												:model-value="getDrasciRoleOption(member.drasciRole)"
+												:options="drasciRoleOptions"
+												:loading="memberRoleUpdating[member.id]"
+												:show-label="false"
+												:multiple="false"
+												:searchable="false"
+												:clearable="false"
+												:disabled="memberRoleUpdating[member.id]"
+												label="label"
+												track-by="value"
+												placeholder="Unassigned"
+												class="projects-home__member-role-select"
+												@update:model-value="updateMemberDrasciRole(member, $event)" />
 										</div>
 										<div class="projects-home__member-badges">
 											<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
@@ -846,9 +874,21 @@
 								placeholder="Search organization members"
 								@search="searchMemberCandidates"
 								@update:model-value="memberInviteSelection = $event" />
+							<NcSelect
+								:model-value="memberInviteRole"
+								:options="drasciRoleOptions"
+								:show-label="true"
+								:multiple="false"
+								:searchable="false"
+								:clearable="true"
+								input-label="DRASCI role"
+								label="label"
+								track-by="value"
+								placeholder="Select role"
+								@update:model-value="memberInviteRole = $event" />
 							<NcButton
 								type="primary"
-								:disabled="memberInviteLoading || !memberInviteSelection || !selectedProject.id"
+								:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || !selectedProject.id"
 								@click="inviteSelectedMember">
 								<template #icon>
 									<Plus :size="16" />
@@ -882,6 +922,22 @@
 								<div class="projects-home__member-main">
 									<span class="projects-home__member-name">{{ member.displayName || member.id }}</span>
 									<span class="projects-home__member-meta">{{ member.id }}</span>
+								</div>
+								<div class="projects-home__member-role">
+									<NcSelect
+										:model-value="getDrasciRoleOption(member.drasciRole)"
+										:options="drasciRoleOptions"
+										:loading="memberRoleUpdating[member.id]"
+										:show-label="false"
+										:multiple="false"
+										:searchable="false"
+										:clearable="false"
+										:disabled="memberRoleUpdating[member.id]"
+										label="label"
+										track-by="value"
+										placeholder="Unassigned"
+										class="projects-home__member-role-select"
+										@update:model-value="updateMemberDrasciRole(member, $event)" />
 								</div>
 								<div class="projects-home__member-badges">
 									<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
@@ -1225,6 +1281,16 @@ export default {
 			memberInviteLoading: false,
 			memberInviteMessage: '',
 			memberSearchTimeout: null,
+			memberInviteRole: null,
+			memberRoleUpdating: {},
+			drasciRoleOptions: [
+				{ value: 'driver', label: 'Driver' },
+				{ value: 'responsible', label: 'Responsible' },
+				{ value: 'accountable', label: 'Accountable' },
+				{ value: 'supportive', label: 'Supportive' },
+				{ value: 'consulted', label: 'Consulted' },
+				{ value: 'informed', label: 'Informed' },
+			],
 			showOcrDocumentTypesModal: false,
 			ocrDocumentTypesVersion: 0,
 			showProjectProfileModal: false,
@@ -1877,10 +1943,12 @@ export default {
 			this.membersLoading = false
 			this.membersError = ''
 			this.memberInviteSelection = null
+			this.memberInviteRole = null
 			this.memberInviteOptions = []
 			this.memberSearchLoading = false
 			this.memberInviteLoading = false
 			this.memberInviteMessage = ''
+			this.memberRoleUpdating = {}
 			if (this.memberSearchTimeout) {
 				clearTimeout(this.memberSearchTimeout)
 				this.memberSearchTimeout = null
@@ -1896,6 +1964,12 @@ export default {
 				return contextOrg
 			}
 			return null
+		},
+		getDrasciRoleOption(roleValue) {
+			if (!roleValue) {
+				return null
+			}
+			return this.drasciRoleOptions.find((opt) => opt.value === roleValue) || null
 		},
 		async loadProjectMembers(projectId) {
 			this.membersLoading = true
@@ -1944,7 +2018,7 @@ export default {
 			}, 250)
 		},
 		async inviteSelectedMember() {
-			if (!this.selectedProject?.id || !this.memberInviteSelection) {
+			if (!this.selectedProject?.id || !this.memberInviteSelection || !this.memberInviteRole) {
 				return
 			}
 			const userId = typeof this.memberInviteSelection === 'string'
@@ -1953,11 +2027,17 @@ export default {
 			if (!userId) {
 				return
 			}
+			const role = typeof this.memberInviteRole === 'string'
+				? this.memberInviteRole
+				: this.memberInviteRole?.value
+			if (!role) {
+				return
+			}
 			this.memberInviteLoading = true
 			this.memberInviteMessage = ''
 			this.membersError = ''
 			try {
-				const result = await projectsService.addMember(this.selectedProject.id, String(userId))
+				const result = await projectsService.addMember(this.selectedProject.id, String(userId), role)
 				await this.loadProjectMembers(this.selectedProject.id)
 				this.loadedMembersProjectId = Number(this.selectedProject.id)
 				this.memberInviteMessage = result?.alreadyMember
@@ -1969,6 +2049,32 @@ export default {
 				this.membersError = error?.response?.data?.message || 'Could not add member to project.'
 			} finally {
 				this.memberInviteLoading = false
+			}
+		},
+		async updateMemberDrasciRole(member, roleSelection) {
+			const role = typeof roleSelection === 'string' ? roleSelection : roleSelection?.value
+			if (!this.selectedProject?.id || !member?.id || !role) {
+				return
+			}
+			this.memberRoleUpdating = {
+				...this.memberRoleUpdating,
+				[member.id]: true,
+			}
+			try {
+				const result = await projectsService.updateMemberRole(this.selectedProject.id, member.id, role)
+				const updatedMember = result?.member
+				this.projectMembers = this.projectMembers.map((existing) =>
+					String(existing.id) === String(member.id)
+						? { ...existing, ...updatedMember }
+						: existing,
+				)
+			} catch (error) {
+				this.membersError = error?.response?.data?.message || 'Could not update member role.'
+			} finally {
+				this.memberRoleUpdating = {
+					...this.memberRoleUpdating,
+					[member.id]: false,
+				}
 			}
 		},
 		openDeck(project) {
@@ -2781,7 +2887,7 @@ export default {
 /* Members */
 .projects-home__member-invite-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 180px) auto;
 	gap: 12px;
 	align-items: end;
 	margin-bottom: 16px;
@@ -2873,6 +2979,14 @@ export default {
 .projects-home__member-badge--muted {
 	font-weight: 500;
 	color: var(--color-text-maxcontrast);
+}
+
+.projects-home__member-role {
+	flex: 0 0 180px;
+}
+
+.projects-home__member-role-select {
+	min-width: 160px;
 }
 
 /* States */
@@ -3175,6 +3289,14 @@ export default {
 
 	.projects-home__member-item {
 		flex-wrap: wrap;
+	}
+
+	.projects-home__member-role {
+		flex: 0 0 100%;
+	}
+
+	.projects-home__member-role-select {
+		min-width: 100%;
 	}
 
 	.projects-home__member-badges {

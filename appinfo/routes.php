@@ -47,6 +47,11 @@ return [
             "url" => "/api/v1/projects/{projectId}/members",
             "verb" => "POST",
         ],
+        [
+            "name" => "project_api#updateMemberRole",
+            "url" => "/api/v1/projects/{projectId}/members/{userId}/role",
+            "verb" => "PUT",
+        ],
         // Legacy single-note endpoints (for backward compatibility)
         [
             "name" => "project_api#updateNotes",
