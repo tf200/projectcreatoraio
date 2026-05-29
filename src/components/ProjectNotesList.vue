@@ -18,6 +18,15 @@
 					<CardTextOutline :size="18" />
 					<span>Card Notes</span>
 				</button>
+				<button
+					v-if="talkConversationToken"
+					type="button"
+					class="project-notes-list__main-tab"
+					:class="{ 'project-notes-list__main-tab--active': mainTab === 'chat' }"
+					@click="switchMainTab('chat')">
+					<ChatOutline :size="18" />
+					<span>Chat</span>
+				</button>
 			</div>
 			<NcButton
 				v-if="mainTab === 'project'"
@@ -28,6 +37,15 @@
 					<Plus :size="20" />
 				</template>
 				Add note
+			</NcButton>
+			<NcButton
+				v-if="mainTab === 'chat' && talkUrl"
+				type="secondary"
+				@click="openTalkChat">
+				<template #icon>
+					<OpenInNew :size="20" />
+				</template>
+				Open in Talk
 			</NcButton>
 		</div>
 		<div v-if="mainTab === 'project'" class="project-notes-list__sub-tabs">
@@ -113,6 +131,49 @@
 						{{ comment.cardTitle }}
 					</span>
 				</div>
+			</div>
+		</div>
+
+		<div v-else-if="mainTab === 'chat' && chatMessages.length === 0 && !loading" class="project-notes-list__empty">
+			<div class="project-notes-list__empty-icon-wrapper">
+				<ChatOutline :size="64" />
+			</div>
+			<p class="project-notes-list__empty-title">
+				No chat messages yet
+			</p>
+			<p class="project-notes-list__empty-subtitle">
+				Messages from the project's group chat will appear here
+			</p>
+		</div>
+
+		<div v-else-if="mainTab === 'chat'" class="project-notes-list__chat-list">
+			<div
+				v-for="msg in chatMessages"
+				:key="msg.id"
+				class="project-notes-list__chat-message">
+				<div class="project-notes-list__chat-avatar">
+					{{ msg.actorDisplayName ? msg.actorDisplayName.charAt(0).toUpperCase() : '?' }}
+				</div>
+				<div class="project-notes-list__chat-content">
+					<div class="project-notes-list__chat-header">
+						<span class="project-notes-list__chat-author">{{ msg.actorDisplayName }}</span>
+						<span class="project-notes-list__chat-time">{{ formatDate(msg.timestamp * 1000) }}</span>
+					</div>
+					<p class="project-notes-list__chat-text">
+						{{ msg.message }}
+					</p>
+				</div>
+			</div>
+			<div v-if="chatHasMore" class="project-notes-list__chat-load-more">
+				<NcButton
+					type="secondary"
+					:disabled="loading"
+					@click="loadMoreChatMessages">
+					<template #icon>
+						<ChevronDown :size="20" />
+					</template>
+					Load older messages
+				</NcButton>
 			</div>
 		</div>
 
@@ -232,9 +293,12 @@ import Plus from 'vue-material-design-icons/Plus.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
+import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import CardTextOutline from 'vue-material-design-icons/CardTextOutline.vue'
 import CommentOutline from 'vue-material-design-icons/CommentOutline.vue'
+import ChatOutline from 'vue-material-design-icons/ChatOutline.vue'
+import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import CreateNoteModal from './CreateNoteModal.vue'
 import CardDetailModal from './CardDetailModal.vue'
 import { ProjectsService } from '../Services/projects.js'
@@ -252,9 +316,12 @@ export default {
 		Delete,
 		ChevronLeft,
 		ChevronRight,
+		ChevronDown,
 		FileDocumentOutline,
 		CardTextOutline,
 		CommentOutline,
+		ChatOutline,
+		OpenInNew,
 		CreateNoteModal,
 		CardDetailModal,
 	},
@@ -262,6 +329,14 @@ export default {
 		projectId: {
 			type: Number,
 			required: true,
+		},
+		talkConversationToken: {
+			type: String,
+			default: '',
+		},
+		talkUrl: {
+			type: String,
+			default: '',
 		},
 	},
 	data() {
@@ -272,6 +347,9 @@ export default {
 			cardSubTab: 'notes',
 			notes: [],
 			comments: [],
+			chatMessages: [],
+			chatHasMore: false,
+			chatOffset: 0,
 			totalCount: 0,
 			currentPage: 1,
 			perPage: 12,
@@ -326,12 +404,19 @@ export default {
 			immediate: true,
 			handler(newId) {
 				if (newId) {
+					this.chatOffset = 0
+					this.chatMessages = []
+					this.chatHasMore = false
 					this.loadNotes(1)
 				}
 			},
 		},
 		mainTab() {
-			this.loadNotes(1)
+			if (this.mainTab === 'chat') {
+				this.loadChatMessages()
+			} else {
+				this.loadNotes(1)
+			}
 		},
 		subTab() {
 			if (this.mainTab === 'project') {
@@ -400,6 +485,48 @@ export default {
 		switchCardSubTab(tab) {
 			if (this.cardSubTab !== tab) {
 				this.cardSubTab = tab
+			}
+		},
+		async loadChatMessages() {
+			this.loading = true
+			try {
+				const result = await projectsService.getChatMessages(this.projectId, {
+					limit: this.perPage,
+					offset: 0,
+				})
+				if (result) {
+					this.chatMessages = result.messages || []
+					this.chatHasMore = result.hasMore || false
+					this.chatOffset = this.chatMessages.length
+				}
+			} catch (error) {
+				console.error('Failed to load chat messages:', error)
+			} finally {
+				this.loading = false
+			}
+		},
+		async loadMoreChatMessages() {
+			if (this.loading) return
+			this.loading = true
+			try {
+				const result = await projectsService.getChatMessages(this.projectId, {
+					limit: this.perPage,
+					offset: this.chatOffset,
+				})
+				if (result) {
+					this.chatMessages = [...this.chatMessages, ...(result.messages || [])]
+					this.chatHasMore = result.hasMore || false
+					this.chatOffset = this.chatMessages.length
+				}
+			} catch (error) {
+				console.error('Failed to load more chat messages:', error)
+			} finally {
+				this.loading = false
+			}
+		},
+		openTalkChat() {
+			if (this.talkUrl) {
+				window.open(this.talkUrl, '_blank', 'noopener')
 			}
 		},
 		previousPage() {
@@ -927,6 +1054,82 @@ export default {
 	font-size: 14px;
 	font-weight: 600;
 	color: var(--color-text-maxcontrast);
+}
+
+.project-notes-list__chat-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	background: var(--color-background-dark);
+	border-radius: 20px;
+	padding: 16px;
+	max-height: 600px;
+	overflow-y: auto;
+}
+
+.project-notes-list__chat-message {
+	display: flex;
+	gap: 12px;
+	padding: 12px 16px;
+	border-radius: 12px;
+	transition: background 0.15s ease;
+}
+
+.project-notes-list__chat-message:hover {
+	background: var(--color-background-hover);
+}
+
+.project-notes-list__chat-avatar {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	font-weight: 800;
+	flex-shrink: 0;
+}
+
+.project-notes-list__chat-content {
+	flex: 1;
+	min-width: 0;
+}
+
+.project-notes-list__chat-header {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	margin-bottom: 4px;
+}
+
+.project-notes-list__chat-author {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--color-main-text);
+}
+
+.project-notes-list__chat-time {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+}
+
+.project-notes-list__chat-text {
+	margin: 0;
+	font-size: 14px;
+	color: var(--color-main-text);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.project-notes-list__chat-load-more {
+	display: flex;
+	justify-content: center;
+	padding: 12px 0 4px;
 }
 
 @media (max-width: 1000px) {

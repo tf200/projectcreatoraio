@@ -682,6 +682,30 @@ export class ProjectsService {
 	}
 
 	/**
+	 * Get chat messages for a project's Talk conversation.
+	 *
+	 * @param {number} projectId
+	 * @param {{limit?: number, offset?: number}} [options]
+	 * @returns {Promise<{messages: array, hasMore: boolean}|null>}
+	 */
+	async getChatMessages(projectId, { limit = 50, offset = 0 } = {}) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/chat-messages`)
+			const response = await axios.get(url, {
+				params: { limit, offset },
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to fetch chat messages:', e)
+			return null
+		}
+	}
+
+	/**
 	 * Get a single note.
 	 *
 	 * @param {number} projectId

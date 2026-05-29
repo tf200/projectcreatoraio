@@ -105,6 +105,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#getProjectChatMessages",
+            "url" => "/api/v1/projects/{projectId}/chat-messages",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#getProjectFiles",
             "url" => "/api/v1/projects/{projectId}/files",
             "verb" => "GET",

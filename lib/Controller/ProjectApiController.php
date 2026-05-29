@@ -6,6 +6,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
+use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\ProjectStatus;
@@ -42,6 +43,7 @@ class ProjectApiController extends Controller
         private ProjectActivityService $projectActivityService,
         private ProjectRetentionService $projectRetentionService,
         private ProjectDownloadService $downloadService,
+        private ProjectTalkIntegrationService $talkIntegrationService,
         private IGroupManager $iGroupManager,
         private OrganizationUserMapper $organizationUserMapper,
         private IRootFolder $rootFolder,
@@ -971,6 +973,26 @@ class ProjectApiController extends Controller
 
         $this->assertCanAccessProject($project);
         return new DataResponse($project);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function getProjectChatMessages(int $projectId, int $limit = 50, int $offset = 0): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $token = trim((string)($project->getTalkConversationToken() ?? ''));
+        if ($token === '') {
+            return new DataResponse(['messages' => [], 'hasMore' => false]);
+        }
+
+        $result = $this->talkIntegrationService->getConversationMessages($token, $limit, $offset);
+        return new DataResponse($result);
     }
 
     #[NoCSRFRequired]

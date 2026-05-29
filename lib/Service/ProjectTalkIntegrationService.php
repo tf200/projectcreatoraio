@@ -171,6 +171,62 @@ class ProjectTalkIntegrationService
         return $this->urlGenerator->linkToRouteAbsolute('spreed.Page.showCall', ['token' => $conversationToken]);
     }
 
+    /**
+     * Fetch chat messages for a project's Talk conversation.
+     *
+     * @return array{messages: list<array{id: int, actorDisplayName: string, message: string, timestamp: int, messageType: string}>, hasMore: bool}
+     */
+    public function getConversationMessages(string $conversationToken, int $limit = 50, int $offset = 0): array
+    {
+        $conversationToken = trim($conversationToken);
+        if ($conversationToken === '' || !$this->isAvailable()) {
+            return ['messages' => [], 'hasMore' => false];
+        }
+
+        try {
+            $room = $this->getTalkManager()->getRoomByToken($conversationToken);
+        } catch (Throwable) {
+            return ['messages' => [], 'hasMore' => false];
+        }
+
+        try {
+            $chatManager = $this->resolveTalkService('OCA\\Talk\\Chat\\ChatManager');
+            $messageParser = $this->resolveTalkService('OCA\\Talk\\Chat\\MessageParser');
+            $l10n = $this->resolveTalkService('OCP\\IL10N');
+
+            $comments = $chatManager->getHistory($room, $offset, $limit, true);
+
+            $messages = [];
+            foreach ($comments as $comment) {
+                $message = $messageParser->createMessage($room, null, $comment, $l10n);
+                $messageParser->parseMessage($message);
+
+                if (!$message->getVisibility()) {
+                    continue;
+                }
+
+                $messages[] = [
+                    'id' => (int)$comment->getId(),
+                    'actorDisplayName' => $message->getActorDisplayName(),
+                    'message' => $message->getMessage(),
+                    'timestamp' => $comment->getCreationDateTime()->getTimestamp(),
+                    'messageType' => $message->getMessageType(),
+                ];
+            }
+
+            return [
+                'messages' => $messages,
+                'hasMore' => count($comments) === $limit,
+            ];
+        } catch (Throwable $e) {
+            $this->logger->warning('Failed to fetch Talk conversation messages', [
+                'token' => $conversationToken,
+                'exception' => $e,
+            ]);
+            return ['messages' => [], 'hasMore' => false];
+        }
+    }
+
     private function getTalkManager(): object
     {
         return $this->resolveTalkService(self::SPREED_MANAGER_CLASS);

@@ -477,7 +477,10 @@
 										Notes
 									</h3>
 								</div>
-								<ProjectNotesList :project-id="selectedProject.id" />
+								<ProjectNotesList
+									:project-id="selectedProject.id"
+									:talk-conversation-token="selectedProject.talk_conversation_token"
+									:talk-url="selectedProject.talk_url" />
 							</section>
 
 							<!-- Timeline & Deck Section -->
@@ -505,7 +508,7 @@
 										<div class="projects-home__panel-header">
 											<h3 class="projects-home__panel-title">
 												<ViewDashboard :size="18" />
-												Deck Board
+												Deck
 											</h3>
 											<NcButton
 												type="tertiary"
@@ -518,6 +521,9 @@
 											</NcButton>
 										</div>
 										<div class="projects-home__panel-content">
+											<h4 class="projects-home__panel-subtitle">Analytics</h4>
+											<DeckAnalytics :board-id="selectedProject.boardId" />
+											<h4 class="projects-home__panel-subtitle" style="margin-top: 16px;">Tasks</h4>
 											<DeckBoard
 												:board-id="selectedProject.boardId"
 												:project-id="selectedProject.id"
@@ -526,6 +532,150 @@
 										</div>
 									</div>
 								</div>
+							</section>
+
+							<!-- Whiteboard Section -->
+							<section class="projects-home__overview-section">
+								<div class="projects-home__tab-section-header">
+									<h3 class="projects-home__section-title">
+										<Draw :size="20" />
+										Whiteboard
+									</h3>
+								</div>
+							<WhiteboardBoard
+								ref="whiteboardBoardOverview"
+								:key="String(selectedProject.id || '') + ':' + String(selectedProject.white_board_id || '')"
+								:project-id="selectedProject.id"
+								:user-id="context?.userId || ''" />
+							</section>
+
+							<!-- Files Section -->
+							<section class="projects-home__overview-section">
+								<div class="projects-home__tab-toolbar">
+									<div class="projects-home__tab-toolbar-left">
+										<h3 class="projects-home__section-title">
+											<FolderOpen :size="20" />
+											Project Files
+										</h3>
+										<p class="projects-home__section-subtitle">
+											Manage project documents and OCR document types from here.
+										</p>
+									</div>
+									<div class="projects-home__tab-toolbar-actions">
+										<NcButton
+											v-if="hasProjectAccess && selectedProjectOrganizationId"
+											type="tertiary"
+											class="projects-home__document-types-button"
+											@click.stop.prevent="showOcrDocumentTypesModal = true">
+											<template #icon>
+												<Pencil :size="18" />
+											</template>
+											Document types
+										</NcButton>
+										<NcButton
+											type="secondary"
+											:disabled="!selectedProject.folderPath"
+											@click.stop.prevent="downloadProject(selectedProject)">
+											<template #icon>
+												<Download :size="18" />
+											</template>
+											Download ZIP
+										</NcButton>
+									</div>
+								</div>
+								<ProjectFilesBrowser
+									:project-id="Number(selectedProject.id) || null"
+									:shared-roots="projectFiles.shared"
+									:private-roots="projectFiles.private"
+									:document-types-version="ocrDocumentTypesVersion"
+									:loading="filesLoading"
+									:error="filesError"
+									@refresh="refreshProjectFiles" />
+							</section>
+
+							<!-- Members Section -->
+							<section class="projects-home__overview-section">
+								<div class="projects-home__tab-section-header">
+									<div>
+										<h3 class="projects-home__section-title">
+											<AccountMultiple :size="20" />
+											Project Members
+										</h3>
+										<p class="projects-home__section-subtitle">
+											Anyone in this project can invite organization members
+										</p>
+									</div>
+								</div>
+
+								<div class="projects-home__member-invite-row">
+									<NcSelect
+										:model-value="memberInviteSelection"
+										:options="memberInviteOptions"
+										:loading="memberSearchLoading"
+										:show-label="true"
+										:multiple="false"
+										:searchable="true"
+										:clearable="true"
+										input-label="Invite a member"
+										placeholder="Search organization members"
+										@search="searchMemberCandidates"
+										@update:model-value="memberInviteSelection = $event" />
+									<NcButton
+										type="primary"
+										:disabled="memberInviteLoading || !memberInviteSelection || !selectedProject.id"
+										@click="inviteSelectedMember">
+										<template #icon>
+											<Plus :size="16" />
+										</template>
+										{{ memberInviteLoading ? 'Inviting...' : 'Invite' }}
+									</NcButton>
+								</div>
+
+								<p v-if="memberInviteMessage" class="projects-home__inline-success">
+									{{ memberInviteMessage }}
+								</p>
+								<p v-if="membersError" class="projects-home__inline-error projects-home__inline-error--left">
+									{{ membersError }}
+								</p>
+
+								<div v-if="membersLoading" class="projects-home__loading-state">
+									<NcLoadingIcon :size="24" />
+									<span>Loading members...</span>
+								</div>
+								<div v-else-if="projectMembers.length === 0" class="projects-home__empty-state">
+									<AccountOff :size="32" />
+									<p>No members found</p>
+								</div>
+								<ul v-else class="projects-home__members-list">
+									<li v-for="member in projectMembers" :key="member.id" class="projects-home__member-item">
+										<div class="projects-home__member-avatar">
+											<span class="projects-home__avatar-placeholder">
+												{{ memberInitials(member) }}
+											</span>
+										</div>
+										<div class="projects-home__member-main">
+											<span class="projects-home__member-name">{{ member.displayName || member.id }}</span>
+											<span class="projects-home__member-meta">{{ member.id }}</span>
+										</div>
+										<div class="projects-home__member-badges">
+											<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
+											<span v-if="member.email" class="projects-home__member-badge projects-home__member-badge--muted">{{ member.email }}</span>
+										</div>
+									</li>
+								</ul>
+							</section>
+
+							<!-- Intake Formulier Section -->
+							<section v-if="isSelectedProjectCombi" class="projects-home__overview-section">
+								<div class="projects-home__tab-section-header">
+									<h3 class="projects-home__section-title">
+										<NoteText :size="20" />
+										Intake Formulier
+									</h3>
+								</div>
+								<ProjectCardVisibilityTab
+									:project-id="selectedProject.id"
+									:can-edit="canEditPreparationWeeks" />
 							</section>
 						</div>
 					</div>
@@ -547,7 +697,10 @@
 								Notes
 							</h3>
 						</div>
-						<ProjectNotesList :project-id="selectedProject.id" />
+						<ProjectNotesList
+							:project-id="selectedProject.id"
+							:talk-conversation-token="selectedProject.talk_conversation_token"
+							:talk-url="selectedProject.talk_url" />
 					</div>
 
 					<!-- Timeline Tab -->
@@ -1601,10 +1754,10 @@ export default {
 			return PROJECT_TABS.includes(tab) ? tab : 'overview'
 		},
 		applyTabSideEffects(projectId, tab) {
-			if (tab === 'members') {
+			if (tab === 'members' || tab === 'overview') {
 				this.ensureMembersLoaded(projectId)
 			}
-			if (tab === 'files') {
+			if (tab === 'files' || tab === 'overview') {
 				this.ensureFilesLoaded(projectId)
 			}
 		},
@@ -2608,6 +2761,15 @@ export default {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
+}
+
+.projects-home__panel-subtitle {
+	margin: 0 0 8px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
 }
 
 .projects-home__panel-content {
