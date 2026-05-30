@@ -609,6 +609,7 @@
 
 								<div class="projects-home__member-invite-row">
 									<NcSelect
+										class="projects-home__member-invite-select"
 										:model-value="memberInviteSelection"
 										:options="memberInviteOptions"
 										:loading="memberSearchLoading"
@@ -621,6 +622,7 @@
 										@search="searchMemberCandidates"
 										@update:model-value="memberInviteSelection = $event" />
 									<NcSelect
+										class="projects-home__member-invite-role-select"
 										:model-value="memberInviteRole"
 										:options="drasciRoleOptions"
 										:show-label="true"
@@ -633,6 +635,7 @@
 										placeholder="Select role"
 										@update:model-value="memberInviteRole = $event" />
 									<NcButton
+										class="projects-home__member-invite-button"
 										type="primary"
 										:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || !selectedProject.id"
 										@click="inviteSelectedMember">
@@ -863,6 +866,7 @@
 
 						<div class="projects-home__member-invite-row">
 							<NcSelect
+								class="projects-home__member-invite-select"
 								:model-value="memberInviteSelection"
 								:options="memberInviteOptions"
 								:loading="memberSearchLoading"
@@ -875,6 +879,7 @@
 								@search="searchMemberCandidates"
 								@update:model-value="memberInviteSelection = $event" />
 							<NcSelect
+								class="projects-home__member-invite-role-select"
 								:model-value="memberInviteRole"
 								:options="drasciRoleOptions"
 								:show-label="true"
@@ -887,6 +892,7 @@
 								placeholder="Select role"
 								@update:model-value="memberInviteRole = $event" />
 							<NcButton
+								class="projects-home__member-invite-button"
 								type="primary"
 								:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || !selectedProject.id"
 								@click="inviteSelectedMember">
@@ -2887,10 +2893,26 @@ export default {
 /* Members */
 .projects-home__member-invite-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 180px) auto;
+	grid-template-columns: minmax(220px, 1fr) minmax(180px, 220px) max-content;
 	gap: 12px;
 	align-items: end;
 	margin-bottom: 16px;
+}
+
+.projects-home__member-invite-select,
+.projects-home__member-invite-role-select,
+.projects-home__member-invite-button {
+	min-width: 0;
+}
+
+.projects-home__member-invite-button {
+	white-space: nowrap;
+}
+
+.projects-home__member-invite-row :deep(.vs__dropdown-toggle),
+.projects-home__member-invite-row :deep(.vs__selected-options),
+.projects-home__member-invite-row :deep(.vs__search) {
+	min-width: 0;
 }
 
 .projects-home__members-list {
@@ -3200,6 +3222,17 @@ export default {
 	border-top: 1px solid var(--color-border);
 }
 
+@media (max-width: 1100px) {
+	.projects-home__member-invite-row {
+		grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+	}
+
+	.projects-home__member-invite-button {
+		justify-self: end;
+		grid-column: 1 / -1;
+	}
+}
+
 /* Mobile Responsive */
 @media (max-width: 900px) {
 	.projects-home {
@@ -3285,6 +3318,15 @@ export default {
 
 	.projects-home__member-invite-row {
 		grid-template-columns: 1fr;
+	}
+
+	.projects-home__member-invite-button {
+		justify-self: stretch;
+		grid-column: auto;
+	}
+
+	.projects-home__member-invite-button :deep(button) {
+		width: 100%;
 	}
 
 	.projects-home__member-item {
