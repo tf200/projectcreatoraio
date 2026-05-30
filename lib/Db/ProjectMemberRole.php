@@ -8,7 +8,7 @@ use OCP\AppFramework\Db\Entity;
 use OCP\DB\Types;
 
 class ProjectMemberRole extends Entity implements \JsonSerializable {
-	public int $id;
+	public $id;
 	protected int $projectId;
 	protected string $userId;
 	protected string $drasciRole;
