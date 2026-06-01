@@ -57,7 +57,7 @@ class ProjectActivityEvent extends Entity implements JsonSerializable {
 			'eventType' => $this->eventType,
 			'source' => $this->source,
 			'payload' => $this->getPayloadArray(),
-			'occurredAt' => $this->occurredAt?->format('Y-m-d H:i:s'),
+			'occurredAt' => $this->occurredAt?->format('c'),
 		];
 	}
 }
