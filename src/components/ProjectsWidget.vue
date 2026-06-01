@@ -39,6 +39,22 @@
             </NcActions>
         </div>
 
+        <div v-if="!loading && projects.length > 0" class="status-filter-bar">
+            <NcChip
+                :text="`All ${projects.length}`"
+                :variant="selectedStatusFilter === null ? 'primary' : 'outlined'"
+                no-close
+                @click="selectedStatusFilter = null" />
+            <NcChip
+                v-for="sc in statusCounts"
+                :key="sc.value"
+                :text="`${sc.shortLabel} ${sc.count}`"
+                :class="sc.pillClass"
+                :variant="selectedStatusFilter === sc.value ? 'primary' : 'outlined'"
+                no-close
+                @click="toggleStatusFilter(sc.value)" />
+        </div>
+
         <div v-if="loading" class="loading-placeholder">
             <NcLoadingIcon :size="44" />
         </div>
@@ -144,21 +160,36 @@ export default {
             PROJECT_TYPES,
             allUsers: [],
             searchTimeout: undefined,
-            statuses: PROJECT_STATUS_OPTIONS
+            statuses: PROJECT_STATUS_OPTIONS,
+            selectedStatusFilter: null
 		}
 	},
 	computed: {
         isAdmin() {
             return !!getCurrentUser()?.isAdmin;
         },
+        statusCounts() {
+            return PROJECT_STATUS_OPTIONS.map(option => ({
+                value: option.value,
+                shortLabel: option.shortLabel,
+                pillClass: option.pillClass,
+                count: this.projects.filter(p => Number(p.status) === option.value).length,
+            }));
+        },
 		filteredProjects() {
-			if (!this.searchQuery) {
-				return this.projects;
+			let result = this.projects;
+
+			if (this.selectedStatusFilter !== null) {
+				result = result.filter(p => Number(p.status) === this.selectedStatusFilter);
 			}
 
-			return this.projects.filter(project => {
-				return project.name.toLowerCase().includes(this.searchQuery.toLowerCase());
-			});
+			if (this.searchQuery) {
+				result = result.filter(project =>
+					project.name.toLowerCase().includes(this.searchQuery.toLowerCase()),
+				);
+			}
+
+			return result;
 		}
 	},
 	async mounted() {
@@ -224,6 +255,9 @@ export default {
                 return 'Unknown';
             }
             return getProjectStatusLabel(project.status)
+        },
+        toggleStatusFilter(statusValue) {
+            this.selectedStatusFilter = this.selectedStatusFilter === statusValue ? null : statusValue;
         }
 	}
 }
@@ -247,5 +281,41 @@ export default {
 
 .project-arrow-btn:hover {
     background-color: var(--color-background-hover);
+}
+
+.status-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+}
+
+.status-filter-bar :deep(.v-chip) {
+    cursor: pointer;
+}
+
+.status-filter-bar :deep(.projects-home__status-pill--active) {
+    background: rgba(30, 127, 45, 0.12);
+    color: #1e7f2d;
+}
+
+.status-filter-bar :deep(.projects-home__status-pill--waiting) {
+    background: rgba(181, 106, 0, 0.16);
+    color: #b56a00;
+}
+
+.status-filter-bar :deep(.projects-home__status-pill--hold) {
+    background: rgba(92, 92, 122, 0.15);
+    color: #54546b;
+}
+
+.status-filter-bar :deep(.projects-home__status-pill--done) {
+    background: rgba(12, 107, 74, 0.14);
+    color: #0c6b4a;
+}
+
+.status-filter-bar :deep(.projects-home__status-pill--archived) {
+    background: rgba(120, 120, 120, 0.14);
+    color: var(--color-text-maxcontrast);
 }
 </style>
