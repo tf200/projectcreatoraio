@@ -116,6 +116,11 @@
 				<div class="step__content">
 					<div class="step__label">Earliest Execution Date</div>
 					<div class="step__value step__value--target">{{ summary.earliestExecutionDate ? formatDate(summary.earliestExecutionDate) : 'TBD' }}</div>
+					<div v-if="!summary.earliestExecutionDate && hypotheticalDateInfo" class="step__estimate">
+						<span class="step__estimate-label">Completed today</span>
+						<span class="step__estimate-sep">→</span>
+						<span class="step__estimate-date">{{ hypotheticalDateInfo.formatted }}</span>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -227,6 +232,25 @@ export default {
 		},
 		coordinationIconClass() {
 			return this.summary?.coordinationPendingPeriod?.isFinal ? 'step__icon--success' : 'step__icon--warning'
+		},
+		hypotheticalDateInfo() {
+			const allowed = ['incomplete', 'missing_cards']
+			const status = this.summary.processCompleted?.status
+			if (!allowed.includes(status)) return null
+
+			const prepWeeks = Number(this.summary.requiredPreparationWeeks ?? 0)
+			if (!Number.isFinite(prepWeeks)) return null
+
+			const today = new Date()
+			today.setHours(0, 0, 0, 0)
+			const projected = new Date(today)
+			projected.setDate(projected.getDate() + prepWeeks * 7)
+
+			const day = String(projected.getDate()).padStart(2, '0')
+			const month = String(projected.getMonth() + 1).padStart(2, '0')
+			const year = projected.getFullYear()
+
+			return { formatted: `${day}/${month}/${year}` }
 		},
 	},
 	watch: {
@@ -455,6 +479,41 @@ export default {
 	border-radius: 50%;
 	background: currentColor;
 	margin-right: 5px;
+}
+
+/* Estimate hint for Earliest Execution Date */
+.step__estimate {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 6px;
+	height: 22px;
+}
+
+.step__estimate-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+	line-height: 1;
+}
+
+.step__estimate-sep {
+	font-size: 11px;
+	color: var(--color-text-maxcontrast);
+	line-height: 1;
+}
+
+.step__estimate-date {
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--color-primary-element);
+	background: var(--color-primary-element-light);
+	padding: 2px 7px;
+	border-radius: 5px;
+	border: 1px solid var(--color-primary-element);
+	line-height: 1;
+	white-space: nowrap;
+	letter-spacing: 0.02em;
 }
 
 .step__connector {
