@@ -6,10 +6,10 @@ use OCP\DB\Types;
 use JsonSerializable;
 
 class PrivateFolderLink extends Entity implements JsonSerializable {
-    public ?int     $projectId = null;
-    public ?string  $userId = null;
-    public ?int     $folderId = null;
-    public ?string  $folderPath = null;
+    protected ?int     $projectId = null;
+    protected ?string  $userId = null;
+    protected ?int     $folderId = null;
+    protected ?string  $folderPath = null;
 
     public function __construct() {
         $this->addType('projectId',  Types::INTEGER);

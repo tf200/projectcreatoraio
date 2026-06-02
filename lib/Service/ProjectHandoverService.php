@@ -151,7 +151,7 @@ class ProjectHandoverService
                 $privateFolder->getPath(),
             );
         } catch (Throwable $e) {
-            throw new OCSException('Unable to provision private files for target user.', 500);
+            throw new OCSException('Unable to provision private files for target user: ' . $e->getMessage(), 500, $e);
         }
     }
 

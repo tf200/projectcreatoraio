@@ -590,7 +590,12 @@ class ProjectService
             );
             return ['created' => true, 'folder' => $privateFolder];
         } catch (Throwable $e) {
-            throw new OCSException('Unable to provision private files for invited member.', 500);
+            $this->logger->error('Failed to ensure private folder for member', [
+                'projectId' => $projectId,
+                'userId' => $userId,
+                'exception' => $e,
+            ]);
+            throw new OCSException('Unable to provision private files for invited member: ' . $e->getMessage(), 500, $e);
         }
     }
 

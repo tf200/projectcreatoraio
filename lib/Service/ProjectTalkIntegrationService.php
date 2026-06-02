@@ -114,15 +114,31 @@ class ProjectTalkIntegrationService
             return;
         }
 
-        $room = $this->getTalkManager()->getRoomByToken($conversationToken);
-        $participants = [[
-            'actorType' => self::TALK_ACTOR_USERS,
-            'actorId' => $user->getUID(),
-            'displayName' => $user->getDisplayName(),
-            'participantType' => self::TALK_PARTICIPANT_USER,
-        ]];
+        if (!$this->isAvailable()) {
+            $this->logger->warning('Talk is not available; skipping adding user to conversation', [
+                'token' => $conversationToken,
+                'userId' => $user->getUID(),
+            ]);
+            return;
+        }
 
-        $this->getParticipantService()->addUsers($room, $participants, $addedBy);
+        try {
+            $room = $this->getTalkManager()->getRoomByToken($conversationToken);
+            $participants = [[
+                'actorType' => self::TALK_ACTOR_USERS,
+                'actorId' => $user->getUID(),
+                'displayName' => $user->getDisplayName(),
+                'participantType' => self::TALK_PARTICIPANT_USER,
+            ]];
+
+            $this->getParticipantService()->addUsers($room, $participants, $addedBy);
+        } catch (Throwable $e) {
+            $this->logger->warning('Failed to add user to project Talk conversation', [
+                'token' => $conversationToken,
+                'userId' => $user->getUID(),
+                'exception' => $e,
+            ]);
+        }
     }
 
     public function shareFileInConversation(
