@@ -2892,16 +2892,25 @@ export default {
 
 /* Members */
 .projects-home__member-invite-row {
-	display: grid;
-	grid-template-columns: minmax(220px, 1fr) minmax(180px, 220px) max-content;
+	display: flex;
+	flex-wrap: wrap;
 	gap: 12px;
-	align-items: end;
+	align-items: flex-end;
 	margin-bottom: 16px;
 }
 
-.projects-home__member-invite-select,
-.projects-home__member-invite-role-select,
+.projects-home__member-invite-select {
+	flex: 2 1 250px;
+	min-width: 0;
+}
+
+.projects-home__member-invite-role-select {
+	flex: 1 1 180px;
+	min-width: 0;
+}
+
 .projects-home__member-invite-button {
+	flex: 0 0 auto;
 	min-width: 0;
 }
 
@@ -3223,13 +3232,17 @@ export default {
 }
 
 @media (max-width: 1100px) {
-	.projects-home__member-invite-row {
-		grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+	.projects-home__member-invite-select {
+		flex: 1 1 100%;
+	}
+
+	.projects-home__member-invite-role-select {
+		flex: 1 1 0px;
+		min-width: 150px;
 	}
 
 	.projects-home__member-invite-button {
-		justify-self: end;
-		grid-column: 1 / -1;
+		flex: 0 0 auto;
 	}
 }
 
@@ -3317,12 +3330,15 @@ export default {
 	}
 
 	.projects-home__member-invite-row {
-		grid-template-columns: 1fr;
+		flex-direction: column;
+		align-items: stretch;
 	}
 
+	.projects-home__member-invite-select,
+	.projects-home__member-invite-role-select,
 	.projects-home__member-invite-button {
-		justify-self: stretch;
-		grid-column: auto;
+		flex: 1 1 auto;
+		width: 100%;
 	}
 
 	.projects-home__member-invite-button :deep(button) {

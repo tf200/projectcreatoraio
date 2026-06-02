@@ -9,11 +9,11 @@ use OCP\DB\Types;
 
 class ProjectMemberRole extends Entity implements \JsonSerializable {
 	public $id;
-	protected int $projectId;
-	protected string $userId;
-	protected string $drasciRole;
-	protected DateTime $createdAt;
-	protected DateTime $updatedAt;
+	protected ?int $projectId = null;
+	protected ?string $userId = null;
+	protected ?string $drasciRole = null;
+	protected ?DateTime $createdAt = null;
+	protected ?DateTime $updatedAt = null;
 
 	public function __construct() {
 		$this->addType('projectId', Types::BIGINT);
