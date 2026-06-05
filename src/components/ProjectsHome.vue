@@ -390,6 +390,14 @@
 						<History :size="16" class="projects-home__tab-icon" />
 						<span class="projects-home__tab-label">Activity</span>
 					</button>
+					<button
+						type="button"
+						class="projects-home__tab"
+						:class="{ 'projects-home__tab--active': activeTab === 'calendar' }"
+						@click="setActiveTab('calendar')">
+						<Calendar :size="16" class="projects-home__tab-icon" />
+						<span class="projects-home__tab-label">Calendar</span>
+					</button>
 				</nav>
 
 				<!-- Tab Content -->
@@ -955,6 +963,9 @@
 					<div v-else-if="activeTab === 'activity'" class="projects-home__tab-section">
 						<ProjectActivity :key="String(selectedProject?.id || '')" :project-id="selectedProject?.id || null" />
 					</div>
+					<div v-else-if="activeTab === 'calendar'" class="projects-home__tab-section projects-home__tab-section--full">
+						<ProjectCalendar :project-id="selectedProject?.id || null" />
+					</div>
 				</div>
 			</div>
 
@@ -1171,6 +1182,7 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import ViewDashboard from 'vue-material-design-icons/ViewDashboard.vue'
+import Calendar from 'vue-material-design-icons/Calendar.vue'
 
 import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { createClient } from 'webdav'
@@ -1199,10 +1211,11 @@ import ProjectNotesList from './ProjectNotesList.vue'
 import ProjectCardVisibilityTab from './ProjectCardVisibilityTab.vue'
 import OcrDocumentTypesModal from './OcrDocumentTypesModal.vue'
 import ProjectActivity from './ProjectActivity/ProjectActivity.vue'
+import ProjectCalendar from './ProjectCalendar.vue'
 
 const projectsService = ProjectsService.getInstance()
 const webdavClient = createClient(generateRemoteUrl('dav'))
-const PROJECT_TABS = ['overview', 'whiteboard', 'notes', 'timeline', 'deck', 'cardVisibility', 'files', 'members', 'activity']
+const PROJECT_TABS = ['overview', 'whiteboard', 'notes', 'timeline', 'deck', 'cardVisibility', 'files', 'members', 'activity', 'calendar']
 
 export default {
 	name: 'ProjectsHome',
@@ -1248,6 +1261,8 @@ export default {
 		ProjectActivity,
 		History,
 		ViewDashboard,
+		Calendar,
+		ProjectCalendar,
 	},
 	data() {
 		return {
