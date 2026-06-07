@@ -503,6 +503,38 @@ export class ProjectsService {
 		return response?.data ?? null
 	}
 
+	async getFileSigningRequest(projectId, fileId) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/files/${fileId}/signing`)
+			const response = await axios.get(url, {
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to fetch signing request:', e)
+			return null
+		}
+	}
+
+	async createFileSigningRequest(projectId, fileId, payload) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/files/${fileId}/signing/request`)
+			const response = await axios.post(url, payload, {
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to create signing request:', e)
+			throw e
+		}
+	}
+
 	/**
 	 *
 	 * @param {number} projectId

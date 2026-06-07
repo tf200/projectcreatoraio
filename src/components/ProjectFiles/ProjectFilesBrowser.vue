@@ -248,12 +248,26 @@
 										@click="reprocessFile(entry)">
 										<Refresh :size="18" />
 									</button>
-									<div v-if="isSupportedFile(entry) && isProcessingBusy(entry.id)" class="project-files__loading-wrap">
-										<NcLoadingIcon :size="20" />
-									</div>
-									<button
-										:type="'button'"
-										class="project-files__icon-btn"
+								<div v-if="isSupportedFile(entry) && isProcessingBusy(entry.id)" class="project-files__loading-wrap">
+									<NcLoadingIcon :size="20" />
+								</div>
+								<button
+									v-if="isSignableFile(entry)"
+									:type="'button'"
+									class="project-files__icon-btn"
+									:title="signingTitle(entry.id)"
+									@click="openSigningModal(entry)">
+									<FileDocumentOutline :size="18" />
+								</button>
+								<span
+									v-if="signingByFileId[String(entry.id)]"
+									class="project-files__signing-pill"
+									:class="signingBadgeClass(entry.id)">
+									{{ signingStatusLabel(entry.id) }}
+								</span>
+								<button
+									:type="'button'"
+									class="project-files__icon-btn"
 										title="Open in Files"
 										@click="openNodeInFiles(entry)">
 										<OpenInNew :size="18" />
@@ -269,6 +283,42 @@
 								</div>
 							</li>
 						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Extracted Data Modal -->
+		<div v-if="activeSigningFile" class="project-files__modal-overlay" @click="closeSigningModal">
+			<div class="project-files__modal" @click.stop>
+				<div class="project-files__modal-header">
+					<h3 class="project-files__modal-title">Request Signature</h3>
+					<button class="project-files__modal-close" @click="closeSigningModal">
+						<Close :size="20" />
+					</button>
+				</div>
+				<div class="project-files__modal-content">
+					<div class="project-files__modal-filename">{{ activeSigningFile.name }}</div>
+					<label class="project-files__upload-modal-label" for="project-files-signing-flow">Signing flow</label>
+					<select id="project-files-signing-flow" v-model="signingDraft.flow" class="project-files__upload-type-select" :disabled="signingBusy">
+						<option value="parallel">Parallel</option>
+						<option value="ordered_numeric">Ordered</option>
+					</select>
+
+					<label class="project-files__upload-modal-label" for="project-files-signing-signers">Signer emails</label>
+					<textarea
+						id="project-files-signing-signers"
+						v-model="signingDraft.signersText"
+						class="project-files__textarea"
+						:disabled="signingBusy"
+						placeholder="client@example.com\nmanager@example.com" />
+					<div class="project-files__hint">Add one signer email per line. LibreSign will send the signing flow.</div>
+					<div v-if="signingError" class="project-files__upload-error">{{ signingError }}</div>
+					<div class="project-files__modal-actions">
+						<button :type="'button'" class="project-files__btn" :disabled="signingBusy" @click="closeSigningModal">Cancel</button>
+						<button :type="'button'" class="project-files__btn project-files__btn--primary" :disabled="signingBusy" @click="createSigningRequest">
+							{{ signingBusy ? 'Sending...' : 'Send signing request' }}
+						</button>
 					</div>
 				</div>
 			</div>
@@ -437,6 +487,15 @@ export default {
 			processingByFileId: {},
 			processingLoadingByFileId: {},
 			assigningByFileId: {},
+			signingByFileId: {},
+			signingLoadingByFileId: {},
+			activeSigningFile: null,
+			signingDraft: {
+				flow: 'parallel',
+				signersText: '',
+			},
+			signingBusy: false,
+			signingError: '',
 			feedbackByFileId: {},
 			activeExtractedFileId: null,
 			activeExtractedDraft: {},
@@ -572,6 +631,12 @@ export default {
 			this.processingByFileId = {}
 			this.processingLoadingByFileId = {}
 			this.assigningByFileId = {}
+			this.signingByFileId = {}
+			this.signingLoadingByFileId = {}
+			this.activeSigningFile = null
+			this.signingDraft = { flow: 'parallel', signersText: '' }
+			this.signingBusy = false
+			this.signingError = ''
 			this.feedbackByFileId = {}
 			this.activeExtractedFileId = null
 			this.activeExtractedDraft = {}
@@ -735,9 +800,13 @@ export default {
 				}
 				const key = String(entry.id)
 				if (Object.prototype.hasOwnProperty.call(this.processingByFileId, key) || this.processingLoadingByFileId[key]) {
-					continue
+					// Signing status is independent from OCR, so keep loading it below.
+				} else {
+					await this.loadFileProcessing(entry.id)
 				}
-				await this.loadFileProcessing(entry.id)
+				if (this.isSignableFile(entry) && !Object.prototype.hasOwnProperty.call(this.signingByFileId, key) && !this.signingLoadingByFileId[key]) {
+					await this.loadFileSigning(entry.id)
+				}
 			}
 		},
 		async loadFileProcessing(fileId) {
@@ -1026,6 +1095,96 @@ export default {
 		},
 		isSupportedFile(node) {
 			return !!(node && node.type === 'file' && SUPPORTED_MIME_TYPES.includes(String(node.mimetype || '').toLowerCase()))
+		},
+		isSignableFile(node) {
+			return !!(node && node.type === 'file' && String(node.mimetype || '').toLowerCase() === 'application/pdf')
+		},
+		signingTitle(fileId) {
+			const request = this.signingByFileId[String(fileId)] || null
+			return request ? `Signing: ${this.signingStatusLabel(fileId)}` : 'Request signature'
+		},
+		signingStatusLabel(fileId) {
+			const request = this.signingByFileId[String(fileId)] || null
+			if (!request) return 'Not sent'
+			if (request.status === 'failed') return 'Signing failed'
+			if (request.status === 'completed' || request.status === 'signed') return 'Signed'
+			if (request.status === 'cancelled') return 'Cancelled'
+			return 'Signing pending'
+		},
+		signingBadgeClass(fileId) {
+			const request = this.signingByFileId[String(fileId)] || null
+			if (!request) return ''
+			if (request.status === 'failed') return 'project-files__signing-pill--error'
+			if (request.status === 'completed' || request.status === 'signed') return 'project-files__signing-pill--success'
+			if (request.status === 'cancelled') return 'project-files__signing-pill--muted'
+			return 'project-files__signing-pill--pending'
+		},
+		async loadFileSigning(fileId) {
+			const projectId = Number(this.projectId)
+			if (!Number.isFinite(projectId) || projectId <= 0) {
+				return
+			}
+			const key = String(fileId)
+			this.$set(this.signingLoadingByFileId, key, true)
+			try {
+				const payload = await projectsService.getFileSigningRequest(projectId, Number(fileId))
+				if (payload?.request) {
+					this.$set(this.signingByFileId, key, payload.request)
+				}
+			} finally {
+				this.$set(this.signingLoadingByFileId, key, false)
+			}
+		},
+		openSigningModal(node) {
+			if (!this.isSignableFile(node)) {
+				return
+			}
+			this.activeSigningFile = node
+			this.signingDraft = { flow: 'parallel', signersText: '' }
+			this.signingError = ''
+		},
+		closeSigningModal() {
+			if (this.signingBusy) {
+				return
+			}
+			this.activeSigningFile = null
+			this.signingError = ''
+		},
+		parseSigningSigners() {
+			return String(this.signingDraft.signersText || '')
+				.split(/[\n,;]/)
+				.map((email) => email.trim())
+				.filter((email) => email !== '')
+				.map((email) => ({ email, displayName: email }))
+		},
+		async createSigningRequest() {
+			const projectId = Number(this.projectId)
+			const fileId = Number(this.activeSigningFile?.id)
+			if (!Number.isFinite(projectId) || projectId <= 0 || !Number.isFinite(fileId) || fileId <= 0) {
+				return
+			}
+			const signers = this.parseSigningSigners()
+			if (signers.length === 0) {
+				this.signingError = 'Add at least one signer email.'
+				return
+			}
+			this.signingBusy = true
+			this.signingError = ''
+			try {
+				const payload = await projectsService.createFileSigningRequest(projectId, fileId, {
+					signature_flow: this.signingDraft.flow,
+					signers,
+				})
+				if (payload?.request) {
+					this.$set(this.signingByFileId, String(fileId), payload.request)
+				}
+				this.$set(this.feedbackByFileId, String(fileId), 'Signing request sent.')
+				this.activeSigningFile = null
+			} catch (error) {
+				this.signingError = error?.response?.data?.message || 'Could not send signing request.'
+			} finally {
+				this.signingBusy = false
+			}
 		},
 		documentTypeValue(fileId) {
 			const record = this.processingByFileId[String(fileId)] || null
@@ -1531,6 +1690,54 @@ export default {
 .project-files__upload-type-select:disabled {
 	opacity: 0.6;
 	cursor: not-allowed;
+}
+
+.project-files__textarea {
+	width: 100%;
+	min-height: 96px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	padding: 10px 12px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	resize: vertical;
+}
+
+.project-files__hint {
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+}
+
+.project-files__signing-pill {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap;
+	border: 1px solid var(--color-border);
+}
+
+.project-files__signing-pill--pending {
+	background: rgba(255, 193, 7, 0.12);
+	border-color: rgba(255, 193, 7, 0.35);
+}
+
+.project-files__signing-pill--success {
+	background: rgba(0, 128, 0, 0.10);
+	border-color: rgba(0, 128, 0, 0.35);
+}
+
+.project-files__signing-pill--error {
+	background: rgba(255, 0, 0, 0.08);
+	border-color: rgba(255, 0, 0, 0.30);
+}
+
+.project-files__signing-pill--muted {
+	background: var(--color-background-dark);
+	color: var(--color-text-maxcontrast);
 }
 
 .project-files__btn {

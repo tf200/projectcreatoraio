@@ -154,6 +154,21 @@ return [
             "url" => "/api/v1/projects/{projectId}/files/{fileId}/ocr/reprocess",
             "verb" => "POST",
         ],
+		[
+			"name" => "signing_api#listProjectRequests",
+			"url" => "/api/v1/projects/{projectId}/signing/requests",
+			"verb" => "GET",
+		],
+		[
+			"name" => "signing_api#getFileRequest",
+			"url" => "/api/v1/projects/{projectId}/files/{fileId}/signing",
+			"verb" => "GET",
+		],
+		[
+			"name" => "signing_api#createFileRequest",
+			"url" => "/api/v1/projects/{projectId}/files/{fileId}/signing/request",
+			"verb" => "POST",
+		],
         [
             "name" => "ocr_api#uploadCardAttachment",
             "url" => "/api/v1/projects/{projectId}/cards/{cardId}/ocr/attachments",
