@@ -31,7 +31,7 @@ class Version010026Date20260607000000 extends SimpleMigrationStep {
 			$table->addColumn('created_at', Types::DATETIME, ['notnull' => true]);
 			$table->addColumn('updated_at', Types::DATETIME, ['notnull' => true]);
 			$table->addColumn('completed_at', Types::DATETIME, ['notnull' => false]);
-			$table->setPrimaryKey(['id']);
+			$table->setPrimaryKey(['id'], 'psr_pk');
 			$table->addIndex(['project_id'], 'psr_project_idx');
 			$table->addIndex(['project_id', 'file_id'], 'psr_project_file_idx');
 			$table->addIndex(['status'], 'psr_status_idx');
