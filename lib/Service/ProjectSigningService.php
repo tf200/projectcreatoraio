@@ -101,15 +101,40 @@ class ProjectSigningService {
 			if (!is_array($signer)) {
 				continue;
 			}
+
+			$userId = trim((string) ($signer['userId'] ?? ''));
 			$email = strtolower(trim((string) ($signer['email'] ?? '')));
-			if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || isset($seen[$email])) {
+			$displayName = trim((string) ($signer['displayName'] ?? $signer['name'] ?? ''));
+			if ($userId !== '') {
+				$key = 'account:' . $userId;
+				if (isset($seen[$key])) {
+					continue;
+				}
+				$seen[$key] = true;
+				$normalized[] = [
+					'displayName' => $displayName !== '' ? $displayName : $userId,
+					'identifyMethods' => [[
+						'method' => 'account',
+						'value' => $userId,
+					]],
+				];
 				continue;
 			}
-			$seen[$email] = true;
-			$displayName = trim((string) ($signer['displayName'] ?? $signer['name'] ?? ''));
+
+			if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+				continue;
+			}
+			$key = 'email:' . $email;
+			if (isset($seen[$key])) {
+				continue;
+			}
+			$seen[$key] = true;
 			$normalized[] = [
-				'email' => $email,
 				'displayName' => $displayName !== '' ? $displayName : $email,
+				'identifyMethods' => [[
+					'method' => 'email',
+					'value' => $email,
+				]],
 			];
 		}
 		return $normalized;

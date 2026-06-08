@@ -193,14 +193,25 @@
 								<Close :size="20" />
 							</button>
 						</div>
-						<div class="project-files__modal-content">
-							<div class="project-files__modal-filename">{{ selectedFolderNode?.name || 'Selected folder' }}</div>
-							<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">Signing flow</label>
+					<div class="project-files__modal-content">
+						<div class="project-files__modal-filename">{{ selectedFolderNode?.name || 'Selected folder' }}</div>
+						<div class="project-files__signer-picker">
+							<div class="project-files__upload-modal-label">Project members</div>
+							<div v-if="projectMembersLoading" class="project-files__muted">Loading members...</div>
+							<div v-else-if="projectMembersError" class="project-files__muted">{{ projectMembersError }}</div>
+							<div v-else-if="projectMembers.length === 0" class="project-files__muted">No project members found.</div>
+							<label v-for="member in projectMembers" v-else :key="`signing-upload-member-${member.id}`" class="project-files__member-option">
+								<input v-model="signingUploadDraft.memberIds" type="checkbox" :value="member.id" :disabled="signingUploadBusy">
+								<span>{{ member.displayName || member.id }}</span>
+								<span class="project-files__member-sub">{{ member.id }}</span>
+							</label>
+						</div>
+						<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">Signing flow</label>
 							<select id="project-files-signing-upload-flow" v-model="signingUploadDraft.flow" class="project-files__upload-type-select" :disabled="signingUploadBusy">
 								<option value="parallel">Parallel</option>
 								<option value="ordered_numeric">Ordered</option>
 							</select>
-							<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">Signer emails</label>
+						<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">External signer emails</label>
 							<textarea
 								id="project-files-signing-upload-signers"
 								v-model="signingUploadDraft.signersText"
@@ -364,13 +375,24 @@
 				</div>
 				<div class="project-files__modal-content">
 					<div class="project-files__modal-filename">{{ activeSigningFile.name }}</div>
+					<div class="project-files__signer-picker">
+						<div class="project-files__upload-modal-label">Project members</div>
+						<div v-if="projectMembersLoading" class="project-files__muted">Loading members...</div>
+						<div v-else-if="projectMembersError" class="project-files__muted">{{ projectMembersError }}</div>
+						<div v-else-if="projectMembers.length === 0" class="project-files__muted">No project members found.</div>
+						<label v-for="member in projectMembers" v-else :key="`signing-member-${member.id}`" class="project-files__member-option">
+							<input v-model="signingDraft.memberIds" type="checkbox" :value="member.id" :disabled="signingBusy">
+							<span>{{ member.displayName || member.id }}</span>
+							<span class="project-files__member-sub">{{ member.id }}</span>
+						</label>
+					</div>
 					<label class="project-files__upload-modal-label" for="project-files-signing-flow">Signing flow</label>
 					<select id="project-files-signing-flow" v-model="signingDraft.flow" class="project-files__upload-type-select" :disabled="signingBusy">
 						<option value="parallel">Parallel</option>
 						<option value="ordered_numeric">Ordered</option>
 					</select>
 
-					<label class="project-files__upload-modal-label" for="project-files-signing-signers">Signer emails</label>
+					<label class="project-files__upload-modal-label" for="project-files-signing-signers">External signer emails</label>
 					<textarea
 						id="project-files-signing-signers"
 						v-model="signingDraft.signersText"
@@ -558,9 +580,13 @@ export default {
 			signingDraft: {
 				flow: 'parallel',
 				signersText: '',
+				memberIds: [],
 			},
 			signingBusy: false,
 			signingError: '',
+			projectMembers: [],
+			projectMembersLoading: false,
+			projectMembersError: '',
 			feedbackByFileId: {},
 			activeExtractedFileId: null,
 			activeExtractedDraft: {},
@@ -583,6 +609,7 @@ export default {
 			signingUploadDraft: {
 				flow: 'parallel',
 				signersText: '',
+				memberIds: [],
 			},
 		}
 	},
@@ -712,15 +739,18 @@ export default {
 			this.signingByFileId = {}
 			this.signingLoadingByFileId = {}
 			this.activeSigningFile = null
-			this.signingDraft = { flow: 'parallel', signersText: '' }
+			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [] }
 			this.signingBusy = false
 			this.signingError = ''
+			this.projectMembers = []
+			this.projectMembersLoading = false
+			this.projectMembersError = ''
 			this.showSigningUploadModal = false
 			this.signingUploadBusy = false
 			this.signingUploadError = ''
 			this.signingUploadMessage = ''
 			this.selectedSigningUploadFiles = []
-			this.signingUploadDraft = { flow: 'parallel', signersText: '' }
+			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [] }
 			this.feedbackByFileId = {}
 			this.activeExtractedFileId = null
 			this.activeExtractedDraft = {}
@@ -743,8 +773,9 @@ export default {
 			this.signingUploadError = ''
 			this.signingUploadMessage = ''
 			this.selectedSigningUploadFiles = []
-			this.signingUploadDraft = { flow: 'parallel', signersText: '' }
+			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [] }
 			this.showSigningUploadModal = true
+			this.loadProjectMembers()
 		},
 		closeSigningUploadModal() {
 			if (this.signingUploadBusy) {
@@ -881,9 +912,9 @@ export default {
 			if (!this.selectedFolderNode || this.selectedSigningUploadFiles.length === 0 || this.signingUploadBusy) {
 				return
 			}
-			const signers = this.parseSignerText(this.signingUploadDraft.signersText)
+			const signers = this.buildSignerPayload(this.signingUploadDraft.memberIds, this.signingUploadDraft.signersText)
 			if (signers.length === 0) {
-				this.signingUploadError = 'Add at least one signer email.'
+				this.signingUploadError = 'Select at least one project member or add an external signer email.'
 				return
 			}
 
@@ -971,6 +1002,22 @@ export default {
 				this.documentTypesError = error?.response?.data?.message || 'Could not load OCR document types.'
 			} finally {
 				this.documentTypesLoading = false
+			}
+		},
+		async loadProjectMembers() {
+			const projectId = Number(this.projectId)
+			if (!Number.isFinite(projectId) || projectId <= 0 || this.projectMembersLoading || this.projectMembers.length > 0) {
+				return
+			}
+			this.projectMembersLoading = true
+			this.projectMembersError = ''
+			try {
+				this.projectMembers = await projectsService.listMembers(projectId)
+			} catch (error) {
+				this.projectMembers = []
+				this.projectMembersError = error?.response?.data?.message || 'Could not load project members.'
+			} finally {
+				this.projectMembersLoading = false
 			}
 		},
 		queueVisibleProcessingLoad() {
@@ -1367,8 +1414,9 @@ export default {
 				return
 			}
 			this.activeSigningFile = node
-			this.signingDraft = { flow: 'parallel', signersText: '' }
+			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [] }
 			this.signingError = ''
+			this.loadProjectMembers()
 		},
 		closeSigningModal() {
 			if (this.signingBusy) {
@@ -1378,7 +1426,17 @@ export default {
 			this.signingError = ''
 		},
 		parseSigningSigners() {
-			return this.parseSignerText(this.signingDraft.signersText)
+			return this.buildSignerPayload(this.signingDraft.memberIds, this.signingDraft.signersText)
+		},
+		buildSignerPayload(memberIds, text) {
+			const selected = new Set((Array.isArray(memberIds) ? memberIds : []).map((id) => String(id)))
+			const memberSigners = this.projectMembers
+				.filter((member) => selected.has(String(member?.id || '')))
+				.map((member) => ({
+					userId: member.id,
+					displayName: member.displayName || member.id,
+				}))
+			return [...memberSigners, ...this.parseSignerText(text)]
 		},
 		parseSignerText(text) {
 			return String(text || '')
@@ -1421,7 +1479,7 @@ export default {
 			}
 			const signers = this.parseSigningSigners()
 			if (signers.length === 0) {
-				this.signingError = 'Add at least one signer email.'
+				this.signingError = 'Select at least one project member or add an external signer email.'
 				return
 			}
 			this.signingBusy = true
@@ -1957,6 +2015,29 @@ export default {
 .project-files__hint {
 	font-size: 13px;
 	color: var(--color-text-maxcontrast);
+}
+
+.project-files__signer-picker {
+	display: grid;
+	gap: 8px;
+	padding: 10px 0;
+}
+
+.project-files__member-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-background-hover);
+	font-size: 13px;
+}
+
+.project-files__member-sub {
+	margin-left: auto;
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
 }
 
 .project-files__signing-pill {
