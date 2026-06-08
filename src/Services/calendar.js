@@ -1,5 +1,5 @@
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { generateOcsUrl } from '@nextcloud/router'
 
 export class CalendarService {
 
@@ -28,7 +28,7 @@ export class CalendarService {
 			return []
 		}
 
-		const url = generateUrl(`/apps/calendar/proposal/project/${projectId}`)
+		const url = generateOcsUrl(`/calendar/proposal/project/${projectId}`)
 
 		const response = await axios.get(url, {
 			params: {
@@ -40,7 +40,7 @@ export class CalendarService {
 			},
 		})
 
-		return response?.data ?? []
+		return response?.data?.ocs?.data ?? response?.data ?? []
 	}
 
 }
