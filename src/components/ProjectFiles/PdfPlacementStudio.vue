@@ -113,7 +113,7 @@
 					<div class="pdf-studio__viewer-area">
 						<div class="pdf-studio__canvas-container" :class="{ 'pdf-studio__canvas-container--ready': pdfReady }">
 							<div
-								v-if="pdfReady"
+								v-show="pdfReady"
 								ref="workspaceCanvas"
 								class="pdf-studio__pdf-workspace"
 								@click="handleWorkspaceClick">
