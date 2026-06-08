@@ -252,7 +252,7 @@ export default {
 			},
 		})
 	},
-	beforeDestroy() {
+	destroyed() {
 		this.editor?.destroy()
 	},
 	methods: {
