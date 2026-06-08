@@ -40,14 +40,26 @@
 			</div>
 		</div>
 
-		<div v-if="documentTypesLoading" class="project-files__muted">Loading OCR document types...</div>
-		<div v-else-if="documentTypesError" class="project-files__muted">{{ documentTypesError }}</div>
-		<div v-if="loading" class="project-files__muted">Loading file structure...</div>
-		<div v-else-if="error" class="project-files__muted">{{ error }}</div>
+		<div v-if="documentTypesLoading" class="project-files__muted">
+			Loading OCR document types...
+		</div>
+		<div v-else-if="documentTypesError" class="project-files__muted">
+			{{ documentTypesError }}
+		</div>
+		<div v-if="loading" class="project-files__muted">
+			Loading file structure...
+		</div>
+		<div v-else-if="error" class="project-files__muted">
+			{{ error }}
+		</div>
 		<div v-else class="project-files__grid">
 			<div class="project-files__pane project-files__pane--left">
-				<div class="project-files__pane-title">Folders</div>
-				<div v-if="activeRoots.length === 0" class="project-files__empty">No folders found.</div>
+				<div class="project-files__pane-title">
+					Folders
+				</div>
+				<div v-if="activeRoots.length === 0" class="project-files__empty">
+					No folders found.
+				</div>
 				<div v-else class="project-files__tree">
 					<FolderTreeItem
 						v-for="root in folderRoots"
@@ -129,20 +141,26 @@
 				<div v-if="showUploadModal" class="project-files__modal-overlay" @click="closeUploadModal">
 					<div class="project-files__modal project-files__upload-modal" @click.stop>
 						<div class="project-files__modal-header">
-							<h3 class="project-files__modal-title">Upload Files</h3>
+							<h3 class="project-files__modal-title">
+								Upload Files
+							</h3>
 							<button class="project-files__modal-close" @click="closeUploadModal">
 								<Close :size="20" />
 							</button>
 						</div>
 						<div class="project-files__modal-content">
-							<div class="project-files__modal-filename">{{ selectedFolderNode?.name || 'Selected folder' }}</div>
+							<div class="project-files__modal-filename">
+								{{ selectedFolderNode?.name || 'Selected folder' }}
+							</div>
 							<label class="project-files__upload-modal-label" for="project-files-upload-type">Document type</label>
 							<select
 								id="project-files-upload-type"
 								v-model="uploadDocumentTypeId"
 								class="project-files__upload-type-select"
 								:disabled="documentTypesLoading || documentTypes.length === 0 || uploadBusy">
-								<option value="">{{ documentTypes.length === 0 ? 'No document types' : 'Select document type...' }}</option>
+								<option value="">
+									{{ documentTypes.length === 0 ? 'No document types' : 'Select document type...' }}
+								</option>
 								<option v-for="type in documentTypes" :key="`upload-doc-type-${type.id}`" :value="String(type.id)">
 									{{ type.name }}
 								</option>
@@ -188,66 +206,91 @@
 				<div v-if="showSigningUploadModal" class="project-files__modal-overlay" @click="closeSigningUploadModal">
 					<div class="project-files__modal project-files__upload-modal" @click.stop>
 						<div class="project-files__modal-header">
-							<h3 class="project-files__modal-title">Upload for Signing</h3>
+							<h3 class="project-files__modal-title">
+								Upload for Signing
+							</h3>
 							<button class="project-files__modal-close" @click="closeSigningUploadModal">
 								<Close :size="20" />
 							</button>
 						</div>
-					<div class="project-files__modal-content">
-						<div class="project-files__modal-filename">{{ selectedFolderNode?.name || 'Selected folder' }}</div>
-						<div class="project-files__signer-picker">
-							<div class="project-files__upload-modal-label">Project members</div>
-							<div v-if="projectMembersLoading" class="project-files__muted">Loading members...</div>
-							<div v-else-if="projectMembersError" class="project-files__muted">{{ projectMembersError }}</div>
-							<div v-else-if="projectMembers.length === 0" class="project-files__muted">No project members found.</div>
-							<label v-for="member in projectMembers" v-else :key="`signing-upload-member-${member.id}`" class="project-files__member-option">
-								<input v-model="signingUploadDraft.memberIds" type="checkbox" :value="member.id" :disabled="signingUploadBusy">
-								<span>{{ member.displayName || member.id }}</span>
-								<span class="project-files__member-sub">{{ member.id }}</span>
-							</label>
-						</div>
-						<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">Signing flow</label>
-							<select id="project-files-signing-upload-flow" v-model="signingUploadDraft.flow" class="project-files__upload-type-select" :disabled="signingUploadBusy">
-								<option value="parallel">Parallel</option>
-								<option value="ordered_numeric">Ordered</option>
+						<div class="project-files__modal-content">
+							<div class="project-files__modal-filename">
+								{{ selectedFolderNode?.name || 'Selected folder' }}
+							</div>
+							<div class="project-files__signer-picker">
+								<div class="project-files__upload-modal-label">
+									Project members
+								</div>
+								<div v-if="projectMembersLoading" class="project-files__muted">
+									Loading members...
+								</div>
+								<div v-else-if="projectMembersError" class="project-files__muted">
+									{{ projectMembersError }}
+								</div>
+								<div v-else-if="projectMembers.length === 0" class="project-files__muted">
+									No project members found.
+								</div>
+								<label v-for="member in projectMembers"
+									v-else
+									:key="`signing-upload-member-${member.id}`"
+									class="project-files__member-option">
+									<input v-model="signingUploadDraft.memberIds"
+										type="checkbox"
+										:value="member.id"
+										:disabled="signingUploadBusy">
+									<span>{{ member.displayName || member.id }}</span>
+									<span class="project-files__member-sub">{{ member.id }}</span>
+								</label>
+							</div>
+							<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">Signing flow</label>
+							<select id="project-files-signing-upload-flow"
+								v-model="signingUploadDraft.flow"
+								class="project-files__upload-type-select"
+								:disabled="signingUploadBusy">
+								<option value="parallel">
+									Parallel
+								</option>
+								<option value="ordered_numeric">
+									Ordered
+								</option>
 							</select>
-						<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">External signer emails</label>
+							<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">External signer emails</label>
 							<textarea
 								id="project-files-signing-upload-signers"
 								v-model="signingUploadDraft.signersText"
 								class="project-files__textarea"
 								:disabled="signingUploadBusy"
 								placeholder="client@example.com\nmanager@example.com" />
-							<div class="project-files__hint">Upload PDF files and immediately send them to LibreSign.</div>
-							<div v-if="signingUploadSigners.length > 0" class="project-files__placement-studio">
-								<div class="project-files__placement-toolbar">
+							<div class="project-files__hint">
+								Upload PDF files and immediately send them to LibreSign.
+							</div>
+							<div v-if="signingUploadSigners.length > 0" class="project-files__placement-section">
+								<div class="project-files__placement-header-row">
 									<div>
-										<div class="project-files__placement-kicker">Visual Placement</div>
-										<div class="project-files__placement-title">Drop signature fields on the contract</div>
+										<div class="project-files__upload-modal-label">
+											Signature Placements
+										</div>
+										<div class="project-files__placement-status-text">
+											Placed {{ Object.keys(signingUploadDraft.placements).length }} of {{ signingUploadSigners.length }} signers.
+										</div>
 									</div>
-									<div class="project-files__placement-size">
-										<button type="button" class="project-files__mini-btn" :disabled="placementPage <= 1" @click="changePlacementPage(-1)">Prev</button>
-										<span>Page {{ placementPage }} / {{ placementPageCount || '?' }}</span>
-										<button type="button" class="project-files__mini-btn" :disabled="placementPageCount > 0 && placementPage >= placementPageCount" @click="changePlacementPage(1)">Next</button>
-									</div>
+									<button type="button"
+										class="project-files__btn project-files__btn--accent"
+										:disabled="selectedSigningUploadFiles.length === 0"
+										@click="showUploadPlacementStudio = true">
+										Open Placement Studio
+									</button>
 								</div>
-								<div class="project-files__placement-workbench">
-									<div class="project-files__signer-rail">
-										<button v-for="signer in signingUploadSigners" :key="`upload-signer-chip-${signer.signerKey}`" type="button" class="project-files__signer-chip" :class="{ 'project-files__signer-chip--active': signingUploadDraft.activeSignerKey === signer.signerKey }" @click="selectPlacementSigner(signingUploadDraft, signer.signerKey)">
-											<span>{{ signerInitials(signer) }}</span>
+
+								<!-- Mini list of signers and their placement status -->
+								<div class="project-files__placement-summary-list">
+									<div v-for="signer in signingUploadSigners" :key="`upload-summary-${signer.signerKey}`" class="project-files__summary-item">
+										<span class="project-files__summary-avatar" :style="signerIconStyle(signer)">{{ signerInitials(signer) }}</span>
+										<div class="project-files__summary-details">
 											<strong>{{ signer.displayName || signer.email || signer.userId }}</strong>
-										</button>
-									</div>
-									<div ref="signingUploadCanvas" class="project-files__pdf-canvas" @click="placeActiveSigner($event, signingUploadDraft, 'signingUploadCanvas')">
-										<canvas ref="signingUploadPdfCanvas" class="project-files__pdf-render"></canvas>
-										<div v-if="placementLoading" class="project-files__pdf-empty">Rendering PDF...</div>
-										<div v-else-if="placementError" class="project-files__pdf-empty project-files__pdf-empty--error">{{ placementError }}</div>
-										<div v-else-if="!placementReady" class="project-files__pdf-empty">Choose a PDF to preview placement.</div>
-										<div v-for="signer in signingUploadSigners" :key="`upload-box-${signer.signerKey}`" class="project-files__signature-box" :class="{ 'project-files__signature-box--active': signingUploadDraft.activeSignerKey === signer.signerKey }" :style="placementBoxStyle(signingUploadDraft.placements[signer.signerKey])" @mousedown.stop="startPlacementDrag($event, signingUploadDraft, signer.signerKey, 'signingUploadCanvas')">
-											<span>{{ signerInitials(signer) }}</span>
-											<strong>Sign here</strong>
-											<em>{{ signer.displayName || signer.email || signer.userId }}</em>
-											<i @mousedown.stop.prevent="startPlacementResize($event, signingUploadDraft, signer.signerKey, 'signingUploadCanvas')"></i>
+											<span class="project-files__summary-status" :class="signingUploadDraft.placements[signer.signerKey] ? 'placed' : 'pending'">
+												{{ signingUploadDraft.placements[signer.signerKey] ? `Placed (Page ${signingUploadDraft.placements[signer.signerKey].page})` : 'Not placed yet' }}
+											</span>
 										</div>
 									</div>
 								</div>
@@ -270,10 +313,20 @@
 									<span>{{ formatBytes(file.size) }}</span>
 								</li>
 							</ul>
-							<div v-if="signingUploadError" class="project-files__upload-error">{{ signingUploadError }}</div>
+							<div v-if="signingUploadError" class="project-files__upload-error">
+								{{ signingUploadError }}
+							</div>
 							<div class="project-files__modal-actions">
-								<button :type="'button'" class="project-files__btn" :disabled="signingUploadBusy" @click="closeSigningUploadModal">Cancel</button>
-								<button :type="'button'" class="project-files__btn project-files__btn--primary" :disabled="signingUploadBusy || selectedSigningUploadFiles.length === 0" @click="uploadSigningFiles">
+								<button :type="'button'"
+									class="project-files__btn"
+									:disabled="signingUploadBusy"
+									@click="closeSigningUploadModal">
+									Cancel
+								</button>
+								<button :type="'button'"
+									class="project-files__btn project-files__btn--primary"
+									:disabled="signingUploadBusy || selectedSigningUploadFiles.length === 0"
+									@click="uploadSigningFiles">
 									{{ signingUploadBusy ? 'Uploading...' : 'Upload and send' }}
 								</button>
 							</div>
@@ -281,14 +334,24 @@
 					</div>
 				</div>
 
-				<div v-if="uploadError" class="project-files__upload-error">{{ uploadError }}</div>
-				<div v-else-if="uploadMessage" class="project-files__upload-success">{{ uploadMessage }}</div>
-				<div v-if="signingUploadMessage" class="project-files__upload-success">{{ signingUploadMessage }}</div>
+				<div v-if="uploadError" class="project-files__upload-error">
+					{{ uploadError }}
+				</div>
+				<div v-else-if="uploadMessage" class="project-files__upload-success">
+					{{ uploadMessage }}
+				</div>
+				<div v-if="signingUploadMessage" class="project-files__upload-success">
+					{{ signingUploadMessage }}
+				</div>
 
 				<div class="project-files__list">
 					<div v-if="showSearch" class="project-files__results">
-						<div class="project-files__pane-title">Search results</div>
-						<div v-if="searchResults.length === 0" class="project-files__empty">No matches.</div>
+						<div class="project-files__pane-title">
+							Search results
+						</div>
+						<div v-if="searchResults.length === 0" class="project-files__empty">
+							No matches.
+						</div>
 						<ul v-else class="project-files__rows">
 							<li v-for="hit in searchResults" :key="`hit-${hit.node.id}`" class="project-files__row">
 								<div class="project-files__row-main" @click="activateSearchHit(hit)">
@@ -304,16 +367,21 @@
 					</div>
 
 					<div v-else>
-						<div class="project-files__pane-title">Contents</div>
-						<div v-if="!selectedFolderNode" class="project-files__empty">Select a folder to view its contents.</div>
-						<div v-else-if="sortedEntries.length === 0" class="project-files__empty">This folder is empty.</div>
+						<div class="project-files__pane-title">
+							Contents
+						</div>
+						<div v-if="!selectedFolderNode" class="project-files__empty">
+							Select a folder to view its contents.
+						</div>
+						<div v-else-if="sortedEntries.length === 0" class="project-files__empty">
+							This folder is empty.
+						</div>
 						<ul v-else class="project-files__rows">
 							<li
 								v-for="entry in sortedEntries"
 								:key="`entry-${entry.id}`"
 								class="project-files__row"
 								:class="{ 'project-files__row--highlight': highlightedNodeId !== null && String(highlightedNodeId) === String(entry.id) }">
-
 								<div
 									class="project-files__row-main"
 									@click="entry.type === 'folder' ? selectFolder(entry) : openFileInFiles(entry)">
@@ -338,7 +406,7 @@
 										<component :is="statusIcon(entry.id)" :size="16" />
 									</div>
 								</div>
-								<div v-else class="project-files__row-ocr project-files__row-ocr--empty"></div>
+								<div v-else class="project-files__row-ocr project-files__row-ocr--empty" />
 
 								<div class="project-files__row-actions" @click.stop>
 									<button
@@ -357,26 +425,26 @@
 										@click="reprocessFile(entry)">
 										<Refresh :size="18" />
 									</button>
-								<div v-if="isSupportedFile(entry) && isProcessingBusy(entry.id)" class="project-files__loading-wrap">
-									<NcLoadingIcon :size="20" />
-								</div>
-								<button
-									v-if="isSignableFile(entry)"
-									:type="'button'"
-									class="project-files__icon-btn"
-									:title="signingTitle(entry.id)"
-									@click="openSigningModal(entry)">
-									<FileDocumentOutline :size="18" />
-								</button>
-								<span
-									v-if="signingByFileId[String(entry.id)]"
-									class="project-files__signing-pill"
-									:class="signingBadgeClass(entry.id)">
-									{{ signingStatusLabel(entry.id) }}
-								</span>
-								<button
-									:type="'button'"
-									class="project-files__icon-btn"
+									<div v-if="isSupportedFile(entry) && isProcessingBusy(entry.id)" class="project-files__loading-wrap">
+										<NcLoadingIcon :size="20" />
+									</div>
+									<button
+										v-if="isSignableFile(entry)"
+										:type="'button'"
+										class="project-files__icon-btn"
+										:title="signingTitle(entry.id)"
+										@click="openSigningModal(entry)">
+										<FileDocumentOutline :size="18" />
+									</button>
+									<span
+										v-if="signingByFileId[String(entry.id)]"
+										class="project-files__signing-pill"
+										:class="signingBadgeClass(entry.id)">
+										{{ signingStatusLabel(entry.id) }}
+									</span>
+									<button
+										:type="'button'"
+										class="project-files__icon-btn"
 										title="Open in Files"
 										@click="openNodeInFiles(entry)">
 										<OpenInNew :size="18" />
@@ -401,28 +469,53 @@
 		<div v-if="activeSigningFile" class="project-files__modal-overlay" @click="closeSigningModal">
 			<div class="project-files__modal" @click.stop>
 				<div class="project-files__modal-header">
-					<h3 class="project-files__modal-title">Request Signature</h3>
+					<h3 class="project-files__modal-title">
+						Request Signature
+					</h3>
 					<button class="project-files__modal-close" @click="closeSigningModal">
 						<Close :size="20" />
 					</button>
 				</div>
 				<div class="project-files__modal-content">
-					<div class="project-files__modal-filename">{{ activeSigningFile.name }}</div>
+					<div class="project-files__modal-filename">
+						{{ activeSigningFile.name }}
+					</div>
 					<div class="project-files__signer-picker">
-						<div class="project-files__upload-modal-label">Project members</div>
-						<div v-if="projectMembersLoading" class="project-files__muted">Loading members...</div>
-						<div v-else-if="projectMembersError" class="project-files__muted">{{ projectMembersError }}</div>
-						<div v-else-if="projectMembers.length === 0" class="project-files__muted">No project members found.</div>
-						<label v-for="member in projectMembers" v-else :key="`signing-member-${member.id}`" class="project-files__member-option">
-							<input v-model="signingDraft.memberIds" type="checkbox" :value="member.id" :disabled="signingBusy">
+						<div class="project-files__upload-modal-label">
+							Project members
+						</div>
+						<div v-if="projectMembersLoading" class="project-files__muted">
+							Loading members...
+						</div>
+						<div v-else-if="projectMembersError" class="project-files__muted">
+							{{ projectMembersError }}
+						</div>
+						<div v-else-if="projectMembers.length === 0" class="project-files__muted">
+							No project members found.
+						</div>
+						<label v-for="member in projectMembers"
+							v-else
+							:key="`signing-member-${member.id}`"
+							class="project-files__member-option">
+							<input v-model="signingDraft.memberIds"
+								type="checkbox"
+								:value="member.id"
+								:disabled="signingBusy">
 							<span>{{ member.displayName || member.id }}</span>
 							<span class="project-files__member-sub">{{ member.id }}</span>
 						</label>
 					</div>
 					<label class="project-files__upload-modal-label" for="project-files-signing-flow">Signing flow</label>
-					<select id="project-files-signing-flow" v-model="signingDraft.flow" class="project-files__upload-type-select" :disabled="signingBusy">
-						<option value="parallel">Parallel</option>
-						<option value="ordered_numeric">Ordered</option>
+					<select id="project-files-signing-flow"
+						v-model="signingDraft.flow"
+						class="project-files__upload-type-select"
+						:disabled="signingBusy">
+						<option value="parallel">
+							Parallel
+						</option>
+						<option value="ordered_numeric">
+							Ordered
+						</option>
 					</select>
 
 					<label class="project-files__upload-modal-label" for="project-files-signing-signers">External signer emails</label>
@@ -432,44 +525,51 @@
 						class="project-files__textarea"
 						:disabled="signingBusy"
 						placeholder="client@example.com\nmanager@example.com" />
-					<div class="project-files__hint">Add one signer email per line. LibreSign will send the signing flow.</div>
-					<div v-if="signingSigners.length > 0" class="project-files__placement-studio">
-						<div class="project-files__placement-toolbar">
+					<div class="project-files__hint">
+						Add one signer email per line. LibreSign will send the signing flow.
+					</div>
+					<div v-if="signingSigners.length > 0" class="project-files__placement-section">
+						<div class="project-files__placement-header-row">
 							<div>
-								<div class="project-files__placement-kicker">Visual Placement</div>
-								<div class="project-files__placement-title">Click the page to place each signer</div>
+								<div class="project-files__upload-modal-label">
+									Signature Placements
+								</div>
+								<div class="project-files__placement-status-text">
+									Placed {{ Object.keys(signingDraft.placements).length }} of {{ signingSigners.length }} signers.
+								</div>
 							</div>
-							<div class="project-files__placement-size">
-								<button type="button" class="project-files__mini-btn" :disabled="placementPage <= 1" @click="changePlacementPage(-1)">Prev</button>
-								<span>Page {{ placementPage }} / {{ placementPageCount || '?' }}</span>
-								<button type="button" class="project-files__mini-btn" :disabled="placementPageCount > 0 && placementPage >= placementPageCount" @click="changePlacementPage(1)">Next</button>
-							</div>
+							<button type="button" class="project-files__btn project-files__btn--accent" @click="showPlacementStudio = true">
+								Open Placement Studio
+							</button>
 						</div>
-						<div class="project-files__placement-workbench">
-							<div class="project-files__signer-rail">
-								<button v-for="signer in signingSigners" :key="`signer-chip-${signer.signerKey}`" type="button" class="project-files__signer-chip" :class="{ 'project-files__signer-chip--active': signingDraft.activeSignerKey === signer.signerKey }" @click="selectPlacementSigner(signingDraft, signer.signerKey)">
-									<span>{{ signerInitials(signer) }}</span>
+
+						<!-- Mini list of signers and their placement status -->
+						<div class="project-files__placement-summary-list">
+							<div v-for="signer in signingSigners" :key="`summary-${signer.signerKey}`" class="project-files__summary-item">
+								<span class="project-files__summary-avatar" :style="signerIconStyle(signer)">{{ signerInitials(signer) }}</span>
+								<div class="project-files__summary-details">
 									<strong>{{ signer.displayName || signer.email || signer.userId }}</strong>
-								</button>
-							</div>
-							<div ref="signingCanvas" class="project-files__pdf-canvas" @click="placeActiveSigner($event, signingDraft, 'signingCanvas')">
-								<canvas ref="signingPdfCanvas" class="project-files__pdf-render"></canvas>
-								<div v-if="placementLoading" class="project-files__pdf-empty">Rendering PDF...</div>
-								<div v-else-if="placementError" class="project-files__pdf-empty project-files__pdf-empty--error">{{ placementError }}</div>
-								<div v-else-if="!placementReady" class="project-files__pdf-empty">PDF preview unavailable.</div>
-								<div v-for="signer in signingSigners" :key="`box-${signer.signerKey}`" class="project-files__signature-box" :class="{ 'project-files__signature-box--active': signingDraft.activeSignerKey === signer.signerKey }" :style="placementBoxStyle(signingDraft.placements[signer.signerKey])" @mousedown.stop="startPlacementDrag($event, signingDraft, signer.signerKey, 'signingCanvas')">
-									<span>{{ signerInitials(signer) }}</span>
-									<strong>Sign here</strong>
-									<em>{{ signer.displayName || signer.email || signer.userId }}</em>
-									<i @mousedown.stop.prevent="startPlacementResize($event, signingDraft, signer.signerKey, 'signingCanvas')"></i>
+									<span class="project-files__summary-status" :class="signingDraft.placements[signer.signerKey] ? 'placed' : 'pending'">
+										{{ signingDraft.placements[signer.signerKey] ? `Placed (Page ${signingDraft.placements[signer.signerKey].page})` : 'Not placed yet' }}
+									</span>
 								</div>
 							</div>
 						</div>
 					</div>
-					<div v-if="signingError" class="project-files__upload-error">{{ signingError }}</div>
+					<div v-if="signingError" class="project-files__upload-error">
+						{{ signingError }}
+					</div>
 					<div class="project-files__modal-actions">
-						<button :type="'button'" class="project-files__btn" :disabled="signingBusy" @click="closeSigningModal">Cancel</button>
-						<button :type="'button'" class="project-files__btn project-files__btn--primary" :disabled="signingBusy" @click="createSigningRequest">
+						<button :type="'button'"
+							class="project-files__btn"
+							:disabled="signingBusy"
+							@click="closeSigningModal">
+							Cancel
+						</button>
+						<button :type="'button'"
+							class="project-files__btn project-files__btn--primary"
+							:disabled="signingBusy"
+							@click="createSigningRequest">
 							{{ signingBusy ? 'Sending...' : 'Send signing request' }}
 						</button>
 					</div>
@@ -481,14 +581,20 @@
 		<div v-if="activeExtractedFileId" class="project-files__modal-overlay" @click="closeExtractedDataModal">
 			<div class="project-files__modal" @click.stop>
 				<div class="project-files__modal-header">
-					<h3 class="project-files__modal-title">Extracted Data</h3>
+					<h3 class="project-files__modal-title">
+						Extracted Data
+					</h3>
 					<button class="project-files__modal-close" @click="closeExtractedDataModal">
 						<Close :size="20" />
 					</button>
 				</div>
 				<div class="project-files__modal-content">
-					<div class="project-files__modal-filename">{{ activeExtractedFileName }}</div>
-					<div v-if="activeExtractedData.length === 0" class="project-files__empty">No data extracted yet.</div>
+					<div class="project-files__modal-filename">
+						{{ activeExtractedFileName }}
+					</div>
+					<div v-if="activeExtractedData.length === 0" class="project-files__empty">
+						No data extracted yet.
+					</div>
 					<div v-if="activeExtractedData.length > 0 && activeMissingFieldsCount > 0" class="project-files__modal-warning">
 						{{ activeMissingFieldsCount }} field{{ activeMissingFieldsCount === 1 ? '' : 's' }} still missing.
 					</div>
@@ -520,6 +626,29 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- PDF Placement Studios -->
+		<PdfPlacementStudio
+			v-if="showPlacementStudio"
+			v-model="signingDraft.placements"
+			:visible="showPlacementStudio"
+			:file-name="activeSigningFile ? activeSigningFile.name : ''"
+			:file="activeSigningFile"
+			:webdav-client="webdavClient"
+			:signers="signingSigners"
+			@close="showPlacementStudio = false"
+			@done="showPlacementStudio = false" />
+
+		<PdfPlacementStudio
+			v-if="showUploadPlacementStudio"
+			v-model="signingUploadDraft.placements"
+			:visible="showUploadPlacementStudio"
+			:file-name="selectedSigningUploadFiles.length > 0 ? selectedSigningUploadFiles[0].name : ''"
+			:file="selectedSigningUploadFiles.length > 0 ? selectedSigningUploadFiles[0] : null"
+			:webdav-client="webdavClient"
+			:signers="signingUploadSigners"
+			@close="showUploadPlacementStudio = false"
+			@done="showUploadPlacementStudio = false" />
 	</div>
 </template>
 
@@ -529,6 +658,7 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { createClient } from 'webdav'
 import * as pdfjsLib from 'pdfjs-dist'
+// eslint-disable-next-line import/no-unresolved
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
@@ -549,6 +679,7 @@ import Upload from 'vue-material-design-icons/Upload.vue'
 
 import { ProjectsService } from '../../Services/projects.js'
 import FolderTreeItem from './FolderTreeItem.vue'
+import PdfPlacementStudio from './PdfPlacementStudio.vue'
 
 function getRequestToken() {
 	// Nextcloud exposes it on `OC.requestToken` and as a meta tag.
@@ -590,6 +721,7 @@ export default {
 		FileQuestionOutline,
 		FolderOutline,
 		FolderTreeItem,
+		PdfPlacementStudio,
 		Magnify,
 		NcLoadingIcon,
 		NcTextField,
@@ -646,6 +778,9 @@ export default {
 			signingByFileId: {},
 			signingLoadingByFileId: {},
 			activeSigningFile: null,
+			justDragged: false,
+			showPlacementStudio: false,
+			showUploadPlacementStudio: false,
 			signingDraft: {
 				flow: 'parallel',
 				signersText: '',
@@ -698,6 +833,9 @@ export default {
 	computed: {
 		activeRoots() {
 			return this.scope === 'shared' ? (this.sharedRoots || []) : (this.privateRoots || [])
+		},
+		webdavClient() {
+			return webdavClient
 		},
 		folderRoots() {
 			return (this.activeRoots || []).filter((node) => node && node.type === 'folder')
@@ -927,7 +1065,6 @@ export default {
 			if (this.selectedSigningUploadFiles.length !== files.length) {
 				this.signingUploadError = 'Only PDF files can be uploaded for signing.'
 			}
-			this.loadPlacementPdfFromFile(this.selectedSigningUploadFiles[0], 'signingUploadPdfCanvas')
 		},
 		async uploadSelectedFiles() {
 			if (!this.selectedFolderNode || this.selectedUploadFiles.length === 0 || this.uploadBusy) {
@@ -1531,7 +1668,6 @@ export default {
 			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {}, activeSignerKey: '' }
 			this.signingError = ''
 			this.loadProjectMembers()
-			this.loadPlacementPdfFromNode(node, 'signingPdfCanvas')
 		},
 		closeSigningModal() {
 			if (this.signingBusy) {
@@ -1539,7 +1675,6 @@ export default {
 			}
 			this.activeSigningFile = null
 			this.signingError = ''
-			this.resetPlacementPdf()
 		},
 		parseSigningSigners() {
 			return this.buildSignerPayload(this.signingDraft.memberIds, this.signingDraft.signersText)
@@ -1566,158 +1701,32 @@ export default {
 			}
 			return label.slice(0, 2).toUpperCase()
 		},
-		resetPlacementPdf() {
-			this.placementPdf = null
-			this.placementPage = 1
-			this.placementPageCount = 0
-			this.placementReady = false
-			this.placementLoading = false
-			this.placementError = ''
-			this.placementCanvasSize = { width: 0, height: 0 }
-			this.placementPageSize = { width: 595, height: 842 }
-		},
-		async loadPlacementPdfFromFile(file, canvasRef) {
-			if (!file) {
-				this.resetPlacementPdf()
-				return
-			}
-			const data = await this.readFileAsArrayBuffer(file)
-			await this.loadPlacementPdf(data, canvasRef)
-		},
-		async loadPlacementPdfFromNode(node, canvasRef) {
-			if (!node?.path) {
-				this.resetPlacementPdf()
-				return
-			}
-			const davPath = this.normalizedDavPath(node.path)
-			const response = await fetch(webdavClient.getFileDownloadLink(davPath), { credentials: 'include' })
-			if (!response.ok) {
-				this.placementError = 'Could not load PDF preview.'
-				return
-			}
-			await this.loadPlacementPdf(await response.arrayBuffer(), canvasRef)
-		},
-		async loadPlacementPdf(data, canvasRef) {
-			this.resetPlacementPdf()
-			this.placementLoading = true
-			try {
-				this.placementPdf = await pdfjsLib.getDocument({ data }).promise
-				this.placementPageCount = this.placementPdf.numPages || 1
-				await this.renderPlacementPage(canvasRef)
-			} catch (error) {
-				console.error('PDF preview failed:', error)
-				this.placementError = 'Could not render PDF preview.'
-			} finally {
-				this.placementLoading = false
-			}
-		},
-		async renderPlacementPage(canvasRef) {
-			if (!this.placementPdf) return
-			await this.$nextTick()
-			const canvas = this.$refs[canvasRef]
-			if (!canvas) return
-			const page = await this.placementPdf.getPage(this.placementPage)
-			const baseViewport = page.getViewport({ scale: 1 })
-			this.placementPageSize = { width: baseViewport.width, height: baseViewport.height }
-			const maxWidth = 760
-			const scale = Math.min(maxWidth / baseViewport.width, 1.45)
-			const viewport = page.getViewport({ scale })
-			const context = canvas.getContext('2d')
-			canvas.width = Math.round(viewport.width)
-			canvas.height = Math.round(viewport.height)
-			this.placementCanvasSize = { width: canvas.width, height: canvas.height }
-			await page.render({ canvasContext: context, viewport }).promise
-			this.placementReady = true
-		},
-		async changePlacementPage(delta) {
-			const next = Math.max(1, Math.min(this.placementPageCount || 1, this.placementPage + delta))
-			if (next === this.placementPage) return
-			this.placementPage = next
-			const canvasRef = this.activeSigningFile ? 'signingPdfCanvas' : 'signingUploadPdfCanvas'
-			await this.renderPlacementPage(canvasRef)
-		},
-		placementSummary(draft, signerKey) {
-			const box = draft.placements?.[signerKey]
-			return box ? `Page ${box.page || 1}` : 'Not placed'
-		},
-		placeActiveSigner(event, draft, stageRef) {
-			const key = draft.activeSignerKey
-			if (!key || !this.placementReady) return
-			const rect = this.$refs[stageRef]?.getBoundingClientRect()
-			if (!rect) return
-			const width = 26
-			const height = 9
-			const left = Math.max(0, Math.min(100 - width, ((event.clientX - rect.left) / rect.width) * 100 - width / 2))
-			const top = Math.max(0, Math.min(100 - height, ((event.clientY - rect.top) / rect.height) * 100 - height / 2))
-			this.$set(draft.placements, key, { page: this.placementPage, leftPct: left, topPct: top, widthPct: width, heightPct: height })
-		},
-		placementBoxStyle(box) {
-			if (!box || box.page !== this.placementPage) return { display: 'none' }
-			return {
-				left: `${box.leftPct ?? 10}%`,
-				top: `${box.topPct ?? 10}%`,
-				width: `${box.widthPct ?? 26}%`,
-				height: `${box.heightPct ?? 9}%`,
-			}
-		},
-		startPlacementDrag(event, draft, signerKey, stageRef) {
-			this.selectPlacementSigner(draft, signerKey)
-			this.startPlacementPointer(event, draft, signerKey, stageRef, 'move')
-		},
-		startPlacementResize(event, draft, signerKey, stageRef) {
-			this.selectPlacementSigner(draft, signerKey)
-			this.startPlacementPointer(event, draft, signerKey, stageRef, 'resize')
-		},
-		startPlacementPointer(event, draft, signerKey, stageRef, mode) {
-			const stage = this.$refs[stageRef]
-			const box = draft.placements?.[signerKey]
-			if (!stage || !box) return
-			this.placementDrag = { mode, draft, signerKey, rect: stage.getBoundingClientRect(), startX: event.clientX, startY: event.clientY, start: { ...box } }
-			window.addEventListener('mousemove', this.onPlacementPointerMove)
-			window.addEventListener('mouseup', this.stopPlacementPointer)
-		},
-		onPlacementPointerMove(event) {
-			const drag = this.placementDrag
-			if (!drag) return
-			const dx = ((event.clientX - drag.startX) / drag.rect.width) * 100
-			const dy = ((event.clientY - drag.startY) / drag.rect.height) * 100
-			const next = { ...drag.start }
-			if (drag.mode === 'resize') {
-				next.widthPct = Math.max(8, Math.min(70, (drag.start.widthPct || 26) + dx))
-				next.heightPct = Math.max(5, Math.min(30, (drag.start.heightPct || 9) + dy))
-			} else {
-				next.leftPct = Math.max(0, Math.min(100 - (next.widthPct || 26), (drag.start.leftPct || 0) + dx))
-				next.topPct = Math.max(0, Math.min(100 - (next.heightPct || 9), (drag.start.topPct || 0) + dy))
-			}
-			this.$set(drag.draft.placements, drag.signerKey, next)
-		},
-		stopPlacementPointer() {
-			this.placementDrag = null
-			window.removeEventListener('mousemove', this.onPlacementPointerMove)
-			window.removeEventListener('mouseup', this.stopPlacementPointer)
-		},
 		ensurePlacementDrafts(draft, signers) {
 			if (!draft.placements || typeof draft.placements !== 'object') {
 				this.$set(draft, 'placements', {})
 			}
-			signers.forEach((signer, index) => {
+			signers.forEach((signer) => {
 				const key = signer.signerKey || this.signerKey(signer)
 				if (!key) return
 				signer.signerKey = key
-				if (!draft.placements[key]) {
-					this.$set(draft.placements, key, {
-						page: 1,
-						leftPct: 10,
-						topPct: 14 + (index * 10),
-						widthPct: 26,
-						heightPct: 9,
-					})
-				}
 				if (!draft.activeSignerKey) {
 					this.$set(draft, 'activeSignerKey', key)
 				}
 			})
 			return signers
+		},
+		signerIconStyle(signer) {
+			const key = signer?.signerKey || ''
+			let hash = 0
+			for (let i = 0; i < key.length; i++) {
+				hash = key.charCodeAt(i) + ((hash << 5) - hash)
+			}
+			const hue = Math.abs(hash % 360)
+			return {
+				background: `hsl(${hue}, 45%, 25%)`,
+				color: `hsl(${hue}, 90%, 85%)`,
+				border: `1px solid hsl(${hue}, 60%, 45%)`,
+			}
 		},
 		buildPlacementPayload(draft, signers) {
 			return signers
@@ -1729,10 +1738,10 @@ export default {
 						signerKey: key,
 						type: 'signature',
 						page: Number(placement.page) || 1,
-						left: Math.round(((Number(placement.leftPct) || 0) / 100) * this.placementPageSize.width),
-						top: Math.round(((Number(placement.topPct) || 0) / 100) * this.placementPageSize.height),
-						width: Math.round(((Number(placement.widthPct) || 26) / 100) * this.placementPageSize.width),
-						height: Math.round(((Number(placement.heightPct) || 9) / 100) * this.placementPageSize.height),
+						left: Number(placement.left) || 0,
+						top: Number(placement.top) || 0,
+						width: Number(placement.width) || 180,
+						height: Number(placement.height) || 60,
 					}
 				})
 				.filter(Boolean)
@@ -2332,210 +2341,94 @@ export default {
 	padding: 10px 0;
 }
 
-.project-files__placement-studio {
-	margin-top: 14px;
-	padding: 14px;
-	border: 1px solid color-mix(in srgb, var(--color-border) 72%, #a77b2f 28%);
-	border-radius: 18px;
-	background:
-		linear-gradient(135deg, rgba(194, 142, 54, 0.10), transparent 42%),
-		linear-gradient(180deg, var(--color-main-background), var(--color-background-hover));
-	box-shadow: 0 18px 44px rgba(20, 16, 8, 0.12);
+.project-files__placement-section {
+	margin-top: 20px;
+	padding: 16px;
+	border: 1px solid rgba(194, 142, 54, 0.15);
+	border-radius: 14px;
+	background: linear-gradient(180deg, var(--color-background-hover), var(--color-main-background));
+	box-shadow: 0 4px 16px rgba(0,0,0,0.04);
 }
 
-.project-files__placement-toolbar {
+.project-files__placement-header-row {
 	display: flex;
 	justify-content: space-between;
+	align-items: center;
 	gap: 16px;
-	align-items: center;
-	margin-bottom: 12px;
+	margin-bottom: 14px;
 }
 
-.project-files__placement-kicker {
-	font-size: 11px;
-	font-weight: 800;
-	letter-spacing: 0.12em;
-	text-transform: uppercase;
-	color: #9a6a18;
-}
-
-.project-files__placement-title {
-	font-size: 16px;
-	font-weight: 800;
-	color: var(--color-main-text);
-}
-
-.project-files__placement-size {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 12px;
+.project-files__placement-status-text {
+	font-size: 13px;
 	color: var(--color-text-maxcontrast);
+	margin-top: 2px;
 }
 
-.project-files__mini-btn {
-	border: 1px solid var(--color-border);
-	border-radius: 999px;
-	padding: 5px 10px;
-	background: var(--color-main-background);
-	color: var(--color-main-text);
-	cursor: pointer;
+.project-files__btn--accent {
+	background: #c28e36;
+	color: #fff;
+	border: none;
+	font-weight: 700;
+	transition: background 0.2s;
 }
 
-.project-files__mini-btn:disabled {
-	opacity: 0.45;
-	cursor: not-allowed;
+.project-files__btn--accent:hover {
+	background: #b17d29;
 }
 
-.project-files__placement-workbench {
+.project-files__placement-summary-list {
 	display: grid;
-	grid-template-columns: 190px minmax(0, 1fr);
-	gap: 14px;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 10px;
 }
 
-.project-files__signer-rail {
+.project-files__summary-item {
 	display: grid;
-	align-content: start;
-	gap: 8px;
-}
-
-.project-files__signer-chip {
-	display: grid;
-	grid-template-columns: 34px 1fr;
+	grid-template-columns: 32px 1fr;
 	align-items: center;
 	gap: 10px;
-	width: 100%;
-	padding: 9px;
-	border: 1px solid var(--color-border);
-	border-radius: 14px;
+	padding: 8px 12px;
 	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+}
+
+.project-files__summary-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	display: grid;
+	place-items: center;
+	font-size: 11px;
+	font-weight: 800;
+}
+
+.project-files__summary-details {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.project-files__summary-details strong {
+	font-size: 12px;
 	color: var(--color-main-text);
-	text-align: left;
-	cursor: pointer;
-}
-
-.project-files__signer-chip > span {
-	display: grid;
-	place-items: center;
-	width: 34px;
-	height: 34px;
-	border-radius: 11px;
-	background: #1f2937;
-	color: #f8d58a;
-	font-size: 12px;
-	font-weight: 900;
-}
-
-.project-files__signer-chip strong {
-	min-width: 0;
+	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: 13px;
 }
 
-.project-files__signer-chip--active {
-	border-color: #c28e36;
-	box-shadow: 0 0 0 2px rgba(194, 142, 54, 0.22);
+.project-files__summary-status {
+	font-size: 10px;
+	font-weight: 600;
+	margin-top: 1px;
 }
 
-.project-files__pdf-canvas {
-	position: relative;
-	display: inline-block;
-	max-width: 100%;
-	min-height: 420px;
-	overflow: hidden;
-	border-radius: 18px;
-	background: #34302a;
-	box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 24px 54px rgba(0,0,0,0.22);
-	cursor: crosshair;
+.project-files__summary-status.placed {
+	color: var(--color-success, #2ea44f);
 }
 
-.project-files__pdf-render {
-	display: block;
-	max-width: 100%;
-	height: auto;
-	background: #fff;
-}
-
-.project-files__pdf-empty {
-	position: absolute;
-	inset: 0;
-	display: grid;
-	place-items: center;
-	padding: 24px;
-	background: rgba(38, 34, 29, 0.88);
-	color: #f7ead0;
-	font-weight: 700;
-	text-align: center;
-}
-
-.project-files__pdf-empty--error {
-	color: #ffb4a8;
-}
-
-.project-files__signature-box {
-	position: absolute;
-	display: grid;
-	grid-template-columns: 34px 1fr;
-	grid-template-rows: 1fr 1fr;
-	align-items: center;
-	column-gap: 8px;
-	padding: 8px;
-	border: 2px solid rgba(194, 142, 54, 0.85);
-	border-radius: 12px;
-	background: rgba(255, 245, 222, 0.88);
-	backdrop-filter: blur(8px);
-	box-shadow: 0 10px 28px rgba(70, 48, 15, 0.24);
-	cursor: move;
-	user-select: none;
-}
-
-.project-files__signature-box--active {
-	border-color: #111827;
-	box-shadow: 0 0 0 3px rgba(194, 142, 54, 0.35), 0 16px 34px rgba(0,0,0,0.26);
-}
-
-.project-files__signature-box > span {
-	grid-row: 1 / 3;
-	display: grid;
-	place-items: center;
-	width: 30px;
-	height: 30px;
-	border-radius: 9px;
-	background: #111827;
-	color: #f8d58a;
-	font-size: 11px;
-	font-weight: 900;
-}
-
-.project-files__signature-box strong {
-	font-size: 12px;
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	color: #111827;
-}
-
-.project-files__signature-box em {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-style: normal;
-	font-size: 11px;
-	color: #6b4a12;
-}
-
-.project-files__signature-box i {
-	position: absolute;
-	right: -7px;
-	bottom: -7px;
-	width: 15px;
-	height: 15px;
-	border: 2px solid #111827;
-	border-radius: 999px;
-	background: #f8d58a;
-	cursor: nwse-resize;
+.project-files__summary-status.pending {
+	color: var(--color-text-maxcontrast);
 }
 
 @media (max-width: 760px) {

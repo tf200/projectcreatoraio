@@ -284,7 +284,7 @@ class ProjectSigningService {
 			}
 		}
 		if (!empty($signer['uid'])) {
-			return (string) $signer['uid'];
+			return 'account:' . strtolower((string) $signer['uid']);
 		}
 		if (!empty($signer['email'])) {
 			return 'email:' . strtolower((string) $signer['email']);
