@@ -42,9 +42,6 @@
 
 		<div v-if="documentTypesLoading" class="project-files__muted">Loading OCR document types...</div>
 		<div v-else-if="documentTypesError" class="project-files__muted">{{ documentTypesError }}</div>
-		<div v-else-if="projectId && documentTypes.length === 0" class="project-files__muted">
-			No OCR document types are configured for this organization yet.
-		</div>
 		<div v-if="loading" class="project-files__muted">Loading file structure...</div>
 		<div v-else-if="error" class="project-files__muted">{{ error }}</div>
 		<div v-else class="project-files__grid">
@@ -94,7 +91,15 @@
 							:disabled="!selectedFolderNode || uploadBusy || documentTypesLoading || documentTypes.length === 0"
 							@click="triggerUpload">
 							<Upload :size="18" />
-							{{ uploadBusy ? 'Uploading...' : 'Upload files' }}
+							{{ uploadBusy ? 'Uploading...' : 'Upload for OCR' }}
+						</button>
+						<button
+							:type="'button'"
+							class="project-files__btn project-files__btn--primary"
+							:disabled="!selectedFolderNode || signingUploadBusy"
+							@click="triggerSigningUpload">
+							<FileDocumentOutline :size="18" />
+							{{ signingUploadBusy ? 'Uploading...' : 'Upload for signing' }}
 						</button>
 						<button
 							:type="'button'"
@@ -113,6 +118,13 @@
 					type="file"
 					multiple
 					@change="onFilesPicked">
+				<input
+					ref="signingUploadInput"
+					class="project-files__upload-input"
+					type="file"
+					accept="application/pdf,.pdf"
+					multiple
+					@change="onSigningFilesPicked">
 
 				<div v-if="showUploadModal" class="project-files__modal-overlay" @click="closeUploadModal">
 					<div class="project-files__modal project-files__upload-modal" @click.stop>
@@ -173,8 +185,61 @@
 					</div>
 				</div>
 
+				<div v-if="showSigningUploadModal" class="project-files__modal-overlay" @click="closeSigningUploadModal">
+					<div class="project-files__modal project-files__upload-modal" @click.stop>
+						<div class="project-files__modal-header">
+							<h3 class="project-files__modal-title">Upload for Signing</h3>
+							<button class="project-files__modal-close" @click="closeSigningUploadModal">
+								<Close :size="20" />
+							</button>
+						</div>
+						<div class="project-files__modal-content">
+							<div class="project-files__modal-filename">{{ selectedFolderNode?.name || 'Selected folder' }}</div>
+							<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">Signing flow</label>
+							<select id="project-files-signing-upload-flow" v-model="signingUploadDraft.flow" class="project-files__upload-type-select" :disabled="signingUploadBusy">
+								<option value="parallel">Parallel</option>
+								<option value="ordered_numeric">Ordered</option>
+							</select>
+							<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">Signer emails</label>
+							<textarea
+								id="project-files-signing-upload-signers"
+								v-model="signingUploadDraft.signersText"
+								class="project-files__textarea"
+								:disabled="signingUploadBusy"
+								placeholder="client@example.com\nmanager@example.com" />
+							<div class="project-files__hint">Upload PDF files and immediately send them to LibreSign.</div>
+							<div class="project-files__upload-modal-row">
+								<button
+									:type="'button'"
+									class="project-files__btn"
+									:disabled="signingUploadBusy"
+									@click="$refs.signingUploadInput?.click?.()">
+									Choose PDFs
+								</button>
+								<span class="project-files__upload-modal-hint">
+									{{ selectedSigningUploadFiles.length === 0 ? 'No PDFs selected yet.' : `${selectedSigningUploadFiles.length} PDF${selectedSigningUploadFiles.length === 1 ? '' : 's'} selected.` }}
+								</span>
+							</div>
+							<ul v-if="selectedSigningUploadFiles.length > 0" class="project-files__upload-file-list">
+								<li v-for="file in selectedSigningUploadFiles" :key="`signing-upload-file-${file.name}-${file.size}`" class="project-files__upload-file-item">
+									<span>{{ file.name }}</span>
+									<span>{{ formatBytes(file.size) }}</span>
+								</li>
+							</ul>
+							<div v-if="signingUploadError" class="project-files__upload-error">{{ signingUploadError }}</div>
+							<div class="project-files__modal-actions">
+								<button :type="'button'" class="project-files__btn" :disabled="signingUploadBusy" @click="closeSigningUploadModal">Cancel</button>
+								<button :type="'button'" class="project-files__btn project-files__btn--primary" :disabled="signingUploadBusy || selectedSigningUploadFiles.length === 0" @click="uploadSigningFiles">
+									{{ signingUploadBusy ? 'Uploading...' : 'Upload and send' }}
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<div v-if="uploadError" class="project-files__upload-error">{{ uploadError }}</div>
 				<div v-else-if="uploadMessage" class="project-files__upload-success">{{ uploadMessage }}</div>
+				<div v-if="signingUploadMessage" class="project-files__upload-success">{{ signingUploadMessage }}</div>
 
 				<div class="project-files__list">
 					<div v-if="showSearch" class="project-files__results">
@@ -508,6 +573,17 @@ export default {
 			selectedUploadFiles: [],
 			pendingUploadTargets: [],
 			resolvingPendingUploads: false,
+			showSigningUploadModal: false,
+			signingUploadBusy: false,
+			signingUploadError: '',
+			signingUploadMessage: '',
+			selectedSigningUploadFiles: [],
+			pendingSigningUploadTargets: [],
+			resolvingPendingSigningUploads: false,
+			signingUploadDraft: {
+				flow: 'parallel',
+				signersText: '',
+			},
 		}
 	},
 	computed: {
@@ -592,12 +668,14 @@ export default {
 			this.ensureSelection('shared')
 			this.queueVisibleProcessingLoad()
 			this.resolvePendingUploadedFiles()
+			this.resolvePendingSigningUploads()
 			this.clearUploadFeedback()
 		},
 		privateRoots() {
 			this.ensureSelection('private')
 			this.queueVisibleProcessingLoad()
 			this.resolvePendingUploadedFiles()
+			this.resolvePendingSigningUploads()
 			this.clearUploadFeedback()
 		},
 		projectId: {
@@ -637,6 +715,12 @@ export default {
 			this.signingDraft = { flow: 'parallel', signersText: '' }
 			this.signingBusy = false
 			this.signingError = ''
+			this.showSigningUploadModal = false
+			this.signingUploadBusy = false
+			this.signingUploadError = ''
+			this.signingUploadMessage = ''
+			this.selectedSigningUploadFiles = []
+			this.signingUploadDraft = { flow: 'parallel', signersText: '' }
 			this.feedbackByFileId = {}
 			this.activeExtractedFileId = null
 			this.activeExtractedDraft = {}
@@ -649,6 +733,25 @@ export default {
 		resetPendingUploadProcessing() {
 			this.pendingUploadTargets = []
 			this.resolvingPendingUploads = false
+			this.pendingSigningUploadTargets = []
+			this.resolvingPendingSigningUploads = false
+		},
+		triggerSigningUpload() {
+			if (!this.selectedFolderNode || this.signingUploadBusy) {
+				return
+			}
+			this.signingUploadError = ''
+			this.signingUploadMessage = ''
+			this.selectedSigningUploadFiles = []
+			this.signingUploadDraft = { flow: 'parallel', signersText: '' }
+			this.showSigningUploadModal = true
+		},
+		closeSigningUploadModal() {
+			if (this.signingUploadBusy) {
+				return
+			}
+			this.showSigningUploadModal = false
+			this.selectedSigningUploadFiles = []
 		},
 		triggerUpload() {
 			if (!this.selectedFolderNode || this.uploadBusy) {
@@ -683,6 +786,27 @@ export default {
 				return
 			}
 			this.selectedUploadFiles = files
+		},
+		async onSigningFilesPicked(event) {
+			const input = event?.target
+			const files = Array.from(input?.files || [])
+			if (input) {
+				input.value = ''
+			}
+
+			if (files.length === 0) {
+				return
+			}
+			if (!this.showSigningUploadModal) {
+				this.triggerSigningUpload()
+			}
+			if (!this.selectedFolderNode || this.signingUploadBusy) {
+				return
+			}
+			this.selectedSigningUploadFiles = files.filter((file) => this.isPdfUploadFile(file))
+			if (this.selectedSigningUploadFiles.length !== files.length) {
+				this.signingUploadError = 'Only PDF files can be uploaded for signing.'
+			}
 		},
 		async uploadSelectedFiles() {
 			if (!this.selectedFolderNode || this.selectedUploadFiles.length === 0 || this.uploadBusy) {
@@ -751,6 +875,71 @@ export default {
 			if (failures.length > 0) {
 				const label = failures.length === 1 ? failures[0] : `${failures.length} files`
 				this.uploadError = `Failed to upload ${label}.`
+			}
+		},
+		async uploadSigningFiles() {
+			if (!this.selectedFolderNode || this.selectedSigningUploadFiles.length === 0 || this.signingUploadBusy) {
+				return
+			}
+			const signers = this.parseSignerText(this.signingUploadDraft.signersText)
+			if (signers.length === 0) {
+				this.signingUploadError = 'Add at least one signer email.'
+				return
+			}
+
+			const folderDavPath = this.normalizedDavPath(this.selectedFolderNode.path)
+			if (!folderDavPath) {
+				this.signingUploadError = 'Could not resolve destination folder.'
+				return
+			}
+
+			this.signingUploadBusy = true
+			this.signingUploadError = ''
+			this.signingUploadMessage = ''
+			const failures = []
+			const uploadedTargets = []
+			let uploaded = 0
+
+			for (const file of this.selectedSigningUploadFiles) {
+				const name = String(file?.name || '').trim()
+				if (name === '' || name.includes('/') || !this.isPdfUploadFile(file)) {
+					failures.push(name || '(unnamed file)')
+					continue
+				}
+				const target = `${folderDavPath.replace(/\/+$/, '')}/${name}`
+				try {
+					const data = await this.readFileAsArrayBuffer(file)
+					const ok = await webdavClient.putFileContents(target, data, { overwrite: false })
+					if (ok) {
+						uploaded += 1
+						uploadedTargets.push({
+							path: this.joinNodePath(this.selectedFolderNode.path, name),
+							flow: this.signingUploadDraft.flow,
+							signers,
+						})
+					} else {
+						failures.push(name)
+					}
+				} catch (error) {
+					console.error('Signing upload failed:', error)
+					failures.push(name)
+				}
+			}
+
+			this.signingUploadBusy = false
+			if (uploaded > 0) {
+				this.pendingSigningUploadTargets = [
+					...this.pendingSigningUploadTargets,
+					...uploadedTargets,
+				]
+				this.signingUploadMessage = `Uploaded ${uploaded} PDF${uploaded === 1 ? '' : 's'}. Sending signature request...`
+				this.showSigningUploadModal = false
+				this.selectedSigningUploadFiles = []
+				this.$emit('refresh')
+			}
+			if (failures.length > 0) {
+				const label = failures.length === 1 ? failures[0] : `${failures.length} files`
+				this.signingUploadError = `Failed to upload ${label}.`
 			}
 		},
 		readFileAsArrayBuffer(file) {
@@ -1025,6 +1214,39 @@ export default {
 			this.pendingUploadTargets = remaining
 			this.resolvingPendingUploads = false
 		},
+		async resolvePendingSigningUploads() {
+			if (this.resolvingPendingSigningUploads || this.pendingSigningUploadTargets.length === 0) {
+				return
+			}
+			const projectId = Number(this.projectId)
+			if (!Number.isFinite(projectId) || projectId <= 0) {
+				return
+			}
+
+			this.resolvingPendingSigningUploads = true
+			const remaining = []
+			let sent = 0
+			for (const pendingTarget of this.pendingSigningUploadTargets) {
+				const targetPath = pendingTarget?.path || ''
+				const node = this.findNodeByPath([...this.sharedRoots, ...this.privateRoots], targetPath)
+				if (!node) {
+					remaining.push(pendingTarget)
+					continue
+				}
+				if (!this.isSignableFile(node)) {
+					continue
+				}
+				const request = await this.createSigningRequestForFile(node.id, pendingTarget.flow, pendingTarget.signers)
+				if (request) {
+					sent += 1
+				}
+			}
+			this.pendingSigningUploadTargets = remaining
+			this.resolvingPendingSigningUploads = false
+			if (sent > 0) {
+				this.signingUploadMessage = `Sent ${sent} signing request${sent === 1 ? '' : 's'}.`
+			}
+		},
 		formatBytes(bytes) {
 			const value = typeof bytes === 'number' ? bytes : Number(bytes)
 			if (!Number.isFinite(value) || value <= 0) {
@@ -1099,6 +1321,11 @@ export default {
 		isSignableFile(node) {
 			return !!(node && node.type === 'file' && String(node.mimetype || '').toLowerCase() === 'application/pdf')
 		},
+		isPdfUploadFile(file) {
+			const type = String(file?.type || '').toLowerCase()
+			const name = String(file?.name || '').toLowerCase()
+			return type === 'application/pdf' || name.endsWith('.pdf')
+		},
 		signingTitle(fileId) {
 			const request = this.signingByFileId[String(fileId)] || null
 			return request ? `Signing: ${this.signingStatusLabel(fileId)}` : 'Request signature'
@@ -1151,11 +1378,40 @@ export default {
 			this.signingError = ''
 		},
 		parseSigningSigners() {
-			return String(this.signingDraft.signersText || '')
+			return this.parseSignerText(this.signingDraft.signersText)
+		},
+		parseSignerText(text) {
+			return String(text || '')
 				.split(/[\n,;]/)
 				.map((email) => email.trim())
 				.filter((email) => email !== '')
 				.map((email) => ({ email, displayName: email }))
+		},
+		async createSigningRequestForFile(fileId, flow, signers) {
+			const projectId = Number(this.projectId)
+			const normalizedFileId = Number(fileId)
+			if (!Number.isFinite(projectId) || projectId <= 0 || !Number.isFinite(normalizedFileId) || normalizedFileId <= 0) {
+				return null
+			}
+			try {
+				const payload = await projectsService.createFileSigningRequest(projectId, normalizedFileId, {
+					signature_flow: flow,
+					signers,
+				})
+				if (payload?.request) {
+					this.$set(this.signingByFileId, String(normalizedFileId), payload.request)
+					this.$set(this.feedbackByFileId, String(normalizedFileId), 'Signing request sent.')
+					return payload.request
+				}
+			} catch (error) {
+				const message = error?.response?.data?.message || 'Could not send signing request.'
+				this.$set(this.feedbackByFileId, String(normalizedFileId), message)
+				this.signingUploadError = message
+				if (String(this.activeSigningFile?.id || '') === String(normalizedFileId)) {
+					this.signingError = message
+				}
+			}
+			return null
 		},
 		async createSigningRequest() {
 			const projectId = Number(this.projectId)
@@ -1171,15 +1427,10 @@ export default {
 			this.signingBusy = true
 			this.signingError = ''
 			try {
-				const payload = await projectsService.createFileSigningRequest(projectId, fileId, {
-					signature_flow: this.signingDraft.flow,
-					signers,
-				})
-				if (payload?.request) {
-					this.$set(this.signingByFileId, String(fileId), payload.request)
+				const request = await this.createSigningRequestForFile(fileId, this.signingDraft.flow, signers)
+				if (request) {
+					this.activeSigningFile = null
 				}
-				this.$set(this.feedbackByFileId, String(fileId), 'Signing request sent.')
-				this.activeSigningFile = null
 			} catch (error) {
 				this.signingError = error?.response?.data?.message || 'Could not send signing request.'
 			} finally {
