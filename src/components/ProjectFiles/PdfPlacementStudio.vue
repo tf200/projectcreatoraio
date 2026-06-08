@@ -1,167 +1,169 @@
 <template>
-	<transition name="studio-fade">
-		<div v-if="visible" class="pdf-studio">
-			<!-- Header -->
-			<div class="pdf-studio__header">
-				<div class="pdf-studio__header-left">
-					<div class="pdf-studio__doc-info">
-						<span class="pdf-studio__doc-badge">PDF</span>
-						<h2 class="pdf-studio__doc-title" :title="fileName">
-							{{ fileName }}
-						</h2>
-					</div>
-					<div class="pdf-studio__status-summary">
-						Placed {{ placedCount }} of {{ signers.length }} signatures
-					</div>
-				</div>
-
-				<div class="pdf-studio__header-center">
-					<!-- Page Switcher -->
-					<div class="pdf-studio__page-nav">
-						<button type="button"
-							class="pdf-studio__nav-btn"
-							:disabled="currentPage <= 1 || loading"
-							@click="changePage(-1)">
-							<ChevronLeft :size="20" />
-						</button>
-						<span class="pdf-studio__page-indicator">Page {{ currentPage }} / {{ pageCount || '?' }}</span>
-						<button type="button"
-							class="pdf-studio__nav-btn"
-							:disabled="currentPage >= pageCount || loading"
-							@click="changePage(1)">
-							<ChevronRight :size="20" />
-						</button>
-					</div>
-
-					<!-- Zoom Controls -->
-					<div class="pdf-studio__zoom-controls">
-						<button type="button"
-							class="pdf-studio__zoom-btn"
-							:disabled="zoom <= 0.5 || loading"
-							@click="changeZoom(-0.15)">
-							<Minus :size="16" />
-						</button>
-						<span class="pdf-studio__zoom-label">{{ Math.round(zoom * 100) }}%</span>
-						<button type="button"
-							class="pdf-studio__zoom-btn"
-							:disabled="zoom >= 2.0 || loading"
-							@click="changeZoom(0.15)">
-							<Plus :size="16" />
-						</button>
-						<button type="button"
-							class="pdf-studio__zoom-btn"
-							:disabled="loading"
-							@click="resetZoom">
-							<ArrowExpand :size="16" />
-						</button>
-					</div>
-				</div>
-
-				<div class="pdf-studio__header-right">
-					<button type="button" class="pdf-studio__btn pdf-studio__btn--secondary" @click="handleCancel">
-						Cancel
-					</button>
-					<button type="button" class="pdf-studio__btn pdf-studio__btn--primary" @click="handleDone">
-						Save Placements
-					</button>
-				</div>
-			</div>
-
-			<!-- Main Workbench -->
-			<div class="pdf-studio__workbench">
-				<!-- Signers Sidebar -->
-				<div class="pdf-studio__sidebar">
-					<div class="pdf-studio__sidebar-header">
-						<h3>Signers</h3>
-						<p>Select a signer, then click on the PDF to place their signature block.</p>
-					</div>
-					<div class="pdf-studio__signer-list">
-						<div
-							v-for="signer in signers"
-							:key="signer.signerKey"
-							class="pdf-studio__signer-card"
-							:class="{
-								'pdf-studio__signer-card--active': activeSignerKey === signer.signerKey,
-								'pdf-studio__signer-card--placed': placements[signer.signerKey]
-							}"
-							@click="selectSigner(signer.signerKey)">
-							<div class="pdf-studio__signer-avatar" :style="signerIconStyle(signer)">
-								{{ signerInitials(signer) }}
-							</div>
-							<div class="pdf-studio__signer-details">
-								<strong class="pdf-studio__signer-name">{{ signer.displayName || signer.email || signer.userId }}</strong>
-								<span class="pdf-studio__signer-badge" :class="placements[signer.signerKey] ? 'pdf-studio__signer-badge--placed' : 'pdf-studio__signer-badge--pending'">
-									{{ placements[signer.signerKey] ? `Placed on Page ${placements[signer.signerKey].page}` : 'Not placed' }}
-								</span>
-							</div>
-							<div class="pdf-studio__signer-actions">
-								<button
-									v-if="placements[signer.signerKey]"
-									type="button"
-									class="pdf-studio__action-btn"
-									title="Remove placement"
-									@click.stop="clearPlacement(signer.signerKey)">
-									<Close :size="16" />
-								</button>
-							</div>
+	<div class="pdf-studio-portal" style="display: none;">
+		<transition name="studio-fade">
+			<div v-show="visible" ref="studioContainer" class="pdf-studio">
+				<!-- Header -->
+				<div class="pdf-studio__header">
+					<div class="pdf-studio__header-left">
+						<div class="pdf-studio__doc-info">
+							<span class="pdf-studio__doc-badge">PDF</span>
+							<h2 class="pdf-studio__doc-title" :title="fileName">
+								{{ fileName }}
+							</h2>
+						</div>
+						<div class="pdf-studio__status-summary">
+							Placed {{ placedCount }} of {{ signers.length }} signatures
 						</div>
 					</div>
+
+					<div class="pdf-studio__header-center">
+						<!-- Page Switcher -->
+						<div class="pdf-studio__page-nav">
+							<button type="button"
+								class="pdf-studio__nav-btn"
+								:disabled="currentPage <= 1 || loading"
+								@click="changePage(-1)">
+								<ChevronLeft :size="20" />
+							</button>
+							<span class="pdf-studio__page-indicator">Page {{ currentPage }} / {{ pageCount || '?' }}</span>
+							<button type="button"
+								class="pdf-studio__nav-btn"
+								:disabled="currentPage >= pageCount || loading"
+								@click="changePage(1)">
+								<ChevronRight :size="20" />
+							</button>
+						</div>
+
+						<!-- Zoom Controls -->
+						<div class="pdf-studio__zoom-controls">
+							<button type="button"
+								class="pdf-studio__zoom-btn"
+								:disabled="zoom <= 0.5 || loading"
+								@click="changeZoom(-0.15)">
+								<Minus :size="16" />
+							</button>
+							<span class="pdf-studio__zoom-label">{{ Math.round(zoom * 100) }}%</span>
+							<button type="button"
+								class="pdf-studio__zoom-btn"
+								:disabled="zoom >= 2.0 || loading"
+								@click="changeZoom(0.15)">
+								<Plus :size="16" />
+							</button>
+							<button type="button"
+								class="pdf-studio__zoom-btn"
+								:disabled="loading"
+								@click="resetZoom">
+								<ArrowExpand :size="16" />
+							</button>
+						</div>
+					</div>
+
+					<div class="pdf-studio__header-right">
+						<button type="button" class="pdf-studio__btn pdf-studio__btn--secondary" @click="handleCancel">
+							Cancel
+						</button>
+						<button type="button" class="pdf-studio__btn pdf-studio__btn--primary" @click="handleDone">
+							Save Placements
+						</button>
+					</div>
 				</div>
 
-				<!-- PDF Viewer Area -->
-				<div class="pdf-studio__viewer-area">
-					<div class="pdf-studio__canvas-container" :class="{ 'pdf-studio__canvas-container--ready': pdfReady }">
-						<div
-							v-if="pdfReady"
-							ref="workspaceCanvas"
-							class="pdf-studio__pdf-workspace"
-							@click="handleWorkspaceClick">
-							<!-- Canvas for PDF rendering -->
-							<canvas ref="pdfRenderCanvas" class="pdf-studio__pdf-canvas" />
-
-							<!-- Signature Box overlays -->
-							<template v-for="signer in signers">
-								<div
-									v-if="placements[signer.signerKey] && placements[signer.signerKey].page === currentPage"
-									:key="`box-${signer.signerKey}`"
-									class="pdf-studio__sig-box"
-									:class="{ 'pdf-studio__sig-box--active': activeSignerKey === signer.signerKey }"
-									:style="[getBoxStyle(placements[signer.signerKey]), signerBoxBorderColor(signer)]"
-									@click.stop
-									@mousedown.stop="startDrag($event, signer.signerKey)">
-									<div class="pdf-studio__sig-box-avatar" :style="signerIconStyle(signer)">
-										{{ signerInitials(signer) }}
-									</div>
-									<div class="pdf-studio__sig-box-info">
-										<strong class="pdf-studio__sig-box-title">Signature Element</strong>
-										<span class="pdf-studio__sig-box-name">{{ signer.displayName || signer.email || signer.userId }}</span>
-									</div>
+				<!-- Main Workbench -->
+				<div class="pdf-studio__workbench">
+					<!-- Signers Sidebar -->
+					<div class="pdf-studio__sidebar">
+						<div class="pdf-studio__sidebar-header">
+							<h3>Signers</h3>
+							<p>Select a signer, then click on the PDF to place their signature block.</p>
+						</div>
+						<div class="pdf-studio__signer-list">
+							<div
+								v-for="signer in signers"
+								:key="signer.signerKey"
+								class="pdf-studio__signer-card"
+								:class="{
+									'pdf-studio__signer-card--active': activeSignerKey === signer.signerKey,
+									'pdf-studio__signer-card--placed': placements[signer.signerKey]
+								}"
+								@click="selectSigner(signer.signerKey)">
+								<div class="pdf-studio__signer-avatar" :style="signerIconStyle(signer)">
+									{{ signerInitials(signer) }}
+								</div>
+								<div class="pdf-studio__signer-details">
+									<strong class="pdf-studio__signer-name">{{ signer.displayName || signer.email || signer.userId }}</strong>
+									<span class="pdf-studio__signer-badge" :class="placements[signer.signerKey] ? 'pdf-studio__signer-badge--placed' : 'pdf-studio__signer-badge--pending'">
+										{{ placements[signer.signerKey] ? `Placed on Page ${placements[signer.signerKey].page}` : 'Not placed' }}
+									</span>
+								</div>
+								<div class="pdf-studio__signer-actions">
 									<button
+										v-if="placements[signer.signerKey]"
 										type="button"
-										class="pdf-studio__sig-box-delete"
+										class="pdf-studio__action-btn"
 										title="Remove placement"
 										@click.stop="clearPlacement(signer.signerKey)">
-										<Close :size="12" />
+										<Close :size="16" />
 									</button>
-									<i class="pdf-studio__sig-box-resize" @mousedown.stop.prevent="startResize($event, signer.signerKey)" />
 								</div>
-							</template>
+							</div>
 						</div>
+					</div>
 
-						<!-- Loading / Error States -->
-						<div v-if="loading" class="pdf-studio__state-overlay">
-							<div class="pdf-studio__spinner" />
-							<p>Rendering Document...</p>
-						</div>
-						<div v-else-if="error" class="pdf-studio__state-overlay pdf-studio__state-overlay--error">
-							<AlertCircleOutline :size="48" />
-							<p>{{ error }}</p>
+					<!-- PDF Viewer Area -->
+					<div class="pdf-studio__viewer-area">
+						<div class="pdf-studio__canvas-container" :class="{ 'pdf-studio__canvas-container--ready': pdfReady }">
+							<div
+								v-if="pdfReady"
+								ref="workspaceCanvas"
+								class="pdf-studio__pdf-workspace"
+								@click="handleWorkspaceClick">
+								<!-- Canvas for PDF rendering -->
+								<canvas ref="pdfRenderCanvas" class="pdf-studio__pdf-canvas" />
+
+								<!-- Signature Box overlays -->
+								<template v-for="signer in signers">
+									<div
+										v-if="placements[signer.signerKey] && placements[signer.signerKey].page === currentPage"
+										:key="`box-${signer.signerKey}`"
+										class="pdf-studio__sig-box"
+										:class="{ 'pdf-studio__sig-box--active': activeSignerKey === signer.signerKey }"
+										:style="[getBoxStyle(placements[signer.signerKey]), signerBoxBorderColor(signer)]"
+										@click.stop
+										@mousedown.stop="startDrag($event, signer.signerKey)">
+										<div class="pdf-studio__sig-box-avatar" :style="signerIconStyle(signer)">
+											{{ signerInitials(signer) }}
+										</div>
+										<div class="pdf-studio__sig-box-info">
+											<strong class="pdf-studio__sig-box-title">Signature Element</strong>
+											<span class="pdf-studio__sig-box-name">{{ signer.displayName || signer.email || signer.userId }}</span>
+										</div>
+										<button
+											type="button"
+											class="pdf-studio__sig-box-delete"
+											title="Remove placement"
+											@click.stop="clearPlacement(signer.signerKey)">
+											<Close :size="12" />
+										</button>
+										<i class="pdf-studio__sig-box-resize" @mousedown.stop.prevent="startResize($event, signer.signerKey)" />
+									</div>
+								</template>
+							</div>
+
+							<!-- Loading / Error States -->
+							<div v-if="loading" class="pdf-studio__state-overlay">
+								<div class="pdf-studio__spinner" />
+								<p>Rendering Document...</p>
+							</div>
+							<div v-else-if="error" class="pdf-studio__state-overlay pdf-studio__state-overlay--error">
+								<AlertCircleOutline :size="48" />
+								<p>{{ error }}</p>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-	</transition>
+		</transition>
+	</div>
 </template>
 
 <script>
@@ -242,6 +244,16 @@ export default {
 			},
 		},
 	},
+	mounted() {
+		if (this.$refs.studioContainer) {
+			document.body.appendChild(this.$refs.studioContainer)
+		}
+	},
+	beforeDestroy() {
+		if (this.$refs.studioContainer && this.$refs.studioContainer.parentNode) {
+			this.$refs.studioContainer.parentNode.removeChild(this.$refs.studioContainer)
+		}
+	},
 	methods: {
 		async initStudio() {
 			this.placements = JSON.parse(JSON.stringify(this.value || {}))
@@ -290,14 +302,13 @@ export default {
 			this.pdfReady = false
 		},
 		normalizedDavPath(path) {
-			if (typeof path !== 'string') return ''
-			if (path.startsWith('files/')) {
-				return '/' + path
+			const parts = String(path).split('/')
+			if (parts.length >= 3) {
+				const second = parts[1]
+				parts[1] = parts[2]
+				parts[2] = second
 			}
-			if (path.startsWith('/files/')) {
-				return path
-			}
-			return '/files/' + path.replace(/^\/+/, '')
+			return parts.join('/')
 		},
 		readFileAsArrayBuffer(file) {
 			return new Promise((resolve, reject) => {
@@ -516,7 +527,7 @@ export default {
 .pdf-studio {
 	position: fixed;
 	inset: 0;
-	z-index: 10000;
+	z-index: 99999;
 	display: grid;
 	grid-template-rows: 64px 1fr;
 	background: #111115;
