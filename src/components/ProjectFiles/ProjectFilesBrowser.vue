@@ -219,16 +219,37 @@
 								:disabled="signingUploadBusy"
 								placeholder="client@example.com\nmanager@example.com" />
 							<div class="project-files__hint">Upload PDF files and immediately send them to LibreSign.</div>
-							<div v-if="signingUploadSigners.length > 0" class="project-files__placements">
-								<div class="project-files__upload-modal-label">Signature placement</div>
-								<div class="project-files__hint">Coordinates are PDF points from the top-left of the page.</div>
-								<div v-for="(signer, index) in signingUploadSigners" :key="`signing-upload-placement-${signer.signerKey}`" class="project-files__placement-row">
-									<div class="project-files__placement-name">{{ signer.displayName || signer.email || signer.userId }}</div>
-									<label>Page<input v-model.number="signingUploadDraft.placements[signer.signerKey].page" type="number" min="1" :disabled="signingUploadBusy"></label>
-									<label>Left<input v-model.number="signingUploadDraft.placements[signer.signerKey].left" type="number" min="0" :disabled="signingUploadBusy"></label>
-									<label>Top<input v-model.number="signingUploadDraft.placements[signer.signerKey].top" type="number" min="0" :disabled="signingUploadBusy"></label>
-									<label>Width<input v-model.number="signingUploadDraft.placements[signer.signerKey].width" type="number" min="1" :disabled="signingUploadBusy"></label>
-									<label>Height<input v-model.number="signingUploadDraft.placements[signer.signerKey].height" type="number" min="1" :disabled="signingUploadBusy"></label>
+							<div v-if="signingUploadSigners.length > 0" class="project-files__placement-studio">
+								<div class="project-files__placement-toolbar">
+									<div>
+										<div class="project-files__placement-kicker">Visual Placement</div>
+										<div class="project-files__placement-title">Drop signature fields on the contract</div>
+									</div>
+									<div class="project-files__placement-size">
+										<button type="button" class="project-files__mini-btn" :disabled="placementPage <= 1" @click="changePlacementPage(-1)">Prev</button>
+										<span>Page {{ placementPage }} / {{ placementPageCount || '?' }}</span>
+										<button type="button" class="project-files__mini-btn" :disabled="placementPageCount > 0 && placementPage >= placementPageCount" @click="changePlacementPage(1)">Next</button>
+									</div>
+								</div>
+								<div class="project-files__placement-workbench">
+									<div class="project-files__signer-rail">
+										<button v-for="signer in signingUploadSigners" :key="`upload-signer-chip-${signer.signerKey}`" type="button" class="project-files__signer-chip" :class="{ 'project-files__signer-chip--active': signingUploadDraft.activeSignerKey === signer.signerKey }" @click="selectPlacementSigner(signingUploadDraft, signer.signerKey)">
+											<span>{{ signerInitials(signer) }}</span>
+											<strong>{{ signer.displayName || signer.email || signer.userId }}</strong>
+										</button>
+									</div>
+									<div ref="signingUploadCanvas" class="project-files__pdf-canvas" @click="placeActiveSigner($event, signingUploadDraft, 'signingUploadCanvas')">
+										<canvas ref="signingUploadPdfCanvas" class="project-files__pdf-render"></canvas>
+										<div v-if="placementLoading" class="project-files__pdf-empty">Rendering PDF...</div>
+										<div v-else-if="placementError" class="project-files__pdf-empty project-files__pdf-empty--error">{{ placementError }}</div>
+										<div v-else-if="!placementReady" class="project-files__pdf-empty">Choose a PDF to preview placement.</div>
+										<div v-for="signer in signingUploadSigners" :key="`upload-box-${signer.signerKey}`" class="project-files__signature-box" :class="{ 'project-files__signature-box--active': signingUploadDraft.activeSignerKey === signer.signerKey }" :style="placementBoxStyle(signingUploadDraft.placements[signer.signerKey])" @mousedown.stop="startPlacementDrag($event, signingUploadDraft, signer.signerKey, 'signingUploadCanvas')">
+											<span>{{ signerInitials(signer) }}</span>
+											<strong>Sign here</strong>
+											<em>{{ signer.displayName || signer.email || signer.userId }}</em>
+											<i @mousedown.stop.prevent="startPlacementResize($event, signingUploadDraft, signer.signerKey, 'signingUploadCanvas')"></i>
+										</div>
+									</div>
 								</div>
 							</div>
 							<div class="project-files__upload-modal-row">
@@ -412,16 +433,37 @@
 						:disabled="signingBusy"
 						placeholder="client@example.com\nmanager@example.com" />
 					<div class="project-files__hint">Add one signer email per line. LibreSign will send the signing flow.</div>
-					<div v-if="signingSigners.length > 0" class="project-files__placements">
-						<div class="project-files__upload-modal-label">Signature placement</div>
-						<div class="project-files__hint">Coordinates are PDF points from the top-left of the page.</div>
-						<div v-for="(signer, index) in signingSigners" :key="`signing-placement-${signer.signerKey}`" class="project-files__placement-row">
-							<div class="project-files__placement-name">{{ signer.displayName || signer.email || signer.userId }}</div>
-							<label>Page<input v-model.number="signingDraft.placements[signer.signerKey].page" type="number" min="1" :disabled="signingBusy"></label>
-							<label>Left<input v-model.number="signingDraft.placements[signer.signerKey].left" type="number" min="0" :disabled="signingBusy"></label>
-							<label>Top<input v-model.number="signingDraft.placements[signer.signerKey].top" type="number" min="0" :disabled="signingBusy"></label>
-							<label>Width<input v-model.number="signingDraft.placements[signer.signerKey].width" type="number" min="1" :disabled="signingBusy"></label>
-							<label>Height<input v-model.number="signingDraft.placements[signer.signerKey].height" type="number" min="1" :disabled="signingBusy"></label>
+					<div v-if="signingSigners.length > 0" class="project-files__placement-studio">
+						<div class="project-files__placement-toolbar">
+							<div>
+								<div class="project-files__placement-kicker">Visual Placement</div>
+								<div class="project-files__placement-title">Click the page to place each signer</div>
+							</div>
+							<div class="project-files__placement-size">
+								<button type="button" class="project-files__mini-btn" :disabled="placementPage <= 1" @click="changePlacementPage(-1)">Prev</button>
+								<span>Page {{ placementPage }} / {{ placementPageCount || '?' }}</span>
+								<button type="button" class="project-files__mini-btn" :disabled="placementPageCount > 0 && placementPage >= placementPageCount" @click="changePlacementPage(1)">Next</button>
+							</div>
+						</div>
+						<div class="project-files__placement-workbench">
+							<div class="project-files__signer-rail">
+								<button v-for="signer in signingSigners" :key="`signer-chip-${signer.signerKey}`" type="button" class="project-files__signer-chip" :class="{ 'project-files__signer-chip--active': signingDraft.activeSignerKey === signer.signerKey }" @click="selectPlacementSigner(signingDraft, signer.signerKey)">
+									<span>{{ signerInitials(signer) }}</span>
+									<strong>{{ signer.displayName || signer.email || signer.userId }}</strong>
+								</button>
+							</div>
+							<div ref="signingCanvas" class="project-files__pdf-canvas" @click="placeActiveSigner($event, signingDraft, 'signingCanvas')">
+								<canvas ref="signingPdfCanvas" class="project-files__pdf-render"></canvas>
+								<div v-if="placementLoading" class="project-files__pdf-empty">Rendering PDF...</div>
+								<div v-else-if="placementError" class="project-files__pdf-empty project-files__pdf-empty--error">{{ placementError }}</div>
+								<div v-else-if="!placementReady" class="project-files__pdf-empty">PDF preview unavailable.</div>
+								<div v-for="signer in signingSigners" :key="`box-${signer.signerKey}`" class="project-files__signature-box" :class="{ 'project-files__signature-box--active': signingDraft.activeSignerKey === signer.signerKey }" :style="placementBoxStyle(signingDraft.placements[signer.signerKey])" @mousedown.stop="startPlacementDrag($event, signingDraft, signer.signerKey, 'signingCanvas')">
+									<span>{{ signerInitials(signer) }}</span>
+									<strong>Sign here</strong>
+									<em>{{ signer.displayName || signer.email || signer.userId }}</em>
+									<i @mousedown.stop.prevent="startPlacementResize($event, signingDraft, signer.signerKey, 'signingCanvas')"></i>
+								</div>
+							</div>
 						</div>
 					</div>
 					<div v-if="signingError" class="project-files__upload-error">{{ signingError }}</div>
@@ -486,6 +528,8 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { createClient } from 'webdav'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import CheckCircleOutline from 'vue-material-design-icons/CheckCircleOutline.vue'
@@ -522,6 +566,7 @@ const webdavClient = createClient(generateRemoteUrl('dav'), {
 	},
 })
 const projectsService = ProjectsService.getInstance()
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 const SUPPORTED_MIME_TYPES = [
 	'application/pdf',
 	'image/jpeg',
@@ -606,12 +651,22 @@ export default {
 				signersText: '',
 				memberIds: [],
 				placements: {},
+				activeSignerKey: '',
 			},
 			signingBusy: false,
 			signingError: '',
 			projectMembers: [],
 			projectMembersLoading: false,
 			projectMembersError: '',
+			placementPdf: null,
+			placementPage: 1,
+			placementPageCount: 0,
+			placementReady: false,
+			placementLoading: false,
+			placementError: '',
+			placementCanvasSize: { width: 0, height: 0 },
+			placementPageSize: { width: 595, height: 842 },
+			placementDrag: null,
 			feedbackByFileId: {},
 			activeExtractedFileId: null,
 			activeExtractedDraft: {},
@@ -636,6 +691,7 @@ export default {
 				signersText: '',
 				memberIds: [],
 				placements: {},
+				activeSignerKey: '',
 			},
 		}
 	},
@@ -771,7 +827,7 @@ export default {
 			this.signingByFileId = {}
 			this.signingLoadingByFileId = {}
 			this.activeSigningFile = null
-			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
+			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {}, activeSignerKey: '' }
 			this.signingBusy = false
 			this.signingError = ''
 			this.projectMembers = []
@@ -782,7 +838,7 @@ export default {
 			this.signingUploadError = ''
 			this.signingUploadMessage = ''
 			this.selectedSigningUploadFiles = []
-			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
+			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {}, activeSignerKey: '' }
 			this.feedbackByFileId = {}
 			this.activeExtractedFileId = null
 			this.activeExtractedDraft = {}
@@ -805,7 +861,7 @@ export default {
 			this.signingUploadError = ''
 			this.signingUploadMessage = ''
 			this.selectedSigningUploadFiles = []
-			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
+			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {}, activeSignerKey: '' }
 			this.showSigningUploadModal = true
 			this.loadProjectMembers()
 		},
@@ -815,6 +871,7 @@ export default {
 			}
 			this.showSigningUploadModal = false
 			this.selectedSigningUploadFiles = []
+			this.resetPlacementPdf()
 		},
 		triggerUpload() {
 			if (!this.selectedFolderNode || this.uploadBusy) {
@@ -870,6 +927,7 @@ export default {
 			if (this.selectedSigningUploadFiles.length !== files.length) {
 				this.signingUploadError = 'Only PDF files can be uploaded for signing.'
 			}
+			this.loadPlacementPdfFromFile(this.selectedSigningUploadFiles[0], 'signingUploadPdfCanvas')
 		},
 		async uploadSelectedFiles() {
 			if (!this.selectedFolderNode || this.selectedUploadFiles.length === 0 || this.uploadBusy) {
@@ -1470,9 +1528,10 @@ export default {
 				return
 			}
 			this.activeSigningFile = node
-			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
+			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {}, activeSignerKey: '' }
 			this.signingError = ''
 			this.loadProjectMembers()
+			this.loadPlacementPdfFromNode(node, 'signingPdfCanvas')
 		},
 		closeSigningModal() {
 			if (this.signingBusy) {
@@ -1480,6 +1539,7 @@ export default {
 			}
 			this.activeSigningFile = null
 			this.signingError = ''
+			this.resetPlacementPdf()
 		},
 		parseSigningSigners() {
 			return this.buildSignerPayload(this.signingDraft.memberIds, this.signingDraft.signersText)
@@ -1495,6 +1555,147 @@ export default {
 				}))
 			return [...memberSigners, ...this.parseSignerText(text)]
 		},
+		selectPlacementSigner(draft, signerKey) {
+			this.$set(draft, 'activeSignerKey', signerKey)
+		},
+		signerInitials(signer) {
+			const label = String(signer?.displayName || signer?.email || signer?.userId || '?').trim()
+			const parts = label.split(/\s+/).filter(Boolean)
+			if (parts.length >= 2) {
+				return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+			}
+			return label.slice(0, 2).toUpperCase()
+		},
+		resetPlacementPdf() {
+			this.placementPdf = null
+			this.placementPage = 1
+			this.placementPageCount = 0
+			this.placementReady = false
+			this.placementLoading = false
+			this.placementError = ''
+			this.placementCanvasSize = { width: 0, height: 0 }
+			this.placementPageSize = { width: 595, height: 842 }
+		},
+		async loadPlacementPdfFromFile(file, canvasRef) {
+			if (!file) {
+				this.resetPlacementPdf()
+				return
+			}
+			const data = await this.readFileAsArrayBuffer(file)
+			await this.loadPlacementPdf(data, canvasRef)
+		},
+		async loadPlacementPdfFromNode(node, canvasRef) {
+			if (!node?.path) {
+				this.resetPlacementPdf()
+				return
+			}
+			const davPath = this.normalizedDavPath(node.path)
+			const response = await fetch(webdavClient.getFileDownloadLink(davPath), { credentials: 'include' })
+			if (!response.ok) {
+				this.placementError = 'Could not load PDF preview.'
+				return
+			}
+			await this.loadPlacementPdf(await response.arrayBuffer(), canvasRef)
+		},
+		async loadPlacementPdf(data, canvasRef) {
+			this.resetPlacementPdf()
+			this.placementLoading = true
+			try {
+				this.placementPdf = await pdfjsLib.getDocument({ data }).promise
+				this.placementPageCount = this.placementPdf.numPages || 1
+				await this.renderPlacementPage(canvasRef)
+			} catch (error) {
+				console.error('PDF preview failed:', error)
+				this.placementError = 'Could not render PDF preview.'
+			} finally {
+				this.placementLoading = false
+			}
+		},
+		async renderPlacementPage(canvasRef) {
+			if (!this.placementPdf) return
+			await this.$nextTick()
+			const canvas = this.$refs[canvasRef]
+			if (!canvas) return
+			const page = await this.placementPdf.getPage(this.placementPage)
+			const baseViewport = page.getViewport({ scale: 1 })
+			this.placementPageSize = { width: baseViewport.width, height: baseViewport.height }
+			const maxWidth = 760
+			const scale = Math.min(maxWidth / baseViewport.width, 1.45)
+			const viewport = page.getViewport({ scale })
+			const context = canvas.getContext('2d')
+			canvas.width = Math.round(viewport.width)
+			canvas.height = Math.round(viewport.height)
+			this.placementCanvasSize = { width: canvas.width, height: canvas.height }
+			await page.render({ canvasContext: context, viewport }).promise
+			this.placementReady = true
+		},
+		async changePlacementPage(delta) {
+			const next = Math.max(1, Math.min(this.placementPageCount || 1, this.placementPage + delta))
+			if (next === this.placementPage) return
+			this.placementPage = next
+			const canvasRef = this.activeSigningFile ? 'signingPdfCanvas' : 'signingUploadPdfCanvas'
+			await this.renderPlacementPage(canvasRef)
+		},
+		placementSummary(draft, signerKey) {
+			const box = draft.placements?.[signerKey]
+			return box ? `Page ${box.page || 1}` : 'Not placed'
+		},
+		placeActiveSigner(event, draft, stageRef) {
+			const key = draft.activeSignerKey
+			if (!key || !this.placementReady) return
+			const rect = this.$refs[stageRef]?.getBoundingClientRect()
+			if (!rect) return
+			const width = 26
+			const height = 9
+			const left = Math.max(0, Math.min(100 - width, ((event.clientX - rect.left) / rect.width) * 100 - width / 2))
+			const top = Math.max(0, Math.min(100 - height, ((event.clientY - rect.top) / rect.height) * 100 - height / 2))
+			this.$set(draft.placements, key, { page: this.placementPage, leftPct: left, topPct: top, widthPct: width, heightPct: height })
+		},
+		placementBoxStyle(box) {
+			if (!box || box.page !== this.placementPage) return { display: 'none' }
+			return {
+				left: `${box.leftPct ?? 10}%`,
+				top: `${box.topPct ?? 10}%`,
+				width: `${box.widthPct ?? 26}%`,
+				height: `${box.heightPct ?? 9}%`,
+			}
+		},
+		startPlacementDrag(event, draft, signerKey, stageRef) {
+			this.selectPlacementSigner(draft, signerKey)
+			this.startPlacementPointer(event, draft, signerKey, stageRef, 'move')
+		},
+		startPlacementResize(event, draft, signerKey, stageRef) {
+			this.selectPlacementSigner(draft, signerKey)
+			this.startPlacementPointer(event, draft, signerKey, stageRef, 'resize')
+		},
+		startPlacementPointer(event, draft, signerKey, stageRef, mode) {
+			const stage = this.$refs[stageRef]
+			const box = draft.placements?.[signerKey]
+			if (!stage || !box) return
+			this.placementDrag = { mode, draft, signerKey, rect: stage.getBoundingClientRect(), startX: event.clientX, startY: event.clientY, start: { ...box } }
+			window.addEventListener('mousemove', this.onPlacementPointerMove)
+			window.addEventListener('mouseup', this.stopPlacementPointer)
+		},
+		onPlacementPointerMove(event) {
+			const drag = this.placementDrag
+			if (!drag) return
+			const dx = ((event.clientX - drag.startX) / drag.rect.width) * 100
+			const dy = ((event.clientY - drag.startY) / drag.rect.height) * 100
+			const next = { ...drag.start }
+			if (drag.mode === 'resize') {
+				next.widthPct = Math.max(8, Math.min(70, (drag.start.widthPct || 26) + dx))
+				next.heightPct = Math.max(5, Math.min(30, (drag.start.heightPct || 9) + dy))
+			} else {
+				next.leftPct = Math.max(0, Math.min(100 - (next.widthPct || 26), (drag.start.leftPct || 0) + dx))
+				next.topPct = Math.max(0, Math.min(100 - (next.heightPct || 9), (drag.start.topPct || 0) + dy))
+			}
+			this.$set(drag.draft.placements, drag.signerKey, next)
+		},
+		stopPlacementPointer() {
+			this.placementDrag = null
+			window.removeEventListener('mousemove', this.onPlacementPointerMove)
+			window.removeEventListener('mouseup', this.stopPlacementPointer)
+		},
 		ensurePlacementDrafts(draft, signers) {
 			if (!draft.placements || typeof draft.placements !== 'object') {
 				this.$set(draft, 'placements', {})
@@ -1506,11 +1707,14 @@ export default {
 				if (!draft.placements[key]) {
 					this.$set(draft.placements, key, {
 						page: 1,
-						left: 80,
-						top: 120 + (index * 80),
-						width: 180,
-						height: 60,
+						leftPct: 10,
+						topPct: 14 + (index * 10),
+						widthPct: 26,
+						heightPct: 9,
 					})
+				}
+				if (!draft.activeSignerKey) {
+					this.$set(draft, 'activeSignerKey', key)
 				}
 			})
 			return signers
@@ -1525,10 +1729,10 @@ export default {
 						signerKey: key,
 						type: 'signature',
 						page: Number(placement.page) || 1,
-						left: Number(placement.left) || 0,
-						top: Number(placement.top) || 0,
-						width: Number(placement.width) || 180,
-						height: Number(placement.height) || 60,
+						left: Math.round(((Number(placement.leftPct) || 0) / 100) * this.placementPageSize.width),
+						top: Math.round(((Number(placement.topPct) || 0) / 100) * this.placementPageSize.height),
+						width: Math.round(((Number(placement.widthPct) || 26) / 100) * this.placementPageSize.width),
+						height: Math.round(((Number(placement.heightPct) || 9) / 100) * this.placementPageSize.height),
 					}
 				})
 				.filter(Boolean)
@@ -2128,6 +2332,231 @@ export default {
 	padding: 10px 0;
 }
 
+.project-files__placement-studio {
+	margin-top: 14px;
+	padding: 14px;
+	border: 1px solid color-mix(in srgb, var(--color-border) 72%, #a77b2f 28%);
+	border-radius: 18px;
+	background:
+		linear-gradient(135deg, rgba(194, 142, 54, 0.10), transparent 42%),
+		linear-gradient(180deg, var(--color-main-background), var(--color-background-hover));
+	box-shadow: 0 18px 44px rgba(20, 16, 8, 0.12);
+}
+
+.project-files__placement-toolbar {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.project-files__placement-kicker {
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: #9a6a18;
+}
+
+.project-files__placement-title {
+	font-size: 16px;
+	font-weight: 800;
+	color: var(--color-main-text);
+}
+
+.project-files__placement-size {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.project-files__mini-btn {
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	padding: 5px 10px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	cursor: pointer;
+}
+
+.project-files__mini-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.project-files__placement-workbench {
+	display: grid;
+	grid-template-columns: 190px minmax(0, 1fr);
+	gap: 14px;
+}
+
+.project-files__signer-rail {
+	display: grid;
+	align-content: start;
+	gap: 8px;
+}
+
+.project-files__signer-chip {
+	display: grid;
+	grid-template-columns: 34px 1fr;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 9px;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	text-align: left;
+	cursor: pointer;
+}
+
+.project-files__signer-chip > span {
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 11px;
+	background: #1f2937;
+	color: #f8d58a;
+	font-size: 12px;
+	font-weight: 900;
+}
+
+.project-files__signer-chip strong {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
+.project-files__signer-chip--active {
+	border-color: #c28e36;
+	box-shadow: 0 0 0 2px rgba(194, 142, 54, 0.22);
+}
+
+.project-files__pdf-canvas {
+	position: relative;
+	display: inline-block;
+	max-width: 100%;
+	min-height: 420px;
+	overflow: hidden;
+	border-radius: 18px;
+	background: #34302a;
+	box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 24px 54px rgba(0,0,0,0.22);
+	cursor: crosshair;
+}
+
+.project-files__pdf-render {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	background: #fff;
+}
+
+.project-files__pdf-empty {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: 24px;
+	background: rgba(38, 34, 29, 0.88);
+	color: #f7ead0;
+	font-weight: 700;
+	text-align: center;
+}
+
+.project-files__pdf-empty--error {
+	color: #ffb4a8;
+}
+
+.project-files__signature-box {
+	position: absolute;
+	display: grid;
+	grid-template-columns: 34px 1fr;
+	grid-template-rows: 1fr 1fr;
+	align-items: center;
+	column-gap: 8px;
+	padding: 8px;
+	border: 2px solid rgba(194, 142, 54, 0.85);
+	border-radius: 12px;
+	background: rgba(255, 245, 222, 0.88);
+	backdrop-filter: blur(8px);
+	box-shadow: 0 10px 28px rgba(70, 48, 15, 0.24);
+	cursor: move;
+	user-select: none;
+}
+
+.project-files__signature-box--active {
+	border-color: #111827;
+	box-shadow: 0 0 0 3px rgba(194, 142, 54, 0.35), 0 16px 34px rgba(0,0,0,0.26);
+}
+
+.project-files__signature-box > span {
+	grid-row: 1 / 3;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 9px;
+	background: #111827;
+	color: #f8d58a;
+	font-size: 11px;
+	font-weight: 900;
+}
+
+.project-files__signature-box strong {
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: #111827;
+}
+
+.project-files__signature-box em {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-style: normal;
+	font-size: 11px;
+	color: #6b4a12;
+}
+
+.project-files__signature-box i {
+	position: absolute;
+	right: -7px;
+	bottom: -7px;
+	width: 15px;
+	height: 15px;
+	border: 2px solid #111827;
+	border-radius: 999px;
+	background: #f8d58a;
+	cursor: nwse-resize;
+}
+
+@media (max-width: 760px) {
+	.project-files__placement-toolbar,
+	.project-files__placement-workbench {
+		grid-template-columns: 1fr;
+	}
+
+	.project-files__placement-toolbar {
+		display: grid;
+	}
+
+	.project-files__signer-rail {
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	}
+
+	.project-files__pdf-canvas {
+		min-height: 300px;
+	}
+}
+
 .project-files__member-option {
 	display: flex;
 	align-items: center;
@@ -2143,54 +2572,6 @@ export default {
 	margin-left: auto;
 	color: var(--color-text-maxcontrast);
 	font-size: 12px;
-}
-
-.project-files__placements {
-	display: grid;
-	gap: 8px;
-	margin-top: 8px;
-	padding: 10px;
-	border: 1px solid var(--color-border);
-	border-radius: 10px;
-}
-
-.project-files__placement-row {
-	display: grid;
-	grid-template-columns: minmax(120px, 1fr) repeat(5, minmax(64px, 80px));
-	gap: 8px;
-	align-items: end;
-}
-
-.project-files__placement-row label {
-	display: grid;
-	gap: 4px;
-	font-size: 12px;
-	color: var(--color-text-maxcontrast);
-}
-
-.project-files__placement-row input {
-	min-width: 0;
-	padding: 6px;
-	border: 1px solid var(--color-border);
-	border-radius: 6px;
-	background: var(--color-main-background);
-	color: var(--color-main-text);
-}
-
-.project-files__placement-name {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--color-main-text);
-}
-
-@media (max-width: 720px) {
-	.project-files__placement-row {
-		grid-template-columns: 1fr 1fr;
-	}
-
-	.project-files__placement-name {
-		grid-column: 1 / -1;
-	}
 }
 
 .project-files__signing-pill {
