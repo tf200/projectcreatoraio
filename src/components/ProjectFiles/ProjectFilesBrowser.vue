@@ -219,6 +219,18 @@
 								:disabled="signingUploadBusy"
 								placeholder="client@example.com\nmanager@example.com" />
 							<div class="project-files__hint">Upload PDF files and immediately send them to LibreSign.</div>
+							<div v-if="signingUploadSigners.length > 0" class="project-files__placements">
+								<div class="project-files__upload-modal-label">Signature placement</div>
+								<div class="project-files__hint">Coordinates are PDF points from the top-left of the page.</div>
+								<div v-for="(signer, index) in signingUploadSigners" :key="`signing-upload-placement-${signer.signerKey}`" class="project-files__placement-row">
+									<div class="project-files__placement-name">{{ signer.displayName || signer.email || signer.userId }}</div>
+									<label>Page<input v-model.number="signingUploadDraft.placements[signer.signerKey].page" type="number" min="1" :disabled="signingUploadBusy"></label>
+									<label>Left<input v-model.number="signingUploadDraft.placements[signer.signerKey].left" type="number" min="0" :disabled="signingUploadBusy"></label>
+									<label>Top<input v-model.number="signingUploadDraft.placements[signer.signerKey].top" type="number" min="0" :disabled="signingUploadBusy"></label>
+									<label>Width<input v-model.number="signingUploadDraft.placements[signer.signerKey].width" type="number" min="1" :disabled="signingUploadBusy"></label>
+									<label>Height<input v-model.number="signingUploadDraft.placements[signer.signerKey].height" type="number" min="1" :disabled="signingUploadBusy"></label>
+								</div>
+							</div>
 							<div class="project-files__upload-modal-row">
 								<button
 									:type="'button'"
@@ -400,6 +412,18 @@
 						:disabled="signingBusy"
 						placeholder="client@example.com\nmanager@example.com" />
 					<div class="project-files__hint">Add one signer email per line. LibreSign will send the signing flow.</div>
+					<div v-if="signingSigners.length > 0" class="project-files__placements">
+						<div class="project-files__upload-modal-label">Signature placement</div>
+						<div class="project-files__hint">Coordinates are PDF points from the top-left of the page.</div>
+						<div v-for="(signer, index) in signingSigners" :key="`signing-placement-${signer.signerKey}`" class="project-files__placement-row">
+							<div class="project-files__placement-name">{{ signer.displayName || signer.email || signer.userId }}</div>
+							<label>Page<input v-model.number="signingDraft.placements[signer.signerKey].page" type="number" min="1" :disabled="signingBusy"></label>
+							<label>Left<input v-model.number="signingDraft.placements[signer.signerKey].left" type="number" min="0" :disabled="signingBusy"></label>
+							<label>Top<input v-model.number="signingDraft.placements[signer.signerKey].top" type="number" min="0" :disabled="signingBusy"></label>
+							<label>Width<input v-model.number="signingDraft.placements[signer.signerKey].width" type="number" min="1" :disabled="signingBusy"></label>
+							<label>Height<input v-model.number="signingDraft.placements[signer.signerKey].height" type="number" min="1" :disabled="signingBusy"></label>
+						</div>
+					</div>
 					<div v-if="signingError" class="project-files__upload-error">{{ signingError }}</div>
 					<div class="project-files__modal-actions">
 						<button :type="'button'" class="project-files__btn" :disabled="signingBusy" @click="closeSigningModal">Cancel</button>
@@ -581,6 +605,7 @@ export default {
 				flow: 'parallel',
 				signersText: '',
 				memberIds: [],
+				placements: {},
 			},
 			signingBusy: false,
 			signingError: '',
@@ -610,6 +635,7 @@ export default {
 				flow: 'parallel',
 				signersText: '',
 				memberIds: [],
+				placements: {},
 			},
 		}
 	},
@@ -631,6 +657,12 @@ export default {
 				return []
 			}
 			return this.findChainById(this.activeRoots, this.selectedFolderId)
+		},
+		signingSigners() {
+			return this.ensurePlacementDrafts(this.signingDraft, this.buildSignerPayload(this.signingDraft.memberIds, this.signingDraft.signersText))
+		},
+		signingUploadSigners() {
+			return this.ensurePlacementDrafts(this.signingUploadDraft, this.buildSignerPayload(this.signingUploadDraft.memberIds, this.signingUploadDraft.signersText))
 		},
 		selectedFolderNode() {
 			if (this.selectedChain.length === 0) {
@@ -739,7 +771,7 @@ export default {
 			this.signingByFileId = {}
 			this.signingLoadingByFileId = {}
 			this.activeSigningFile = null
-			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [] }
+			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
 			this.signingBusy = false
 			this.signingError = ''
 			this.projectMembers = []
@@ -750,7 +782,7 @@ export default {
 			this.signingUploadError = ''
 			this.signingUploadMessage = ''
 			this.selectedSigningUploadFiles = []
-			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [] }
+			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
 			this.feedbackByFileId = {}
 			this.activeExtractedFileId = null
 			this.activeExtractedDraft = {}
@@ -773,7 +805,7 @@ export default {
 			this.signingUploadError = ''
 			this.signingUploadMessage = ''
 			this.selectedSigningUploadFiles = []
-			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [] }
+			this.signingUploadDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
 			this.showSigningUploadModal = true
 			this.loadProjectMembers()
 		},
@@ -862,6 +894,7 @@ export default {
 
 			const failures = []
 			const uploadedTargets = []
+			const reservedNames = this.folderFileNames(this.selectedFolderNode)
 			let uploaded = 0
 
 			for (const file of this.selectedUploadFiles) {
@@ -870,7 +903,8 @@ export default {
 					failures.push(name || '(unnamed file)')
 					continue
 				}
-				const target = `${folderDavPath.replace(/\/+$/, '')}/${name}`
+				const uploadName = this.uniqueUploadName(name, reservedNames)
+				const target = `${folderDavPath.replace(/\/+$/, '')}/${uploadName}`
 				try {
 					// webdav-client treats unknown objects as JSON (resulting in "{}" being uploaded).
 					// Always upload binary data as an ArrayBuffer.
@@ -879,7 +913,7 @@ export default {
 					if (ok) {
 						uploaded += 1
 						uploadedTargets.push({
-							path: this.joinNodePath(this.selectedFolderNode.path, name),
+							path: this.joinNodePath(this.selectedFolderNode.path, uploadName),
 							documentTypeId: uploadDocumentTypeId,
 						})
 					} else {
@@ -929,6 +963,7 @@ export default {
 			this.signingUploadMessage = ''
 			const failures = []
 			const uploadedTargets = []
+			const reservedNames = this.folderFileNames(this.selectedFolderNode)
 			let uploaded = 0
 
 			for (const file of this.selectedSigningUploadFiles) {
@@ -937,16 +972,18 @@ export default {
 					failures.push(name || '(unnamed file)')
 					continue
 				}
-				const target = `${folderDavPath.replace(/\/+$/, '')}/${name}`
+				const uploadName = this.uniqueUploadName(name, reservedNames)
+				const target = `${folderDavPath.replace(/\/+$/, '')}/${uploadName}`
 				try {
 					const data = await this.readFileAsArrayBuffer(file)
 					const ok = await webdavClient.putFileContents(target, data, { overwrite: false })
 					if (ok) {
 						uploaded += 1
 						uploadedTargets.push({
-							path: this.joinNodePath(this.selectedFolderNode.path, name),
+							path: this.joinNodePath(this.selectedFolderNode.path, uploadName),
 							flow: this.signingUploadDraft.flow,
 							signers,
+							placements: this.buildPlacementPayload(this.signingUploadDraft, signers),
 						})
 					} else {
 						failures.push(name)
@@ -984,6 +1021,25 @@ export default {
 				reader.onload = () => resolve(reader.result)
 				reader.readAsArrayBuffer(file)
 			})
+		},
+		folderFileNames(folderNode) {
+			return new Set((folderNode?.children || [])
+				.filter((child) => child?.type === 'file')
+				.map((child) => String(child.name || '').toLowerCase()))
+		},
+		uniqueUploadName(name, reservedNames) {
+			const cleanName = String(name || '').trim()
+			const dotIndex = cleanName.lastIndexOf('.')
+			const base = dotIndex > 0 ? cleanName.slice(0, dotIndex) : cleanName
+			const extension = dotIndex > 0 ? cleanName.slice(dotIndex) : ''
+			let candidate = cleanName
+			let counter = 1
+			while (reservedNames.has(candidate.toLowerCase())) {
+				candidate = `${base} (${counter})${extension}`
+				counter += 1
+			}
+			reservedNames.add(candidate.toLowerCase())
+			return candidate
 		},
 		async loadDocumentTypes() {
 			const projectId = Number(this.projectId)
@@ -1283,7 +1339,7 @@ export default {
 				if (!this.isSignableFile(node)) {
 					continue
 				}
-				const request = await this.createSigningRequestForFile(node.id, pendingTarget.flow, pendingTarget.signers)
+				const request = await this.createSigningRequestForFile(node.id, pendingTarget.flow, pendingTarget.signers, pendingTarget.placements || [])
 				if (request) {
 					sent += 1
 				}
@@ -1414,7 +1470,7 @@ export default {
 				return
 			}
 			this.activeSigningFile = node
-			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [] }
+			this.signingDraft = { flow: 'parallel', signersText: '', memberIds: [], placements: {} }
 			this.signingError = ''
 			this.loadProjectMembers()
 		},
@@ -1435,17 +1491,65 @@ export default {
 				.map((member) => ({
 					userId: member.id,
 					displayName: member.displayName || member.id,
+					signerKey: `account:${String(member.id).toLowerCase()}`,
 				}))
 			return [...memberSigners, ...this.parseSignerText(text)]
+		},
+		ensurePlacementDrafts(draft, signers) {
+			if (!draft.placements || typeof draft.placements !== 'object') {
+				this.$set(draft, 'placements', {})
+			}
+			signers.forEach((signer, index) => {
+				const key = signer.signerKey || this.signerKey(signer)
+				if (!key) return
+				signer.signerKey = key
+				if (!draft.placements[key]) {
+					this.$set(draft.placements, key, {
+						page: 1,
+						left: 80,
+						top: 120 + (index * 80),
+						width: 180,
+						height: 60,
+					})
+				}
+			})
+			return signers
+		},
+		buildPlacementPayload(draft, signers) {
+			return signers
+				.map((signer) => {
+					const key = signer.signerKey || this.signerKey(signer)
+					const placement = key ? draft.placements?.[key] : null
+					if (!placement) return null
+					return {
+						signerKey: key,
+						type: 'signature',
+						page: Number(placement.page) || 1,
+						left: Number(placement.left) || 0,
+						top: Number(placement.top) || 0,
+						width: Number(placement.width) || 180,
+						height: Number(placement.height) || 60,
+					}
+				})
+				.filter(Boolean)
+		},
+		signerKey(signer) {
+			if (signer?.userId) {
+				return `account:${String(signer.userId).toLowerCase()}`
+			}
+			if (signer?.email) {
+				return `email:${String(signer.email).toLowerCase()}`
+			}
+			return ''
 		},
 		parseSignerText(text) {
 			return String(text || '')
 				.split(/[\n,;]/)
 				.map((email) => email.trim())
 				.filter((email) => email !== '')
-				.map((email) => ({ email, displayName: email }))
+				.map((email) => ({ email, displayName: email, signerKey: `email:${email.toLowerCase()}` }))
 		},
-		async createSigningRequestForFile(fileId, flow, signers) {
+		async createSigningRequestForFile(fileId, flow, signers, placements = []) {
 			const projectId = Number(this.projectId)
 			const normalizedFileId = Number(fileId)
 			if (!Number.isFinite(projectId) || projectId <= 0 || !Number.isFinite(normalizedFileId) || normalizedFileId <= 0) {
@@ -1455,6 +1559,7 @@ export default {
 				const payload = await projectsService.createFileSigningRequest(projectId, normalizedFileId, {
 					signature_flow: flow,
 					signers,
+					placements,
 				})
 				if (payload?.request) {
 					this.$set(this.signingByFileId, String(normalizedFileId), payload.request)
@@ -1485,7 +1590,7 @@ export default {
 			this.signingBusy = true
 			this.signingError = ''
 			try {
-				const request = await this.createSigningRequestForFile(fileId, this.signingDraft.flow, signers)
+				const request = await this.createSigningRequestForFile(fileId, this.signingDraft.flow, signers, this.buildPlacementPayload(this.signingDraft, signers))
 				if (request) {
 					this.activeSigningFile = null
 				}
@@ -2038,6 +2143,54 @@ export default {
 	margin-left: auto;
 	color: var(--color-text-maxcontrast);
 	font-size: 12px;
+}
+
+.project-files__placements {
+	display: grid;
+	gap: 8px;
+	margin-top: 8px;
+	padding: 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+}
+
+.project-files__placement-row {
+	display: grid;
+	grid-template-columns: minmax(120px, 1fr) repeat(5, minmax(64px, 80px));
+	gap: 8px;
+	align-items: end;
+}
+
+.project-files__placement-row label {
+	display: grid;
+	gap: 4px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.project-files__placement-row input {
+	min-width: 0;
+	padding: 6px;
+	border: 1px solid var(--color-border);
+	border-radius: 6px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+}
+
+.project-files__placement-name {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--color-main-text);
+}
+
+@media (max-width: 720px) {
+	.project-files__placement-row {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.project-files__placement-name {
+		grid-column: 1 / -1;
+	}
 }
 
 .project-files__signing-pill {

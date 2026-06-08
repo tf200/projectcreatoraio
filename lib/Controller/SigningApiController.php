@@ -56,7 +56,8 @@ class SigningApiController extends Controller {
 		$params = $this->request->getParams();
 		$flow = is_string($params['signature_flow'] ?? null) ? $params['signature_flow'] : 'parallel';
 		$signers = is_array($params['signers'] ?? null) ? $params['signers'] : [];
-		$record = $this->signingService->createRequest($project, $fileId, $flow, $signers, $userId);
+		$placements = is_array($params['placements'] ?? null) ? $params['placements'] : [];
+		$record = $this->signingService->createRequest($project, $fileId, $flow, $signers, $userId, $placements);
 
 		return new DataResponse(['request' => $record], 201);
 	}
