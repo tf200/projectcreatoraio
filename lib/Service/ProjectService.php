@@ -84,7 +84,6 @@ class ProjectService
         private readonly ProjectDeckActivityService $projectDeckActivityService,
         private readonly ProjectTalkIntegrationService $projectTalkIntegrationService,
         private readonly ?object $cardMapper,
-        private readonly ?object $deckNoteMapper,
         private readonly LoggerInterface $logger,
         private readonly ProjectMemberRoleMapper $memberRoleMapper,
     ) {
@@ -1191,7 +1190,7 @@ class ProjectService
         }
 
         $boardId = $project->getBoardId();
-        if ($boardId === null || $boardId === '' || $this->cardMapper === null || $this->deckNoteMapper === null) {
+        if ($boardId === null || $boardId === '' || $this->cardMapper === null) {
             return [
                 'notes' => [],
                 'total' => 0,
@@ -1204,11 +1203,27 @@ class ProjectService
         $total = $this->cardMapper->countByBoardId((int) $boardId);
 
         $cardIds = array_map(fn($card) => (int) $card->getId(), $cards);
-        $privateNotes = $this->deckNoteMapper->findByCardsForUser($userId, $cardIds);
-
+        
         $notesByCardId = [];
-        foreach ($privateNotes as $note) {
-            $notesByCardId[$note->getCardId()][] = $note->jsonSerialize();
+        if (!empty($cardIds)) {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from('deck_private_notes')
+                ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+                ->andWhere($qb->expr()->in('card_id', $qb->createNamedParameter($cardIds, IQueryBuilder::PARAM_INT_ARRAY)))
+                ->orderBy('created_at', 'DESC');
+
+            $rows = $qb->executeQuery()->fetchAll();
+            foreach ($rows as $row) {
+                $notesByCardId[(int)$row['card_id']][] = [
+                    'id' => (int) $row['id'],
+                    'cardId' => (int) $row['card_id'],
+                    'userId' => $row['user_id'],
+                    'text' => $row['text'],
+                    'createdAt' => (int) $row['created_at'],
+                    'lastModified' => (int) $row['last_modified'],
+                ];
+            }
         }
 
         return [

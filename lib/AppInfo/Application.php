@@ -84,7 +84,6 @@ use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
 use OCA\Deck\Db\ChangeHelper;
 use OCA\Deck\Db\CardMapper;
-use OCA\Deck\Db\NoteMapper as DeckNoteMapper;
 use OCA\Deck\Db\BoardMapper;
 use OCA\Deck\Db\StackMapper;
 use OCA\GroupFolders\Folder\FolderManager;
@@ -205,7 +204,6 @@ class Application extends App implements IBootstrap {
 				$c->get(ProjectDeckActivityService::class),
 				$c->get(ProjectTalkIntegrationService::class),
 				$deckEnabled ? $c->get(CardMapper::class) : null,
-				$deckEnabled ? $c->get(DeckNoteMapper::class) : null,
 				$c->get(LoggerInterface::class),
 				$c->get(ProjectMemberRoleMapper::class),
 			);
