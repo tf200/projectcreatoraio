@@ -50,7 +50,6 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 		$lowerBound = (new DateTime())->add(new DateInterval('P3M'))->modify('-5 seconds');
 		$capturedDueDates = [];
 		$nextCardId = 1000;
-
 		$cardService = $this->createMock(CardService::class);
 		$cardService->expects($this->exactly($expectedCardCount))
 			->method('create')
@@ -61,7 +60,8 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 				int $order,
 				string $ownerUid,
 				string $description,
-				$dueDate
+				$dueDate,
+				$startDate = null
 			) use (&$capturedDueDates, &$nextCardId): Card {
 				$capturedDueDates[] = $dueDate;
 

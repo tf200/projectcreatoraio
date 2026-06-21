@@ -188,6 +188,7 @@ class DeckDefaultCardsService
 					$ownerUid,
 					'',
 					$this->buildDefaultCardDeadline(),
+					new DateTime(),
 				);
 
 				if ($importantLabelId !== null && ($cardTemplate['important'] ?? false)) {
