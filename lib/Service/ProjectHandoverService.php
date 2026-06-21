@@ -16,10 +16,10 @@ class ProjectHandoverService
 {
     public function __construct(
         private readonly ProjectMapper $projectMapper,
-        private readonly OrganizationUserMapper $organizationUserMapper,
         private readonly IUserManager $userManager,
         private readonly IGroupManager $groupManager,
         private readonly IRootFolder $rootFolder,
+        private readonly ?OrganizationUserMapper $organizationUserMapper = null,
     ) {
     }
 
@@ -121,6 +121,9 @@ class ProjectHandoverService
 
     private function assertUserBelongsToOrganization(string $userId, int $organizationId, string $label): void
     {
+        if ($this->organizationUserMapper === null) {
+            throw new OCSException('Organization service is not available.', 500);
+        }
         $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
         if ($membership === null || (int) ($membership['organization_id'] ?? 0) !== $organizationId) {
             throw new OCSException(sprintf('%s does not belong to organization %d.', $label, $organizationId), 403);

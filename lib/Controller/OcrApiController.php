@@ -29,11 +29,11 @@ class OcrApiController extends Controller
         IRequest $request,
         private readonly IUserSession $userSession,
         private readonly IGroupManager $groupManager,
-        private readonly OrganizationUserMapper $organizationUserMapper,
         private readonly ProjectMapper $projectMapper,
         private readonly OcrDocumentService $ocrDocumentService,
         private readonly FileProcessingPipelineService $fileProcessingPipelineService,
         private readonly ProjectDeckOcrAttachmentService $projectDeckOcrAttachmentService,
+        private readonly ?OrganizationUserMapper $organizationUserMapper = null,
     ) {
         parent::__construct($appName, $request);
     }
@@ -300,6 +300,10 @@ class OcrApiController extends Controller
             return $userId;
         }
 
+        if ($this->organizationUserMapper === null) {
+            throw new OCSForbiddenException('Organization management is not available');
+        }
+
         $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
         if ($membership === null) {
             throw new OCSForbiddenException('You are not assigned to an organization');
@@ -321,6 +325,14 @@ class OcrApiController extends Controller
 
         $userId = $currentUser->getUID();
         if ($this->groupManager->isAdmin($userId)) {
+            return $userId;
+        }
+
+        if ($this->organizationUserMapper === null) {
+            $projectGroupGid = trim((string) $project->getProjectGroupGid());
+            if ($projectGroupGid === '' || !$this->groupManager->isInGroup($userId, $projectGroupGid)) {
+                throw new OCSNotFoundException('Project not found');
+            }
             return $userId;
         }
 

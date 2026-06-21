@@ -11,6 +11,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
@@ -27,16 +28,14 @@ class TimelineApiController extends Controller
 		private ProjectMapper $projectMapper,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
-		private OrganizationUserMapper $organizationUserMapper,
 		private ProjectActivityService $projectActivityService,
 		private TimelinePlanningService $planningService,
+		private ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
 	}
 
-    /**
-     * @NoAdminRequired
-     */
+    #[NoAdminRequired]
     public function index(int $projectId): JSONResponse
     {
         try {
@@ -52,9 +51,7 @@ class TimelineApiController extends Controller
         }
     }
 
-    /**
-     * @NoAdminRequired
-     */
+    #[NoAdminRequired]
     public function summary(int $projectId): JSONResponse
     {
         try {
@@ -67,12 +64,7 @@ class TimelineApiController extends Controller
         }
     }
 
-    /**
-     * @NoAdminRequired
-     */
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function create(
 		int $projectId,
 		string $label,
@@ -139,9 +131,7 @@ class TimelineApiController extends Controller
         }
     }
 
-    /**
-     * @NoAdminRequired
-     */
+    #[NoAdminRequired]
     public function update(
         int $projectId,
         int $id,
@@ -248,9 +238,8 @@ class TimelineApiController extends Controller
 
     /**
      * Batch reorder timeline items to avoid N API calls on drag-and-drop.
-     *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function reorder(int $projectId, array $ids = []): JSONResponse
     {
         try {
@@ -370,9 +359,7 @@ class TimelineApiController extends Controller
 		$this->mapper->updateItem($existing);
 	}
 
-    /**
-     * @NoAdminRequired
-     */
+    #[NoAdminRequired]
     public function destroy(int $projectId, int $id): JSONResponse
     {
         try {
@@ -418,6 +405,13 @@ class TimelineApiController extends Controller
         }
 
         if ($this->groupManager->isAdmin($currentUser->getUID())) {
+            return;
+        }
+
+        if ($this->organizationUserMapper === null) {
+            if (!$this->isProjectGroupMember($currentUser->getUID(), (string) $project->getProjectGroupGid())) {
+                throw new OCSNotFoundException('Project not found');
+            }
             return;
         }
 

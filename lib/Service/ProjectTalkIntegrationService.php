@@ -30,7 +30,7 @@ class ProjectTalkIntegrationService
     private const TALK_PARTICIPANT_USER = 3;
 
     public function __construct(
-        private readonly IBroker $talkBroker,
+        private readonly ?object $talkBroker,
         private readonly IServerContainer $serverContainer,
         private readonly IUserManager $userManager,
         private readonly IURLGenerator $urlGenerator,
@@ -43,6 +43,9 @@ class ProjectTalkIntegrationService
 
     public function isAvailable(): bool
     {
+        if ($this->talkBroker === null) {
+            return false;
+        }
         try {
             return $this->talkBroker->hasBackend();
         } catch (Throwable) {

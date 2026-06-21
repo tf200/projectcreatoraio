@@ -10,7 +10,6 @@ use OCA\ProjectCreatorAIO\BackgroundJob\PurgeOldExportsJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\SendProjectDigestJob;
 use OCA\ProjectCreatorAIO\Db\PrivateFolderLinkMapper;
 use OCA\ProjectCreatorAIO\Dashboard\ProjectsWidget;
-use OCA\Deck\Db\StackMapper;
 use OCA\Deck\Event\AclCreatedEvent;
 use OCA\Deck\Event\AclDeletedEvent;
 use OCA\Deck\Event\AclUpdatedEvent;
@@ -22,7 +21,6 @@ use OCA\Deck\Event\CardDeletedEvent;
 use OCA\Deck\Event\CardUpdatedEvent;
 use OCA\Deck\Service\BoardService;
 use OCA\Deck\Service\CardService;
-use OCA\Deck\Service\CardPolicyService;
 use OCA\Deck\Service\LabelService;
 use OCA\Deck\Service\StackService;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
@@ -33,9 +31,11 @@ use OCA\ProjectCreatorAIO\Listener\TalkEventListener;
 use OCA\ProjectCreatorAIO\Listener\WhiteboardWrittenListener;
 use OCA\ProjectCreatorAIO\Notification\Notifier;
 use OCA\ProjectCreatorAIO\Service\DeckDefaultCardsService;
+use OCA\ProjectCreatorAIO\Service\FileProcessingPipelineService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDigestService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
+use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCA\Talk\Events\AttendeeRemovedEvent;
@@ -51,7 +51,6 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
-use OCP\AppFramework\IAppContainer;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
 use OCP\Files\Events\Node\NodeCopiedEvent;
@@ -59,7 +58,41 @@ use OCP\Files\Events\Node\NodeCreatedEvent;
 use OCP\Files\Events\Node\NodeDeletedEvent;
 use OCP\Files\Events\Node\NodeRenamedEvent;
 use OCP\Files\Events\Node\NodeWrittenEvent;
+use OCP\IDBConnection;
+use OCP\IUserManager;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
+
+// Imports added for optional apps and dependency injection overrides
+use OCP\App\IAppManager;
+use OCP\Talk\IBroker;
+use OCP\IServerContainer;
+use OCP\IURLGenerator;
+use OCP\Files\IRootFolder;
+use OCP\Share\IManager as IShareManager;
+use OCP\L10N\IFactory as IL10NFactory;
+use OCP\IUserSession;
+use OCP\IGroupManager;
+use OCA\ProjectCreatorAIO\Service\ProjectService;
+use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
+use OCA\ProjectCreatorAIO\Service\FileTreeService;
+use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
+use OCA\Deck\Db\ChangeHelper;
+use OCA\Deck\Db\CardMapper;
+use OCA\Deck\Db\NoteMapper as DeckNoteMapper;
+use OCA\Deck\Db\BoardMapper;
+use OCA\Deck\Db\StackMapper;
+use OCA\GroupFolders\Folder\FolderManager;
+use OCA\GroupFolders\Mount\FolderStorageManager;
+use OCA\Organization\Db\OrganizationMapper;
+use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCA\Organization\Db\SubscriptionMapper;
+use OCA\Organization\Db\PlanMapper;
 
 class Application extends App implements IBootstrap {
     public const APP_ID = 'projectcreatoraio';
@@ -73,16 +106,18 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(NodeWrittenEvent::class, WhiteboardWrittenListener::class);
 		$context->registerEventListener(NodeWrittenEvent::class, FileProcessingWrittenListener::class);
 
-		// Deck event listeners
-		$context->registerEventListener(BoardCreatedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(BoardUpdatedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(BoardDeletedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(CardCreatedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(CardUpdatedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(CardDeletedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(AclCreatedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(AclUpdatedEvent::class, DeckEventListener::class);
-		$context->registerEventListener(AclDeletedEvent::class, DeckEventListener::class);
+		// Only register Deck event listeners if Deck app is active
+		if (class_exists(BoardCreatedEvent::class)) {
+			$context->registerEventListener(BoardCreatedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(BoardUpdatedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(BoardDeletedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(CardCreatedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(CardUpdatedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(CardDeletedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(AclCreatedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(AclUpdatedEvent::class, DeckEventListener::class);
+			$context->registerEventListener(AclDeletedEvent::class, DeckEventListener::class);
+		}
 
 		// Files event listeners
 		$context->registerEventListener(NodeCreatedEvent::class, FileEventListener::class);
@@ -91,87 +126,182 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(NodeRenamedEvent::class, FileEventListener::class);
 		$context->registerEventListener(NodeCopiedEvent::class, FileEventListener::class);
 
-		// Talk event listeners
-		$context->registerEventListener(ChatMessageSentEvent::class, TalkEventListener::class);
-		$context->registerEventListener(AttendeesAddedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(AttendeeRemovedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(CallStartedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(CallEndedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(RoomModifiedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(ReactionAddedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(ReactionRemovedEvent::class, TalkEventListener::class);
-		$context->registerEventListener(UserJoinedRoomEvent::class, TalkEventListener::class);
+		// Only register Talk event listeners if Talk app is active
+		if (class_exists(ChatMessageSentEvent::class)) {
+			$context->registerEventListener(ChatMessageSentEvent::class, TalkEventListener::class);
+			$context->registerEventListener(AttendeesAddedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(AttendeeRemovedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(CallStartedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(CallEndedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(RoomModifiedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(ReactionAddedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(ReactionRemovedEvent::class, TalkEventListener::class);
+			$context->registerEventListener(UserJoinedRoomEvent::class, TalkEventListener::class);
+		}
 
-        $context->registerService('ProjectMapper', function (IAppContainer $c) {
+        $context->registerService(ProjectMapper::class, function (ContainerInterface $c) {
             return new ProjectMapper(
-                $c->getServer()->getDatabaseConnection(),
-                $c->query(PrivateFolderLinkMapper::class),
+                $c->get(IDBConnection::class),
+                $c->get(PrivateFolderLinkMapper::class),
             );
         });
 
-		$context->registerService(DeckDefaultCardsService::class, function (IAppContainer $c) {
+		$context->registerService(DeckDefaultCardsService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			if (!$appManager->isEnabledForAnyone('deck') || !class_exists(BoardService::class)) {
+				return null;
+			}
 			return new DeckDefaultCardsService(
-				$c->getServer()->query(CardService::class),
-				$c->getServer()->query(CardPolicyService::class),
-				$c->getServer()->query(LabelService::class),
-				$c->getServer()->query(StackService::class),
-				$c->getServer()->query(BoardService::class),
-				$c->getServer()->get(LoggerInterface::class),
+				$c->get(CardService::class),
+				$c->get(LabelService::class),
+				$c->get(StackService::class),
+				$c->get(BoardService::class),
+				$c->get(LoggerInterface::class),
 			);
 		});
 
-		$context->registerService(TimelinePlanningService::class, function (IAppContainer $c) {
+		$context->registerService(ProjectTalkIntegrationService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$talkEnabled = $appManager->isEnabledForAnyone('spreed') && class_exists(IBroker::class);
+			return new ProjectTalkIntegrationService(
+				$talkEnabled ? $c->get(IBroker::class) : null,
+				$c->get(IServerContainer::class),
+				$c->get(IUserManager::class),
+				$c->get(IURLGenerator::class),
+				$c->get(IRootFolder::class),
+				$c->get(IShareManager::class),
+				$c->get(IL10NFactory::class),
+				$c->get(LoggerInterface::class),
+			);
+		});
+
+		$context->registerService(ProjectService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(BoardService::class);
+			$groupfoldersEnabled = $appManager->isEnabledForAnyone('groupfolders') && class_exists(FolderManager::class);
+			$organizationEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationMapper::class);
+
+			return new ProjectService(
+				$c->get(IUserSession::class),
+				$c->get(IShareManager::class),
+				$deckEnabled ? $c->get(BoardService::class) : null,
+				$deckEnabled ? $c->get(DeckDefaultCardsService::class) : null,
+				$c->get(IRootFolder::class),
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectNoteMapper::class),
+				$c->get(FileTreeService::class),
+				$organizationEnabled ? $c->get(OrganizationMapper::class) : null,
+				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null,
+				$organizationEnabled ? $c->get(SubscriptionMapper::class) : null,
+				$organizationEnabled ? $c->get(PlanMapper::class) : null,
+				$c->get(IGroupManager::class),
+				$groupfoldersEnabled ? $c->get(FolderManager::class) : null,
+				$c->get(IDBConnection::class),
+				$c->get(IUserManager::class),
+				$groupfoldersEnabled ? $c->get(FolderStorageManager::class) : null,
+				$deckEnabled ? $c->get(ChangeHelper::class) : null,
+				$c->get(ProjectNotificationService::class),
+				$c->get(ProjectActivityService::class),
+				$c->get(ProjectDeckActivityService::class),
+				$c->get(ProjectTalkIntegrationService::class),
+				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$deckEnabled ? $c->get(DeckNoteMapper::class) : null,
+				$c->get(LoggerInterface::class),
+				$c->get(ProjectMemberRoleMapper::class),
+			);
+		});
+
+		$context->registerService(TimelinePlanningService::class, function (ContainerInterface $c) {
 			return new TimelinePlanningService(
-				$c->getServer()->getDatabaseConnection(),
-				$c->getServer()->get(LoggerInterface::class),
+				$c->get(IDBConnection::class),
+				$c->get(LoggerInterface::class),
 			);
 		});
 
-		$context->registerService(DetectStaleProjectsJob::class, function (IAppContainer $c) {
+		$context->registerService(DetectStaleProjectsJob::class, function (ContainerInterface $c) {
 			return new DetectStaleProjectsJob(
-				$c->getServer()->get(ITimeFactory::class),
-				$c->getServer()->query(ProjectDeckActivityService::class),
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectDeckActivityService::class),
 			);
 		});
 
-		$context->registerService(SendProjectDigestJob::class, function (IAppContainer $c) {
+		$context->registerService(SendProjectDigestJob::class, function (ContainerInterface $c) {
 			return new SendProjectDigestJob(
-				$c->getServer()->get(ITimeFactory::class),
-				$c->getServer()->query(ProjectDigestService::class),
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectDigestService::class),
 			);
 		});
 
-		$context->registerService(PurgeArchivedProjectsJob::class, function (IAppContainer $c) {
+		$context->registerService(ProjectRetentionService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(BoardMapper::class);
+			$groupfoldersEnabled = $appManager->isEnabledForAnyone('groupfolders') && class_exists(FolderManager::class);
+
+			return new ProjectRetentionService(
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectNoteMapper::class),
+				$c->get(TimelineItemMapper::class),
+				$c->get(PrivateFolderLinkMapper::class),
+				$c->get(ProjectActivityEventMapper::class),
+				$c->get(ProjectDigestCursorMapper::class),
+				$c->get(ProjectMemberRoleMapper::class),
+				$deckEnabled ? $c->get(BoardMapper::class) : null,
+				$groupfoldersEnabled ? $c->get(FolderManager::class) : null,
+				$groupfoldersEnabled ? $c->get(FolderStorageManager::class) : null,
+				$c->get(IRootFolder::class),
+				$c->get(IGroupManager::class),
+				$c->get(IDBConnection::class),
+				$c->get(LoggerInterface::class),
+			);
+		});
+
+		$context->registerService(PurgeArchivedProjectsJob::class, function (ContainerInterface $c) {
 			return new PurgeArchivedProjectsJob(
-				$c->getServer()->get(ITimeFactory::class),
-				$c->getServer()->query(ProjectRetentionService::class),
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectRetentionService::class),
 			);
 		});
 
-		$context->registerService(ProcessPendingFileProcessingJob::class, function (IAppContainer $c) {
+		$context->registerService(ProcessPendingFileProcessingJob::class, function (ContainerInterface $c) {
 			return new ProcessPendingFileProcessingJob(
-				$c->getServer()->get(ITimeFactory::class),
-				$c->getServer()->query(\OCA\ProjectCreatorAIO\Service\FileProcessingPipelineService::class),
+				$c->get(ITimeFactory::class),
+				$c->get(FileProcessingPipelineService::class),
 			);
 		});
 
-		$context->registerService(GenerateProjectExportJob::class, function (IAppContainer $c) {
+		$context->registerService(ProjectDownloadService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(StackMapper::class);
+
+			return new ProjectDownloadService(
+				$c->get(ProjectNoteMapper::class),
+				$c->get(TimelineItemMapper::class),
+				$c->get(ProjectActivityEventMapper::class),
+				$deckEnabled ? $c->get(StackMapper::class) : null,
+				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$c->get(IRootFolder::class),
+				$c->get(IUserManager::class),
+				$c->get(LoggerInterface::class),
+			);
+		});
+
+		$context->registerService(GenerateProjectExportJob::class, function (ContainerInterface $c) {
 			return new GenerateProjectExportJob(
-				$c->getServer()->get(ITimeFactory::class),
-				$c->getServer()->query(\OCA\ProjectCreatorAIO\Db\ProjectMapper::class),
-				$c->getServer()->query(ProjectDownloadService::class),
-				$c->getServer()->query(\OCA\ProjectCreatorAIO\Service\ProjectNotificationService::class),
-				$c->getServer()->query(\OCP\IUserManager::class),
-				$c->getServer()->get(LoggerInterface::class),
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectDownloadService::class),
+				$c->get(ProjectNotificationService::class),
+				$c->get(IUserManager::class),
+				$c->get(LoggerInterface::class),
 			);
 		});
 
-		$context->registerService(PurgeOldExportsJob::class, function (IAppContainer $c) {
+		$context->registerService(PurgeOldExportsJob::class, function (ContainerInterface $c) {
 			return new PurgeOldExportsJob(
-				$c->getServer()->get(ITimeFactory::class),
-				$c->getServer()->query(ProjectDownloadService::class),
-				$c->getServer()->query(\OCP\IUserManager::class),
-				$c->getServer()->get(LoggerInterface::class),
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectDownloadService::class),
+				$c->get(IUserManager::class),
+				$c->get(LoggerInterface::class),
 			);
 		});
 

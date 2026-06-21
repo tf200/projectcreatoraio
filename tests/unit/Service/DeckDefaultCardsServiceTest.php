@@ -12,7 +12,6 @@ use OCA\Deck\Db\Card;
 use OCA\Deck\Db\Label;
 use OCA\Deck\Db\Stack;
 use OCA\Deck\Service\BoardService;
-use OCA\Deck\Service\CardPolicyService;
 use OCA\Deck\Service\CardService;
 use OCA\Deck\Service\LabelService;
 use OCA\Deck\Service\StackService;
@@ -72,11 +71,6 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 				return $card;
 			});
 
-		$cardPolicyService = $this->createMock(CardPolicyService::class);
-		$cardPolicyService->expects($this->once())
-			->method('enableCardPolicyMode')
-			->with(15);
-
 		$boardService = $this->createMock(BoardService::class);
 		$boardService->expects($this->once())
 			->method('find')
@@ -85,7 +79,6 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 
 		$service = new DeckDefaultCardsService(
 			$cardService,
-			$cardPolicyService,
 			$this->createMock(LabelService::class),
 			$this->createMock(StackService::class),
 			$boardService,

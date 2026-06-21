@@ -52,6 +52,24 @@ class TimelinePlanningService
 			];
 		}
 
+		$appManager = \OC::$server->get(\OCP\App\IAppManager::class);
+		if (!$appManager->isEnabledForUser('deck')) {
+			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
+			return [
+				'requestDate' => $requestDate,
+				'requiredPreparationWeeks' => $prepWeeks,
+				'processCompleted' => [
+					'status' => 'not_configured',
+					'date' => null,
+					'doneCount' => 0,
+					'totalRequired' => count($requiredTitles),
+					'missingTitles' => $requiredTitles,
+				],
+				'earliestExecutionDate' => null,
+				'coordinationPendingPeriod' => $pending,
+			];
+		}
+
 		$boardId = $this->parseIntOrZero($project->getBoardId());
 		if ($boardId <= 0) {
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);

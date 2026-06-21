@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Dashboard;
 
+use OCP\AppFramework\Services\IInitialState;
 use OCP\Dashboard\IWidget;
-use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -14,7 +14,7 @@ class ProjectsWidget implements IWidget {
     public const APP_ID = 'projectcreatoraio';
 
     public function __construct(
-        private readonly IInitialStateService $initialStateService,
+        private readonly IInitialState $initialState,
         private readonly IL10N $l10n,
         private readonly IURLGenerator $urlGenerator,
         private readonly IUserSession $userSession,
@@ -71,7 +71,7 @@ class ProjectsWidget implements IWidget {
             return;
         }
 
-        $this->initialStateService->provideInitialState(self::APP_ID, 'currentUser', [
+        $this->initialState->provideInitialState('currentUser', [
             'id' => $user->getUID(),
             'displayName' => $user->getDisplayName()
         ]);

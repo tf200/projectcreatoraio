@@ -30,8 +30,8 @@ class ProjectDownloadService
 		private readonly ProjectNoteMapper $noteMapper,
 		private readonly TimelineItemMapper $timelineItemMapper,
 		private readonly ProjectActivityEventMapper $activityEventMapper,
-		private readonly StackMapper $stackMapper,
-		private readonly CardMapper $cardMapper,
+		private readonly ?object $stackMapper,
+		private readonly ?object $cardMapper,
 		private readonly IRootFolder $rootFolder,
 		private readonly IUserManager $userManager,
 		private readonly LoggerInterface $logger,
@@ -348,7 +348,7 @@ class ProjectDownloadService
 
 		$md = "# Deck Board\n\n";
 
-		if ($boardId <= 0) {
+		if ($this->stackMapper === null || $this->cardMapper === null || $boardId <= 0) {
 			$md .= "_No deck board linked to this project._\n";
 			return $md;
 		}

@@ -36,9 +36,9 @@ class ProjectRetentionService
 		private readonly ProjectActivityEventMapper $projectActivityEventMapper,
 		private readonly ProjectDigestCursorMapper $projectDigestCursorMapper,
 		private readonly ProjectMemberRoleMapper $memberRoleMapper,
-		private readonly BoardMapper $boardMapper,
-		private readonly FolderManager $folderManager,
-		private readonly FolderStorageManager $folderStorageManager,
+		private readonly ?object $boardMapper,
+		private readonly ?object $folderManager,
+		private readonly ?object $folderStorageManager,
 		private readonly IRootFolder $rootFolder,
 		private readonly IGroupManager $groupManager,
 		private readonly IDBConnection $db,
@@ -132,6 +132,10 @@ class ProjectRetentionService
 
 	private function deleteBoard(Project $project): void
 	{
+		if ($this->boardMapper === null) {
+			return;
+		}
+
 		$boardId = trim((string) ($project->getBoardId() ?? ''));
 		if ($boardId === '' || !ctype_digit($boardId)) {
 			return;
@@ -156,15 +160,39 @@ class ProjectRetentionService
 			return;
 		}
 
-		try {
-			$groupFolder = $this->folderManager->getFolder($folderId);
-			if ($groupFolder === null) {
-				return;
+		if ($this->folderManager !== null && $this->folderStorageManager !== null) {
+			try {
+				$groupFolder = $this->folderManager->getFolder($folderId);
+				if ($groupFolder === null) {
+					// Might be standard folder fallback, delete it using filesystem fallback below
+					$this->deleteStandardFolderFallback($project, $folderId);
+					return;
+				}
+				$this->folderStorageManager->deleteStoragesForFolder($groupFolder);
+				$this->folderManager->removeFolder($folderId);
+			} catch (\Throwable $e) {
+				$this->logger->warning('Shared folder cleanup skipped during project purge', [
+					'projectId' => $project->getId(),
+					'folderId' => $folderId,
+					'exception' => $e,
+				]);
 			}
-			$this->folderStorageManager->deleteStoragesForFolder($groupFolder);
-			$this->folderManager->removeFolder($folderId);
+		} else {
+			$this->deleteStandardFolderFallback($project, $folderId);
+		}
+	}
+
+	private function deleteStandardFolderFallback(Project $project, int $folderId): void
+	{
+		try {
+			$ownerFolder = $this->rootFolder->getUserFolder($project->getOwnerId());
+			$nodes = $ownerFolder->getById($folderId);
+			$node = $nodes[0] ?? null;
+			if ($node !== null && $node->isDeletable()) {
+				$node->delete();
+			}
 		} catch (\Throwable $e) {
-			$this->logger->warning('Shared folder cleanup skipped during project purge', [
+			$this->logger->warning('Fallback shared folder cleanup skipped during project purge', [
 				'projectId' => $project->getId(),
 				'folderId' => $folderId,
 				'exception' => $e,

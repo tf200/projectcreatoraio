@@ -63,28 +63,28 @@ class ProjectService
     public function __construct(
         protected IUserSession $userSession,
         protected IShareManager $shareManager,
-        protected BoardService $boardService,
-        private readonly DeckDefaultCardsService $deckDefaultCardsService,
+        protected ?object $boardService,
+        private readonly ?object $deckDefaultCardsService,
         protected IRootFolder $rootFolder,
         protected ProjectMapper $projectMapper,
         protected ProjectNoteMapper $noteMapper,
         protected FileTreeService $fileTreeService,
-        protected OrganizationMapper $organizationMapper,
-        protected OrganizationUserMapper $organizationUserMapper,
-        protected SubscriptionMapper $subscriptionMapper,
-        protected PlanMapper $planMapper,
+        protected ?object $organizationMapper,
+        protected ?object $organizationUserMapper,
+        protected ?object $subscriptionMapper,
+        protected ?object $planMapper,
         protected IGroupManager $groupManager,
-        protected FolderManager $folderManager,
+        protected ?object $folderManager,
         protected IDBConnection $db,
         protected IUserManager $userManager,
-        private readonly FolderStorageManager $folderStorageManager,
-        private readonly ChangeHelper $changeHelper,
+        private readonly ?object $folderStorageManager,
+        private readonly ?object $changeHelper,
         private readonly ProjectNotificationService $projectNotificationService,
         private readonly ProjectActivityService $projectActivityService,
         private readonly ProjectDeckActivityService $projectDeckActivityService,
         private readonly ProjectTalkIntegrationService $projectTalkIntegrationService,
-        private readonly CardMapper $cardMapper,
-        private readonly DeckNoteMapper $deckNoteMapper,
+        private readonly ?object $cardMapper,
+        private readonly ?object $deckNoteMapper,
         private readonly LoggerInterface $logger,
         private readonly ProjectMemberRoleMapper $memberRoleMapper,
     ) {
@@ -123,21 +123,24 @@ class ProjectService
                 throw new OCSException('You must be logged in to create a project.');
             }
 
-            $organization = $this->resolveOrganizationForCurrentUser($owner->getUID(), $organizationId, false);
-            $this->assertUsersBelongToOrganization(array_merge($members, [$owner->getUID()]), $organization->getId());
+            $organization = null;
+            $plan = null;
+            if ($this->organizationMapper !== null && $this->subscriptionMapper !== null && $this->planMapper !== null) {
+                $organization = $this->resolveOrganizationForCurrentUser($owner->getUID(), $organizationId, false);
+                $this->assertUsersBelongToOrganization(array_merge($members, [$owner->getUID()]), $organization->getId());
 
-            $subscription = $this->subscriptionMapper->findByOrganizationId($organization->getId());
+                $subscription = $this->subscriptionMapper->findByOrganizationId($organization->getId());
+                $plan = $this->planMapper->find($subscription->getPlanId());
+                $count = $this->organizationMapper->getProjectsCount($organization->getId());
 
-            $plan = $this->planMapper->find($subscription->getPlanId());
-            $count = $this->organizationMapper->getProjectsCount($organization->getId());
-
-            if ($count >= $plan->getMaxProjects()) {
-                throw new OCSException(sprintf(
-                    "The maximum number of projects allowed for this plan (%d) has been reached. " .
-                    "You currently have %d projects. Please upgrade your plan to create additional projects.",
-                    $plan->getMaxProjects(),
-                    $count
-                ));
+                if ($count >= $plan->getMaxProjects()) {
+                    throw new OCSException(sprintf(
+                        "The maximum number of projects allowed for this plan (%d) has been reached. " .
+                        "You currently have %d projects. Please upgrade your plan to create additional projects.",
+                        $plan->getMaxProjects(),
+                        $count
+                    ));
+                }
             }
 
             $group = $this->createGroupForMembers(
@@ -145,11 +148,15 @@ class ProjectService
             );
             $createdGroup = $group;
 
-            $createdBoard = $this->createBoardForProject(
-                $name,
-                $owner,
-                $group->getGID()
-            );
+            $boardId = null;
+            if ($this->boardService !== null) {
+                $createdBoard = $this->createBoardForProject(
+                    $name,
+                    $owner,
+                    $group->getGID()
+                );
+                $boardId = $createdBoard->getId();
+            }
 
             $createdFolders = $this->createFoldersForProject(
                 $name,
@@ -162,7 +169,8 @@ class ProjectService
             $createdWhiteBoardId = $this->createWhiteboardFile(
                 $createdFolders['shared']['name'],
                 $name,
-                $createdFolders['shared']['group_folder_id']
+                $createdFolders['shared']['group_folder_id'] ?? null,
+                $createdFolders['shared']['folder'] ?? null
             );
 
             if ($createdWhiteBoardId <= 0) {
@@ -187,7 +195,7 @@ class ProjectService
                 $type,
                 $description,
                 $owner->getUID(),
-                $createdBoard->getId(),
+                $boardId,
                 $group->getGID(),
                 $createdConversationToken,
                 $createdFolders['shared']['id'],
@@ -205,18 +213,22 @@ class ProjectService
                 $locZip,
             );
 
-            $this->deckDefaultCardsService->seedForProjectType(
-                $type,
-                $createdBoard,
-                $owner,
-            );
+            if ($this->deckDefaultCardsService !== null && $createdBoard !== null) {
+                $this->deckDefaultCardsService->seedForProjectType(
+                    $type,
+                    $createdBoard,
+                    $owner,
+                );
+            }
 
             // On creation, conditional sets start hidden by default until the
             // questionnaire is explicitly saved.
-            $this->applyCardVisibilityToDeckCards(
-                $project,
-                $this->extractCardVisibilityAnswers($project),
-            );
+            if ($this->boardService !== null) {
+                $this->applyCardVisibilityToDeckCards(
+                    $project,
+                    $this->extractCardVisibilityAnswers($project),
+                );
+            }
 
             $this->projectActivityService->recordProjectCreated(
                 $project,
@@ -287,6 +299,25 @@ class ProjectService
         $user = $this->userSession->getUser();
         if ($user === null) {
             throw new OCSException('You must be logged in to search users.');
+        }
+
+        if ($this->organizationMapper === null) {
+            // Fallback: Search all Nextcloud users
+            $nextcloudUsers = $this->userManager->find($search, max(1, $limit), max(0, $offset));
+            $users = [];
+            foreach ($nextcloudUsers as $ncUser) {
+                $uid = $ncUser->getUID();
+                $displayName = $ncUser->getDisplayName() ?: $uid;
+                $email = $ncUser->getEMailAddress() ?: '';
+                $users[] = [
+                    'id' => $uid,
+                    'user' => $uid,
+                    'label' => $displayName,
+                    'displayName' => $displayName,
+                    'subname' => $email,
+                ];
+            }
+            return $users;
         }
 
         $organization = $this->resolveOrganizationForCurrentUser($user->getUID(), $organizationId, false);
@@ -411,9 +442,11 @@ class ProjectService
             throw new OCSException('This project cannot accept members because the member group is not configured.', 500);
         }
 
-        $memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
-        if ($memberOrganization === null || (int) $memberOrganization['organization_id'] !== (int) $project->getOrganizationId()) {
-            throw new OCSException('User does not belong to this organization.', 403);
+        if ($this->organizationUserMapper !== null) {
+            $memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
+            if ($memberOrganization === null || (int) $memberOrganization['organization_id'] !== (int) $project->getOrganizationId()) {
+                throw new OCSException('User does not belong to this organization.', 403);
+            }
         }
 
         $user = $this->userManager->get($userId);
@@ -506,9 +539,11 @@ class ProjectService
             throw new OCSException('User is not a project member.', 404);
         }
 
-        $memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
-        if ($memberOrganization === null || (int) $memberOrganization['organization_id'] !== (int) $project->getOrganizationId()) {
-            throw new OCSException('User does not belong to this organization.', 403);
+        if ($this->organizationUserMapper !== null) {
+            $memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
+            if ($memberOrganization === null || (int) $memberOrganization['organization_id'] !== (int) $project->getOrganizationId()) {
+                throw new OCSException('User does not belong to this organization.', 403);
+            }
         }
 
         $user = $this->userManager->get($userId);
@@ -660,8 +695,11 @@ class ProjectService
         string $userId,
         ?int $organizationId = null,
         bool $mustBeOrgAdmin = true,
-    ): Organization
+    ): ?object
     {
+        if ($this->organizationMapper === null || $this->organizationUserMapper === null) {
+            return null;
+        }
         $isAdmin = $this->groupManager->isInGroup($userId, 'admin');
 
         if ($isAdmin) {
@@ -791,7 +829,7 @@ class ProjectService
         array $members,
         IUser $owner,
         IGroup $group,
-        Plan $plan
+        ?object $plan
     ): array {
         $ownerFolder = $this->rootFolder->getUserFolder($owner->getUID());
         $allCreatedFolders = [];
@@ -803,18 +841,39 @@ class ProjectService
             $ownerFolder
         );
 
-        $groupFolderId = $this->folderManager->createFolder($sharedFolderName);
-        $folder = $this->folderManager->getFolder($groupFolderId);
-        $storageId = $folder->storageId;
-        $rootId = $folder->rootId;
+        if ($this->folderManager !== null) {
+            $groupFolderId = $this->folderManager->createFolder($sharedFolderName);
+            $folder = $this->folderManager->getFolder($groupFolderId);
+            $storageId = $folder->storageId;
+            $rootId = $folder->rootId;
 
-        $this->folderManager->addApplicableGroup($groupFolderId, $group->getGID());
-        $this->folderManager->setFolderQuota($groupFolderId, $plan->getSharedStoragePerProject());
-        $this->folderManager->setGroupPermissions(
-            $groupFolderId,
-            $group->getGID(),
-            Constants::PERMISSION_ALL
-        );
+            $this->folderManager->addApplicableGroup($groupFolderId, $group->getGID());
+            if ($plan !== null) {
+                $this->folderManager->setFolderQuota($groupFolderId, $plan->getSharedStoragePerProject());
+            }
+            $this->folderManager->setGroupPermissions(
+                $groupFolderId,
+                $group->getGID(),
+                Constants::PERMISSION_ALL
+            );
+        } else {
+            // Fallback: Create a standard folder inside owner's root folder and share it with the group
+            $sharedFolder = $ownerFolder->newFolder($sharedFolderName);
+            $rootId = $sharedFolder->getId();
+            $groupFolderId = null;
+
+            // Share the folder with the project group
+            try {
+                $share = $this->shareManager->newShare();
+                $share->setNode($sharedFolder)
+                    ->setShareType(Constants::SHARE_TYPE_GROUP)
+                    ->setSharedWith($group->getGID())
+                    ->setPermissions(Constants::PERMISSION_ALL);
+                $this->shareManager->createShare($share);
+            } catch (Throwable $e) {
+                $this->logger->warning('Failed to share fallback folder with project group', ['exception' => $e]);
+            }
+        }
 
         // Create private folders for each member
         $privateFolders = [];
@@ -839,11 +898,19 @@ class ProjectService
             ];
         }
 
-        return [
-            'shared' => ['id' => $rootId, 'name' => $sharedFolderName, 'group_folder_id' => $groupFolderId],
-            'private' => $privateFolders,
-            'all' => $allCreatedFolders,
-        ];
+        if ($this->folderManager !== null) {
+            return [
+                'shared' => ['id' => $rootId, 'name' => $sharedFolderName, 'group_folder_id' => $groupFolderId],
+                'private' => $privateFolders,
+                'all' => $allCreatedFolders,
+            ];
+        } else {
+            return [
+                'shared' => ['id' => $rootId, 'name' => $sharedFolderName, 'group_folder_id' => null, 'folder' => $sharedFolder],
+                'private' => $privateFolders,
+                'all' => $allCreatedFolders,
+            ];
+        }
     }
 
     private function refreshFilesystemMountsForUser(IUser $user): void
@@ -884,12 +951,12 @@ class ProjectService
     }
 
     private function cleanupResources(
-        ?Board $board,
+        ?object $board,
         ?IGroup $group,
         ?array $folders,
         ?int $groupFolderId = null,
     ): void {
-        if ($groupFolderId !== null && $groupFolderId > 0) {
+        if ($this->folderManager !== null && $this->folderStorageManager !== null && $groupFolderId !== null && $groupFolderId > 0) {
             try {
                 $groupFolder = $this->folderManager->getFolder($groupFolderId);
                 if ($groupFolder !== null) {
@@ -1124,7 +1191,7 @@ class ProjectService
         }
 
         $boardId = $project->getBoardId();
-        if ($boardId === null || $boardId === '') {
+        if ($boardId === null || $boardId === '' || $this->cardMapper === null || $this->deckNoteMapper === null) {
             return [
                 'notes' => [],
                 'total' => 0,
@@ -1493,6 +1560,10 @@ class ProjectService
      */
     private function applyCardVisibilityToDeckCards(Project $project, array $answers): int
     {
+        if ($this->boardService === null || $this->changeHelper === null) {
+            return 0;
+        }
+
         $boardId = $this->parseIntOrZero($project->getBoardId());
         if ($boardId <= 0) {
             return 0;
@@ -1711,12 +1782,22 @@ class ProjectService
      * Creates a .whiteboard file in the specified shared folder.
      * Optimized to avoid slow file scanning by using direct filecache insertion.
      */
-    private function createWhiteboardFile(string $folderName, string $projectName, int $groupFolderId = 0): int
+    private function createWhiteboardFile(string $folderName, string $projectName, ?int $groupFolderId = 0, ?Folder $fallbackFolder = null): int
     {
         $fileName = $projectName . '.whiteboard';
+        $initialWhiteboardContent = '{"elements":[],"scrollToContent":true}';
 
-        if ($groupFolderId <= 0) {
-            throw new Exception("Missing GroupFolder id for shared folder {$folderName}");
+        if ($groupFolderId === null || $groupFolderId <= 0) {
+            // Group folders app is disabled or not used. Use the fallback folder if available.
+            if ($fallbackFolder === null) {
+                throw new Exception("Missing fallback folder and missing GroupFolder ID for whiteboard creation.");
+            }
+            if ($fallbackFolder->nodeExists($fileName)) {
+                $file = $fallbackFolder->get($fileName);
+                return (int) $file->getId();
+            }
+            $file = $fallbackFolder->newFile($fileName, $initialWhiteboardContent);
+            return (int) $file->getId();
         }
 
         $groupFolder = $this->folderManager->getFolder($groupFolderId);
@@ -1738,8 +1819,6 @@ class ProjectService
         if ($existingId !== -1) {
             return (int) $existingId;
         }
-
-        $initialWhiteboardContent = '{"elements":[],"scrollToContent":true}';
 
         if ($storage->file_put_contents($fileName, $initialWhiteboardContent) === false) {
             throw new Exception("Unable to write whiteboard file {$fileName} in GroupFolder {$groupFolderId}");

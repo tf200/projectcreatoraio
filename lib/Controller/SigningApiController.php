@@ -24,9 +24,9 @@ class SigningApiController extends Controller {
 		IRequest $request,
 		private readonly IUserSession $userSession,
 		private readonly IGroupManager $groupManager,
-		private readonly OrganizationUserMapper $organizationUserMapper,
 		private readonly ProjectMapper $projectMapper,
 		private readonly ProjectSigningService $signingService,
+		private readonly ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -78,6 +78,14 @@ class SigningApiController extends Controller {
 
 		$userId = $currentUser->getUID();
 		if ($this->groupManager->isAdmin($userId)) {
+			return $userId;
+		}
+
+		if ($this->organizationUserMapper === null) {
+			$projectGroupGid = trim((string) $project->getProjectGroupGid());
+			if ($projectGroupGid === '' || !$this->groupManager->isInGroup($userId, $projectGroupGid)) {
+				throw new OCSNotFoundException('Project not found');
+			}
 			return $userId;
 		}
 

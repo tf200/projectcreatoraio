@@ -347,6 +347,7 @@
 						<span class="projects-home__tab-label">Timeline</span>
 					</button>
 					<button
+						v-if="context?.features?.deck !== false"
 						type="button"
 						class="projects-home__tab"
 						:class="{ 'projects-home__tab--active': activeTab === 'deck' }"
@@ -355,7 +356,7 @@
 						<span class="projects-home__tab-label">Deck</span>
 					</button>
 					<button
-						v-if="isSelectedProjectCombi"
+						v-if="isSelectedProjectCombi && context?.features?.deck !== false"
 						type="button"
 						class="projects-home__tab"
 						:class="{ 'projects-home__tab--active': activeTab === 'cardVisibility' }"
@@ -391,6 +392,7 @@
 						<span class="projects-home__tab-label">Activity</span>
 					</button>
 					<button
+						v-if="context?.features?.calendar !== false"
 						type="button"
 						class="projects-home__tab"
 						:class="{ 'projects-home__tab--active': activeTab === 'calendar' }"

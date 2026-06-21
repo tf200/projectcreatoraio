@@ -7,7 +7,7 @@
 	<description>App to create projects easily</description>
 	<version>1.0.26</version>
 	<licence>agpl</licence>
-	<author mail="mmed172017@gmail.com" homepage="">med172017</author>
+	<author mail="mmed172017@gmail.com">med172017</author>
 	<namespace>ProjectCreatorAIO</namespace>
 	<types>
 		<prevent_group_restriction/>
@@ -15,13 +15,8 @@
 	<category>customization</category>
 	<bugs>https://github.com/mmed17/projects_generator/issues</bugs>
 	<dependencies>
-		<nextcloud min-version="29" max-version="32"/>
-		<app id="deck" />
-		<app id="files" />
-		<app id="contacts" />
-		<app id="groupfolders" />
-		<app id="whiteboard" />
-		<app id="viewer" />
+		<php min-version="8.2"/>
+		<nextcloud min-version="34" max-version="34"/>
 	</dependencies>
 	<dashboard>
 		<widget>projectcreatoraio</widget>

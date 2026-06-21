@@ -22,13 +22,13 @@ class ProjectMapper extends QBMapper
     }
 
     public function createProject(
-        Organization $organization,
+        ?object $organization,
         string $name,
         string $number,
         int $type,
         string $description,
         string $ownerId,
-        string $boardId,
+        ?string $boardId,
         string $projectGroupGid,
         ?string $talkConversationToken,
         int $folderId,
@@ -66,7 +66,7 @@ class ProjectMapper extends QBMapper
         $project->setLocCity($locCity);
         $project->setLocZip($locZip);
         $project->setStatus(ProjectStatus::ACTIVE);
-        $project->setOrganizationId($organization->getId());
+        $project->setOrganizationId($organization !== null ? (int) $organization->getId() : null);
         $project->setWhiteBoardId($whiteBoardId);
         $project->setRequiredPreparationWeeks((int) ($requiredPreparationWeeks ?? 0));
 

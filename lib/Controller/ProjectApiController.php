@@ -24,6 +24,7 @@ use OCP\BackgroundJob\IJobList;
 use OCP\IGroupManager;
 use OCP\IUserSession;
 use OCP\IRequest;
+use OCP\App\IAppManager;
 use OCP\Files\IRootFolder;
 use OCP\Files\Folder;
 use OCP\Files\File;
@@ -45,9 +46,10 @@ class ProjectApiController extends Controller
         private ProjectDownloadService $downloadService,
         private ProjectTalkIntegrationService $talkIntegrationService,
         private IGroupManager $iGroupManager,
-        private OrganizationUserMapper $organizationUserMapper,
         private IRootFolder $rootFolder,
         private IJobList $jobList,
+        private readonly IAppManager $appManager,
+        private ?OrganizationUserMapper $organizationUserMapper = null,
     ) {
         parent::__construct($appName, $request);
         $this->request = $request;
@@ -801,13 +803,19 @@ class ProjectApiController extends Controller
 
         $userId = $currentUser->getUID();
         $isGlobalAdmin = $this->iGroupManager->isAdmin($userId);
-        $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
+        $membership = $this->organizationUserMapper !== null ? $this->organizationUserMapper->getOrganizationMembership($userId) : null;
 
         return new DataResponse([
             'userId' => $userId,
             'isGlobalAdmin' => $isGlobalAdmin,
             'organizationRole' => $membership['role'] ?? null,
             'organizationId' => isset($membership['organization_id']) ? (int) $membership['organization_id'] : null,
+            'features' => [
+                'deck' => $this->appManager->isEnabledForUser('deck'),
+                'talk' => $this->appManager->isEnabledForUser('spreed'),
+                'calendar' => $this->appManager->isEnabledForUser('calendar'),
+                'libresign' => $this->appManager->isEnabledForUser('libresign'),
+            ]
         ]);
     }
 
