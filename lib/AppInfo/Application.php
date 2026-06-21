@@ -204,6 +204,7 @@ class Application extends App implements IBootstrap {
 				$c->get(ProjectDeckActivityService::class),
 				$c->get(ProjectTalkIntegrationService::class),
 				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$deckEnabled ? $c->get(StackService::class) : null,
 				$c->get(LoggerInterface::class),
 				$c->get(ProjectMemberRoleMapper::class),
 			);

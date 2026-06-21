@@ -84,6 +84,7 @@ class ProjectService
         private readonly ProjectDeckActivityService $projectDeckActivityService,
         private readonly ProjectTalkIntegrationService $projectTalkIntegrationService,
         private readonly ?object $cardMapper,
+        private readonly ?object $stackService,
         private readonly LoggerInterface $logger,
         private readonly ProjectMemberRoleMapper $memberRoleMapper,
     ) {
@@ -805,6 +806,21 @@ class ProjectService
     {
         $color = strtoupper(sprintf('%06X', random_int(0, 0xFFFFFF)));
         $board = $this->boardService->create("{$projectName} - Main Board", $owner->getUID(), $color);
+
+        if ($this->stackService !== null) {
+            $defaultStacks = [
+                0 => 'Process steps',
+                1 => 'Next priority',
+                2 => 'In progress',
+                3 => 'To review',
+                4 => 'Approved',
+                5 => 'Done',
+            ];
+
+            foreach ($defaultStacks as $order => $title) {
+                $this->stackService->create($title, (int)$board->getId(), $order);
+            }
+        }
 
         $this->boardService->addAcl(
             $board->getId(),
