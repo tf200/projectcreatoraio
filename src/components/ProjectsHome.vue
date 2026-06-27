@@ -427,22 +427,36 @@
 								<div class="projects-home__unified-sheet">
 									<div class="projects-home__sheet-col">
 										<h4 class="projects-home__card-subtitle">Address</h4>
-										<div class="projects-home__kv-list">
-											<div class="projects-home__kv">
-												<span class="projects-home__label">Street</span>
-												<span class="projects-home__value">{{ selectedProject.loc_street || '-' }}</span>
+										<div class="projects-home__address-row">
+											<div class="projects-home__kv-list">
+												<div class="projects-home__kv">
+													<span class="projects-home__label">Street</span>
+													<span class="projects-home__value">{{ selectedProject.loc_street || '-' }}</span>
+												</div>
+												<div class="projects-home__kv">
+													<span class="projects-home__label">City</span>
+													<span class="projects-home__value">{{ selectedProject.loc_city || '-' }}</span>
+												</div>
+												<div class="projects-home__kv">
+													<span class="projects-home__label">ZIP Code</span>
+													<span class="projects-home__value">{{ selectedProject.loc_zip || '-' }}</span>
+												</div>
+												<div class="projects-home__kv">
+													<span class="projects-home__label">Full Address</span>
+													<span class="projects-home__value">{{ selectedProject.client_address || '-' }}</span>
+												</div>
 											</div>
-											<div class="projects-home__kv">
-												<span class="projects-home__label">City</span>
-												<span class="projects-home__value">{{ selectedProject.loc_city || '-' }}</span>
-											</div>
-											<div class="projects-home__kv">
-												<span class="projects-home__label">ZIP Code</span>
-												<span class="projects-home__value">{{ selectedProject.loc_zip || '-' }}</span>
-											</div>
-											<div class="projects-home__kv">
-												<span class="projects-home__label">Full Address</span>
-												<span class="projects-home__value">{{ selectedProject.client_address || '-' }}</span>
+											<div class="projects-home__address-map">
+												<ProjectMap
+													v-if="geocodeStatus[selectedProject.id] === 'loaded' && geocodeByProject[selectedProject.id]"
+													:lat="Number(geocodeByProject[selectedProject.id].lat)"
+													:lng="Number(geocodeByProject[selectedProject.id].lng)"
+													:display-name="geocodeByProject[selectedProject.id].displayName || null" />
+												<div v-else-if="geocodeStatus[selectedProject.id] === 'loading'" class="projects-home__map-state">Loading map…</div>
+												<div v-else-if="geocodeStatus[selectedProject.id] === 'no_address'" class="projects-home__map-state">No address available for this project.</div>
+												<div v-else-if="geocodeStatus[selectedProject.id] === 'not_found'" class="projects-home__map-state">Couldn't locate this address on the map.</div>
+												<div v-else-if="geocodeStatus[selectedProject.id] === 'unavailable'" class="projects-home__map-state projects-home__map-state--error">{{ geocodeError[selectedProject.id] || 'Map unavailable.' }}</div>
+												<div v-else class="projects-home__map-state">Loading map…</div>
 											</div>
 										</div>
 									</div>
@@ -1212,6 +1226,7 @@ import ProjectCardVisibilityTab from './ProjectCardVisibilityTab.vue'
 import OcrDocumentTypesModal from './OcrDocumentTypesModal.vue'
 import ProjectActivity from './ProjectActivity/ProjectActivity.vue'
 import ProjectCalendar from './ProjectCalendar.vue'
+import ProjectMap from './ProjectMap.vue'
 
 const projectsService = ProjectsService.getInstance()
 const webdavClient = createClient(generateRemoteUrl('dav'))
@@ -1263,10 +1278,14 @@ export default {
 		ViewDashboard,
 		Calendar,
 		ProjectCalendar,
+		ProjectMap,
 	},
 	data() {
 		return {
 			context: null,
+			geocodeByProject: {},
+			geocodeStatus: {},
+			geocodeError: {},
 			contextError: '',
 			filesError: '',
 			filesLoading: false,
@@ -1451,6 +1470,14 @@ export default {
 			return this.searchQuery.trim() !== '' || this.statusFilter !== 'all' || this.sortKey !== 'default'
 		},
 	},
+	watch: {
+		activeTab() {
+			this.maybeLoadProjectGeocode()
+		},
+		selectedProject() {
+			this.maybeLoadProjectGeocode()
+		},
+	},
 	async mounted() {
 		this.updateNarrowState()
 		window.addEventListener('resize', this.updateNarrowState)
@@ -1473,6 +1500,46 @@ export default {
 		window.removeEventListener('popstate', this.handlePopState)
 	},
 	methods: {
+		maybeLoadProjectGeocode() {
+			if (this.activeTab !== 'overview') {
+				return
+			}
+			const id = this.selectedProject && this.selectedProject.id
+			if (!id) {
+				return
+			}
+			this.fetchProjectGeocode(id)
+		},
+
+		async fetchProjectGeocode(projectId) {
+			const current = this.geocodeStatus[projectId]
+			if (current === 'loading' || current === 'loaded') {
+				return
+			}
+			this.$set(this.geocodeStatus, projectId, 'loading')
+			this.$set(this.geocodeError, projectId, null)
+			try {
+				const d = await projectsService.getProjectGeocode(projectId)
+				if (d && d.lat != null && d.lng != null) {
+					this.$set(this.geocodeByProject, projectId, d)
+					this.$set(this.geocodeStatus, projectId, 'loaded')
+				} else {
+					this.$set(this.geocodeStatus, projectId, 'not_found')
+				}
+			} catch (e) {
+				const code = e && e.response && e.response.status
+				const reason = e && e.response && e.response.data && e.response.data.reason
+				if (code === 404 && reason === 'no_address') {
+					this.$set(this.geocodeStatus, projectId, 'no_address')
+				} else if (code === 404) {
+					this.$set(this.geocodeStatus, projectId, 'not_found')
+				} else {
+					this.$set(this.geocodeStatus, projectId, 'unavailable')
+					this.$set(this.geocodeError, projectId, 'Map unavailable.')
+				}
+			}
+		},
+
 		// Sidebar collapse toggle
 		toggleSidebar() {
 			this.isSidebarCollapsed = !this.isSidebarCollapsed
@@ -2823,6 +2890,40 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
+}
+
+.projects-home__address-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	align-items: flex-start;
+}
+
+.projects-home__address-row .projects-home__kv-list {
+	flex: 1 1 220px;
+	min-width: 200px;
+}
+
+.projects-home__address-map {
+	flex: 1 1 320px;
+	min-width: 260px;
+}
+
+.projects-home__map-state {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 280px;
+	border-radius: 8px;
+	background: var(--color-background-hover, #f0f1f5);
+	color: var(--color-text-maxcontrast, #6b7280);
+	font-size: 13px;
+	text-align: center;
+	padding: 0 12px;
+}
+
+.projects-home__map-state--error {
+	color: var(--color-error, #b91c1c);
 }
 
 .projects-home__kv {

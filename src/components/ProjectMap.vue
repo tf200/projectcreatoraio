@@ -52,7 +52,12 @@ export default {
 		})
 		const marker = L.marker([this.lat, this.lng], { icon }).addTo(this.mapInstance)
 		if (this.displayName) {
-			marker.bindPopup(this.displayName)
+			// displayName comes from Nominatim (untrusted external data). Bind it
+			// as a text node, not an HTML string, so Leaflet's popup can't become
+			// an HTML-injection sink.
+			const popupEl = document.createElement('div')
+			popupEl.textContent = this.displayName
+			marker.bindPopup(popupEl)
 		}
 	},
 	beforeDestroy() {
