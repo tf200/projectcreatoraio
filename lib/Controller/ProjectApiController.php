@@ -7,10 +7,12 @@ use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
+use OCA\ProjectCreatorAIO\Service\GeocodeService;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Controller;
@@ -48,6 +50,7 @@ class ProjectApiController extends Controller
         private OrganizationUserMapper $organizationUserMapper,
         private IRootFolder $rootFolder,
         private IJobList $jobList,
+        private GeocodeService $geocodeService,
     ) {
         parent::__construct($appName, $request);
         $this->request = $request;
@@ -71,6 +74,39 @@ class ProjectApiController extends Controller
         $payload['private_note_available'] = (bool) ($notes['private_available'] ?? true);
 
         return new DataResponse($payload);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function getProjectGeocode(int $projectId): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $result = $this->geocodeService->geocodeProject($projectId);
+
+        switch ($result['status']) {
+            case 'ok':
+                return new DataResponse([
+                    'lat' => $result['lat'],
+                    'lng' => $result['lng'],
+                    'displayName' => $result['displayName'] ?? null,
+                    'source' => $result['source'] ?? 'nominatim',
+                    'fromCache' => $result['fromCache'] ?? false,
+                ]);
+            case 'no_address':
+                return new DataResponse(['reason' => 'no_address'], Http::STATUS_NOT_FOUND);
+            case 'not_found':
+                return new DataResponse(['reason' => 'not_found'], Http::STATUS_NOT_FOUND);
+            case 'unavailable':
+                return new DataResponse(['error' => 'geocoding_unavailable'], Http::STATUS_SERVICE_UNAVAILABLE);
+            default:
+                return new DataResponse(['error' => 'internal'], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
     }
 
     #[NoCSRFRequired]

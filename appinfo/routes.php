@@ -215,6 +215,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#getProjectGeocode",
+            "url" => "/api/v1/projects/{projectId}/geocode",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#update",
             "url" => "/api/v1/projects/{id}",
             "verb" => "PUT",
