@@ -98,6 +98,25 @@ export class ProjectsService {
     }
 
     /**
+     * Geocode a project's address. Resolves with {lat,lng,displayName,source,fromCache}
+     * on success. Throws on non-2xx so the caller can read e.response.status / reason.
+     *
+     * @param {number} projectId
+     * @returns {Promise<{lat:number,lng:number,displayName:?string,source:string,fromCache:boolean}>}
+     */
+    async getProjectGeocode(projectId) {
+        const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/geocode`)
+        const response = await axios.get(url, {
+            headers: {
+                'OCS-APIRequest': 'true',
+                'Content-Type': 'application/json',
+            },
+        })
+
+        return response.data ?? null
+    }
+
+    /**
      *
      * @param {string} token
      * @returns {Promise<any|null>}
