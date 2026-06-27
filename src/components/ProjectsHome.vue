@@ -531,8 +531,8 @@
 											</NcButton>
 										</div>
 										<div class="projects-home__panel-content">
-											<h4 class="projects-home__panel-subtitle">Analytics</h4>
-											<DeckAnalytics :board-id="selectedProject.boardId" />
+											<!-- <h4 class="projects-home__panel-subtitle">Analytics</h4>
+											<DeckAnalytics :board-id="selectedProject.boardId" /> -->
 											<h4 class="projects-home__panel-subtitle" style="margin-top: 16px;">Tasks</h4>
 											<DeckBoard
 												:board-id="selectedProject.boardId"
@@ -779,7 +779,7 @@
 						</div>
 
 						<div class="projects-home__deck-sections">
-							<div class="projects-home__split-panel projects-home__split-panel--deck">
+							<!-- <div class="projects-home__split-panel projects-home__split-panel--deck">
 								<div class="projects-home__panel-header">
 									<h3 class="projects-home__panel-title">
 										<ViewDashboard :size="18" />
@@ -789,7 +789,7 @@
 								<div class="projects-home__panel-content">
 									<DeckAnalytics :board-id="selectedProject.boardId" />
 								</div>
-							</div>
+							</div> -->
 
 							<div class="projects-home__split-panel projects-home__split-panel--deck">
 								<div class="projects-home__panel-header">

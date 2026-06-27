@@ -255,6 +255,57 @@ return [
             "url" => "/api/v1/projects/{projectId}/timeline/{id}",
             "verb" => "DELETE",
         ],
+        // Policy API routes
+        [
+            "name" => "policy_api#getBoardPolicy",
+            "url" => "/api/v1/boards/{boardId}/policy",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "policy_api#enableCardPolicy",
+            "url" => "/api/v1/boards/{boardId}/policy/enable",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "policy_api#updateCardPolicySettings",
+            "url" => "/api/v1/boards/{boardId}/policy/settings",
+            "verb" => "PUT",
+        ],
+        [
+            "name" => "policy_api#updateCardPolicyDefaults",
+            "url" => "/api/v1/boards/{boardId}/policy/defaults",
+            "verb" => "PUT",
+        ],
+        [
+            "name" => "policy_api#createCardPolicyRole",
+            "url" => "/api/v1/boards/{boardId}/policy/roles",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "policy_api#deleteCardPolicyRole",
+            "url" => "/api/v1/boards/{boardId}/policy/roles/{roleId}",
+            "verb" => "DELETE",
+        ],
+        [
+            "name" => "policy_api#addMember",
+            "url" => "/api/v1/boards/{boardId}/policy/members",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "policy_api#removeMember",
+            "url" => "/api/v1/boards/{boardId}/policy/members/{membershipId}",
+            "verb" => "DELETE",
+        ],
+        [
+            "name" => "policy_api#saveCardPolicyOverrides",
+            "url" => "/api/v1/boards/{boardId}/policy/cards/{cardId}",
+            "verb" => "PUT",
+        ],
+        [
+            "name" => "policy_api#clearCardPolicy",
+            "url" => "/api/v1/boards/{boardId}/policy/cards/{cardId}",
+            "verb" => "DELETE",
+        ],
         [
             "name" => "page#index",
             "url" => "/",

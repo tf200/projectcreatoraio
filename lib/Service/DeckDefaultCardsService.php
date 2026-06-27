@@ -97,7 +97,7 @@ class DeckDefaultCardsService
 			return $stacks;
 		}
 
-		return $this->stackService->findAll($owner->getUID(), (string)$board->getId());
+		return $this->stackService->findAll((int)$board->getId());
 	}
 
 	/**

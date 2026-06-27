@@ -59,67 +59,67 @@ export class DeckService {
 	}
 
 	async getCardPolicy(boardId) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy`)
 		const response = await axios.get(url, { headers: this.headers() })
 		return response.data
 	}
 
 	async enableCardPolicy(boardId) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/enable`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/enable`)
 		const response = await axios.post(url, {}, { headers: this.headers() })
 		return response.data
 	}
 
 	async updateCardPolicySettings(boardId, data) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/settings`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/settings`)
 		const response = await axios.put(url, data, { headers: this.headers() })
 		return response.data
 	}
 
 	async updateCardPolicyDefaults(boardId, data) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/defaults`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/defaults`)
 		const response = await axios.put(url, data, { headers: this.headers() })
 		return response.data
 	}
 
 	async setCardPolicy(boardId, cardId, data) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/cards/${cardId}`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/cards/${cardId}`)
 		const response = await axios.put(url, data, { headers: this.headers() })
 		return response.data
 	}
 
 	async clearCardPolicy(boardId, cardId) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/cards/${cardId}`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/cards/${cardId}`)
 		const response = await axios.delete(url, { headers: this.headers() })
 		return response.data
 	}
 
 	async addCardPolicyMembership(boardId, data) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/memberships`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/members`)
 		const response = await axios.post(url, data, { headers: this.headers() })
 		return response.data
 	}
 
 	async deleteCardPolicyMembership(boardId, membershipId) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/memberships/${membershipId}`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/members/${membershipId}`)
 		const response = await axios.delete(url, { headers: this.headers() })
 		return response.data
 	}
 
 	async createCardPolicyRole(boardId, data) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/roles`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/roles`)
 		const response = await axios.post(url, data, { headers: this.headers() })
 		return response.data
 	}
 
 	async updateCardPolicyRole(boardId, roleId, data) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/roles/${roleId}`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/roles/${roleId}`)
 		const response = await axios.put(url, data, { headers: this.headers() })
 		return response.data
 	}
 
 	async deleteCardPolicyRole(boardId, roleId) {
-		const url = generateUrl(`/apps/deck/boards/${boardId}/card-policy/roles/${roleId}`)
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/roles/${roleId}`)
 		const response = await axios.delete(url, { headers: this.headers() })
 		return response.data
 	}

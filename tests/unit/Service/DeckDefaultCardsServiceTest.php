@@ -96,4 +96,49 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 			$this->assertLessThanOrEqual($upperBound->getTimestamp(), $dueDate->getTimestamp());
 		}
 	}
+
+	public function testSeedForProjectTypeFetchesStacksByBoardIdWhenBoardHasNoStacks(): void {
+		$processStepsStack = new Stack();
+		$processStepsStack->setId(101);
+		$processStepsStack->setOrder(0);
+
+		$nextPriorityStack = new Stack();
+		$nextPriorityStack->setId(102);
+		$nextPriorityStack->setOrder(1);
+
+		$importantLabel = new Label();
+		$importantLabel->setId(8);
+		$importantLabel->setTitle('Kritieke Processtap');
+
+		$board = new Board();
+		$board->setId(15);
+		$board->setStacks([]);
+		$board->setLabels([$importantLabel]);
+
+		$owner = $this->createConfiguredMock(IUser::class, [
+			'getUID' => 'owner1',
+		]);
+
+		$boardService = $this->createMock(BoardService::class);
+		$boardService->expects($this->once())
+			->method('find')
+			->with(15, true)
+			->willReturn($board);
+
+		$stackService = $this->createMock(StackService::class);
+		$stackService->expects($this->once())
+			->method('findAll')
+			->with(15)
+			->willReturn([$processStepsStack, $nextPriorityStack]);
+
+		$service = new DeckDefaultCardsService(
+			$this->createMock(CardService::class),
+			$this->createMock(LabelService::class),
+			$stackService,
+			$boardService,
+			$this->createMock(LoggerInterface::class),
+		);
+
+		$service->seedForProjectType(ProjectTypeDeckDefaults::TYPE_COMBI, $board, $owner);
+	}
 }

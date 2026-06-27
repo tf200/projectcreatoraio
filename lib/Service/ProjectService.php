@@ -21,6 +21,7 @@ use OCP\Files\Folder;
 use OCP\IUser;
 use OCA\Deck\Db\Board;
 use OCA\ProjectCreatorAIO\Service\DeckDefaultCardsService;
+use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\ProjectStatus;
 use Throwable;
 use Exception;
@@ -87,6 +88,7 @@ class ProjectService
         private readonly ?object $stackService,
         private readonly LoggerInterface $logger,
         private readonly ProjectMemberRoleMapper $memberRoleMapper,
+        private readonly CardPolicyService $cardPolicyService,
     ) {
     }
 
@@ -218,6 +220,16 @@ class ProjectService
                     $type,
                     $createdBoard,
                     $owner,
+                );
+            }
+
+            if ($createdBoard !== null) {
+                $stacks = $this->stackService !== null ? $this->stackService->findAll((int)$createdBoard->getId()) : [];
+                $this->cardPolicyService->seedDefaultPolicies(
+                    (int)$createdBoard->getId(),
+                    $stacks,
+                    $owner,
+                    []
                 );
             }
 
@@ -505,6 +517,11 @@ class ProjectService
 
         $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
 
+        $boardId = $project->getBoardId();
+        if ($boardId !== null && $boardId !== '') {
+            $this->cardPolicyService->syncProjectMemberRole((int)$boardId, $userId, $drasciRole);
+        }
+
         return [
             'added' => !$alreadyMember,
             'alreadyMember' => $alreadyMember,
@@ -552,6 +569,11 @@ class ProjectService
         }
 
         $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+
+        $boardId = $project->getBoardId();
+        if ($boardId !== null && $boardId !== '') {
+            $this->cardPolicyService->syncProjectMemberRole((int)$boardId, $userId, $drasciRole);
+        }
 
         return [
             'member' => $this->formatProjectMember($user, $ownerId, $drasciRole),

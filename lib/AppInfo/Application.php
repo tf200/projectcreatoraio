@@ -92,6 +92,14 @@ use OCA\Organization\Db\OrganizationMapper;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\Organization\Db\SubscriptionMapper;
 use OCA\Organization\Db\PlanMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicySettingMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultRoleMapper;
+use OCA\ProjectCreatorAIO\Db\CardPolicyMapper;
+use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
+use OCA\ProjectCreatorAIO\Service\CardPolicyService;
+use OCA\ProjectCreatorAIO\Controller\PolicyApiController;
 
 class Application extends App implements IBootstrap {
     public const APP_ID = 'projectcreatoraio';
@@ -207,6 +215,7 @@ class Application extends App implements IBootstrap {
 				$deckEnabled ? $c->get(StackService::class) : null,
 				$c->get(LoggerInterface::class),
 				$c->get(ProjectMemberRoleMapper::class),
+				$c->get(CardPolicyService::class),
 			);
 		});
 
@@ -214,6 +223,65 @@ class Application extends App implements IBootstrap {
 			return new TimelinePlanningService(
 				$c->get(IDBConnection::class),
 				$c->get(LoggerInterface::class),
+			);
+		});
+
+		$context->registerService(BoardPolicySettingMapper::class, function (ContainerInterface $c) {
+			return new BoardPolicySettingMapper($c->get(IDBConnection::class));
+		});
+		$context->registerService(BoardPolicyRoleMapper::class, function (ContainerInterface $c) {
+			return new BoardPolicyRoleMapper($c->get(IDBConnection::class));
+		});
+		$context->registerService(BoardPolicyMembershipMapper::class, function (ContainerInterface $c) {
+			return new BoardPolicyMembershipMapper($c->get(IDBConnection::class));
+		});
+		$context->registerService(BoardPolicyDefaultRoleMapper::class, function (ContainerInterface $c) {
+			return new BoardPolicyDefaultRoleMapper($c->get(IDBConnection::class));
+		});
+		$context->registerService(CardPolicyMapper::class, function (ContainerInterface $c) {
+			return new CardPolicyMapper($c->get(IDBConnection::class));
+		});
+		$context->registerService(CardPolicyRoleMapper::class, function (ContainerInterface $c) {
+			return new CardPolicyRoleMapper($c->get(IDBConnection::class));
+		});
+
+		$context->registerService(CardPolicyService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(CardMapper::class);
+			$organizationEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationMapper::class);
+
+			return new CardPolicyService(
+				$c->get(BoardPolicySettingMapper::class),
+				$c->get(BoardPolicyRoleMapper::class),
+				$c->get(BoardPolicyMembershipMapper::class),
+				$c->get(BoardPolicyDefaultRoleMapper::class),
+				$c->get(CardPolicyMapper::class),
+				$c->get(CardPolicyRoleMapper::class),
+				$c->get(ProjectMapper::class),
+				$c->get(IGroupManager::class),
+				$c->get(IUserManager::class),
+				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$deckEnabled ? $c->get(StackMapper::class) : null,
+				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null
+			);
+		});
+
+		$context->registerService(PolicyApiController::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(CardMapper::class);
+			return new PolicyApiController(
+				self::APP_ID,
+				$c->get(\OCP\IRequest::class),
+				$c->get(BoardPolicySettingMapper::class),
+				$c->get(BoardPolicyRoleMapper::class),
+				$c->get(BoardPolicyMembershipMapper::class),
+				$c->get(BoardPolicyDefaultRoleMapper::class),
+				$c->get(CardPolicyMapper::class),
+				$c->get(CardPolicyRoleMapper::class),
+				$c->get(CardPolicyService::class),
+				$c->get(IUserSession::class),
+				$c->get(IDBConnection::class),
+				$deckEnabled ? $c->get(CardMapper::class) : null
 			);
 		});
 
