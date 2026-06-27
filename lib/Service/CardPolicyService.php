@@ -363,6 +363,9 @@ class CardPolicyService {
 				$this->addMembership((int)$createdRoles[$targetRoleKey]->getId(), 'user', $userId);
 			}
 		}
+
+		// 6. Seed card-specific default policies
+		$this->seedDefaultCardPolicies($boardId, $createdRoles);
 	}
 
 	/**
@@ -395,6 +398,157 @@ class CardPolicyService {
 
 		if (isset($createdRoles[$targetRoleKey])) {
 			$this->addMembership((int)$createdRoles[$targetRoleKey]->getId(), 'user', $userId);
+		}
+	}
+
+	private function seedDefaultCardPolicies(int $boardId, array $createdRoles): void {
+		$matrix = [
+			'Garantie overeenkomst' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'VO' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'DO' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Intake inplannen & hosten' => [
+				'move' => ['cpl'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Intakeverslag' => [
+				'move' => ['cpl'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Huisnummerbesluit' => [
+				'move' => ['client_developer', 'cpl'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Hoogbouwoverleg inplannen' => [
+				'move' => ['cpl'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'VO inpandige tekeningen' => [
+				'move' => ['client_developer'],
+				'sign' => ['grid_operator'],
+				'verify' => ['grid_operator'],
+			],
+			'DO inpandige tekeningen' => [
+				'move' => ['client_developer'],
+				'sign' => ['grid_operator'],
+				'verify' => ['grid_operator'],
+			],
+			'Verslag inpandig overleg' => [
+				'move' => ['client_developer'],
+				'sign' => ['grid_operator'],
+				'verify' => ['grid_operator'],
+			],
+			'Blokkenschema' => [
+				'move' => ['client_developer'],
+				'sign' => ['grid_operator'],
+				'verify' => ['grid_operator'],
+			],
+			'Aanvraag particuliere grond' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Bodemrapport' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Saneringsevaluatierapport' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Zakelijkrecht' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Piekvermogensformulier' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Situatie tekening' => [
+				'move' => ['client_developer'],
+				'sign' => ['grid_operator'],
+				'verify' => ['grid_operator'],
+			],
+			'Intakeformulier' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'Quickscan' => [
+				'move' => ['client_developer'],
+				'sign' => ['cpl'],
+				'verify' => ['cpl'],
+			],
+			'AVP' => [
+				'move' => ['grid_operator'],
+				'sign' => ['grid_operator'],
+				'verify' => ['grid_operator'],
+			],
+		];
+
+		try {
+			$db = Server::get(\OCP\IDBConnection::class);
+			$qb = $db->getQueryBuilder();
+			$qb->select('c.id', 'c.title')
+				->from('deck_cards', 'c')
+				->innerJoin('c', 'deck_stacks', 's', 's.id = c.stack_id')
+				->where($qb->expr()->eq('s.board_id', $qb->createNamedParameter($boardId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->eq('c.archived', $qb->createNamedParameter(false, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_BOOL)))
+				->andWhere($qb->expr()->eq('c.deleted_at', $qb->createNamedParameter(0, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->eq('s.deleted_at', $qb->createNamedParameter(0, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)));
+
+			$result = $qb->executeQuery();
+			try {
+				$cards = $result->fetchAll();
+			} finally {
+				$result->closeCursor();
+			}
+
+			foreach ($cards as $card) {
+				$title = trim((string)$card['title']);
+				if (isset($matrix[$title])) {
+					$policy = new \OCA\ProjectCreatorAIO\Db\CardPolicy();
+					$policy->setCardId((int)$card['id']);
+					$policy->setBoardId($boardId);
+					$insertedPolicy = $this->cardPolicyMapper->insert($policy);
+
+					$actions = $matrix[$title];
+					$actions['view'] = ['client_developer', 'cpl', 'grid_operator'];
+
+					foreach ($actions as $action => $roleKeys) {
+						foreach ($roleKeys as $roleKey) {
+							if (isset($createdRoles[$roleKey])) {
+								$cardRole = new \OCA\ProjectCreatorAIO\Db\CardPolicyRole();
+								$cardRole->setCardPolicyId((int)$insertedPolicy->getId());
+								$cardRole->setAction($action);
+								$cardRole->setRoleId((int)$createdRoles[$roleKey]->getId());
+								$this->cardPolicyRoleMapper->insert($cardRole);
+							}
+						}
+					}
+				}
+			}
+		} catch (\Throwable $e) {
+			// ignore and log
 		}
 	}
 
