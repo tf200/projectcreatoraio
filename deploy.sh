@@ -25,7 +25,7 @@ fi
 # ==========================================
 echo "📦 Building local assets..."
 npm run build
-composer install --no-dev
+composer install --no-dev --no-scripts
 
 # ==========================================
 # 2. RSYNC FILES TO VPS (Syncing to custom_apps volume)
