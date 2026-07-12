@@ -169,7 +169,7 @@ class Application extends App implements IBootstrap {
 
 		$context->registerService(ProjectTalkIntegrationService::class, function (ContainerInterface $c) {
 			$appManager = $c->get(IAppManager::class);
-			$talkEnabled = $appManager->isEnabledForAnyone('spreed') && class_exists(IBroker::class);
+			$talkEnabled = $appManager->isEnabledForAnyone('spreed') && interface_exists(IBroker::class);
 			return new ProjectTalkIntegrationService(
 				$talkEnabled ? $c->get(IBroker::class) : null,
 				$c->get(IServerContainer::class),
