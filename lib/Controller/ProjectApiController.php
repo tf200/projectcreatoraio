@@ -751,31 +751,54 @@ class ProjectApiController extends Controller
     #[NoAdminRequired]
     public function list(): DataResponse
     {
+        return new DataResponse($this->projectService->buildProjectPayloads($this->getAccessibleProjects()));
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function boardMappings(): DataResponse
+    {
+        $mappings = [];
+        foreach ($this->getAccessibleProjects() as $project) {
+            $boardId = $project->getBoardId();
+            if ($boardId === null || $boardId === '') {
+                continue;
+            }
+
+            $mappings[] = [
+                'boardId' => $boardId,
+                'name' => $project->getName(),
+                'number' => $project->getNumber(),
+            ];
+        }
+
+        return new DataResponse($mappings);
+    }
+
+    private function getAccessibleProjects(): array
+    {
         $currentUser = $this->userSession->getUser();
         if ($currentUser === null) {
             throw new OCSForbiddenException('Authentication required');
         }
 
-        $isAdmin = $this->iGroupManager->isAdmin($currentUser->getUID());
-        if ($isAdmin) {
-            $results = $this->projectMapper->list();
-        } else {
-            $membership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
-            if ($membership === null) {
-                throw new OCSForbiddenException('You are not assigned to an organization');
-            }
-
-            if ($membership['role'] === 'admin') {
-                $results = $this->projectMapper->findByOrganizationId((int) $membership['organization_id']);
-            } else {
-                $results = $this->projectMapper->findByUserIdAndOrganizationId(
-                    $currentUser->getUID(),
-                    (int) $membership['organization_id'],
-                );
-            }
+        if ($this->iGroupManager->isAdmin($currentUser->getUID())) {
+            return $this->projectMapper->list();
         }
 
-        return new DataResponse($this->projectService->buildProjectPayloads($results));
+        $membership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
+        if ($membership === null) {
+            throw new OCSForbiddenException('You are not assigned to an organization');
+        }
+
+        if ($membership['role'] === 'admin') {
+            return $this->projectMapper->findByOrganizationId((int) $membership['organization_id']);
+        }
+
+        return $this->projectMapper->findByUserIdAndOrganizationId(
+            $currentUser->getUID(),
+            (int) $membership['organization_id'],
+        );
     }
 
     #[NoCSRFRequired]

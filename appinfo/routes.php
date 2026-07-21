@@ -13,6 +13,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#boardMappings",
+            "url" => "/api/v1/projects/board-mappings",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#listMine",
             "url" => "/api/v1/projects/mine",
             "verb" => "GET",
