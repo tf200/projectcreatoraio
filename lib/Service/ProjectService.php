@@ -157,7 +157,8 @@ class ProjectService
                 $createdBoard = $this->createBoardForProject(
                     $name,
                     $owner,
-                    $group->getGID()
+                    $group->getGID(),
+                    $type,
                 );
                 $boardId = $createdBoard->getId();
             }
@@ -826,7 +827,7 @@ class ProjectService
     /**
      * Creates and shares a Deck board for the project.
      */
-    private function createBoardForProject(string $projectName, IUser $owner, string $projectGroupGid): Board
+    private function createBoardForProject(string $projectName, IUser $owner, string $projectGroupGid, int $projectType): Board
     {
         $color = strtoupper(sprintf('%06X', random_int(0, 0xFFFFFF)));
         $board = $this->boardService->create("{$projectName} - Main Board", $owner->getUID(), $color);
@@ -841,8 +842,16 @@ class ProjectService
                 5 => 'Done',
             ];
 
+            $doneStack = null;
             foreach ($defaultStacks as $order => $title) {
-                $this->stackService->create($title, (int)$board->getId(), $order);
+                $stack = $this->stackService->create($title, (int)$board->getId(), $order);
+                if ($title === 'Done') {
+                    $doneStack = $stack;
+                }
+            }
+
+            if ($projectType === ProjectTypeDeckDefaults::TYPE_COMBI && $doneStack !== null) {
+                $this->stackService->setDoneStack((int)$doneStack->getId(), (int)$board->getId(), true);
             }
         }
 
@@ -856,6 +865,11 @@ class ProjectService
         );
 
         return $board;
+    }
+
+    public function getBoardWorkflow(int $boardId): array
+    {
+        return $this->cardPolicyService->getBoardWorkflow($boardId);
     }
 
 

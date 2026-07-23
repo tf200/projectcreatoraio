@@ -774,6 +774,8 @@ class ProjectApiController extends Controller
                 'boardId' => $boardId,
                 'name' => $project->getName(),
                 'number' => $project->getNumber(),
+                'type' => $project->getType(),
+                ...$this->projectService->getBoardWorkflow((int)$boardId),
             ];
         }
 

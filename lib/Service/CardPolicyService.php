@@ -16,6 +16,8 @@ use OCP\IUserManager;
 use OCP\Server;
 
 class CardPolicyService {
+	private const TYPE_COMBI = 0;
+
 	public function __construct(
 		private readonly BoardPolicySettingMapper $settingMapper,
 		private readonly BoardPolicyRoleMapper $roleMapper,
@@ -138,6 +140,31 @@ class CardPolicyService {
 		if (!$this->assertActionLogic($card, $boardId, $action, $userId)) {
 			throw new \OCA\Deck\NoPermissionException("Action '$action' not permitted on this card by card policy.");
 		}
+	}
+
+	public function usesStackCompletion(object $card): bool {
+		$boardId = $this->getBoardIdFromCard($card);
+		if ($boardId === null) {
+			return false;
+		}
+
+		return $this->getBoardWorkflow($boardId)['completionByStack'];
+	}
+
+	/**
+	 * @return array{completionByStack: bool, doneStackId: ?int}
+	 */
+	public function getBoardWorkflow(int $boardId): array {
+		$project = $this->projectMapper->findByBoardId($boardId);
+		$settings = $this->settingMapper->findByBoard($boardId);
+		$doneStackId = $settings?->getDoneStackId();
+
+		return [
+			'completionByStack' => $project !== null
+				&& $project->getType() === self::TYPE_COMBI
+				&& $doneStackId !== null,
+			'doneStackId' => $doneStackId,
+		];
 	}
 
 	/**
@@ -304,12 +331,12 @@ class CardPolicyService {
 		$settings->setBoardId($boardId);
 		$settings->setPermissionMode('card_policy');
 
-		// Find stack IDs for Approved and Done
+		// Stack identity is persisted by ID; titles are only used during initial setup.
 		foreach ($stacks as $stack) {
 			$title = strtolower($stack->getTitle());
 			if ($title === 'approved') {
 				$settings->setApprovedStackId((int)$stack->getId());
-			} elseif ($title === 'done') {
+			} elseif ($stack->getIsDoneColumn() || ($settings->getDoneStackId() === null && $title === 'done')) {
 				$settings->setDoneStackId((int)$stack->getId());
 			}
 		}

@@ -1,6 +1,6 @@
 {
   "name": "projectcreatoraio",
-  "version": "1.0.28",
+  "version": "1.0.29",
   "license": "AGPL-3.0-or-later",
   "engines": {
     "node": "^20.0.0",
