@@ -191,6 +191,42 @@ class TimelinePlanningService
 		}
 	}
 
+	/**
+	 * @return array{startDate: string, endDate: string}|null
+	 */
+	public function getDeckDateBounds(Project $project): ?array
+	{
+		$boardId = $this->parseIntOrZero($project->getBoardId());
+		if ($boardId <= 0) {
+			return null;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->min('c.startdate'), 'earliest_start')
+			->selectAlias($qb->func()->max('c.duedate'), 'latest_end')
+			->from('deck_cards', 'c')
+			->innerJoin('c', 'deck_stacks', 's', 'c.stack_id = s.id')
+			->where($qb->expr()->eq('s.board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('c.archived', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)))
+			->andWhere($qb->expr()->eq('c.deleted_at', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('s.deleted_at', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+
+		$result = $qb->executeQuery();
+		$row = $result->fetch();
+		$result->closeCursor();
+
+		$start = $this->parseCardDate($row['earliest_start'] ?? null);
+		$end = $this->parseCardDate($row['latest_end'] ?? null);
+		if ($start === null || $end === null || $end < $start) {
+			return null;
+		}
+
+		return [
+			'startDate' => $start->format('Y-m-d'),
+			'endDate' => $end->format('Y-m-d'),
+		];
+	}
+
 	private function firstMondayOnOrAfter(DateTime $date): DateTime
 	{
 		$out = clone $date;
@@ -284,5 +320,20 @@ class TimelinePlanningService
 		}
 
 		return null;
+	}
+
+	private function parseCardDate(mixed $value): ?DateTime
+	{
+		if (!is_string($value) || trim($value) === '') {
+			return null;
+		}
+
+		try {
+			$date = new DateTime($value);
+			$date->setTime(0, 0, 0);
+			return $date;
+		} catch (Throwable) {
+			return null;
+		}
 	}
 }

@@ -264,6 +264,7 @@ class TimelineApiController extends Controller
 	{
 		try {
 			$summary = $this->planningService->buildSummary($project);
+			$deckDateBounds = $this->planningService->getDeckDateBounds($project);
 			$projectId = (int) $project->getId();
 
 			$requestDate = trim((string) ($summary['requestDate'] ?? ''));
@@ -312,6 +313,21 @@ class TimelineApiController extends Controller
 				);
 			} else {
 				$this->mapper->deleteByProjectAndSystemKey($projectId, 'prep_time');
+			}
+
+			if ($deckDateBounds !== null) {
+				$this->upsertSystemItem(
+					$projectId,
+					'deck_schedule',
+					'Project Timeline',
+					$deckDateBounds['startDate'],
+					$deckDateBounds['endDate'],
+					'#8b5cf6',
+					'phase',
+					3,
+				);
+			} else {
+				$this->mapper->deleteByProjectAndSystemKey($projectId, 'deck_schedule');
 			}
 		} catch (\Throwable $e) {
 			// Non-blocking: timeline should still load even if derived system items fail.
