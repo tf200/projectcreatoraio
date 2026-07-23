@@ -257,7 +257,7 @@ class ProjectMapper extends QBMapper
         $qb->select('*')
             ->from(self::TABLE_NAME)
             ->where(
-                $qb->expr()->eq('board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT))
+                $qb->expr()->eq('board_id', $qb->createNamedParameter((string) $boardId))
             );
         try {
             $row = $qb->executeQuery()->fetch();

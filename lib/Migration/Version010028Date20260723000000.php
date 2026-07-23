@@ -31,9 +31,8 @@ class Version010028Date20260723000000 extends SimpleMigrationStep {
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.board_id', 's.done_stack_id')
+		$rows = $qb->select('p.board_id')
 			->from('custom_projects', 'p')
-			->leftJoin('p', 'pc_board_policy_settings', 's', $qb->expr()->eq('s.board_id', 'p.board_id'))
 			->where($qb->expr()->eq('p.type', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->isNotNull('p.board_id'))
 			->executeQuery()
@@ -41,7 +40,7 @@ class Version010028Date20260723000000 extends SimpleMigrationStep {
 
 		foreach ($rows as $row) {
 			$boardId = (int)$row['board_id'];
-			$doneStackId = isset($row['done_stack_id']) ? (int)$row['done_stack_id'] : 0;
+			$doneStackId = $this->findConfiguredDoneStackId($boardId);
 			if ($doneStackId <= 0) {
 				$doneStackId = $this->findDoneStackId($boardId);
 			}
@@ -91,6 +90,15 @@ class Version010028Date20260723000000 extends SimpleMigrationStep {
 					->executeStatement();
 			}
 		}
+	}
+
+	private function findConfiguredDoneStackId(int $boardId): int {
+		$qb = $this->db->getQueryBuilder();
+		return (int)$qb->select('done_stack_id')
+			->from('pc_board_policy_settings')
+			->where($qb->expr()->eq('board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)))
+			->executeQuery()
+			->fetchOne();
 	}
 
 	private function findDoneStackId(int $boardId): int {
