@@ -16,6 +16,7 @@ use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCA\Deck\NoPermissionException;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\AppFramework\OCS\OCSNotFoundException;
@@ -252,7 +253,11 @@ class ProjectApiController extends Controller
         $page = max(1, $page);
 
         if ($visibility === 'cards') {
-            $result = $this->projectService->getCardNotesList($projectId, $currentUser->getUID(), $page, $limit);
+            try {
+                $result = $this->projectService->getCardNotesList($projectId, $currentUser->getUID(), $page, $limit);
+            } catch (NoPermissionException) {
+                throw new OCSForbiddenException('You do not have permission to view this Deck board');
+            }
         } else {
             $result = $this->projectService->getProjectNotesList($projectId, $currentUser->getUID(), $visibility, $page, $limit);
         }

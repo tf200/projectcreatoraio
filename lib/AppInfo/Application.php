@@ -22,6 +22,7 @@ use OCA\Deck\Event\CardUpdatedEvent;
 use OCA\Deck\Service\BoardService;
 use OCA\Deck\Service\CardService;
 use OCA\Deck\Service\LabelService;
+use OCA\Deck\Service\PermissionService;
 use OCA\Deck\Service\StackService;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Listener\DeckEventListener;
@@ -213,6 +214,7 @@ class Application extends App implements IBootstrap {
 				$c->get(ProjectTalkIntegrationService::class),
 				$deckEnabled ? $c->get(CardMapper::class) : null,
 				$deckEnabled ? $c->get(StackService::class) : null,
+				$deckEnabled ? $c->get(PermissionService::class) : null,
 				$c->get(LoggerInterface::class),
 				$c->get(ProjectMemberRoleMapper::class),
 				$c->get(CardPolicyService::class),

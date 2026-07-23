@@ -10,6 +10,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
+use OCA\Deck\Db\Acl;
 use OCA\Deck\Db\CardMapper;
 use OCA\Deck\Db\NoteMapper as DeckNoteMapper;
 use OCA\Deck\Service\BoardService;
@@ -86,6 +87,7 @@ class ProjectService
         private readonly ProjectTalkIntegrationService $projectTalkIntegrationService,
         private readonly ?object $cardMapper,
         private readonly ?object $stackService,
+        private readonly ?object $deckPermissionService,
         private readonly LoggerInterface $logger,
         private readonly ProjectMemberRoleMapper $memberRoleMapper,
         private readonly CardPolicyService $cardPolicyService,
@@ -1228,7 +1230,7 @@ class ProjectService
         }
 
         $boardId = $project->getBoardId();
-        if ($boardId === null || $boardId === '' || $this->cardMapper === null) {
+        if ($boardId === null || $boardId === '' || $this->cardMapper === null || $this->deckPermissionService === null) {
             return [
                 'notes' => [],
                 'total' => 0,
@@ -1237,6 +1239,7 @@ class ProjectService
         }
 
         $offset = ($page - 1) * $limit;
+        $this->deckPermissionService->checkPermission(null, (int) $boardId, Acl::PERMISSION_READ, $userId);
         $cards = $this->cardMapper->findAllByBoardId((int) $boardId, $limit, $offset);
         $total = $this->cardMapper->countByBoardId((int) $boardId);
 
