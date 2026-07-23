@@ -739,7 +739,7 @@ export class ProjectsService {
 	 *
 	 * @param {number} projectId
 	 * @param {{limit?: number, offset?: number}} [options]
-	 * @returns {Promise<{messages: array, hasMore: boolean}|null>}
+	 * @returns {Promise<{messages: array, hasMore: boolean, nextOffset: number}|null>}
 	 */
 	async getChatMessages(projectId, { limit = 50, offset = 0 } = {}) {
 		try {

@@ -1053,7 +1053,7 @@ class ProjectApiController extends Controller
 
         $token = trim((string)($project->getTalkConversationToken() ?? ''));
         if ($token === '') {
-            return new DataResponse(['messages' => [], 'hasMore' => false]);
+            return new DataResponse(['messages' => [], 'hasMore' => false, 'nextOffset' => 0]);
         }
 
         $result = $this->talkIntegrationService->getConversationMessages($token, $limit, $offset);

@@ -53,6 +53,7 @@ use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Comments\ICommentsManager;
 use OCP\BackgroundJob\IJobList;
 use OCP\Files\Events\Node\NodeCopiedEvent;
 use OCP\Files\Events\Node\NodeCreatedEvent;
@@ -178,6 +179,7 @@ class Application extends App implements IBootstrap {
 				$c->get(IURLGenerator::class),
 				$c->get(IRootFolder::class),
 				$c->get(IShareManager::class),
+				$c->get(ICommentsManager::class),
 				$c->get(IL10NFactory::class),
 				$c->get(LoggerInterface::class),
 			);

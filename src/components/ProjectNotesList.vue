@@ -497,7 +497,7 @@ export default {
 				if (result) {
 					this.chatMessages = result.messages || []
 					this.chatHasMore = result.hasMore || false
-					this.chatOffset = this.chatMessages.length
+					this.chatOffset = Number(result.nextOffset) || 0
 				}
 			} catch (error) {
 				console.error('Failed to load chat messages:', error)
@@ -509,15 +509,14 @@ export default {
 			if (this.loading) return
 			this.loading = true
 			try {
-				const oldestMessage = this.chatMessages[this.chatMessages.length - 1]
 				const result = await projectsService.getChatMessages(this.projectId, {
 					limit: this.perPage,
-					offset: Number(oldestMessage?.id) || 0,
+					offset: this.chatOffset,
 				})
 				if (result) {
 					this.chatMessages = [...this.chatMessages, ...(result.messages || [])]
 					this.chatHasMore = result.hasMore || false
-					this.chatOffset = this.chatMessages.length
+					this.chatOffset = Number(result.nextOffset) || this.chatOffset
 				}
 			} catch (error) {
 				console.error('Failed to load more chat messages:', error)

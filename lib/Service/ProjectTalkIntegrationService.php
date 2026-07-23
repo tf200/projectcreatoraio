@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Service;
 
 use DateTime;
+use OCP\Comments\ICommentsManager;
 use OCP\Constants;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -28,6 +29,7 @@ class ProjectTalkIntegrationService
     private const SPREED_PARTICIPANT_SERVICE_CLASS = 'OCA\\Talk\\Service\\ParticipantService';
     private const TALK_ACTOR_USERS = 'users';
     private const TALK_PARTICIPANT_USER = 3;
+    private const TALK_HUMAN_MESSAGE_VERBS = ['comment', 'object_shared'];
 
     public function __construct(
         private readonly ?object $talkBroker,
@@ -36,6 +38,7 @@ class ProjectTalkIntegrationService
         private readonly IURLGenerator $urlGenerator,
         private readonly IRootFolder $rootFolder,
         private readonly IShareManager $shareManager,
+        private readonly ICommentsManager $commentsManager,
         private readonly IL10NFactory $l10nFactory,
         private readonly LoggerInterface $logger,
     ) {
@@ -195,56 +198,80 @@ class ProjectTalkIntegrationService
     /**
      * Fetch chat messages for a project's Talk conversation.
      *
-     * @return array{messages: list<array{id: int, actorDisplayName: string, message: string, timestamp: int, messageType: string}>, hasMore: bool}
+     * @return array{messages: list<array{id: int, actorDisplayName: string, message: string, timestamp: int, messageType: string}>, hasMore: bool, nextOffset: int}
      */
     public function getConversationMessages(string $conversationToken, int $limit = 50, int $offset = 0): array
     {
         $conversationToken = trim($conversationToken);
         if ($conversationToken === '' || !$this->isAvailable()) {
-            return ['messages' => [], 'hasMore' => false];
+            return ['messages' => [], 'hasMore' => false, 'nextOffset' => 0];
         }
+
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
 
         try {
             $room = $this->getTalkManager()->getRoomByToken($conversationToken);
         } catch (Throwable) {
-            return ['messages' => [], 'hasMore' => false];
+            return ['messages' => [], 'hasMore' => false, 'nextOffset' => $offset];
         }
 
         try {
-            $chatManager = $this->resolveTalkService('OCA\\Talk\\Chat\\ChatManager');
             $messageParser = $this->resolveTalkService('OCA\\Talk\\Chat\\MessageParser');
             $l10n = $this->l10nFactory->get('spreed');
 
-            $comments = $chatManager->getHistory($room, $offset, $limit, true);
-
             $messages = [];
-            foreach ($comments as $comment) {
-                $message = $messageParser->createMessage($room, null, $comment, $l10n);
-                $messageParser->parseMessage($message);
+            $nextOffset = $offset;
+            $hasMore = false;
+            $batchSize = max(50, $limit + 1);
 
-                if (!$message->getVisibility()) {
-                    continue;
+            do {
+                $comments = $this->commentsManager->getCommentsWithVerbForObjectSinceComment(
+                    'chat',
+                    (string)$room->getId(),
+                    self::TALK_HUMAN_MESSAGE_VERBS,
+                    $nextOffset,
+                    'desc',
+                    $batchSize,
+                );
+
+                foreach ($comments as $index => $comment) {
+                    $nextOffset = (int)$comment->getId();
+                    $message = $messageParser->createMessage($room, null, $comment, $l10n);
+                    $messageParser->parseMessage($message);
+
+                    if (!$message->getVisibility()) {
+                        continue;
+                    }
+
+                    $messages[] = [
+                        'id' => (int)$comment->getId(),
+                        'actorDisplayName' => $message->getActorDisplayName(),
+                        'message' => $message->getMessage(),
+                        'timestamp' => $comment->getCreationDateTime()->getTimestamp(),
+                        'messageType' => $message->getMessageType(),
+                    ];
+
+                    if (count($messages) === $limit) {
+                        $hasMore = $index < count($comments) - 1 || count($comments) === $batchSize;
+                        break 2;
+                    }
                 }
 
-                $messages[] = [
-                    'id' => (int)$comment->getId(),
-                    'actorDisplayName' => $message->getActorDisplayName(),
-                    'message' => $message->getMessage(),
-                    'timestamp' => $comment->getCreationDateTime()->getTimestamp(),
-                    'messageType' => $message->getMessageType(),
-                ];
-            }
+                $hasMore = count($comments) === $batchSize;
+            } while ($hasMore);
 
             return [
                 'messages' => $messages,
-                'hasMore' => count($comments) === $limit,
+                'hasMore' => $hasMore,
+                'nextOffset' => $nextOffset,
             ];
         } catch (Throwable $e) {
             $this->logger->warning('Failed to fetch Talk conversation messages', [
                 'token' => $conversationToken,
                 'exception' => $e,
             ]);
-            return ['messages' => [], 'hasMore' => false];
+            return ['messages' => [], 'hasMore' => false, 'nextOffset' => $offset];
         }
     }
 

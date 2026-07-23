@@ -34,18 +34,73 @@ namespace OCA\Talk\Service {
     }
 }
 
+namespace OCA\Talk\Chat {
+    class Message
+    {
+        public function __construct(
+            private readonly string $actorDisplayName,
+            private readonly string $message,
+            private readonly string $messageType,
+            private readonly bool $visibility,
+        ) {
+        }
+
+        public function getActorDisplayName(): string
+        {
+            return $this->actorDisplayName;
+        }
+
+        public function getMessage(): string
+        {
+            return $this->message;
+        }
+
+        public function getMessageType(): string
+        {
+            return $this->messageType;
+        }
+
+        public function getVisibility(): bool
+        {
+            return $this->visibility;
+        }
+    }
+
+    class MessageParser
+    {
+        public function createMessage(object $room, mixed $participant, object $comment, object $l10n): Message
+        {
+            return new Message(
+                $comment->getTestActorDisplayName(),
+                $comment->getTestMessage(),
+                $comment->getTestMessageType(),
+                $comment->getTestVisibility(),
+            );
+        }
+
+        public function parseMessage(Message $message): void
+        {
+        }
+    }
+}
+
 namespace OCA\ProjectCreatorAIO\Tests\Unit\Service {
 
+use DateTimeImmutable;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
 use OCA\Talk\Manager;
+use OCA\Talk\Chat\MessageParser;
 use OCA\Talk\Service\ParticipantService;
+use OCP\Comments\ICommentsManager;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\IServerContainer;
+use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\L10N\IFactory as IL10NFactory;
 use OCP\Share\IManager as IShareManager;
 use OCP\Share\IShare;
 use OCP\Talk\IBroker;
@@ -63,6 +118,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
     private IURLGenerator&MockObject $urlGenerator;
     private IRootFolder&MockObject $rootFolder;
     private IShareManager&MockObject $shareManager;
+    private ICommentsManager&MockObject $commentsManager;
+    private IL10NFactory&MockObject $l10nFactory;
     private LoggerInterface&MockObject $logger;
 
     protected function setUp(): void
@@ -75,6 +132,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         $this->urlGenerator = $this->createMock(IURLGenerator::class);
         $this->rootFolder = $this->createMock(IRootFolder::class);
         $this->shareManager = $this->createMock(IShareManager::class);
+        $this->commentsManager = $this->createMock(ICommentsManager::class);
+        $this->l10nFactory = $this->createMock(IL10NFactory::class);
         $this->logger = $this->createMock(LoggerInterface::class);
     }
 
@@ -93,6 +152,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             'getAbsoluteUrl' => 'https://cloud.example.test/call/room-token',
         ]);
         $options = $this->createMock(IConversationOptions::class);
+        $options->method('setPublic')->willReturnSelf();
 
         $room = new \stdClass();
         $participantService = new ParticipantService();
@@ -127,6 +187,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -154,6 +216,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -180,7 +244,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         foreach (['setNodeId', 'setShareTime', 'setSharedBy', 'setNode', 'setShareType', 'setSharedWith', 'setPermissions'] as $method) {
             $share->method($method)->willReturnSelf();
         }
-        $share->method('getId')->willReturn(321);
+        $share->method('getId')->willReturn('321');
 
         $this->rootFolder->expects($this->once())
             ->method('getUserFolder')
@@ -221,6 +285,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -277,6 +343,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -304,7 +372,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         foreach (['setNodeId', 'setShareTime', 'setSharedBy', 'setNode', 'setShareType', 'setSharedWith', 'setPermissions'] as $method) {
             $share->method($method)->willReturnSelf();
         }
-        $share->method('getId')->willReturn(321);
+        $share->method('getId')->willReturn('321');
 
         $this->rootFolder->method('getUserFolder')->with('owner')->willReturn($folder);
         $folder->method('getFirstNodeById')->with(42)->willReturn($file);
@@ -333,6 +401,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -364,7 +434,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         foreach (['setNodeId', 'setShareTime', 'setSharedBy', 'setNode', 'setShareType', 'setSharedWith', 'setPermissions'] as $method) {
             $share->method($method)->willReturnSelf();
         }
-        $share->method('getId')->willReturn(654);
+        $share->method('getId')->willReturn('654');
         $invalidFile->method('getId')->willReturn(13);
         $invalidFile->method('getName')->willReturn(null);
 
@@ -417,6 +487,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -444,7 +516,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         foreach (['setNodeId', 'setShareTime', 'setSharedBy', 'setNode', 'setShareType', 'setSharedWith', 'setPermissions'] as $method) {
             $share->method($method)->willReturnSelf();
         }
-        $share->method('getId')->willReturn(777);
+        $share->method('getId')->willReturn('777');
 
         $this->rootFolder->expects($this->once())
             ->method('getUserFolder')
@@ -487,6 +559,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -501,6 +575,11 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             'getUID' => 'owner',
         ]);
         $userFolder = $this->createMock(Folder::class);
+        $manager = new Manager(new \stdClass());
+
+        $this->serverContainer->method('get')
+            ->with('OCA\\Talk\\Manager')
+            ->willReturn($manager);
 
         $this->rootFolder->expects($this->once())
             ->method('getUserFolder')
@@ -525,6 +604,8 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             $this->urlGenerator,
             $this->rootFolder,
             $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
             $this->logger,
         );
 
@@ -532,6 +613,160 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         $this->expectExceptionMessage('File 42 is not accessible for user "owner".');
 
         $service->shareFileInConversation('room-token', 42, $owner, 'Projects/Project X', 'Project X', 99, 901);
+    }
+
+    public function testGetConversationMessagesOnlyQueriesHumanContentVerbsAndKeepsAttachments(): void
+    {
+        $comments = [
+            $this->createChatComment(105, 'Alice', 'Hello', 'comment', true),
+            $this->createChatComment(104, 'Bob', 'report.pdf', 'comment', true),
+            $this->createChatComment(103, 'Alice', 'voice-message.ogg', 'voice-message', true),
+            $this->createChatComment(102, 'Bob', 'Hidden', 'comment', false),
+        ];
+        $service = $this->createChatMessageService(new class {
+            public function getId(): int
+            {
+                return 42;
+            }
+        });
+
+        $this->commentsManager->expects($this->once())
+            ->method('getCommentsWithVerbForObjectSinceComment')
+            ->with('chat', '42', ['comment', 'object_shared'], 0, 'desc', 50)
+            ->willReturn($comments);
+
+        $result = $service->getConversationMessages('room-token', 10);
+
+        $this->assertSame([105, 104, 103], array_column($result['messages'], 'id'));
+        $this->assertSame(['comment', 'comment', 'voice-message'], array_column($result['messages'], 'messageType'));
+        $this->assertFalse($result['hasMore']);
+        $this->assertSame(102, $result['nextOffset']);
+    }
+
+    public function testGetConversationMessagesUsesNextSourceOffsetWithoutDuplicates(): void
+    {
+        $service = $this->createChatMessageService(new class {
+            public function getId(): int
+            {
+                return 42;
+            }
+        });
+
+        $this->commentsManager->expects($this->exactly(2))
+            ->method('getCommentsWithVerbForObjectSinceComment')
+            ->willReturnCallback(function (
+                string $objectType,
+                string $objectId,
+                array $verbs,
+                int $offset,
+                string $sortDirection,
+                int $limit,
+            ): array {
+                $this->assertSame('chat', $objectType);
+                $this->assertSame('42', $objectId);
+                $this->assertSame(['comment', 'object_shared'], $verbs);
+                $this->assertSame('desc', $sortDirection);
+                $this->assertSame(50, $limit);
+
+                return match ($offset) {
+                    0 => [
+                        $this->createChatComment(10, 'Alice', 'Newest'),
+                        $this->createChatComment(9, 'Bob', 'Middle'),
+                        $this->createChatComment(8, 'Alice', 'Oldest'),
+                    ],
+                    9 => [$this->createChatComment(8, 'Alice', 'Oldest')],
+                    default => [],
+                };
+            });
+
+        $firstPage = $service->getConversationMessages('room-token', 2);
+        $secondPage = $service->getConversationMessages('room-token', 2, $firstPage['nextOffset']);
+
+        $this->assertSame([10, 9], array_column($firstPage['messages'], 'id'));
+        $this->assertTrue($firstPage['hasMore']);
+        $this->assertSame(9, $firstPage['nextOffset']);
+        $this->assertSame([8], array_column($secondPage['messages'], 'id'));
+        $this->assertFalse($secondPage['hasMore']);
+        $this->assertSame(8, $secondPage['nextOffset']);
+    }
+
+    private function createChatMessageService(object $room): ProjectTalkIntegrationService
+    {
+        $manager = new Manager($room);
+        $messageParser = new MessageParser();
+        $l10n = $this->createMock(IL10N::class);
+
+        $this->talkBroker->method('hasBackend')->willReturn(true);
+        $this->l10nFactory->method('get')->with('spreed')->willReturn($l10n);
+        $this->serverContainer->method('get')
+            ->willReturnCallback(static function (string $serviceClass) use ($manager, $messageParser): object {
+                return match ($serviceClass) {
+                    'OCA\\Talk\\Manager' => $manager,
+                    'OCA\\Talk\\Chat\\MessageParser' => $messageParser,
+                    default => throw new \RuntimeException('Unexpected service lookup'),
+                };
+            });
+
+        return new ProjectTalkIntegrationService(
+            $this->talkBroker,
+            $this->serverContainer,
+            $this->userManager,
+            $this->urlGenerator,
+            $this->rootFolder,
+            $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
+            $this->logger,
+        );
+    }
+
+    private function createChatComment(
+        int $id,
+        string $actorDisplayName,
+        string $message,
+        string $messageType = 'comment',
+        bool $visibility = true,
+    ): object {
+        return new class ($id, $actorDisplayName, $message, $messageType, $visibility) {
+            public function __construct(
+                private readonly int $id,
+                private readonly string $actorDisplayName,
+                private readonly string $message,
+                private readonly string $messageType,
+                private readonly bool $visibility,
+            ) {
+            }
+
+            public function getId(): string
+            {
+                return (string)$this->id;
+            }
+
+            public function getCreationDateTime(): DateTimeImmutable
+            {
+                return new DateTimeImmutable('@' . $this->id);
+            }
+
+            public function getTestActorDisplayName(): string
+            {
+                return $this->actorDisplayName;
+            }
+
+            public function getTestMessage(): string
+            {
+                return $this->message;
+            }
+
+            public function getTestMessageType(): string
+            {
+                return $this->messageType;
+            }
+
+            public function getTestVisibility(): bool
+            {
+                return $this->visibility;
+            }
+        };
     }
 }
 }
