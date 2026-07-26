@@ -2296,7 +2296,7 @@ export default {
 	align-items: center;
 	justify-content: center;
 	padding: 48px 16px;
-	min-height: calc(100vh - 90px);
+	min-height: 100%;
 }
 
 .projects-home {
@@ -2304,8 +2304,8 @@ export default {
 	grid-template-columns: 360px minmax(0, 1fr);
 	gap: 0;
 	width: 100%;
-	height: calc(100vh - 90px);
-	min-height: calc(100vh - 90px);
+	height: 100%;
+	min-height: 0;
 	box-sizing: border-box;
 	background: var(--color-background-plain, var(--color-main-background));
 	overflow: hidden;

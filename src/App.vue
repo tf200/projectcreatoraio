@@ -1,5 +1,6 @@
 <script>
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
+import NcContent from '@nextcloud/vue/components/NcContent'
 import ProjectsHome from './components/ProjectsHome.vue'
 import WhiteboardPopout from './components/ProjectWhiteboard/WhiteboardPopout.vue'
 
@@ -7,6 +8,7 @@ export default {
 	name: 'App',
 	components: {
 		NcAppContent,
+		NcContent,
 		ProjectsHome,
 		WhiteboardPopout,
 	},
@@ -37,8 +39,10 @@ export default {
 </script>
 
 <template>
-	<NcAppContent>
-		<WhiteboardPopout v-if="isWhiteboardPopout" :project-id="popoutProjectId" />
-		<ProjectsHome v-else />
-	</NcAppContent>
+	<NcContent app-name="projectcreatoraio">
+		<NcAppContent>
+			<WhiteboardPopout v-if="isWhiteboardPopout" :project-id="popoutProjectId" />
+			<ProjectsHome v-else />
+		</NcAppContent>
+	</NcContent>
 </template>
