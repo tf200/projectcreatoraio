@@ -7,25 +7,37 @@ namespace OCA\ProjectCreatorAIO\Service;
 use OCA\ProjectCreatorAIO\Db\BoardPolicySettingMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultDrasci;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultDrasciMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultRoleMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyMapper;
+use OCA\ProjectCreatorAIO\Db\CardPolicyOverride;
+use OCA\ProjectCreatorAIO\Db\CardPolicyOverrideMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCP\IGroupManager;
+use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\Server;
 
 class CardPolicyService {
 	private const TYPE_COMBI = 0;
+	private const POLICY_VERSION_DRASCI = 2;
+	private const ACTIONS = ['view', 'move', 'sign', 'verify'];
 
 	public function __construct(
 		private readonly BoardPolicySettingMapper $settingMapper,
 		private readonly BoardPolicyRoleMapper $roleMapper,
 		private readonly BoardPolicyMembershipMapper $membershipMapper,
+		private readonly BoardPolicyDefaultDrasciMapper $defaultDrasciMapper,
 		private readonly BoardPolicyDefaultRoleMapper $defaultRoleMapper,
 		private readonly CardPolicyMapper $cardPolicyMapper,
+		private readonly CardPolicyOverrideMapper $cardPolicyOverrideMapper,
 		private readonly CardPolicyRoleMapper $cardPolicyRoleMapper,
 		private readonly ProjectMapper $projectMapper,
+		private readonly ProjectMemberRoleMapper $projectMemberRoleMapper,
+		private readonly IDBConnection $db,
 		private readonly IGroupManager $groupManager,
 		private readonly IUserManager $userManager,
 		private readonly ?object $cardMapper, // OCA\Deck\Db\CardMapper
@@ -67,8 +79,8 @@ class CardPolicyService {
 			return true;
 		}
 
-		// Acl::PERMISSION_READ = 1
-		if ($permission === 1) {
+		// Deck's ACL permission constants are indexes; read is zero.
+		if ($permission === 0) {
 			return $this->assertActionLogic($card, $boardId, 'view', $userId);
 		}
 
@@ -102,10 +114,16 @@ class CardPolicyService {
 		$approvedStackId = $settings->getApprovedStackId();
 		$doneStackId = $settings->getDoneStackId();
 
-		if ($targetStackId !== $stackId) {
-			if (($approvedStackId !== null && ($targetStackId === $approvedStackId || $stackId === $approvedStackId))) {
+		if ($targetStackId !== $stackId && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+			if ($doneStackId !== null && $targetStackId === $doneStackId) {
+				$action = 'verify';
+			} elseif ($approvedStackId !== null && $targetStackId === $approvedStackId) {
 				$action = 'sign';
-			} elseif (($doneStackId !== null && ($targetStackId === $doneStackId || $stackId === $doneStackId))) {
+			}
+		} elseif ($targetStackId !== $stackId) {
+			if ($approvedStackId !== null && ($targetStackId === $approvedStackId || $stackId === $approvedStackId)) {
+				$action = 'sign';
+			} elseif ($doneStackId !== null && ($targetStackId === $doneStackId || $stackId === $doneStackId)) {
 				$action = 'verify';
 			}
 		}
@@ -149,6 +167,36 @@ class CardPolicyService {
 		}
 
 		return $this->getBoardWorkflow($boardId)['completionByStack'];
+	}
+
+	/**
+	 * @return array{canMove: bool, canSign: bool, canVerify: bool}
+	 */
+	public function getCapabilities(object $card, ?string $userId): array {
+		$capabilities = [
+			'canMove' => true,
+			'canSign' => true,
+			'canVerify' => true,
+		];
+		if ($userId === null || $userId === '') {
+			return $capabilities;
+		}
+
+		$boardId = $this->getBoardIdFromCard($card);
+		if ($boardId === null) {
+			return $capabilities;
+		}
+
+		$settings = $this->settingMapper->findByBoard($boardId);
+		if ($settings === null || $settings->getPermissionMode() !== 'card_policy' || $this->isBypassUser($boardId, $userId)) {
+			return $capabilities;
+		}
+
+		return [
+			'canMove' => $this->isActionAllowed($card, $boardId, 'move', $userId, $settings),
+			'canSign' => $this->isActionAllowed($card, $boardId, 'sign', $userId, $settings),
+			'canVerify' => $this->isActionAllowed($card, $boardId, 'verify', $userId, $settings),
+		];
 	}
 
 	/**
@@ -206,6 +254,14 @@ class CardPolicyService {
 			return true;
 		}
 
+		return $this->isActionAllowed($card, $boardId, $action, $userId, $settings);
+	}
+
+	private function isActionAllowed(object $card, int $boardId, string $action, string $userId, object $settings): bool {
+		if ($settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+			return $this->assertV2ActionLogic($card, $boardId, $action, $userId);
+		}
+
 		$allowedRoleIds = [];
 		$cardId = (int)$card->getId();
 		$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
@@ -250,6 +306,69 @@ class CardPolicyService {
 		return false;
 	}
 
+	private function assertV2ActionLogic(object $card, int $boardId, string $action, string $userId): bool {
+		if (!in_array($action, self::ACTIONS, true)) {
+			return false;
+		}
+
+		$cardId = (int)$card->getId();
+		$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
+		if ($cardPolicy !== null && (int)$cardPolicy->getBoardId() === $boardId) {
+			$override = $this->cardPolicyOverrideMapper->findByPolicyAndAction((int)$cardPolicy->getId(), $action);
+			if ($override !== null) {
+				$allowedRoleIds = [];
+				$boardRoleIds = [];
+				foreach ($this->roleMapper->findByBoard($boardId) as $role) {
+					$boardRoleIds[(int)$role->getId()] = true;
+				}
+				foreach ($this->cardPolicyRoleMapper->findByPolicyAndAction((int)$cardPolicy->getId(), $action) as $role) {
+					$roleId = (int)$role->getRoleId();
+					if (isset($boardRoleIds[$roleId])) {
+						$allowedRoleIds[] = $roleId;
+					}
+				}
+
+				return $this->userHasFunctionalRole($userId, $allowedRoleIds);
+			}
+		}
+
+		$project = $this->projectMapper->findByBoardId($boardId);
+		if ($project === null) {
+			return false;
+		}
+
+		$memberRole = $this->projectMemberRoleMapper->findByProjectAndUser((int)$project->getId(), $userId);
+		if ($memberRole === null) {
+			return false;
+		}
+
+		$allowedDrasciRoles = array_map(
+			static fn ($default): string => (string)$default->getDrasciRole(),
+			$this->defaultDrasciMapper->findByBoardAndAction($boardId, $action),
+		);
+
+		return in_array((string)$memberRole->getDrasciRole(), $allowedDrasciRoles, true);
+	}
+
+	/** @param int[] $roleIds */
+	private function userHasFunctionalRole(string $userId, array $roleIds): bool {
+		if ($roleIds === []) {
+			return false;
+		}
+
+		foreach ($this->membershipMapper->findByRoles(array_values(array_unique($roleIds))) as $membership) {
+			if ($membership->getParticipantType() === 'user' && $membership->getParticipantId() === $userId) {
+				return true;
+			}
+			if ($membership->getParticipantType() === 'group'
+				&& $this->groupManager->isInGroup($userId, $membership->getParticipantId())) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/**
 	 * Check if user bypasses all checks
 	 */
@@ -277,7 +396,10 @@ class CardPolicyService {
 		if ($this->organizationUserMapper !== null) {
 			try {
 				$membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-				if ($membership !== null && ($membership['role'] ?? '') === 'admin') {
+				if ($project !== null
+					&& $membership !== null
+					&& (int)($membership['organization_id'] ?? 0) === (int)$project->getOrganizationId()
+					&& ($membership['role'] ?? '') === 'admin') {
 					return true;
 				}
 			} catch (\Throwable $e) {
@@ -323,13 +445,29 @@ class CardPolicyService {
 	}
 
 	/**
-	 * Seed default policies when a new board/project is created
+	 * Seed default policies when a new board/project is created.
+	 *
+	 * @param array<string, object> $seededCards
 	 */
-	public function seedDefaultPolicies(int $boardId, array $stacks, \OCP\IUser $owner, array $membersWithRoles): void {
+	public function seedDefaultPolicies(int $boardId, array $stacks, \OCP\IUser $owner, array $seededCards): void {
+		$this->db->beginTransaction();
+		try {
+			$this->seedDefaultPoliciesTransaction($boardId, $stacks, $owner, $seededCards);
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
+	}
+
+	/** @param array<string, object> $seededCards */
+	private function seedDefaultPoliciesTransaction(int $boardId, array $stacks, \OCP\IUser $owner, array $seededCards): void {
 		// 1. Create BoardPolicySetting
 		$settings = new \OCA\ProjectCreatorAIO\Db\BoardPolicySetting();
 		$settings->setBoardId($boardId);
 		$settings->setPermissionMode('card_policy');
+		$settings->setPolicyVersion(self::POLICY_VERSION_DRASCI);
+		$settings->setRevision(1);
 
 		// Stack identity is persisted by ID; titles are only used during initial setup.
 		foreach ($stacks as $stack) {
@@ -357,59 +495,47 @@ class CardPolicyService {
 			$createdRoles[$key] = $this->roleMapper->insert($role);
 		}
 
-		// 3. Set default permissions
+		// 3. Set DRASCI default permissions.
 		$defaultMappings = [
-			'move' => ['client_developer', 'cpl', 'grid_operator'],
-			'sign' => ['cpl', 'grid_operator'],
-			'verify' => ['cpl', 'grid_operator'],
-			'view' => ['client_developer', 'cpl', 'grid_operator'],
+			'view' => ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed'],
+			'move' => ['driver', 'responsible', 'supportive'],
+			'sign' => ['accountable'],
+			'verify' => ['accountable', 'responsible'],
 		];
 		foreach ($defaultMappings as $action => $roleKeys) {
-			foreach ($roleKeys as $key) {
-				if (isset($createdRoles[$key])) {
-					$defaultRole = new \OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultRole();
-					$defaultRole->setBoardId($boardId);
-					$defaultRole->setAction($action);
-					$defaultRole->setRoleId($createdRoles[$key]->getId());
-					$this->defaultRoleMapper->insert($defaultRole);
-				}
+			foreach ($roleKeys as $roleKey) {
+				$default = new BoardPolicyDefaultDrasci();
+				$default->setBoardId($boardId);
+				$default->setAction($action);
+				$default->setDrasciRole($roleKey);
+				$this->defaultDrasciMapper->insert($default);
 			}
 		}
 
 		// 4. Map project owner to CPL role
 		$this->addMembership((int)$createdRoles['cpl']->getId(), 'user', $owner->getUID());
 
-		// 5. Map project members to board roles based on DRASCI role
-		foreach ($membersWithRoles as $userId => $drasciRole) {
-			$targetRoleKey = 'client_developer';
-			if (in_array($drasciRole, ['driver', 'accountable', 'responsible'], true)) {
-				$targetRoleKey = 'cpl';
-			}
-
-			if (isset($createdRoles[$targetRoleKey])) {
-				$this->addMembership((int)$createdRoles[$targetRoleKey]->getId(), 'user', $userId);
-			}
-		}
-
-		// 6. Seed card-specific default policies
-		$this->seedDefaultCardPolicies($boardId, $createdRoles);
+		// 5. Seed card-specific functional-role overrides.
+		$this->seedDefaultCardPolicies($boardId, $createdRoles, $seededCards);
 	}
 
-	/**
-	 * Sync a project member's role dynamically into board policy roles
-	 */
-	public function syncProjectMemberRole(int $boardId, string $userId, ?string $drasciRole): void {
-		$roles = $this->roleMapper->findByBoard($boardId);
-		$createdRoles = [];
-		foreach ($roles as $role) {
-			$createdRoles[$role->getRoleKey()] = $role;
+	public function syncLegacyProjectMemberRole(int $boardId, string $userId, ?string $drasciRole): void {
+		$settings = $this->settingMapper->findByBoard($boardId);
+		if ($settings === null || $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+			return;
 		}
 
-		// Remove user from all existing board policy memberships on this board
-		foreach ($createdRoles as $role) {
-			$existing = $this->membershipMapper->findUnique((int)$role->getId(), 'user', $userId);
-			if ($existing !== null) {
-				$this->membershipMapper->delete($existing);
+		$roles = [];
+		foreach ($this->roleMapper->findByBoard($boardId) as $role) {
+			if (in_array($role->getRoleKey(), ['cpl', 'client_developer'], true)) {
+				$roles[$role->getRoleKey()] = $role;
+			}
+		}
+
+		foreach ($roles as $role) {
+			$membership = $this->membershipMapper->findUnique((int)$role->getId(), 'user', $userId);
+			if ($membership !== null) {
+				$this->membershipMapper->delete($membership);
 			}
 		}
 
@@ -417,165 +543,167 @@ class CardPolicyService {
 			return;
 		}
 
-		// Map DRASCI role to board policy role key
-		$targetRoleKey = 'client_developer';
-		if (in_array($drasciRole, ['driver', 'accountable', 'responsible'], true)) {
-			$targetRoleKey = 'cpl';
-		}
-
-		if (isset($createdRoles[$targetRoleKey])) {
-			$this->addMembership((int)$createdRoles[$targetRoleKey]->getId(), 'user', $userId);
+		$roleKey = in_array($drasciRole, ['driver', 'responsible', 'accountable'], true)
+			? 'cpl'
+			: 'client_developer';
+		if (isset($roles[$roleKey])) {
+			$this->addMembership((int)$roles[$roleKey]->getId(), 'user', $userId);
 		}
 	}
 
-	private function seedDefaultCardPolicies(int $boardId, array $createdRoles): void {
+	public function preserveLegacyCardPolicyOverrides(int $boardId): void {
+		foreach ($this->cardPolicyMapper->findByBoard($boardId) as $cardPolicy) {
+			$policyId = (int)$cardPolicy->getId();
+			$actions = [];
+			foreach ($this->cardPolicyRoleMapper->findByPolicy($policyId) as $relation) {
+				$action = (string)$relation->getAction();
+				if (in_array($action, self::ACTIONS, true)) {
+					$actions[$action] = true;
+				}
+			}
+
+			foreach (array_keys($actions) as $action) {
+				if ($this->cardPolicyOverrideMapper->findByPolicyAndAction($policyId, $action) !== null) {
+					continue;
+				}
+
+				$override = new CardPolicyOverride();
+				$override->setCardPolicyId($policyId);
+				$override->setAction($action);
+				$this->cardPolicyOverrideMapper->insert($override);
+			}
+		}
+	}
+
+	/** @param array<string, object> $seededCards */
+	private function seedDefaultCardPolicies(int $boardId, array $createdRoles, array $seededCards): void {
 		$matrix = [
-			'Garantie overeenkomst' => [
+			'combi.guarantee_agreement' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'VO' => [
+			'combi.vo' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'DO' => [
+			'combi.do' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Intake inplannen & hosten' => [
+			'combi.schedule_intake' => [
 				'move' => ['cpl'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Intakeverslag' => [
+			'combi.intake_report' => [
 				'move' => ['cpl'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Huisnummerbesluit' => [
+			'combi.house_number_decision' => [
 				'move' => ['client_developer', 'cpl'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Hoogbouwoverleg inplannen' => [
+			'combi.schedule_high_rise_consultation' => [
 				'move' => ['cpl'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'VO inpandige tekeningen' => [
+			'combi.vo_internal_drawings' => [
 				'move' => ['client_developer'],
 				'sign' => ['grid_operator'],
 				'verify' => ['grid_operator'],
 			],
-			'DO inpandige tekeningen' => [
+			'combi.do_internal_drawings' => [
 				'move' => ['client_developer'],
 				'sign' => ['grid_operator'],
 				'verify' => ['grid_operator'],
 			],
-			'Verslag inpandig overleg' => [
+			'combi.internal_consultation_report' => [
 				'move' => ['client_developer'],
 				'sign' => ['grid_operator'],
 				'verify' => ['grid_operator'],
 			],
-			'Blokkenschema' => [
+			'combi.block_diagram' => [
 				'move' => ['client_developer'],
 				'sign' => ['grid_operator'],
 				'verify' => ['grid_operator'],
 			],
-			'Aanvraag particuliere grond' => [
+			'combi.private_land_application' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Bodemrapport' => [
+			'combi.soil_report' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Saneringsevaluatierapport' => [
+			'combi.remediation_evaluation_report' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Zakelijkrecht' => [
+			'combi.property_right' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Piekvermogensformulier' => [
+			'combi.peak_power_form' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Situatie tekening' => [
+			'combi.situation_drawing' => [
 				'move' => ['client_developer'],
 				'sign' => ['grid_operator'],
 				'verify' => ['grid_operator'],
 			],
-			'Intakeformulier' => [
+			'combi.intake_form' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'Quickscan' => [
+			'combi.quickscan' => [
 				'move' => ['client_developer'],
 				'sign' => ['cpl'],
 				'verify' => ['cpl'],
 			],
-			'AVP' => [
+			'combi.avp' => [
 				'move' => ['grid_operator'],
 				'sign' => ['grid_operator'],
 				'verify' => ['grid_operator'],
 			],
 		];
 
-		try {
-			$db = Server::get(\OCP\IDBConnection::class);
-			$qb = $db->getQueryBuilder();
-			$qb->select('c.id', 'c.title')
-				->from('deck_cards', 'c')
-				->innerJoin('c', 'deck_stacks', 's', 's.id = c.stack_id')
-				->where($qb->expr()->eq('s.board_id', $qb->createNamedParameter($boardId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
-				->andWhere($qb->expr()->eq('c.archived', $qb->createNamedParameter(false, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_BOOL)))
-				->andWhere($qb->expr()->eq('c.deleted_at', $qb->createNamedParameter(0, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
-				->andWhere($qb->expr()->eq('s.deleted_at', $qb->createNamedParameter(0, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)));
+		foreach ($seededCards as $templateKey => $card) {
+			if (isset($matrix[$templateKey])) {
+				$policy = new \OCA\ProjectCreatorAIO\Db\CardPolicy();
+				$policy->setCardId((int)$card->getId());
+				$policy->setBoardId($boardId);
+				$insertedPolicy = $this->cardPolicyMapper->insert($policy);
 
-			$result = $qb->executeQuery();
-			try {
-				$cards = $result->fetchAll();
-			} finally {
-				$result->closeCursor();
-			}
+				foreach ($matrix[$templateKey] as $action => $roleKeys) {
+					$override = new CardPolicyOverride();
+					$override->setCardPolicyId((int)$insertedPolicy->getId());
+					$override->setAction($action);
+					$this->cardPolicyOverrideMapper->insert($override);
 
-			foreach ($cards as $card) {
-				$title = trim((string)$card['title']);
-				if (isset($matrix[$title])) {
-					$policy = new \OCA\ProjectCreatorAIO\Db\CardPolicy();
-					$policy->setCardId((int)$card['id']);
-					$policy->setBoardId($boardId);
-					$insertedPolicy = $this->cardPolicyMapper->insert($policy);
-
-					$actions = $matrix[$title];
-					$actions['view'] = ['client_developer', 'cpl', 'grid_operator'];
-
-					foreach ($actions as $action => $roleKeys) {
-						foreach ($roleKeys as $roleKey) {
-							if (isset($createdRoles[$roleKey])) {
-								$cardRole = new \OCA\ProjectCreatorAIO\Db\CardPolicyRole();
-								$cardRole->setCardPolicyId((int)$insertedPolicy->getId());
-								$cardRole->setAction($action);
-								$cardRole->setRoleId((int)$createdRoles[$roleKey]->getId());
-								$this->cardPolicyRoleMapper->insert($cardRole);
-							}
+					foreach ($roleKeys as $roleKey) {
+						if (isset($createdRoles[$roleKey])) {
+							$cardRole = new \OCA\ProjectCreatorAIO\Db\CardPolicyRole();
+							$cardRole->setCardPolicyId((int)$insertedPolicy->getId());
+							$cardRole->setAction($action);
+							$cardRole->setRoleId((int)$createdRoles[$roleKey]->getId());
+							$this->cardPolicyRoleMapper->insert($cardRole);
 						}
 					}
 				}
 			}
-		} catch (\Throwable $e) {
-			// ignore and log
 		}
 	}
 

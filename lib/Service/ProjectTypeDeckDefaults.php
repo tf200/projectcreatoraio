@@ -41,7 +41,7 @@ class ProjectTypeDeckDefaults
 		];
 	}
 
-	/** @return array<int, array{title: string, important: bool}> */
+	/** @return array<int, array{key: string, title: string, important: bool}> */
 	public static function getNextPriorityCards(int $projectType): array
 	{
 		if ($projectType !== self::TYPE_COMBI) {
@@ -49,15 +49,15 @@ class ProjectTypeDeckDefaults
 		}
 
 		return [
-			['title' => 'Piekvermogensformulier', 'important' => true],
-			['title' => 'Situatie tekening', 'important' => true],
-			['title' => 'Intakeformulier', 'important' => true],
-			['title' => 'Quickscan', 'important' => true],
-			['title' => 'AVP', 'important' => true],
+			['key' => 'combi.peak_power_form', 'title' => 'Piekvermogensformulier', 'important' => true],
+			['key' => 'combi.situation_drawing', 'title' => 'Situatie tekening', 'important' => true],
+			['key' => 'combi.intake_form', 'title' => 'Intakeformulier', 'important' => true],
+			['key' => 'combi.quickscan', 'title' => 'Quickscan', 'important' => true],
+			['key' => 'combi.avp', 'title' => 'AVP', 'important' => true],
 		];
 	}
 
-	/** @return array<int, array{title: string, important: bool}> */
+	/** @return array<int, array{key: string, title: string, important: bool}> */
 	public static function getProcessStepCards(int $projectType): array
 	{
 		if ($projectType !== self::TYPE_COMBI) {
@@ -65,21 +65,21 @@ class ProjectTypeDeckDefaults
 		}
 
 		return [
-			['title' => 'Garantie overeenkomst', 'important' => false],
-			['title' => 'VO', 'important' => true],
-			['title' => 'DO', 'important' => true],
-			['title' => 'Intake inplannen & hosten', 'important' => false],
-			['title' => 'Intakeverslag', 'important' => false],
-			['title' => 'Huisnummerbesluit', 'important' => true],
-			['title' => 'Hoogbouwoverleg inplannen', 'important' => false],
-			['title' => 'VO inpandige tekeningen', 'important' => false],
-			['title' => 'DO inpandige tekeningen', 'important' => false],
-			['title' => 'Verslag inpandig overleg', 'important' => true],
-			['title' => 'Blokkenschema', 'important' => false],
-			['title' => 'Aanvraag particuliere grond', 'important' => false],
-			['title' => 'Bodemrapport', 'important' => true],
-			['title' => 'Saneringsevaluatierapport', 'important' => false],
-			['title' => 'Zakelijkrecht', 'important' => false],
+			['key' => 'combi.guarantee_agreement', 'title' => 'Garantie overeenkomst', 'important' => false],
+			['key' => 'combi.vo', 'title' => 'VO', 'important' => true],
+			['key' => 'combi.do', 'title' => 'DO', 'important' => true],
+			['key' => 'combi.schedule_intake', 'title' => 'Intake inplannen & hosten', 'important' => false],
+			['key' => 'combi.intake_report', 'title' => 'Intakeverslag', 'important' => false],
+			['key' => 'combi.house_number_decision', 'title' => 'Huisnummerbesluit', 'important' => true],
+			['key' => 'combi.schedule_high_rise_consultation', 'title' => 'Hoogbouwoverleg inplannen', 'important' => false],
+			['key' => 'combi.vo_internal_drawings', 'title' => 'VO inpandige tekeningen', 'important' => false],
+			['key' => 'combi.do_internal_drawings', 'title' => 'DO inpandige tekeningen', 'important' => false],
+			['key' => 'combi.internal_consultation_report', 'title' => 'Verslag inpandig overleg', 'important' => true],
+			['key' => 'combi.block_diagram', 'title' => 'Blokkenschema', 'important' => false],
+			['key' => 'combi.private_land_application', 'title' => 'Aanvraag particuliere grond', 'important' => false],
+			['key' => 'combi.soil_report', 'title' => 'Bodemrapport', 'important' => true],
+			['key' => 'combi.remediation_evaluation_report', 'title' => 'Saneringsevaluatierapport', 'important' => false],
+			['key' => 'combi.property_right', 'title' => 'Zakelijkrecht', 'important' => false],
 		];
 	}
 

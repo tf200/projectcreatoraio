@@ -26,4 +26,14 @@ class CardPolicyMapper extends QBMapper {
 			return null;
 		}
 	}
+
+	/** @return CardPolicy[] */
+	public function findByBoard(int $boardId): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from(self::TABLE_NAME)
+			->where($qb->expr()->eq('board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)));
+
+		return $this->findEntities($qb);
+	}
 }

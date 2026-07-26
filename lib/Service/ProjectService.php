@@ -6,6 +6,10 @@ use DateTime;
 use OC\Files\SetupManager;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyMembership;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyRole;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\Files\IRootFolder;
@@ -90,6 +94,8 @@ class ProjectService
         private readonly ?object $deckPermissionService,
         private readonly LoggerInterface $logger,
         private readonly ProjectMemberRoleMapper $memberRoleMapper,
+        private readonly BoardPolicyRoleMapper $policyRoleMapper,
+        private readonly BoardPolicyMembershipMapper $policyMembershipMapper,
         private readonly CardPolicyService $cardPolicyService,
     ) {
     }
@@ -120,6 +126,7 @@ class ProjectService
         $createdGroup = null;
         $createdFolders = [];
         $createdConversationToken = null;
+        $createdProject = null;
 
         try {
             $owner = $this->userSession->getUser();
@@ -217,9 +224,12 @@ class ProjectService
                 $locCity,
                 $locZip,
             );
+            $createdProject = $project;
+            $this->memberRoleMapper->upsertRole((int)$project->getId(), $owner->getUID(), 'accountable');
 
+            $seededCards = [];
             if ($this->deckDefaultCardsService !== null && $createdBoard !== null) {
-                $this->deckDefaultCardsService->seedForProjectType(
+                $seededCards = $this->deckDefaultCardsService->seedForProjectType(
                     $type,
                     $createdBoard,
                     $owner,
@@ -232,7 +242,7 @@ class ProjectService
                     (int)$createdBoard->getId(),
                     $stacks,
                     $owner,
-                    []
+                    $seededCards,
                 );
             }
 
@@ -281,6 +291,18 @@ class ProjectService
         } catch (Throwable $e) {
             if ($createdConversationToken !== null && $createdConversationToken !== '') {
                 $this->projectTalkIntegrationService->deleteConversation($createdConversationToken);
+            }
+
+            if ($createdProject !== null) {
+                try {
+                    $this->memberRoleMapper->deleteByProject((int)$createdProject->getId());
+                    $this->projectMapper->deleteProject($createdProject);
+                } catch (Throwable $cleanupError) {
+                    $this->logger->error('Failed to remove an incomplete project record', [
+                        'projectId' => (int) ($createdProject->getId() ?? 0),
+                        'exception' => $cleanupError,
+                    ]);
+                }
             }
 
             $this->cleanupResources(
@@ -408,6 +430,8 @@ class ProjectService
             $rolesByUser[$roleRow->getUserId()] = $roleRow->getDrasciRole();
         }
 
+        $functionalRolesByUser = $this->getFunctionalRoleKeysByUser($project);
+
         $members = [];
         foreach ($memberIds as $memberId) {
             $user = $this->userManager->get($memberId);
@@ -416,7 +440,7 @@ class ProjectService
             }
 
             $role = $rolesByUser[$memberId] ?? null;
-            $members[] = $this->formatProjectMember($user, $ownerId, $role);
+            $members[] = $this->formatProjectMember($user, $ownerId, $role, $functionalRolesByUser[$memberId] ?? []);
         }
 
         usort($members, static function (array $a, array $b): int {
@@ -431,11 +455,37 @@ class ProjectService
     }
 
     /**
+     * @return array<int, array{key: string, name: string}>
+     */
+    public function getProjectFunctionalRoles(int $projectId): array
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        $boardId = (int) ($project->getBoardId() ?? 0);
+        if ($boardId <= 0) {
+            return [];
+        }
+
+        return array_map(static fn (BoardPolicyRole $role): array => [
+            'key' => (string) $role->getRoleKey(),
+            'name' => (string) $role->getRoleName(),
+        ], $this->policyRoleMapper->findByBoard($boardId));
+    }
+
+    /**
      * Adds an organization member to the project group and provisions a private folder link.
      *
      * @return array{added: bool, alreadyMember: bool, member: array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}}
      */
-    public function addMemberToProject(int $projectId, string $userId, string $drasciRole = ''): array
+    public function addMemberToProject(
+        int $projectId,
+        string $userId,
+        string $drasciRole = '',
+        ?array $functionalRoleKeys = null,
+    ): array
     {
         $userId = trim($userId);
         if ($userId === '') {
@@ -451,6 +501,10 @@ class ProjectService
         if ($project === null) {
             throw new OCSException("Project with ID $projectId not found", 404);
         }
+
+        $functionalRoles = $functionalRoleKeys === null
+            ? null
+            : $this->resolveFunctionalRoles($project, $functionalRoleKeys, true);
 
         $groupGid = trim((string) ($project->getProjectGroupGid() ?? ''));
         if ($groupGid === '') {
@@ -486,14 +540,6 @@ class ProjectService
 
         try {
             $privateFolderProvisioning = $this->ensurePrivateFolderForMember($project, $userId);
-            $conversationToken = trim((string) ($project->getTalkConversationToken() ?? ''));
-            if ($addedToGroup && $conversationToken !== '') {
-                $this->projectTalkIntegrationService->addUserToConversation(
-                    $conversationToken,
-                    $user,
-                    $this->userSession->getUser(),
-                );
-            }
         } catch (Throwable $e) {
             $this->rollbackPrivateFolderProvisioning($project, $userId, $privateFolderProvisioning);
             if ($addedToGroup && $group !== null) {
@@ -505,7 +551,33 @@ class ProjectService
 
         $ownerId = trim((string) ($project->getOwnerId() ?? ''));
 
+        $this->db->beginTransaction();
+        try {
+            $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+            if ($functionalRoles !== null) {
+                $this->replaceFunctionalRoleMemberships($project, $userId, $functionalRoles);
+            } else {
+                $this->cardPolicyService->syncLegacyProjectMemberRole((int) ($project->getBoardId() ?? 0), $userId, $drasciRole);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            $this->rollbackPrivateFolderProvisioning($project, $userId, $privateFolderProvisioning);
+            if ($addedToGroup && $group !== null) {
+                $group->removeUser($user);
+            }
+            throw $e;
+        }
+
         if ($addedToGroup) {
+            $conversationToken = trim((string) ($project->getTalkConversationToken() ?? ''));
+            if ($conversationToken !== '') {
+                $this->projectTalkIntegrationService->addUserToConversation(
+                    $conversationToken,
+                    $user,
+                    $this->userSession->getUser(),
+                );
+            }
             $this->projectNotificationService->notifyMemberAdded(
                 $project,
                 $user,
@@ -518,17 +590,17 @@ class ProjectService
             );
         }
 
-        $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
-
-        $boardId = $project->getBoardId();
-        if ($boardId !== null && $boardId !== '') {
-            $this->cardPolicyService->syncProjectMemberRole((int)$boardId, $userId, $drasciRole);
-        }
-
         return [
             'added' => !$alreadyMember,
             'alreadyMember' => $alreadyMember,
-            'member' => $this->formatProjectMember($user, $ownerId, $drasciRole),
+            'member' => $this->formatProjectMember(
+                $user,
+                $ownerId,
+                $drasciRole,
+                $functionalRoles === null
+                    ? ($this->getFunctionalRoleKeysByUser($project)[$userId] ?? [])
+                    : array_keys($functionalRoles),
+            ),
         ];
     }
 
@@ -537,12 +609,23 @@ class ProjectService
      *
      * @return array{member: array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}}
      */
-    public function updateProjectMemberDrasciRole(int $projectId, string $userId, string $drasciRole): array
+    public function updateProjectMemberRoles(
+        int $projectId,
+        string $userId,
+        ?string $drasciRole = null,
+        ?array $functionalRoleKeys = null,
+    ): array
     {
         $userId = trim($userId);
-        $drasciRole = trim($drasciRole);
+        $drasciRole = $drasciRole === null ? null : trim($drasciRole);
 
-        if ($userId === '' || $drasciRole === '' || !array_key_exists($drasciRole, self::DRASCI_ROLES)) {
+        if ($userId === '') {
+            throw new OCSException('A user ID is required.', 400);
+        }
+        if ($drasciRole === null && $functionalRoleKeys === null) {
+            throw new OCSException('At least one role dimension must be provided.', 400);
+        }
+        if ($drasciRole !== null && ($drasciRole === '' || !array_key_exists($drasciRole, self::DRASCI_ROLES))) {
             throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
         }
 
@@ -550,6 +633,10 @@ class ProjectService
         if ($project === null) {
             throw new OCSException("Project with ID $projectId not found", 404);
         }
+
+        $functionalRoles = $functionalRoleKeys === null
+            ? null
+            : $this->resolveFunctionalRoles($project, $functionalRoleKeys, false);
 
         $groupGid = trim((string) ($project->getProjectGroupGid() ?? ''));
         $ownerId = trim((string) ($project->getOwnerId() ?? ''));
@@ -571,16 +658,143 @@ class ProjectService
             throw new OCSException(sprintf('User "%s" does not exist.', $userId), 404);
         }
 
-        $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+        $this->db->beginTransaction();
+        try {
+            if ($drasciRole !== null) {
+                $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+            }
+            if ($functionalRoles !== null) {
+                $this->replaceFunctionalRoleMemberships($project, $userId, $functionalRoles);
+            } elseif ($drasciRole !== null) {
+                $this->cardPolicyService->syncLegacyProjectMemberRole((int) ($project->getBoardId() ?? 0), $userId, $drasciRole);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
 
-        $boardId = $project->getBoardId();
-        if ($boardId !== null && $boardId !== '') {
-            $this->cardPolicyService->syncProjectMemberRole((int)$boardId, $userId, $drasciRole);
+        $effectiveFunctionalRoleKeys = $functionalRoles !== null
+            ? array_keys($functionalRoles)
+            : ($this->getFunctionalRoleKeysByUser($project)[$userId] ?? []);
+        $effectiveDrasciRole = $drasciRole;
+        if ($effectiveDrasciRole === null) {
+            $effectiveDrasciRole = $this->memberRoleMapper->findByProjectAndUser($projectId, $userId)?->getDrasciRole();
         }
 
         return [
-            'member' => $this->formatProjectMember($user, $ownerId, $drasciRole),
+            'member' => $this->formatProjectMember($user, $ownerId, $effectiveDrasciRole, $effectiveFunctionalRoleKeys),
         ];
+    }
+
+    /**
+     * @return array<string, string[]>
+     */
+    private function getFunctionalRoleKeysByUser(Project $project): array
+    {
+        $boardId = (int) ($project->getBoardId() ?? 0);
+        if ($boardId <= 0) {
+            return [];
+        }
+
+        $roles = $this->policyRoleMapper->findByBoard($boardId);
+        $rolesById = [];
+        foreach ($roles as $role) {
+            $rolesById[(int) $role->getId()] = (string) $role->getRoleKey();
+        }
+
+        $memberships = $this->policyMembershipMapper->findByRoles(array_keys($rolesById));
+        $roleKeysByUser = [];
+        foreach ($memberships as $membership) {
+            if ($membership->getParticipantType() !== 'user') {
+                continue;
+            }
+
+            $roleKey = $rolesById[(int) $membership->getRoleId()] ?? null;
+            if ($roleKey === null) {
+                continue;
+            }
+
+            $userId = (string) $membership->getParticipantId();
+            $roleKeysByUser[$userId][] = $roleKey;
+        }
+
+        foreach ($roleKeysByUser as &$roleKeys) {
+            sort($roleKeys);
+        }
+        unset($roleKeys);
+
+        return $roleKeysByUser;
+    }
+
+    /**
+     * @param mixed[] $roleKeys
+     * @return array<string, BoardPolicyRole>
+     */
+    private function resolveFunctionalRoles(Project $project, array $roleKeys, bool $requireOne): array
+    {
+        $normalizedKeys = [];
+        foreach ($roleKeys as $roleKey) {
+            if (!is_string($roleKey) || trim($roleKey) === '') {
+                throw new OCSException('Functional role keys must be non-empty strings.', 400);
+            }
+            $normalizedKeys[trim($roleKey)] = true;
+        }
+
+        if ($requireOne && $normalizedKeys === []) {
+            throw new OCSException('At least one functional project role is required.', 400);
+        }
+
+        $boardId = (int) ($project->getBoardId() ?? 0);
+        if ($boardId <= 0) {
+            throw new OCSException('This project has no Deck board for functional role assignment.', 409);
+        }
+
+        $roles = [];
+        foreach ($this->policyRoleMapper->findByBoard($boardId) as $role) {
+            $roleKey = (string) $role->getRoleKey();
+            if (isset($normalizedKeys[$roleKey])) {
+                $roles[$roleKey] = $role;
+            }
+        }
+
+        $unknownKeys = array_diff(array_keys($normalizedKeys), array_keys($roles));
+        if ($unknownKeys !== []) {
+            throw new OCSException('Unknown functional project roles: ' . implode(', ', $unknownKeys), 400);
+        }
+
+        ksort($roles);
+        return $roles;
+    }
+
+    /**
+     * @param array<string, BoardPolicyRole> $selectedRoles
+     */
+    private function replaceFunctionalRoleMemberships(Project $project, string $userId, array $selectedRoles): void
+    {
+        $boardId = (int) ($project->getBoardId() ?? 0);
+        $boardRoles = $this->policyRoleMapper->findByBoard($boardId);
+        $selectedRoleIds = array_map(static fn (BoardPolicyRole $role): int => (int) $role->getId(), $selectedRoles);
+
+        foreach ($boardRoles as $role) {
+            $roleId = (int) $role->getId();
+            $membership = $this->policyMembershipMapper->findUnique($roleId, 'user', $userId);
+            $shouldExist = in_array($roleId, $selectedRoleIds, true);
+
+            if ($membership !== null && !$shouldExist) {
+                $this->policyMembershipMapper->delete($membership);
+                continue;
+            }
+            if ($membership !== null || !$shouldExist) {
+                continue;
+            }
+
+            $membership = new BoardPolicyMembership();
+            $membership->setRoleId($roleId);
+            $membership->setParticipantType('user');
+            $membership->setParticipantId($userId);
+            $this->policyMembershipMapper->insert($membership);
+        }
     }
 
     /**
@@ -680,9 +894,15 @@ class ProjectService
     }
 
     /**
-     * @return array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}
+     * @param string[] $functionalRoleKeys
+     * @return array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string, functionalRoleKeys: string[]}
      */
-    private function formatProjectMember(IUser $user, string $ownerId, ?string $drasciRole = null): array
+    private function formatProjectMember(
+        IUser $user,
+        string $ownerId,
+        ?string $drasciRole = null,
+        array $functionalRoleKeys = [],
+    ): array
     {
         $userId = $user->getUID();
         $label = isset(self::DRASCI_ROLES[$drasciRole]) ? self::DRASCI_ROLES[$drasciRole] : 'Unassigned';
@@ -694,6 +914,7 @@ class ProjectService
             'isOwner' => $ownerId !== '' && $userId === $ownerId,
             'drasciRole' => $drasciRole,
             'drasciRoleLabel' => $label,
+            'functionalRoleKeys' => array_values($functionalRoleKeys),
         ];
     }
 
@@ -1029,9 +1250,16 @@ class ProjectService
             }
         }
 
-        // if ($board !== null) {
-        //     $this->boardService->delete($board->getId());
-        // }
+        if ($board !== null && $this->boardService !== null) {
+            try {
+                $this->boardService->delete((int) $board->getId());
+            } catch (Throwable $e) {
+                $this->logger->error('Failed to remove an incomplete Deck board', [
+                    'boardId' => (int) $board->getId(),
+                    'exception' => $e,
+                ]);
+            }
+        }
 
         if ($group !== null) {
             $group->delete();

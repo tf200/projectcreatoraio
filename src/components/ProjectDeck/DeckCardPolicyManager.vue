@@ -13,11 +13,11 @@
 			<NcButton @click="load">Retry</NcButton>
 		</div>
 
-		<div v-else-if="settings.permissionMode !== 'card_policy'" class="pc-enable-state">
+		<div v-else-if="settings.permissionMode !== 'card_policy' || Number(settings.policyVersion || 1) < 2" class="pc-enable-state">
 			<div class="pc-enable-icon">🛡️</div>
 			<h3>Granular Permissions Disabled</h3>
-			<p class="muted">This board is using legacy permissions. Upgrade to the new card-policy system to enable granular access controls.</p>
-			<NcButton type="primary" size="large" @click="enable">Enable Granular Permissions</NcButton>
+			<p class="muted">Upgrade this board to DRASCI defaults with explicit functional-role overrides.</p>
+			<NcButton type="primary" size="large" @click="enable">Enable DRASCI Permissions</NcButton>
 		</div>
 
 		<div v-else class="pc-policy-container">
@@ -26,7 +26,7 @@
 			<div class="pc-app-header">
 				<div class="pc-header-titles">
 					<h2>Card Permissions</h2>
-					<p class="muted">Assign move, sign, and verify permissions to specific cards.</p>
+					<p class="muted">DRASCI controls inherited access. Functional roles handle explicit card exceptions.</p>
 				</div>
 				<div class="pc-header-actions">
 					<NcButton type="tertiary" @click="showMembersModal = true">
@@ -36,10 +36,6 @@
 					<NcButton type="tertiary" @click="showDefaultsModal = true">
 						<template #icon><span class="pc-emoji-icon">⚙️</span></template>
 						Board Defaults
-					</NcButton>
-					<NcButton type="tertiary" @click="openTemplates">
-						<template #icon><span class="pc-emoji-icon">📋</span></template>
-						Templates
 					</NcButton>
 				</div>
 			</div>
@@ -56,7 +52,7 @@
 					</select>
 					<label class="pc-filter-checkbox">
 						<input type="checkbox" v-model="showOnlyCustom">
-						Show only custom overrides
+						Show only explicit overrides
 					</label>
 				</div>
 			</div>
@@ -74,15 +70,16 @@
 							<th class="pc-col-perms">Who can Move</th>
 							<th class="pc-col-perms">Who can Sign</th>
 							<th class="pc-col-perms">Who can Verify</th>
+							<th class="pc-col-perms">Who can View</th>
 							<th class="pc-col-actions"></th>
 						</tr>
 					</thead>
 					<tbody>
 						<tr v-if="filteredCards.length === 0">
-							<td colspan="7" class="pc-empty-row">No cards match your filters.</td>
+							<td colspan="8" class="pc-empty-row">No cards match your filters.</td>
 						</tr>
 						<tr v-for="card in filteredCards" :key="card.id" 
-							:class="{ 'is-selected': isSelected(card.id), 'is-custom': card.hasExplicitPolicy }"
+							:class="{ 'is-selected': isSelected(card.id), 'is-custom': card.hasAnyOverride }"
 							@click="toggleSelection(card.id, $event)">
 							<td class="pc-col-check" @click.stop>
 								<input type="checkbox" :value="card.id" v-model="selectedCardIds">
@@ -90,7 +87,7 @@
 							<td class="pc-col-name">
 								<div class="pc-card-title-wrap">
 									<span class="pc-card-title">{{ card.title }}</span>
-									<span v-if="card.hasExplicitPolicy" class="pc-badge pc-badge-custom" title="This card has specific override rules">Custom</span>
+									<span v-if="card.hasAnyOverride" class="pc-badge pc-badge-custom" title="This card has explicit functional-role rules">{{ overrideCount(card) }} override{{ overrideCount(card) === 1 ? '' : 's' }}</span>
 								</div>
 							</td>
 							<td class="pc-col-stack">
@@ -99,34 +96,43 @@
 							<td class="pc-col-perms">
 								<div class="pc-role-chips">
 									<span v-for="rk in getEffectivePerms(card, 'move')" :key="rk" class="pc-role-chip" :style="chipStyleByKey(rk)">
-										<span class="pc-dot" :style="{ background: roleColorByKey(rk) }"></span>
-										{{ roleNameByKey(rk) }}
+										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'move', rk) }"></span>
+										{{ effectiveRoleName(card, 'move', rk) }}
 									</span>
-									<span v-if="!getEffectivePerms(card, 'move').length" class="muted-dash">—</span>
+									<span v-if="!getEffectivePerms(card, 'move').length" :class="isExplicitAction(card, 'move') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'move') ? 'Nobody' : '—' }}</span>
 								</div>
 							</td>
 							<td class="pc-col-perms">
 								<div class="pc-role-chips">
 									<span v-for="rk in getEffectivePerms(card, 'sign')" :key="`${card.id}-s-${rk}`" class="pc-role-chip" :style="chipStyleByKey(rk)">
-										<span class="pc-dot" :style="{ background: roleColorByKey(rk) }"></span>
-										{{ roleNameByKey(rk) }}
+										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'sign', rk) }"></span>
+										{{ effectiveRoleName(card, 'sign', rk) }}
 									</span>
-									<span v-if="!getEffectivePerms(card, 'sign').length" class="muted-dash">—</span>
+									<span v-if="!getEffectivePerms(card, 'sign').length" :class="isExplicitAction(card, 'sign') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'sign') ? 'Nobody' : '—' }}</span>
 								</div>
 							</td>
 							<td class="pc-col-perms">
 								<div class="pc-role-chips">
 									<span v-for="rk in getEffectivePerms(card, 'verify')" :key="`${card.id}-v-${rk}`" class="pc-role-chip" :style="chipStyleByKey(rk)">
-										<span class="pc-dot" :style="{ background: roleColorByKey(rk) }"></span>
-										{{ roleNameByKey(rk) }}
+										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'verify', rk) }"></span>
+										{{ effectiveRoleName(card, 'verify', rk) }}
 									</span>
-									<span v-if="!getEffectivePerms(card, 'verify').length" class="muted-dash">—</span>
+									<span v-if="!getEffectivePerms(card, 'verify').length" :class="isExplicitAction(card, 'verify') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'verify') ? 'Nobody' : '—' }}</span>
+								</div>
+							</td>
+							<td class="pc-col-perms">
+								<div class="pc-role-chips">
+									<span v-for="rk in getEffectivePerms(card, 'view')" :key="`${card.id}-vw-${rk}`" class="pc-role-chip" :style="{ borderColor: effectiveRoleColor(card, 'view', rk) }">
+										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'view', rk) }"></span>
+										{{ effectiveRoleName(card, 'view', rk) }}
+									</span>
+									<span v-if="!getEffectivePerms(card, 'view').length" :class="isExplicitAction(card, 'view') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'view') ? 'Nobody' : '—' }}</span>
 								</div>
 							</td>
 							<td class="pc-col-actions" @click.stop>
-							<NcButton v-if="card.hasExplicitPolicy" type="tertiary" size="small" aria-label="Reset to board defaults" @click="resetCard(card)" title="Reset to board defaults">
-								<template #icon>↺</template>
-							</NcButton>
+								<NcButton v-if="card.hasAnyOverride" type="tertiary" size="small" aria-label="Reset to DRASCI defaults" @click="resetCard(card)" title="Reset all actions to DRASCI defaults">
+									<template #icon>↺</template>
+								</NcButton>
 							</td>
 						</tr>
 					</tbody>
@@ -142,22 +148,28 @@
 					</div>
 					
 					<div class="pc-fab-controls">
-						<div class="pc-fab-field">
-							<label>Move:</label>
-							<NcSelect v-model="bulkEdits.move" :options="roleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" placeholder="Select roles..." />
-						</div>
-						<div class="pc-fab-field">
-							<label>Sign:</label>
-							<NcSelect v-model="bulkEdits.sign" :options="roleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" placeholder="Select roles..." />
-						</div>
-						<div class="pc-fab-field">
-							<label>Verify:</label>
-							<NcSelect v-model="bulkEdits.verify" :options="roleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" placeholder="Select roles..." />
+						<div v-for="action in policyActions" :key="action" class="pc-fab-field">
+							<label>{{ actionLabel(action) }}:</label>
+							<select v-model="bulkEdits[action].mode" class="pc-mode-select" @change="bulkEdits[action].dirty = true">
+								<option value="unchanged">Unchanged</option>
+								<option value="inherit">Inherit DRASCI</option>
+								<option value="override">Override</option>
+							</select>
+							<NcSelect
+								v-if="bulkEdits[action].mode === 'override'"
+								v-model="bulkEdits[action].roles"
+								:options="roleOptions"
+								label="label"
+								track-by="value"
+								:multiple="true"
+								:close-on-select="false"
+								placeholder="Nobody"
+								@input="bulkEdits[action].dirty = true" />
 						</div>
 					</div>
 
 					<div class="pc-fab-actions">
-						<NcButton type="primary" :loading="savingBulk" @click="saveBulk">Apply Rules</NcButton>
+						<NcButton type="primary" :loading="savingBulk" :disabled="!hasBulkChanges" @click="saveBulk">Apply Rules</NcButton>
 						<NcButton type="tertiary" :loading="savingBulk" @click="resetBulk" title="Remove custom rules from selected cards">Reset to Defaults</NcButton>
 					</div>
 				</div>
@@ -168,19 +180,23 @@
 		<NcModal v-if="showDefaultsModal" @close="showDefaultsModal = false" title="Board Defaults" size="normal">
 			<div class="pc-modal-content">
 				<div class="pc-modal-header-desc">
-					<p>These permissions apply automatically to any card that does not have custom overrides set.</p>
+					<p>These DRASCI permissions apply whenever a card action has no explicit functional-role override.</p>
 				</div>
 				<div class="pc-modal-field">
 					<label>Who can move cards</label>
-					<NcSelect v-model="defaults.move" :options="roleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
+					<NcSelect v-model="defaults.move" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-field">
 					<label>Who can sign cards</label>
-					<NcSelect v-model="defaults.sign" :options="roleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
+					<NcSelect v-model="defaults.sign" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-field">
 					<label>Who can verify / mark done</label>
-					<NcSelect v-model="defaults.verify" :options="roleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
+					<NcSelect v-model="defaults.verify" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
+				</div>
+				<div class="pc-modal-field">
+					<label>Who can view cards</label>
+					<NcSelect v-model="defaults.view" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-footer">
 					<NcButton @click="showDefaultsModal = false">Cancel</NcButton>
@@ -382,13 +398,16 @@ export default {
 	data() {
 		return {
 			loading: false,
+			loadGeneration: 0,
 			error: '',
 			
-			settings: { permissionMode: 'legacy', approvedStackId: null, doneStackId: null },
+			settings: { permissionMode: 'legacy', policyVersion: 1, revision: 0, approvedStackId: null, doneStackId: null },
+			drasciRoles: [],
 			roles: [],
 			memberships: [],
-			defaults: { move: [], sign: [], verify: [] },
-			defaultRoleKeys: { move: [], sign: [], verify: [] },
+			defaults: { move: [], sign: [], verify: [], view: [] },
+			defaultRoleKeys: { move: [], sign: [], verify: [], view: [] },
+			policyActions: ['move', 'sign', 'verify', 'view'],
 			
 			cards: [],
 			stacks: [],
@@ -417,7 +436,12 @@ export default {
 			newMembership: { role: null, user: null },
 			newRole: { name: '', roleKey: '', color: '#111111' },
 			newRoleKeyTouched: false,
-			bulkEdits: { move: [], sign: [], verify: [] },
+			bulkEdits: {
+				move: { mode: 'unchanged', roles: [], dirty: false },
+				sign: { mode: 'unchanged', roles: [], dirty: false },
+				verify: { mode: 'unchanged', roles: [], dirty: false },
+				view: { mode: 'unchanged', roles: [], dirty: false },
+			},
 			
 			// Spinners
 			savingDefaults: false,
@@ -428,7 +452,17 @@ export default {
 	},
 	computed: {
 		boardIdNum() { return Number(this.boardId) },
+		isV2() { return Number(this.settings?.policyVersion || 1) >= 2 },
 		roleOptions() { return this.roles.map(r => ({ value: r.roleKey, label: r.name })) },
+		drasciRoleOptions() { return this.drasciRoles.map(r => ({ value: r.key, label: r.name })) },
+		drasciByKey() {
+			const map = {}
+			for (const role of this.drasciRoles) map[role.key] = role
+			return map
+		},
+		hasBulkChanges() {
+			return this.policyActions.some(action => this.bulkEdits[action].dirty)
+		},
 		roleNameById() {
 			const map = {}
 			for (const r of this.roles) map[r.id] = r.name
@@ -447,7 +481,7 @@ export default {
 			const q = (this.cardSearch || '').toLowerCase()
 			const filtered = (this.cards || [])
 				.filter(c => (this.stackFilter && Number(c.stackId) !== Number(this.stackFilter)) ? false : true)
-				.filter(c => (this.showOnlyCustom ? !!c.hasExplicitPolicy : true))
+				.filter(c => (this.showOnlyCustom ? !!c.hasAnyOverride : true))
 				.filter(c => (q ? String(c.title || '').toLowerCase().includes(q) : true))
 
 			return filtered.sort((a, b) => {
@@ -473,20 +507,23 @@ export default {
 			immediate: true,
 		},
 		selectedCardIds(newIds) {
-			// Auto-fill bulk edits if exactly 1 is selected or if we want to intelligently pre-fill
 			if (newIds.length === 1) {
 				const card = this.cards.find(c => c.id === newIds[0])
 				if (card) {
-					const perms = card.effectivePolicy || {}
-					const moveKeys = perms.move || []
-					const signKeys = perms.sign || []
-					const verifyKeys = perms.verify || []
-					this.bulkEdits.move = moveKeys.map(v => ({ value: v, label: this.roleOptions.find(o => o.value === v)?.label || v }))
-					this.bulkEdits.sign = signKeys.map(v => ({ value: v, label: this.roleOptions.find(o => o.value === v)?.label || v }))
-					this.bulkEdits.verify = verifyKeys.map(v => ({ value: v, label: this.roleOptions.find(o => o.value === v)?.label || v }))
+					for (const action of this.policyActions) {
+						const state = card.actions?.[action] || { mode: 'inherit', allowedFunctionalRoleKeys: [] }
+						this.bulkEdits[action] = {
+							mode: state.mode,
+							dirty: false,
+							roles: (state.allowedFunctionalRoleKeys || []).map(value => ({
+								value,
+								label: this.roleOptions.find(option => option.value === value)?.label || value,
+							})),
+						}
+					}
 				}
-			} else if (newIds.length === 0) {
-				this.bulkEdits = { move: [], sign: [], verify: [] }
+			} else {
+				this.resetBulkEditor()
 			}
 		},
 		'newRole.name'(val) {
@@ -496,6 +533,13 @@ export default {
 	},
 	methods: {
 		unwrap(data) { return data?.ocs?.data || data },
+		errorMessage(error, fallback) {
+			return error?.response?.data?.error
+				|| error?.response?.data?.ocs?.data?.message
+				|| error?.response?.data?.message
+				|| error?.message
+				|| fallback
+		},
 		normStr(input) {
 			return String(input || '')
 				.trim()
@@ -525,38 +569,64 @@ export default {
 			this.newRole = { name: '', roleKey: '', color: '#111111' }
 			this.newRoleKeyTouched = false
 		},
+		resetBulkEditor() {
+			this.bulkEdits = {
+				move: { mode: 'unchanged', roles: [], dirty: false },
+				sign: { mode: 'unchanged', roles: [], dirty: false },
+				verify: { mode: 'unchanged', roles: [], dirty: false },
+				view: { mode: 'unchanged', roles: [], dirty: false },
+			}
+		},
 		async load() {
+			const generation = ++this.loadGeneration
+			const requestedBoardId = this.boardIdNum
 			this.loading = true
 			this.error = ''
 			try {
 				const [raw, stacks] = await Promise.all([
-					deckService.getCardPolicy(this.boardIdNum),
-					deckService.listStacks(this.boardIdNum),
+					deckService.getCardPolicy(requestedBoardId),
+					deckService.listStacks(requestedBoardId),
 				])
+				if (generation !== this.loadGeneration || requestedBoardId !== this.boardIdNum) return
 				const data = this.unwrap(raw)
-				this.settings = data.settings || { permissionMode: 'legacy', approvedStackId: null, doneStackId: null }
-				this.roles = data.roles || []
+				this.settings = data.settings || { permissionMode: 'legacy', policyVersion: 1, revision: 0, approvedStackId: null, doneStackId: null }
+				this.drasciRoles = data.drasciRoles || [
+					{ key: 'driver', name: 'Driver' },
+					{ key: 'responsible', name: 'Responsible' },
+					{ key: 'accountable', name: 'Accountable' },
+					{ key: 'supportive', name: 'Supportive' },
+					{ key: 'consulted', name: 'Consulted' },
+					{ key: 'informed', name: 'Informed' },
+				]
+				this.roles = data.functionalRoles || data.roles || []
 				this.memberships = data.memberships || []
-				const defaults = data.defaultRoleKeys || { move: [], sign: [], verify: [] }
+				const defaults = data.defaults || data.defaultRoleKeys || { move: [], sign: [], verify: [], view: [] }
 				const legacyApprove = Array.isArray(defaults.approve) ? defaults.approve : []
 				this.defaultRoleKeys = {
 					move: defaults.move || [],
 					sign: defaults.sign || legacyApprove,
 					verify: defaults.verify || legacyApprove,
+					view: defaults.view || [],
 				}
+				const defaultOptions = this.isV2 ? this.drasciRoleOptions : this.roleOptions
 				this.defaults = {
-					move: (this.defaultRoleKeys.move || []).map(v => ({ value: v, label: this.roleOptions.find(o => o.value === v)?.label || v })),
-					sign: (this.defaultRoleKeys.sign || []).map(v => ({ value: v, label: this.roleOptions.find(o => o.value === v)?.label || v })),
-					verify: (this.defaultRoleKeys.verify || []).map(v => ({ value: v, label: this.roleOptions.find(o => o.value === v)?.label || v })),
+					move: (this.defaultRoleKeys.move || []).map(v => ({ value: v, label: defaultOptions.find(o => o.value === v)?.label || v })),
+					sign: (this.defaultRoleKeys.sign || []).map(v => ({ value: v, label: defaultOptions.find(o => o.value === v)?.label || v })),
+					verify: (this.defaultRoleKeys.verify || []).map(v => ({ value: v, label: defaultOptions.find(o => o.value === v)?.label || v })),
+					view: (this.defaultRoleKeys.view || []).map(v => ({ value: v, label: defaultOptions.find(o => o.value === v)?.label || v })),
 				}
 				this.stacks = (stacks || []).map(s => ({ id: Number(s.id), title: String(s.title || '') }))
-				this.cards = data.cards || []
+				this.cards = (data.cards || []).map(card => ({
+					...card,
+					hasAnyOverride: card.hasAnyOverride ?? card.hasExplicitPolicy ?? false,
+				}))
 				
 				this.selectedCardIds = this.selectedCardIds.filter(id => this.cards.some(c => c.id === id))
 			} catch (e) {
-				this.error = e?.response?.data?.ocs?.data?.message || e?.response?.data?.message || e?.message || 'Error loading permissions'
+				if (generation !== this.loadGeneration) return
+				this.error = this.errorMessage(e, 'Error loading permissions')
 			} finally {
-				this.loading = false
+				if (generation === this.loadGeneration) this.loading = false
 			}
 		},
 		async openTemplates() {
@@ -800,8 +870,35 @@ export default {
 		roleNameByKey(roleKey) { return this.roleByKey[roleKey]?.name || roleKey },
 		roleColorByKey(roleKey) { return this.roleByKey[roleKey]?.color || 'var(--color-border)' },
 		chipStyleByKey(roleKey) { return { borderColor: this.roleColorByKey(roleKey) } },
+		actionLabel(action) { return action.charAt(0).toUpperCase() + action.slice(1) },
+		isExplicitAction(card, action) { return card.actions?.[action]?.mode === 'override' },
+		overrideCount(card) {
+			return this.policyActions.filter(action => this.isExplicitAction(card, action)).length
+		},
+		effectiveRoleName(card, action, roleKey) {
+			return card.effectiveRules?.[action]?.source === 'drasci_default'
+				? (this.drasciByKey[roleKey]?.name || roleKey)
+				: this.roleNameByKey(roleKey)
+		},
+		effectiveRoleColor(card, action, roleKey) {
+			if (card.effectiveRules?.[action]?.source !== 'drasci_default') {
+				return this.roleColorByKey(roleKey)
+			}
+			const colors = {
+				driver: '#7C3AED',
+				responsible: '#2563EB',
+				accountable: '#DC2626',
+				supportive: '#059669',
+				consulted: '#D97706',
+				informed: '#64748B',
+			}
+			return colors[roleKey] || 'var(--color-border)'
+		},
 		
 		getEffectivePerms(card, type) {
+			if (card.effectiveRules?.[type]) {
+				return card.effectiveRules[type].roleKeys || []
+			}
 			if (card.hasExplicitPolicy && card.policy) {
 				if (type === 'sign' || type === 'verify') {
 					return card.policy[type] || card.policy.approve || []
@@ -840,47 +937,61 @@ export default {
 					move: this.defaults.move.map(o => o.value),
 					sign: this.defaults.sign.map(o => o.value),
 					verify: this.defaults.verify.map(o => o.value),
+					view: this.defaults.view.map(o => o.value),
+					expectedRevision: Number(this.settings.revision || 0),
 				})
 				showSuccess('Board defaults updated')
 				this.showDefaultsModal = false
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error saving defaults')
+				showError(this.errorMessage(e, 'Error saving defaults'))
 			} finally {
 				this.savingDefaults = false
 			}
 		},
 		async resetCard(card) {
 			try {
-				await deckService.clearCardPolicy(this.boardIdNum, card.id)
+				const response = await deckService.clearCardPolicy(this.boardIdNum, card.id, {
+					expectedRevision: Number(this.settings.revision || 0),
+				})
+				if (response?.revision !== undefined) this.settings.revision = Number(response.revision)
 				showSuccess('Card reset to default')
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error resetting card')
+				showError(this.errorMessage(e, 'Error resetting card'))
 			}
 		},
 		async saveBulk() {
 			if (this.selectedCardIds.length === 0) return
 			this.savingBulk = true
 			let errors = 0
+			let lastError = null
 			try {
-				const payload = {
-					move: this.bulkEdits.move.map(o => o.value),
-					sign: this.bulkEdits.sign.map(o => o.value),
-					verify: this.bulkEdits.verify.map(o => o.value),
-				}
-				for (let i = 0; i < this.selectedCardIds.length; i += 5) {
-					const batch = this.selectedCardIds.slice(i, i + 5)
-					await Promise.all(batch.map(async cardId => {
-						try { await deckService.setCardPolicy(this.boardIdNum, cardId, payload) } 
-						catch (e) { errors++ }
-					}))
+				for (const cardId of this.selectedCardIds) {
+					for (const action of this.policyActions) {
+						const edit = this.bulkEdits[action]
+						if (!edit.dirty) continue
+						try {
+							const response = await deckService.updateCardPolicyAction(this.boardIdNum, cardId, action, {
+								mode: edit.mode,
+								allowedFunctionalRoleKeys: edit.mode === 'override' ? edit.roles.map(role => role.value) : [],
+								expectedRevision: Number(this.settings.revision || 0),
+							})
+							if (response?.revision !== undefined) this.settings.revision = Number(response.revision)
+						} catch (e) {
+							errors++
+							lastError = e
+						}
+					}
 				}
 				
-				if (errors > 0) showError(`Failed to update ${errors} cards`)
-				else showSuccess(`Updated ${this.selectedCardIds.length} cards`)
-				
-				this.selectedCardIds = []
+				if (errors > 0) {
+					showError(`${errors} action updates failed. ${this.errorMessage(lastError, '')}`.trim())
+				} else {
+					showSuccess(`Updated ${this.selectedCardIds.length} cards`)
+					this.selectedCardIds = []
+					this.resetBulkEditor()
+				}
 				await this.load()
 			} finally {
 				this.savingBulk = false
@@ -890,19 +1001,30 @@ export default {
 			if (this.selectedCardIds.length === 0) return
 			this.savingBulk = true
 			let errors = 0
+			let lastError = null
 			try {
 				for (let i = 0; i < this.selectedCardIds.length; i += 5) {
 					const batch = this.selectedCardIds.slice(i, i + 5)
-					await Promise.all(batch.map(async cardId => {
-						try { await deckService.clearCardPolicy(this.boardIdNum, cardId) } 
-						catch (e) { errors++ }
-					}))
+					for (const cardId of batch) {
+						try {
+							const response = await deckService.clearCardPolicy(this.boardIdNum, cardId, {
+								expectedRevision: Number(this.settings.revision || 0),
+							})
+							if (response?.revision !== undefined) this.settings.revision = Number(response.revision)
+						} catch (e) {
+							errors++
+							lastError = e
+						}
+					}
 				}
 				
-				if (errors > 0) showError(`Failed to reset ${errors} cards`)
-				else showSuccess(`Reset ${this.selectedCardIds.length} cards`)
-				
-				this.selectedCardIds = []
+				if (errors > 0) {
+					showError(`Failed to reset ${errors} cards. ${this.errorMessage(lastError, '')}`.trim())
+				} else {
+					showSuccess(`Reset ${this.selectedCardIds.length} cards`)
+					this.selectedCardIds = []
+					this.resetBulkEditor()
+				}
 				await this.load()
 			} finally {
 				this.savingBulk = false
@@ -1201,6 +1323,7 @@ export default {
 	color: var(--pc-text-muted);
 }
 .muted-dash { color: var(--pc-border); font-weight: bold; }
+.pc-nobody { color: var(--color-error); font-size: 12px; font-weight: 600; }
 
 /* Chips inside table */
 .pc-role-chips {
@@ -1235,7 +1358,7 @@ export default {
 	padding: 12px 24px;
 	gap: 32px;
 	z-index: 50;
-	white-space: nowrap;
+	max-width: calc(100% - 48px);
 }
 .pc-fab-left {
 	display: flex;
@@ -1250,6 +1373,7 @@ export default {
 }
 .pc-fab-controls {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 24px;
 	border-left: 1px solid var(--pc-border);
 	border-right: 1px solid var(--pc-border);
@@ -1261,6 +1385,12 @@ export default {
 	gap: 12px;
 }
 .pc-fab-field label { font-weight: 600; font-size: 14px; }
+.pc-mode-select {
+	padding: 7px 10px;
+	border: 1px solid var(--pc-border);
+	border-radius: 8px;
+	background: var(--pc-bg);
+}
 /* Override specific to select in FAB */
 .pc-fab-field ::v-deep .multiselect { min-width: 220px; }
 .pc-fab-actions {

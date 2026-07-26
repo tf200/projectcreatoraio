@@ -98,7 +98,9 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicySettingMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultRoleMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultDrasciMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyMapper;
+use OCA\ProjectCreatorAIO\Db\CardPolicyOverrideMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Controller\PolicyApiController;
@@ -219,6 +221,8 @@ class Application extends App implements IBootstrap {
 				$deckEnabled ? $c->get(PermissionService::class) : null,
 				$c->get(LoggerInterface::class),
 				$c->get(ProjectMemberRoleMapper::class),
+				$c->get(BoardPolicyRoleMapper::class),
+				$c->get(BoardPolicyMembershipMapper::class),
 				$c->get(CardPolicyService::class),
 			);
 		});
@@ -242,8 +246,14 @@ class Application extends App implements IBootstrap {
 		$context->registerService(BoardPolicyDefaultRoleMapper::class, function (ContainerInterface $c) {
 			return new BoardPolicyDefaultRoleMapper($c->get(IDBConnection::class));
 		});
+		$context->registerService(BoardPolicyDefaultDrasciMapper::class, function (ContainerInterface $c) {
+			return new BoardPolicyDefaultDrasciMapper($c->get(IDBConnection::class));
+		});
 		$context->registerService(CardPolicyMapper::class, function (ContainerInterface $c) {
 			return new CardPolicyMapper($c->get(IDBConnection::class));
+		});
+		$context->registerService(CardPolicyOverrideMapper::class, function (ContainerInterface $c) {
+			return new CardPolicyOverrideMapper($c->get(IDBConnection::class));
 		});
 		$context->registerService(CardPolicyRoleMapper::class, function (ContainerInterface $c) {
 			return new CardPolicyRoleMapper($c->get(IDBConnection::class));
@@ -258,10 +268,14 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardPolicySettingMapper::class),
 				$c->get(BoardPolicyRoleMapper::class),
 				$c->get(BoardPolicyMembershipMapper::class),
+				$c->get(BoardPolicyDefaultDrasciMapper::class),
 				$c->get(BoardPolicyDefaultRoleMapper::class),
 				$c->get(CardPolicyMapper::class),
+				$c->get(CardPolicyOverrideMapper::class),
 				$c->get(CardPolicyRoleMapper::class),
 				$c->get(ProjectMapper::class),
+				$c->get(ProjectMemberRoleMapper::class),
+				$c->get(IDBConnection::class),
 				$c->get(IGroupManager::class),
 				$c->get(IUserManager::class),
 				$deckEnabled ? $c->get(CardMapper::class) : null,
@@ -279,8 +293,10 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardPolicySettingMapper::class),
 				$c->get(BoardPolicyRoleMapper::class),
 				$c->get(BoardPolicyMembershipMapper::class),
+				$c->get(BoardPolicyDefaultDrasciMapper::class),
 				$c->get(BoardPolicyDefaultRoleMapper::class),
 				$c->get(CardPolicyMapper::class),
+				$c->get(CardPolicyOverrideMapper::class),
 				$c->get(CardPolicyRoleMapper::class),
 				$c->get(CardPolicyService::class),
 				$c->get(IUserSession::class),

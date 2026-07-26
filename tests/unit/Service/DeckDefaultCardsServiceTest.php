@@ -85,11 +85,14 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 			$this->createMock(LoggerInterface::class),
 		);
 
-		$service->seedForProjectType(ProjectTypeDeckDefaults::TYPE_COMBI, $board, $owner);
+		$seededCards = $service->seedForProjectType(ProjectTypeDeckDefaults::TYPE_COMBI, $board, $owner);
 
 		$upperBound = (new DateTime())->add(new DateInterval('P3M'))->modify('+5 seconds');
 
 		$this->assertCount($expectedCardCount, $capturedDueDates);
+		$this->assertCount($expectedCardCount, $seededCards);
+		$this->assertArrayHasKey('combi.avp', $seededCards);
+		$this->assertArrayHasKey('combi.guarantee_agreement', $seededCards);
 		foreach ($capturedDueDates as $dueDate) {
 			$this->assertInstanceOf(DateTimeInterface::class, $dueDate);
 			$this->assertGreaterThanOrEqual($lowerBound->getTimestamp(), $dueDate->getTimestamp());
@@ -131,8 +134,16 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 			->with(15)
 			->willReturn([$processStepsStack, $nextPriorityStack]);
 
+		$cardService = $this->createMock(CardService::class);
+		$nextCardId = 2000;
+		$cardService->method('create')->willReturnCallback(static function () use (&$nextCardId): Card {
+			$card = new Card();
+			$card->setId($nextCardId++);
+			return $card;
+		});
+
 		$service = new DeckDefaultCardsService(
-			$this->createMock(CardService::class),
+			$cardService,
 			$this->createMock(LabelService::class),
 			$stackService,
 			$boardService,

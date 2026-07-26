@@ -307,6 +307,11 @@ return [
             "verb" => "PUT",
         ],
         [
+            "name" => "policy_api#updateCardPolicyAction",
+            "url" => "/api/v1/boards/{boardId}/policy/cards/{cardId}/actions/{action}",
+            "verb" => "PUT",
+        ],
+        [
             "name" => "policy_api#clearCardPolicy",
             "url" => "/api/v1/boards/{boardId}/policy/cards/{cardId}",
             "verb" => "DELETE",

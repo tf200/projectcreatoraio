@@ -31,19 +31,20 @@ class DeckDefaultCardsService
 	) {
 	}
 
-	public function seedForProjectType(int $projectType, Board $board, IUser $owner): void
+	/** @return array<string, \OCA\Deck\Db\Card> */
+	public function seedForProjectType(int $projectType, Board $board, IUser $owner): array
 	{
 		$nextPriorityCards = ProjectTypeDeckDefaults::getNextPriorityCards($projectType);
 		$processStepCards = ProjectTypeDeckDefaults::getProcessStepCards($projectType);
 
 		if ($nextPriorityCards === [] && $processStepCards === []) {
-			return;
+			return [];
 		}
 
 		try {
 			$boardId = (int)$board->getId();
 			if ($boardId <= 0) {
-				return;
+				return [];
 			}
 
 			$board = $this->boardService->find($boardId, true);
@@ -58,12 +59,12 @@ class DeckDefaultCardsService
 					'hasProcessSteps' => $processStepsStack !== null,
 					'hasNextPriority' => $nextPriorityStack !== null,
 				]);
-				return;
+				return [];
 			}
 
 			$importantLabelId = $this->ensureImportantLabelId($boardId, $board, $owner);
 
-			$this->seedCardsIntoStack(
+			$seededCards = $this->seedCardsIntoStack(
 				$boardId,
 				$nextPriorityStack,
 				$nextPriorityCards,
@@ -71,19 +72,22 @@ class DeckDefaultCardsService
 				$importantLabelId,
 			);
 
-			$this->seedCardsIntoStack(
+			$seededCards += $this->seedCardsIntoStack(
 				$boardId,
 				$processStepsStack,
 				$processStepCards,
 				$owner->getUID(),
 				$importantLabelId,
 			);
+
+			return $seededCards;
 		} catch (Throwable $e) {
 			$this->logger->error('Deck default card seeding failed', [
 				'exception' => $e,
 				'boardId' => $board->getId(),
 				'projectType' => $projectType,
 			]);
+			throw $e;
 		}
 	}
 
@@ -174,10 +178,12 @@ class DeckDefaultCardsService
 	}
 
 	/**
-	 * @param array<int, array{title: string, important: bool}> $cards
+	 * @param array<int, array{key: string, title: string, important: bool}> $cards
+	 * @return array<string, \OCA\Deck\Db\Card>
 	 */
-	private function seedCardsIntoStack(int $boardId, Stack $stack, array $cards, string $ownerUid, ?int $importantLabelId): void
+	private function seedCardsIntoStack(int $boardId, Stack $stack, array $cards, string $ownerUid, ?int $importantLabelId): array
 	{
+		$seededCards = [];
 		foreach ($cards as $index => $cardTemplate) {
 			try {
 				$card = $this->cardService->create(
@@ -190,19 +196,31 @@ class DeckDefaultCardsService
 					$this->buildDefaultCardDeadline(),
 					new DateTime(),
 				);
-
-				if ($importantLabelId !== null && ($cardTemplate['important'] ?? false)) {
-					$this->cardService->assignLabel((int)$card->getId(), $importantLabelId);
-				}
 			} catch (Throwable $e) {
-				$this->logger->warning('Deck default card seeding: unable to create/label card', [
+				$this->logger->error('Deck default card seeding: unable to create card', [
 					'exception' => $e,
 					'stackId' => $stack->getId(),
 					'stackOrder' => $stack->getOrder(),
 					'title' => $cardTemplate['title'] ?? null,
 				]);
+				throw $e;
+			}
+
+			$seededCards[$cardTemplate['key']] = $card;
+			if ($importantLabelId !== null && ($cardTemplate['important'] ?? false)) {
+				try {
+					$this->cardService->assignLabel((int)$card->getId(), $importantLabelId);
+				} catch (Throwable $e) {
+					$this->logger->warning('Deck default card seeding: unable to assign important label', [
+						'exception' => $e,
+						'cardId' => (int)$card->getId(),
+						'title' => $cardTemplate['title'] ?? null,
+					]);
+				}
 			}
 		}
+
+		return $seededCards;
 	}
 
 	private function buildDefaultCardDeadline(): DateTime

@@ -146,6 +146,7 @@ class ProjectApiController extends Controller
 
         return new DataResponse([
             'members' => $members,
+            'functionalRoles' => $this->projectService->getProjectFunctionalRoles($projectId),
         ]);
     }
 
@@ -163,14 +164,22 @@ class ProjectApiController extends Controller
             $drasciRole = $params['drasciRole'];
         }
 
+        $functionalRoleKeys = null;
+        if (is_array($params) && array_key_exists('functionalRoleKeys', $params) && is_array($params['functionalRoleKeys'])) {
+            $functionalRoleKeys = $params['functionalRoleKeys'];
+        }
+
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
             throw new OCSNotFoundException("Project with ID $projectId not found");
         }
 
         $this->assertCanAccessProject($project);
+        if (!$this->canEditPreparationWeeks($project)) {
+            throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+        }
 
-        $result = $this->projectService->addMemberToProject($projectId, $userId, $drasciRole);
+        $result = $this->projectService->addMemberToProject($projectId, $userId, $drasciRole, $functionalRoleKeys);
 
         return new DataResponse($result, $result['added'] ? 201 : 200);
     }
@@ -180,9 +189,14 @@ class ProjectApiController extends Controller
     public function updateMemberRole(int $projectId, string $userId): DataResponse
     {
         $params = $this->request->getParams();
-        $drasciRole = '';
+        $drasciRole = null;
         if (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
             $drasciRole = $params['drasciRole'];
+        }
+
+        $functionalRoleKeys = null;
+        if (is_array($params) && array_key_exists('functionalRoleKeys', $params) && is_array($params['functionalRoleKeys'])) {
+            $functionalRoleKeys = $params['functionalRoleKeys'];
         }
 
         $project = $this->projectMapper->find($projectId);
@@ -191,8 +205,11 @@ class ProjectApiController extends Controller
         }
 
         $this->assertCanAccessProject($project);
+        if (!$this->canEditPreparationWeeks($project)) {
+            throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+        }
 
-        $result = $this->projectService->updateProjectMemberDrasciRole($projectId, $userId, $drasciRole);
+        $result = $this->projectService->updateProjectMemberRoles($projectId, $userId, $drasciRole, $functionalRoleKeys);
 
         return new DataResponse($result);
     }

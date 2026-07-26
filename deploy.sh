@@ -23,9 +23,15 @@ fi
 # ==========================================
 # 1. BUILD LOCAL ASSETS
 # ==========================================
-echo "📦 Building local assets..."
-npm run build
-composer install --no-dev --no-scripts
+if command -v npm >/dev/null 2>&1 && command -v composer >/dev/null 2>&1; then
+  echo "📦 Building assets locally..."
+  npm run build
+  composer install --no-dev --no-scripts
+else
+  echo "📦 Building assets using Docker (local tools not found)..."
+  docker run --rm -v "$PWD:/app" -w /app node:20-alpine sh -c "npm install && npm run build"
+  docker run --rm -v "$PWD:/app" -u "$(id -u):$(id -g)" composer install --no-dev --no-scripts
+fi
 
 # ==========================================
 # 2. RSYNC FILES TO VPS (Syncing to custom_apps volume)

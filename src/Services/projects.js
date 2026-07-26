@@ -188,22 +188,31 @@ export class ProjectsService {
      * List project members.
      *
      * @param {number} projectId
-     * @returns {Promise<Array<{id:string,displayName:string,email:string,isOwner:boolean}>>}
+     * @returns {Promise<Array<object>>}
      */
     async listMembers(projectId) {
-        try {
-            const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`)
-            const response = await axios.get(url, {
-                headers: {
-                    'OCS-APIRequest': 'true',
-                    'Content-Type': 'application/json',
-                },
-            })
+        const result = await this.listMembersWithRoles(projectId)
+        return result.members
+    }
 
-            return response?.data?.members ?? []
-        } catch (e) {
-            console.error('Failed to list project members:', e)
-            return []
+    /**
+     * List members together with the board's available functional roles.
+     *
+     * @param {number} projectId
+     * @returns {Promise<{members:Array<object>,functionalRoles:Array<{key:string,name:string}>}>}
+     */
+    async listMembersWithRoles(projectId) {
+        const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`)
+        const response = await axios.get(url, {
+            headers: {
+                'OCS-APIRequest': 'true',
+                'Content-Type': 'application/json',
+            },
+        })
+
+        return {
+            members: response?.data?.members ?? [],
+            functionalRoles: response?.data?.functionalRoles ?? [],
         }
     }
 
@@ -213,11 +222,12 @@ export class ProjectsService {
      * @param {number} projectId
      * @param {string} userId
      * @param {string} drasciRole
+     * @param {string[]} functionalRoleKeys
      * @returns {Promise<{added:boolean,alreadyMember:boolean,member:object}|null>}
      */
-    async addMember(projectId, userId, drasciRole) {
+    async addMember(projectId, userId, drasciRole, functionalRoleKeys) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`)
-        const response = await axios.post(url, { userId, drasciRole }, {
+        const response = await axios.post(url, { userId, drasciRole, functionalRoleKeys }, {
             headers: {
                 'OCS-APIRequest': 'true',
                 'Content-Type': 'application/json',
@@ -228,16 +238,24 @@ export class ProjectsService {
     }
 
     /**
-     * Update a member's DRASCI role.
+     * Update either role dimension for a project member.
      *
      * @param {number} projectId
      * @param {string} userId
-     * @param {string} drasciRole
+     * @param {string|undefined} drasciRole
+     * @param {string[]|undefined} functionalRoleKeys
      * @returns {Promise<{member:object}|null>}
      */
-    async updateMemberRole(projectId, userId, drasciRole) {
+    async updateMemberRole(projectId, userId, drasciRole = undefined, functionalRoleKeys = undefined) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members/${encodeURIComponent(userId)}/role`)
-        const response = await axios.put(url, { drasciRole }, {
+        const payload = {}
+        if (drasciRole !== undefined) {
+            payload.drasciRole = drasciRole
+        }
+        if (functionalRoleKeys !== undefined) {
+            payload.functionalRoleKeys = functionalRoleKeys
+        }
+        const response = await axios.put(url, payload, {
             headers: {
                 'OCS-APIRequest': 'true',
                 'Content-Type': 'application/json',

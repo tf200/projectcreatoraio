@@ -10,10 +10,14 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembership;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultDrasci;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultDrasciMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultRole;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyDefaultRoleMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicy;
 use OCA\ProjectCreatorAIO\Db\CardPolicyMapper;
+use OCA\ProjectCreatorAIO\Db\CardPolicyOverride;
+use OCA\ProjectCreatorAIO\Db\CardPolicyOverrideMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
@@ -21,6 +25,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
+use OCP\AppFramework\OCS\OCSException;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
@@ -29,14 +34,38 @@ use OCP\IDBConnection;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class PolicyApiController extends Controller {
+	private const POLICY_VERSION_DRASCI = 2;
+	private const ACTIONS = ['view', 'move', 'sign', 'verify'];
+	private const DRASCI_ROLES = [
+		'driver' => 'Driver',
+		'responsible' => 'Responsible',
+		'accountable' => 'Accountable',
+		'supportive' => 'Supportive',
+		'consulted' => 'Consulted',
+		'informed' => 'Informed',
+	];
+	private const STANDARD_FUNCTIONAL_ROLES = [
+		'cpl' => 'CPL',
+		'client_developer' => 'Client/Developer',
+		'grid_operator' => 'Grid operator (Elektra)',
+	];
+	private const DEFAULT_DRASCI = [
+		'view' => ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed'],
+		'move' => ['driver', 'responsible', 'supportive'],
+		'sign' => ['accountable'],
+		'verify' => ['accountable', 'responsible'],
+	];
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
 		private readonly BoardPolicySettingMapper $settingMapper,
 		private readonly BoardPolicyRoleMapper $roleMapper,
 		private readonly BoardPolicyMembershipMapper $membershipMapper,
+		private readonly BoardPolicyDefaultDrasciMapper $defaultDrasciMapper,
 		private readonly BoardPolicyDefaultRoleMapper $defaultRoleMapper,
 		private readonly CardPolicyMapper $cardPolicyMapper,
+		private readonly CardPolicyOverrideMapper $cardPolicyOverrideMapper,
 		private readonly CardPolicyRoleMapper $cardPolicyRoleMapper,
 		private readonly CardPolicyService $policyService,
 		private readonly IUserSession $userSession,
@@ -52,96 +81,171 @@ class PolicyApiController extends Controller {
 			$this->assertCanManagePolicy($boardId);
 
 			$settings = $this->settingMapper->findByBoard($boardId);
-			if ($settings === null) {
-				$settings = new BoardPolicySetting();
-				$settings->setBoardId($boardId);
-				$settings->setPermissionMode('legacy');
-				$settings = $this->settingMapper->insert($settings);
-			}
-
 			$roles = $this->roleMapper->findByBoard($boardId);
+			$memberships = $this->serializeMemberships($roles);
 
-			$membershipsData = [];
-			foreach ($roles as $role) {
-				$memberships = $this->membershipMapper->findByRole((int)$role->getId());
-				foreach ($memberships as $membership) {
-					$membershipsData[] = [
-						'id' => $membership->getId(),
-						'roleId' => $membership->getRoleId(),
-						'participant' => $membership->getParticipantId(),
-						'participantType' => $membership->getParticipantType() === 'user' ? 0 : 1,
-					];
-				}
+			if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+				return new JSONResponse($this->buildV2PolicyResponse($boardId, $settings, $roles, $memberships));
 			}
 
-			$defaultRoleKeys = [
-				'move' => [],
-				'sign' => [],
-				'verify' => [],
-				'view' => [],
-			];
-			$defaults = $this->defaultRoleMapper->findByBoard($boardId);
-			foreach ($defaults as $default) {
-				$role = $this->roleMapper->find((int)$default->getRoleId());
-				if ($role !== null) {
-					$defaultRoleKeys[$default->getAction()][] = $role->getRoleKey();
-				}
-			}
-
-			$cardsData = [];
-			if ($this->cardMapper !== null) {
-				$cards = $this->findBoardCards($boardId);
-				foreach ($cards as $card) {
-					$cardId = (int)$card['id'];
-					$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
-					$hasExplicitPolicy = $cardPolicy !== null;
-					$policyData = [
-						'move' => [],
-						'sign' => [],
-						'verify' => [],
-						'view' => [],
-					];
-
-					if ($hasExplicitPolicy) {
-						$rolesForCard = $this->cardPolicyRoleMapper->findByPolicy((int)$cardPolicy->getId());
-						foreach ($rolesForCard as $roleRelation) {
-							$role = $this->roleMapper->find((int)$roleRelation->getRoleId());
-							if ($role !== null) {
-								$policyData[$roleRelation->getAction()][] = $role->getRoleKey();
-							}
-						}
-					}
-
-					$effectivePolicy = [];
-					foreach (['move', 'sign', 'verify', 'view'] as $act) {
-						if ($hasExplicitPolicy) {
-							$effectivePolicy[$act] = $policyData[$act];
-						} else {
-							$effectivePolicy[$act] = $defaultRoleKeys[$act];
-						}
-					}
-
-					$cardsData[] = [
-						'id' => $cardId,
-						'title' => $card['title'],
-						'stackId' => (int)$card['stack_id'],
-						'hasExplicitPolicy' => $hasExplicitPolicy,
-						'policy' => $policyData,
-						'effectivePolicy' => $effectivePolicy,
-					];
-				}
-			}
-
-			return new JSONResponse([
-				'settings' => $settings,
-				'roles' => $roles,
-				'memberships' => $membershipsData,
-				'defaultRoleKeys' => $defaultRoleKeys,
-				'cards' => $cardsData,
-			]);
+			return new JSONResponse($this->buildV1PolicyResponse($boardId, $settings, $roles, $memberships));
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
 		}
+	}
+
+	/** @param BoardPolicyRole[] $roles */
+	private function serializeMemberships(array $roles): array {
+		$data = [];
+		foreach ($roles as $role) {
+			foreach ($this->membershipMapper->findByRole((int)$role->getId()) as $membership) {
+				$data[] = [
+					'id' => $membership->getId(),
+					'roleId' => $membership->getRoleId(),
+					'participant' => $membership->getParticipantId(),
+					'participantType' => $membership->getParticipantType() === 'user' ? 0 : 1,
+				];
+			}
+		}
+
+		return $data;
+	}
+
+	/** @param BoardPolicyRole[] $roles */
+	private function buildV2PolicyResponse(int $boardId, BoardPolicySetting $settings, array $roles, array $memberships): array {
+		$rolesById = [];
+		foreach ($roles as $role) {
+			$rolesById[(int)$role->getId()] = (string)$role->getRoleKey();
+		}
+
+		$defaults = array_fill_keys(self::ACTIONS, []);
+		foreach ($this->defaultDrasciMapper->findByBoard($boardId) as $default) {
+			$action = (string)$default->getAction();
+			$roleKey = (string)$default->getDrasciRole();
+			if (isset($defaults[$action], self::DRASCI_ROLES[$roleKey])) {
+				$defaults[$action][] = $roleKey;
+			}
+		}
+
+		$cardsData = [];
+		if ($this->cardMapper !== null) {
+			foreach ($this->findBoardCards($boardId) as $card) {
+				$cardId = (int)$card['id'];
+				$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
+				if ($cardPolicy !== null && (int)$cardPolicy->getBoardId() !== $boardId) {
+					$cardPolicy = null;
+				}
+
+				$overrideActions = [];
+				$roleKeysByAction = array_fill_keys(self::ACTIONS, []);
+				if ($cardPolicy !== null) {
+					foreach ($this->cardPolicyOverrideMapper->findByPolicy((int)$cardPolicy->getId()) as $override) {
+						$overrideActions[(string)$override->getAction()] = true;
+					}
+					foreach ($this->cardPolicyRoleMapper->findByPolicy((int)$cardPolicy->getId()) as $relation) {
+						$action = (string)$relation->getAction();
+						$roleKey = $rolesById[(int)$relation->getRoleId()] ?? null;
+						if (isset($roleKeysByAction[$action]) && $roleKey !== null) {
+							$roleKeysByAction[$action][] = $roleKey;
+						}
+					}
+				}
+
+				$actions = [];
+				$effectiveRules = [];
+				foreach (self::ACTIONS as $action) {
+					$isOverride = isset($overrideActions[$action]);
+					$roleKeys = array_values(array_unique($roleKeysByAction[$action]));
+					$actions[$action] = [
+						'mode' => $isOverride ? 'override' : 'inherit',
+						'allowedFunctionalRoleKeys' => $isOverride ? $roleKeys : [],
+					];
+					$effectiveRules[$action] = [
+						'source' => $isOverride ? 'functional_override' : 'drasci_default',
+						'roleKeys' => $isOverride ? $roleKeys : $defaults[$action],
+					];
+				}
+
+				$cardsData[] = [
+					'id' => $cardId,
+					'title' => $card['title'],
+					'stackId' => (int)$card['stack_id'],
+					'actions' => $actions,
+					'policy' => $actions,
+					'hasAnyOverride' => $overrideActions !== [],
+					'effectiveRules' => $effectiveRules,
+				];
+			}
+		}
+
+		$drasciRoles = [];
+		foreach (self::DRASCI_ROLES as $key => $name) {
+			$drasciRoles[] = ['key' => $key, 'name' => $name];
+		}
+
+		return [
+			'settings' => $settings,
+			'drasciRoles' => $drasciRoles,
+			'functionalRoles' => $roles,
+			'roles' => $roles,
+			'memberships' => $memberships,
+			'defaults' => $defaults,
+			'cards' => $cardsData,
+		];
+	}
+
+	/** @param BoardPolicyRole[] $roles */
+	private function buildV1PolicyResponse(int $boardId, ?BoardPolicySetting $settings, array $roles, array $memberships): array {
+		$rolesById = [];
+		foreach ($roles as $role) {
+			$rolesById[(int)$role->getId()] = (string)$role->getRoleKey();
+		}
+
+		$defaultRoleKeys = array_fill_keys(self::ACTIONS, []);
+		foreach ($this->defaultRoleMapper->findByBoard($boardId) as $default) {
+			$action = (string)$default->getAction();
+			$roleKey = $rolesById[(int)$default->getRoleId()] ?? null;
+			if (isset($defaultRoleKeys[$action]) && $roleKey !== null) {
+				$defaultRoleKeys[$action][] = $roleKey;
+			}
+		}
+
+		$cardsData = [];
+		if ($this->cardMapper !== null) {
+			foreach ($this->findBoardCards($boardId) as $card) {
+				$cardId = (int)$card['id'];
+				$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
+				$hasExplicitPolicy = $cardPolicy !== null && (int)$cardPolicy->getBoardId() === $boardId;
+				$policyData = array_fill_keys(self::ACTIONS, []);
+
+				if ($hasExplicitPolicy) {
+					foreach ($this->cardPolicyRoleMapper->findByPolicy((int)$cardPolicy->getId()) as $relation) {
+						$action = (string)$relation->getAction();
+						$roleKey = $rolesById[(int)$relation->getRoleId()] ?? null;
+						if (isset($policyData[$action]) && $roleKey !== null) {
+							$policyData[$action][] = $roleKey;
+						}
+					}
+				}
+
+				$cardsData[] = [
+					'id' => $cardId,
+					'title' => $card['title'],
+					'stackId' => (int)$card['stack_id'],
+					'hasExplicitPolicy' => $hasExplicitPolicy,
+					'policy' => $policyData,
+					'effectivePolicy' => $hasExplicitPolicy ? $policyData : $defaultRoleKeys,
+				];
+			}
+		}
+
+		return [
+			'settings' => $settings,
+			'roles' => $roles,
+			'memberships' => $memberships,
+			'defaultRoleKeys' => $defaultRoleKeys,
+			'cards' => $cardsData,
+		];
 	}
 
 	/**
@@ -172,52 +276,67 @@ class PolicyApiController extends Controller {
 		try {
 			$this->assertCanManagePolicy($boardId);
 
-			$settings = $this->settingMapper->findByBoard($boardId);
-			if ($settings === null) {
-				$settings = new BoardPolicySetting();
-				$settings->setBoardId($boardId);
-				$settings->setPermissionMode('card_policy');
-				$settings = $this->settingMapper->insert($settings);
-			} else {
-				$settings->setPermissionMode('card_policy');
-				$settings = $this->settingMapper->update($settings);
-			}
+			$this->db->beginTransaction();
+			try {
+				$settings = $this->settingMapper->findByBoard($boardId);
+				if ($settings !== null
+					&& $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI
+					&& $settings->getPermissionMode() === 'card_policy') {
+					$this->db->commit();
+					return new JSONResponse($settings);
+				}
 
-			$roles = $this->roleMapper->findByBoard($boardId);
-			if (empty($roles)) {
-				$rolesList = [
-					'cpl' => 'CPL',
-					'client_developer' => 'Client/Developer',
-					'grid_operator' => 'Grid operator (Elektra)',
-				];
-				$createdRoles = [];
-				foreach ($rolesList as $key => $name) {
+				$transitioningToV2 = $settings === null || $settings->getPolicyVersion() < self::POLICY_VERSION_DRASCI;
+				if ($settings === null) {
+					$settings = new BoardPolicySetting();
+					$settings->setBoardId($boardId);
+					$settings->setPermissionMode('card_policy');
+					$settings->setPolicyVersion(self::POLICY_VERSION_DRASCI);
+					$settings->setRevision(1);
+					$settings = $this->settingMapper->insert($settings);
+				} else {
+					if (!$this->settingMapper->incrementRevision($boardId)) {
+						throw new \RuntimeException('Unable to increment policy revision.');
+					}
+					$settings = $this->settingMapper->findByBoard($boardId);
+					if ($settings === null) {
+						throw new \RuntimeException('Board policy settings disappeared during update.');
+					}
+					$settings->setPermissionMode('card_policy');
+					$settings->setPolicyVersion(self::POLICY_VERSION_DRASCI);
+					$this->settingMapper->update($settings);
+				}
+
+				foreach (self::STANDARD_FUNCTIONAL_ROLES as $key => $name) {
+					if ($this->roleMapper->findByBoardAndKey($boardId, $key) !== null) {
+						continue;
+					}
 					$role = new BoardPolicyRole();
 					$role->setBoardId($boardId);
 					$role->setRoleKey($key);
 					$role->setRoleName($name);
-					$createdRoles[$key] = $this->roleMapper->insert($role);
+					$this->roleMapper->insert($role);
 				}
 
-				$defaultMappings = [
-					'move' => ['client_developer', 'cpl', 'grid_operator'],
-					'sign' => ['cpl', 'grid_operator'],
-					'verify' => ['cpl', 'grid_operator'],
-					'view' => ['client_developer', 'cpl', 'grid_operator'],
-				];
-				foreach ($defaultMappings as $action => $roleKeys) {
-					foreach ($roleKeys as $key) {
-						if (isset($createdRoles[$key])) {
-							$defaultRole = new BoardPolicyDefaultRole();
-							$defaultRole->setBoardId($boardId);
-							$defaultRole->setAction($action);
-							$defaultRole->setRoleId((int)$createdRoles[$key]->getId());
-							$this->defaultRoleMapper->insert($defaultRole);
+				if ($transitioningToV2 && $this->defaultDrasciMapper->findByBoard($boardId) === []) {
+					foreach (self::DEFAULT_DRASCI as $action => $roleKeys) {
+						foreach ($roleKeys as $roleKey) {
+							$this->insertDrasciDefault($boardId, $action, $roleKey);
 						}
 					}
 				}
+
+				if ($transitioningToV2) {
+					$this->policyService->preserveLegacyCardPolicyOverrides($boardId);
+				}
+
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
+			$settings = $this->settingMapper->findByBoard($boardId);
 			return new JSONResponse($settings);
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
@@ -258,35 +377,72 @@ class PolicyApiController extends Controller {
 		array $move = [],
 		array $sign = [],
 		array $verify = [],
-		array $view = []
+		array $view = [],
+		mixed $expectedRevision = null,
 	): JSONResponse {
 		try {
 			$this->assertCanManagePolicy($boardId);
+			$actions = ['move' => $move, 'sign' => $sign, 'verify' => $verify, 'view' => $view];
+			$settings = $this->settingMapper->findByBoard($boardId);
 
-			$existingDefaults = $this->defaultRoleMapper->findByBoard($boardId);
-			foreach ($existingDefaults as $default) {
-				$this->defaultRoleMapper->delete($default);
+			if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+				$this->assertV2Settings($settings);
+				$expectedRevision = $this->parseExpectedRevision($expectedRevision);
+				foreach ($actions as $action => $roleKeys) {
+					$actions[$action] = $this->normalizeDrasciRoleKeys($roleKeys);
+				}
+
+				$this->db->beginTransaction();
+				try {
+					$this->incrementRevision($boardId, $expectedRevision);
+					foreach ($this->defaultDrasciMapper->findByBoard($boardId) as $default) {
+						$this->defaultDrasciMapper->delete($default);
+					}
+					foreach ($actions as $action => $roleKeys) {
+						foreach ($roleKeys as $roleKey) {
+							$this->insertDrasciDefault($boardId, $action, $roleKey);
+						}
+					}
+					$this->db->commit();
+				} catch (\Throwable $e) {
+					$this->db->rollBack();
+					throw $e;
+				}
+
+				$settings = $this->settingMapper->findByBoard($boardId);
+				return new JSONResponse([
+					'success' => true,
+					'revision' => $settings?->getRevision(),
+					'defaults' => $actions,
+				]);
 			}
 
-			$actions = ['move' => $move, 'sign' => $sign, 'verify' => $verify, 'view' => $view];
-			foreach ($actions as $action => $roleKeys) {
-				foreach ($roleKeys as $roleKey) {
-					$roleKey = trim((string)$roleKey);
-					if ($roleKey === '') {
-						continue;
-					}
-
-					$role = $this->roleMapper->findByBoardAndKey($boardId, $roleKey);
-					if ($role === null) {
-						continue;
-					}
-
-					$defaultRole = new BoardPolicyDefaultRole();
-					$defaultRole->setBoardId($boardId);
-					$defaultRole->setAction($action);
-					$defaultRole->setRoleId((int)$role->getId());
-					$this->defaultRoleMapper->insert($defaultRole);
+			$this->db->beginTransaction();
+			try {
+				foreach ($this->defaultRoleMapper->findByBoard($boardId) as $default) {
+					$this->defaultRoleMapper->delete($default);
 				}
+				foreach ($actions as $action => $roleKeys) {
+					foreach ($roleKeys as $roleKey) {
+						$roleKey = trim((string)$roleKey);
+						if ($roleKey === '') {
+							continue;
+						}
+						$role = $this->roleMapper->findByBoardAndKey($boardId, $roleKey);
+						if ($role === null) {
+							continue;
+						}
+						$defaultRole = new BoardPolicyDefaultRole();
+						$defaultRole->setBoardId($boardId);
+						$defaultRole->setAction($action);
+						$defaultRole->setRoleId((int)$role->getId());
+						$this->defaultRoleMapper->insert($defaultRole);
+					}
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
 			return new JSONResponse(['success' => true]);
@@ -316,8 +472,25 @@ class PolicyApiController extends Controller {
 			$role->setRoleKey($roleKey);
 			$role->setRoleName($name);
 
-			$created = $this->roleMapper->insert($role);
-			return new JSONResponse($created);
+			$settings = $this->settingMapper->findByBoard($boardId);
+			if ($settings === null || $settings->getPolicyVersion() < self::POLICY_VERSION_DRASCI) {
+				return new JSONResponse($this->roleMapper->insert($role));
+			}
+
+			$this->db->beginTransaction();
+			try {
+				$this->incrementRevision($boardId, null);
+				$created = $this->roleMapper->insert($role);
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			$settings = $this->settingMapper->findByBoard($boardId);
+			return new JSONResponse(array_merge($created->jsonSerialize(), [
+				'revision' => $settings?->getRevision(),
+			]));
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
 		}
@@ -333,26 +506,37 @@ class PolicyApiController extends Controller {
 				return new JSONResponse(['error' => 'Role not found on this board'], Http::STATUS_NOT_FOUND);
 			}
 
-			$defaults = $this->defaultRoleMapper->findByBoard($boardId);
-			foreach ($defaults as $default) {
-				if ((int)$default->getRoleId() === $roleId) {
-					$this->defaultRoleMapper->delete($default);
+			$this->db->beginTransaction();
+			try {
+				$settings = $this->settingMapper->findByBoard($boardId);
+				if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+					$this->incrementRevision($boardId, null);
 				}
+
+				foreach ($this->defaultRoleMapper->findByBoard($boardId) as $default) {
+					if ((int)$default->getRoleId() === $roleId) {
+						$this->defaultRoleMapper->delete($default);
+					}
+				}
+
+				foreach ($this->membershipMapper->findByRole($roleId) as $membership) {
+					$this->membershipMapper->delete($membership);
+				}
+
+				$qb = $this->db->getQueryBuilder();
+				$qb->delete('pc_card_policy_roles')
+					->where($qb->expr()->eq('role_id', $qb->createNamedParameter($roleId, IQueryBuilder::PARAM_INT)))
+					->executeStatement();
+
+				$this->roleMapper->delete($role);
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
-			$memberships = $this->membershipMapper->findByRole($roleId);
-			foreach ($memberships as $membership) {
-				$this->membershipMapper->delete($membership);
-			}
-
-			$qb = $this->db->getQueryBuilder();
-			$qb->delete('pc_card_policy_roles')
-				->where($qb->expr()->eq('role_id', $qb->createNamedParameter($roleId, IQueryBuilder::PARAM_INT)))
-				->executeStatement();
-
-			$this->roleMapper->delete($role);
-
-			return new JSONResponse(['success' => true]);
+			$settings = $this->settingMapper->findByBoard($boardId);
+			return new JSONResponse(['success' => true, 'revision' => $settings?->getRevision()]);
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
 		}
@@ -389,13 +573,33 @@ class PolicyApiController extends Controller {
 			$membership->setParticipantType($pTypeStr);
 			$membership->setParticipantId($participant);
 
-			$created = $this->membershipMapper->insert($membership);
-			return new JSONResponse([
+			$settings = $this->settingMapper->findByBoard($boardId);
+			if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+				$this->db->beginTransaction();
+				try {
+					$this->incrementRevision($boardId, null);
+					$created = $this->membershipMapper->insert($membership);
+					$this->db->commit();
+				} catch (\Throwable $e) {
+					$this->db->rollBack();
+					throw $e;
+				}
+				$settings = $this->settingMapper->findByBoard($boardId);
+			} else {
+				$created = $this->membershipMapper->insert($membership);
+			}
+
+			$response = [
 				'id' => $created->getId(),
 				'roleId' => $created->getRoleId(),
 				'participant' => $created->getParticipantId(),
 				'participantType' => $created->getParticipantType() === 'user' ? 0 : 1,
-			]);
+			];
+			if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+				$response['revision'] = $settings->getRevision();
+			}
+
+			return new JSONResponse($response);
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
 		}
@@ -416,8 +620,120 @@ class PolicyApiController extends Controller {
 				return new JSONResponse(['error' => 'Role not found on this board'], Http::STATUS_NOT_FOUND);
 			}
 
-			$this->membershipMapper->delete($membership);
-			return new JSONResponse(['success' => true]);
+			$settings = $this->settingMapper->findByBoard($boardId);
+			if ($settings === null || $settings->getPolicyVersion() < self::POLICY_VERSION_DRASCI) {
+				$this->membershipMapper->delete($membership);
+				return new JSONResponse(['success' => true]);
+			}
+
+			$this->db->beginTransaction();
+			try {
+				$this->incrementRevision($boardId, null);
+				$this->membershipMapper->delete($membership);
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			$settings = $this->settingMapper->findByBoard($boardId);
+			return new JSONResponse(['success' => true, 'revision' => $settings?->getRevision()]);
+		} catch (\Throwable $e) {
+			return $this->errorResponse($e);
+		}
+	}
+
+	#[NoAdminRequired]
+	public function updateCardPolicyAction(int $boardId, int $cardId, string $action): JSONResponse {
+		try {
+			$this->assertCanManagePolicy($boardId);
+			if (!in_array($action, self::ACTIONS, true)) {
+				throw new OCSException('Unsupported policy action.', Http::STATUS_BAD_REQUEST);
+			}
+			$this->assertCardBelongsToBoard($boardId, $cardId);
+
+			$settings = $this->settingMapper->findByBoard($boardId);
+			$this->assertV2Settings($settings);
+
+			$mode = $this->request->getParam('mode');
+			if (!is_string($mode) || !in_array($mode, ['inherit', 'override'], true)) {
+				throw new OCSException('Mode must be "inherit" or "override".', Http::STATUS_BAD_REQUEST);
+			}
+
+			$rawRoleKeys = $this->request->getParam('allowedFunctionalRoleKeys', []);
+			if (!is_array($rawRoleKeys)) {
+				throw new OCSException('allowedFunctionalRoleKeys must be an array.', Http::STATUS_BAD_REQUEST);
+			}
+			$roleKeys = $this->normalizeFunctionalRoleKeys($rawRoleKeys);
+			$rolesByKey = [];
+			foreach ($this->roleMapper->findByBoard($boardId) as $role) {
+				$rolesByKey[(string)$role->getRoleKey()] = $role;
+			}
+			$unknownRoleKeys = array_diff($roleKeys, array_keys($rolesByKey));
+			if ($unknownRoleKeys !== []) {
+				throw new OCSException('Unknown functional roles: ' . implode(', ', $unknownRoleKeys), Http::STATUS_BAD_REQUEST);
+			}
+
+			$expectedRevision = $this->parseExpectedRevision($this->request->getParam('expectedRevision'));
+			$this->db->beginTransaction();
+			try {
+				$this->incrementRevision($boardId, $expectedRevision);
+				$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
+				if ($cardPolicy !== null && (int)$cardPolicy->getBoardId() !== $boardId) {
+					throw new OCSException('Card policy belongs to another board.', Http::STATUS_CONFLICT);
+				}
+
+				if ($mode === 'override' && $cardPolicy === null) {
+					$cardPolicy = new CardPolicy();
+					$cardPolicy->setCardId($cardId);
+					$cardPolicy->setBoardId($boardId);
+					$cardPolicy = $this->cardPolicyMapper->insert($cardPolicy);
+				}
+
+				if ($cardPolicy !== null) {
+					$policyId = (int)$cardPolicy->getId();
+					foreach ($this->cardPolicyRoleMapper->findByPolicyAndAction($policyId, $action) as $relation) {
+						$this->cardPolicyRoleMapper->delete($relation);
+					}
+					$marker = $this->cardPolicyOverrideMapper->findByPolicyAndAction($policyId, $action);
+					if ($marker !== null) {
+						$this->cardPolicyOverrideMapper->delete($marker);
+					}
+
+					if ($mode === 'override') {
+						$marker = new CardPolicyOverride();
+						$marker->setCardPolicyId($policyId);
+						$marker->setAction($action);
+						$this->cardPolicyOverrideMapper->insert($marker);
+
+						foreach ($roleKeys as $roleKey) {
+							$relation = new CardPolicyRole();
+							$relation->setCardPolicyId($policyId);
+							$relation->setAction($action);
+							$relation->setRoleId((int)$rolesByKey[$roleKey]->getId());
+							$this->cardPolicyRoleMapper->insert($relation);
+						}
+					}
+				}
+
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			$settings = $this->settingMapper->findByBoard($boardId);
+			$state = [
+				'mode' => $mode,
+				'allowedFunctionalRoleKeys' => $mode === 'override' ? $roleKeys : [],
+			];
+			return new JSONResponse([
+				'revision' => $settings?->getRevision(),
+				'action' => $action,
+				'state' => $state,
+				'mode' => $state['mode'],
+				'allowedFunctionalRoleKeys' => $state['allowedFunctionalRoleKeys'],
+			]);
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
 		}
@@ -427,47 +743,60 @@ class PolicyApiController extends Controller {
 	public function saveCardPolicyOverrides(int $boardId, int $cardId): JSONResponse {
 		try {
 			$this->assertCanManagePolicy($boardId);
+			$this->assertCardBelongsToBoard($boardId, $cardId);
+			$settings = $this->settingMapper->findByBoard($boardId);
+			if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+				throw new OCSException('Use action-level overrides for board policy v2.', Http::STATUS_CONFLICT);
+			}
 
 			$move = $this->request->getParam('move', []);
 			$sign = $this->request->getParam('sign', []);
 			$verify = $this->request->getParam('verify', []);
 			$view = $this->request->getParam('view', []);
 
-			$existingPolicy = $this->cardPolicyMapper->findByCard($cardId);
-			if ($existingPolicy === null) {
-				$policy = new CardPolicy();
-				$policy->setCardId($cardId);
-				$policy->setBoardId($boardId);
-				$existingPolicy = $this->cardPolicyMapper->insert($policy);
-			}
-
-			$existingRoles = $this->cardPolicyRoleMapper->findByPolicy((int)$existingPolicy->getId());
-			foreach ($existingRoles as $role) {
-				$this->cardPolicyRoleMapper->delete($role);
-			}
-
-			$actions = ['move' => $move, 'sign' => $sign, 'verify' => $verify, 'view' => $view];
-			foreach ($actions as $action => $roleKeys) {
-				if (!is_array($roleKeys)) {
-					continue;
+			$this->db->beginTransaction();
+			try {
+				$existingPolicy = $this->cardPolicyMapper->findByCard($cardId);
+				if ($existingPolicy === null) {
+					$policy = new CardPolicy();
+					$policy->setCardId($cardId);
+					$policy->setBoardId($boardId);
+					$existingPolicy = $this->cardPolicyMapper->insert($policy);
+				} elseif ((int)$existingPolicy->getBoardId() !== $boardId) {
+					throw new OCSException('Card policy belongs to another board.', Http::STATUS_CONFLICT);
 				}
-				foreach ($roleKeys as $roleKey) {
-					$roleKey = trim((string)$roleKey);
-					if ($roleKey === '') {
+
+				foreach ($this->cardPolicyRoleMapper->findByPolicy((int)$existingPolicy->getId()) as $role) {
+					$this->cardPolicyRoleMapper->delete($role);
+				}
+
+				$actions = ['move' => $move, 'sign' => $sign, 'verify' => $verify, 'view' => $view];
+				foreach ($actions as $action => $roleKeys) {
+					if (!is_array($roleKeys)) {
 						continue;
 					}
+					foreach ($roleKeys as $roleKey) {
+						$roleKey = trim((string)$roleKey);
+						if ($roleKey === '') {
+							continue;
+						}
 
-					$role = $this->roleMapper->findByBoardAndKey($boardId, $roleKey);
-					if ($role === null) {
-						continue;
+						$role = $this->roleMapper->findByBoardAndKey($boardId, $roleKey);
+						if ($role === null) {
+							continue;
+						}
+
+						$cardRole = new CardPolicyRole();
+						$cardRole->setCardPolicyId((int)$existingPolicy->getId());
+						$cardRole->setAction($action);
+						$cardRole->setRoleId((int)$role->getId());
+						$this->cardPolicyRoleMapper->insert($cardRole);
 					}
-
-					$cardRole = new CardPolicyRole();
-					$cardRole->setCardPolicyId((int)$existingPolicy->getId());
-					$cardRole->setAction($action);
-					$cardRole->setRoleId((int)$role->getId());
-					$this->cardPolicyRoleMapper->insert($cardRole);
 				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
 			return new JSONResponse(['success' => true]);
@@ -480,19 +809,119 @@ class PolicyApiController extends Controller {
 	public function clearCardPolicy(int $boardId, int $cardId): JSONResponse {
 		try {
 			$this->assertCanManagePolicy($boardId);
+			$this->assertCardBelongsToBoard($boardId, $cardId);
+			$rawExpectedRevision = $this->request->getParam('expectedRevision');
 
-			$existingPolicy = $this->cardPolicyMapper->findByCard($cardId);
-			if ($existingPolicy !== null) {
-				$existingRoles = $this->cardPolicyRoleMapper->findByPolicy((int)$existingPolicy->getId());
-				foreach ($existingRoles as $role) {
-					$this->cardPolicyRoleMapper->delete($role);
+			$this->db->beginTransaction();
+			try {
+				$settings = $this->settingMapper->findByBoard($boardId);
+				if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
+					$expectedRevision = $this->parseExpectedRevision($rawExpectedRevision);
+					$this->incrementRevision($boardId, $expectedRevision);
 				}
-				$this->cardPolicyMapper->delete($existingPolicy);
+
+				$existingPolicy = $this->cardPolicyMapper->findByCard($cardId);
+				if ($existingPolicy !== null) {
+					if ((int)$existingPolicy->getBoardId() !== $boardId) {
+						throw new OCSException('Card policy belongs to another board.', Http::STATUS_CONFLICT);
+					}
+					foreach ($this->cardPolicyRoleMapper->findByPolicy((int)$existingPolicy->getId()) as $role) {
+						$this->cardPolicyRoleMapper->delete($role);
+					}
+					foreach ($this->cardPolicyOverrideMapper->findByPolicy((int)$existingPolicy->getId()) as $override) {
+						$this->cardPolicyOverrideMapper->delete($override);
+					}
+					$this->cardPolicyMapper->delete($existingPolicy);
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
-			return new JSONResponse(['success' => true]);
+			$settings = $this->settingMapper->findByBoard($boardId);
+			return new JSONResponse(['success' => true, 'revision' => $settings?->getRevision()]);
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
+		}
+	}
+
+	private function insertDrasciDefault(int $boardId, string $action, string $roleKey): void {
+		$default = new BoardPolicyDefaultDrasci();
+		$default->setBoardId($boardId);
+		$default->setAction($action);
+		$default->setDrasciRole($roleKey);
+		$this->defaultDrasciMapper->insert($default);
+	}
+
+	/** @param mixed[] $roleKeys */
+	private function normalizeDrasciRoleKeys(array $roleKeys): array {
+		$normalized = [];
+		foreach ($roleKeys as $roleKey) {
+			if (!is_string($roleKey) || !isset(self::DRASCI_ROLES[$roleKey])) {
+				throw new OCSException('DRASCI defaults may only contain: ' . implode(', ', array_keys(self::DRASCI_ROLES)), Http::STATUS_BAD_REQUEST);
+			}
+			$normalized[$roleKey] = true;
+		}
+
+		return array_keys($normalized);
+	}
+
+	/** @param mixed[] $roleKeys */
+	private function normalizeFunctionalRoleKeys(array $roleKeys): array {
+		$normalized = [];
+		foreach ($roleKeys as $roleKey) {
+			if (!is_string($roleKey) || trim($roleKey) === '') {
+				throw new OCSException('Functional role keys must be non-empty strings.', Http::STATUS_BAD_REQUEST);
+			}
+			$normalized[trim($roleKey)] = true;
+		}
+
+		return array_keys($normalized);
+	}
+
+	private function assertV2Settings(?BoardPolicySetting $settings): void {
+		if ($settings === null
+			|| $settings->getPolicyVersion() < self::POLICY_VERSION_DRASCI) {
+			throw new OCSException('Board policy v2 is not enabled.', Http::STATUS_CONFLICT);
+		}
+	}
+
+	private function incrementRevision(int $boardId, ?int $expectedRevision): void {
+		if (!$this->settingMapper->incrementRevision($boardId, $expectedRevision)) {
+			throw new OCSException('Policy revision conflict.', Http::STATUS_CONFLICT);
+		}
+	}
+
+	private function parseExpectedRevision(mixed $value): ?int {
+		if ($value === null || $value === '') {
+			return null;
+		}
+		if (is_int($value) && $value >= 0) {
+			return $value;
+		}
+		if (is_string($value) && ctype_digit($value)) {
+			return (int)$value;
+		}
+
+		throw new OCSException('expectedRevision must be a non-negative integer.', Http::STATUS_BAD_REQUEST);
+	}
+
+	private function assertCardBelongsToBoard(int $boardId, int $cardId): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('c.id')
+			->from('deck_cards', 'c')
+			->innerJoin('c', 'deck_stacks', 's', 's.id = c.stack_id')
+			->where($qb->expr()->eq('c.id', $qb->createNamedParameter($cardId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('s.board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)));
+
+		$result = $qb->executeQuery();
+		try {
+			if ($result->fetch() === false) {
+				throw new OCSNotFoundException('Card not found on this board.');
+			}
+		} finally {
+			$result->closeCursor();
 		}
 	}
 
@@ -514,6 +943,10 @@ class PolicyApiController extends Controller {
 
 		if ($e instanceof OCSNotFoundException) {
 			return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		}
+
+		if ($e instanceof OCSException && in_array($e->getCode(), [Http::STATUS_BAD_REQUEST, Http::STATUS_CONFLICT], true)) {
+			return new JSONResponse(['error' => $e->getMessage()], $e->getCode());
 		}
 
 		return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);

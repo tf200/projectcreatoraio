@@ -88,9 +88,15 @@ export class DeckService {
 		return response.data
 	}
 
-	async clearCardPolicy(boardId, cardId) {
+	async updateCardPolicyAction(boardId, cardId, action, data) {
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/cards/${cardId}/actions/${encodeURIComponent(action)}`)
+		const response = await axios.put(url, data, { headers: this.headers() })
+		return response.data
+	}
+
+	async clearCardPolicy(boardId, cardId, data = {}) {
 		const url = generateUrl(`/apps/projectcreatoraio/api/v1/boards/${boardId}/policy/cards/${cardId}`)
-		const response = await axios.delete(url, { headers: this.headers() })
+		const response = await axios.delete(url, { headers: this.headers(), data })
 		return response.data
 	}
 

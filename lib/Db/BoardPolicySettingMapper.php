@@ -26,4 +26,17 @@ class BoardPolicySettingMapper extends QBMapper {
 			return null;
 		}
 	}
+
+	public function incrementRevision(int $boardId, ?int $expectedRevision = null): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update(self::TABLE_NAME)
+			->set('revision', $qb->createFunction('revision + 1'))
+			->where($qb->expr()->eq('board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)));
+
+		if ($expectedRevision !== null) {
+			$qb->andWhere($qb->expr()->eq('revision', $qb->createNamedParameter($expectedRevision, IQueryBuilder::PARAM_INT)));
+		}
+
+		return $qb->executeStatement() === 1;
+	}
 }

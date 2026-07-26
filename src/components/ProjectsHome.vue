@@ -612,12 +612,12 @@
 											Project Members
 										</h3>
 										<p class="projects-home__section-subtitle">
-											Anyone in this project can invite organization members
+											DRASCI responsibilities and functional project roles are managed independently
 										</p>
 									</div>
 								</div>
 
-								<div class="projects-home__member-invite-row">
+								<div v-if="canManageMembers" class="projects-home__member-invite-row">
 									<NcSelect
 										class="projects-home__member-invite-select"
 										:model-value="memberInviteSelection"
@@ -644,10 +644,23 @@
 										track-by="value"
 										placeholder="Select role"
 										@update:model-value="memberInviteRole = $event" />
+									<NcSelect
+										class="projects-home__member-invite-functional-select"
+										:model-value="memberInviteFunctionalRoles"
+										:options="functionalRoleOptions"
+										:show-label="true"
+										:multiple="true"
+										:searchable="false"
+										:clearable="false"
+										input-label="Functional roles"
+										label="label"
+										track-by="value"
+										placeholder="Select project roles"
+										@update:model-value="memberInviteFunctionalRoles = $event || []" />
 									<NcButton
 										class="projects-home__member-invite-button"
 										type="primary"
-										:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || !selectedProject.id"
+										:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || memberInviteFunctionalRoles.length === 0 || !selectedProject.id"
 										@click="inviteSelectedMember">
 										<template #icon>
 											<Plus :size="16" />
@@ -691,12 +704,28 @@
 												:multiple="false"
 												:searchable="false"
 												:clearable="false"
-												:disabled="memberRoleUpdating[member.id]"
+												:disabled="memberRoleUpdating[member.id] || !canManageMembers"
 												label="label"
 												track-by="value"
 												placeholder="Unassigned"
 												class="projects-home__member-role-select"
 												@update:model-value="updateMemberDrasciRole(member, $event)" />
+										</div>
+										<div class="projects-home__member-functional-role">
+											<NcSelect
+												:model-value="getFunctionalRoleOptions(member.functionalRoleKeys)"
+												:options="functionalRoleOptions"
+												:loading="memberRoleUpdating[member.id]"
+												:show-label="false"
+												:multiple="true"
+												:searchable="false"
+												:clearable="false"
+												:disabled="memberRoleUpdating[member.id] || !canManageMembers"
+												label="label"
+												track-by="value"
+												placeholder="Functional roles"
+												class="projects-home__member-functional-role-select"
+												@update:model-value="updateMemberFunctionalRoles(member, $event)" />
 										</div>
 										<div class="projects-home__member-badges">
 											<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
@@ -869,12 +898,12 @@
 									Project Members
 								</h3>
 								<p class="projects-home__section-subtitle">
-									Anyone in this project can invite organization members
+									DRASCI responsibilities and functional project roles are managed independently
 								</p>
 							</div>
 						</div>
 
-						<div class="projects-home__member-invite-row">
+						<div v-if="canManageMembers" class="projects-home__member-invite-row">
 							<NcSelect
 								class="projects-home__member-invite-select"
 								:model-value="memberInviteSelection"
@@ -901,10 +930,23 @@
 								track-by="value"
 								placeholder="Select role"
 								@update:model-value="memberInviteRole = $event" />
+							<NcSelect
+								class="projects-home__member-invite-functional-select"
+								:model-value="memberInviteFunctionalRoles"
+								:options="functionalRoleOptions"
+								:show-label="true"
+								:multiple="true"
+								:searchable="false"
+								:clearable="false"
+								input-label="Functional roles"
+								label="label"
+								track-by="value"
+								placeholder="Select project roles"
+								@update:model-value="memberInviteFunctionalRoles = $event || []" />
 							<NcButton
 								class="projects-home__member-invite-button"
 								type="primary"
-								:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || !selectedProject.id"
+								:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || memberInviteFunctionalRoles.length === 0 || !selectedProject.id"
 								@click="inviteSelectedMember">
 								<template #icon>
 									<Plus :size="16" />
@@ -948,12 +990,28 @@
 										:multiple="false"
 										:searchable="false"
 										:clearable="false"
-										:disabled="memberRoleUpdating[member.id]"
+										:disabled="memberRoleUpdating[member.id] || !canManageMembers"
 										label="label"
 										track-by="value"
 										placeholder="Unassigned"
 										class="projects-home__member-role-select"
 										@update:model-value="updateMemberDrasciRole(member, $event)" />
+								</div>
+								<div class="projects-home__member-functional-role">
+									<NcSelect
+										:model-value="getFunctionalRoleOptions(member.functionalRoleKeys)"
+										:options="functionalRoleOptions"
+										:loading="memberRoleUpdating[member.id]"
+										:show-label="false"
+										:multiple="true"
+										:searchable="false"
+										:clearable="false"
+										:disabled="memberRoleUpdating[member.id] || !canManageMembers"
+										label="label"
+										track-by="value"
+										placeholder="Functional roles"
+										class="projects-home__member-functional-role-select"
+										@update:model-value="updateMemberFunctionalRoles(member, $event)" />
 								</div>
 								<div class="projects-home__member-badges">
 									<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
@@ -1305,7 +1363,9 @@ export default {
 			memberInviteMessage: '',
 			memberSearchTimeout: null,
 			memberInviteRole: null,
+			memberInviteFunctionalRoles: [],
 			memberRoleUpdating: {},
+			functionalRoleOptions: [],
 			drasciRoleOptions: [
 				{ value: 'driver', label: 'Driver' },
 				{ value: 'responsible', label: 'Responsible' },
@@ -1357,6 +1417,9 @@ export default {
 			const ownerId = String(this.selectedProject?.ownerId || '').trim()
 			const currentUserId = String(this.context?.userId || '').trim()
 			return ownerId !== '' && currentUserId !== '' && ownerId === currentUserId
+		},
+		canManageMembers() {
+			return this.canEditProjectStatus
 		},
 		projectStatusOptions() {
 			return PROJECT_STATUS_OPTIONS
@@ -1967,6 +2030,8 @@ export default {
 			this.membersError = ''
 			this.memberInviteSelection = null
 			this.memberInviteRole = null
+			this.memberInviteFunctionalRoles = []
+			this.functionalRoleOptions = []
 			this.memberInviteOptions = []
 			this.memberSearchLoading = false
 			this.memberInviteLoading = false
@@ -1994,13 +2059,23 @@ export default {
 			}
 			return this.drasciRoleOptions.find((opt) => opt.value === roleValue) || null
 		},
+		getFunctionalRoleOptions(roleKeys) {
+			const selected = new Set(Array.isArray(roleKeys) ? roleKeys : [])
+			return this.functionalRoleOptions.filter((option) => selected.has(option.value))
+		},
 		async loadProjectMembers(projectId) {
 			this.membersLoading = true
 			this.membersError = ''
 			try {
-				this.projectMembers = await projectsService.listMembers(projectId)
+				const result = await projectsService.listMembersWithRoles(projectId)
+				this.projectMembers = result.members
+				this.functionalRoleOptions = result.functionalRoles.map((role) => ({
+					value: role.key,
+					label: role.name,
+				}))
 			} catch (error) {
 				this.projectMembers = []
+				this.functionalRoleOptions = []
 				this.membersError = error?.response?.data?.message || 'Could not load project members.'
 			} finally {
 				this.membersLoading = false
@@ -2041,7 +2116,7 @@ export default {
 			}, 250)
 		},
 		async inviteSelectedMember() {
-			if (!this.selectedProject?.id || !this.memberInviteSelection || !this.memberInviteRole) {
+			if (!this.selectedProject?.id || !this.memberInviteSelection || !this.memberInviteRole || this.memberInviteFunctionalRoles.length === 0) {
 				return
 			}
 			const userId = typeof this.memberInviteSelection === 'string'
@@ -2056,17 +2131,20 @@ export default {
 			if (!role) {
 				return
 			}
+			const functionalRoleKeys = this.memberInviteFunctionalRoles.map((option) => typeof option === 'string' ? option : option.value)
 			this.memberInviteLoading = true
 			this.memberInviteMessage = ''
 			this.membersError = ''
 			try {
-				const result = await projectsService.addMember(this.selectedProject.id, String(userId), role)
+				const result = await projectsService.addMember(this.selectedProject.id, String(userId), role, functionalRoleKeys)
 				await this.loadProjectMembers(this.selectedProject.id)
 				this.loadedMembersProjectId = Number(this.selectedProject.id)
 				this.memberInviteMessage = result?.alreadyMember
 					? 'This user is already a project member.'
 					: 'Member added to project successfully.'
 				this.memberInviteSelection = null
+				this.memberInviteRole = null
+				this.memberInviteFunctionalRoles = []
 				this.memberInviteOptions = []
 			} catch (error) {
 				this.membersError = error?.response?.data?.message || 'Could not add member to project.'
@@ -2084,7 +2162,12 @@ export default {
 				[member.id]: true,
 			}
 			try {
-				const result = await projectsService.updateMemberRole(this.selectedProject.id, member.id, role)
+				const result = await projectsService.updateMemberRole(
+					this.selectedProject.id,
+					member.id,
+					role,
+					member.functionalRoleKeys || [],
+				)
 				const updatedMember = result?.member
 				this.projectMembers = this.projectMembers.map((existing) =>
 					String(existing.id) === String(member.id)
@@ -2093,6 +2176,37 @@ export default {
 				)
 			} catch (error) {
 				this.membersError = error?.response?.data?.message || 'Could not update member role.'
+			} finally {
+				this.memberRoleUpdating = {
+					...this.memberRoleUpdating,
+					[member.id]: false,
+				}
+			}
+		},
+		async updateMemberFunctionalRoles(member, roleSelections) {
+			const functionalRoleKeys = (roleSelections || []).map((selection) => typeof selection === 'string' ? selection : selection.value)
+			if (!this.selectedProject?.id || !member?.id || functionalRoleKeys.length === 0) {
+				return
+			}
+			this.memberRoleUpdating = {
+				...this.memberRoleUpdating,
+				[member.id]: true,
+			}
+			try {
+				const result = await projectsService.updateMemberRole(
+					this.selectedProject.id,
+					member.id,
+					undefined,
+					functionalRoleKeys,
+				)
+				const updatedMember = result?.member
+				this.projectMembers = this.projectMembers.map((existing) =>
+					String(existing.id) === String(member.id)
+						? { ...existing, ...updatedMember }
+						: existing,
+				)
+			} catch (error) {
+				this.membersError = error?.response?.data?.message || 'Could not update functional project roles.'
 			} finally {
 				this.memberRoleUpdating = {
 					...this.memberRoleUpdating,
@@ -2926,6 +3040,11 @@ export default {
 	min-width: 0;
 }
 
+.projects-home__member-invite-functional-select {
+	flex: 1 1 220px;
+	min-width: 0;
+}
+
 .projects-home__member-invite-button {
 	flex: 0 0 auto;
 	min-width: 0;
@@ -3035,6 +3154,14 @@ export default {
 
 .projects-home__member-role-select {
 	min-width: 160px;
+}
+
+.projects-home__member-functional-role {
+	flex: 0 0 220px;
+}
+
+.projects-home__member-functional-role-select {
+	min-width: 200px;
 }
 
 /* States */
@@ -3258,6 +3385,10 @@ export default {
 		min-width: 150px;
 	}
 
+	.projects-home__member-invite-functional-select {
+		flex: 1 1 220px;
+	}
+
 	.projects-home__member-invite-button {
 		flex: 0 0 auto;
 	}
@@ -3353,6 +3484,7 @@ export default {
 
 	.projects-home__member-invite-select,
 	.projects-home__member-invite-role-select,
+	.projects-home__member-invite-functional-select,
 	.projects-home__member-invite-button {
 		flex: 1 1 auto;
 		width: 100%;
@@ -3371,6 +3503,14 @@ export default {
 	}
 
 	.projects-home__member-role-select {
+		min-width: 100%;
+	}
+
+	.projects-home__member-functional-role {
+		flex: 0 0 100%;
+	}
+
+	.projects-home__member-functional-role-select {
 		min-width: 100%;
 	}
 

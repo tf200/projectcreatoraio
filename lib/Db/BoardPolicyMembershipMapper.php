@@ -50,7 +50,7 @@ class BoardPolicyMembershipMapper extends QBMapper {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from(self::TABLE_NAME)
-			->where($qb->expr()->in('role_id', $qb->createImplodedNamedParameter($roleIds, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->in('role_id', $qb->createNamedParameter($roleIds, IQueryBuilder::PARAM_INT_ARRAY)));
 
 		return $this->findEntities($qb);
 	}
