@@ -40,7 +40,7 @@ export default {
 
 <template>
 	<NcContent app-name="projectcreatoraio">
-		<NcAppContent>
+		<NcAppContent :allow-swipe-navigation="false">
 			<WhiteboardPopout v-if="isWhiteboardPopout" :project-id="popoutProjectId" />
 			<ProjectsHome v-else />
 		</NcAppContent>
