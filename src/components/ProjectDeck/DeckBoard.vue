@@ -39,30 +39,34 @@
 						<span class="pc-collapsible-icon">🛡️</span>
 						<div>
 							<h3>Advanced Permissions</h3>
-							<p class="muted">Manage custom rules and roles for individual cards</p>
+							<p class="muted">
+								Manage custom rules and roles for individual cards
+							</p>
 						</div>
 					</div>
 					<div class="pc-collapsible-chevron" :class="{ 'is-rotated': !isPermissionsCollapsed }">
 						▼
 					</div>
 				</button>
-				
+
 				<div v-show="!isPermissionsCollapsed" class="pc-collapsible-body">
 					<DeckCardPolicyManager
-				v-if="!loading && !error && canManage"
-				:board-id="boardId"
-				:members="projectMembers" />
+						v-if="!loading && !error && canManage"
+						:board-id="boardId"
+						:members="projectMembers" />
 				</div>
 			</div>
 
 			<!-- Permissions Overview Section -->
 			<div v-if="!loading && !error" class="pc-collapsible-section" :class="{ 'is-open': !isOverviewCollapsed }">
-				<button class="pc-collapsible-header" @click="toggleOverview">
+				<button class="pc-collapsible-header" @click="isOverviewCollapsed = !isOverviewCollapsed">
 					<div class="pc-collapsible-title">
 						<span class="pc-collapsible-icon">📊</span>
 						<div>
 							<h3>Permissions Overview</h3>
-							<p class="muted">See what each member is allowed to do on this board</p>
+							<p class="muted">
+								See what each member is allowed to do on this board
+							</p>
 						</div>
 					</div>
 					<div class="pc-collapsible-chevron" :class="{ 'is-rotated': !isOverviewCollapsed }">
@@ -71,13 +75,9 @@
 				</button>
 
 				<div v-show="!isOverviewCollapsed" class="pc-collapsible-body">
-					<div v-if="overviewError" class="deck-board__muted">
-						{{ overviewError }}
-					</div>
-					<div v-else-if="!overviewReady" class="deck-board__muted">
-						Loading permissions overview...
-					</div>
-					<div ref="permissionsOverviewMount" class="deck-permissions-overview-mount" />
+					<MemberAccessSummary
+						v-if="!isOverviewCollapsed"
+						:project-id="projectId" />
 				</div>
 			</div>
 
@@ -110,6 +110,7 @@ import Refresh from 'vue-material-design-icons/Refresh.vue'
 import { DeckService } from '../../Services/deck.js'
 import { ProjectsService } from '../../Services/projects.js'
 import DeckCardPolicyManager from './DeckCardPolicyManager.vue'
+import MemberAccessSummary from './MemberAccessSummary.vue'
 
 const deckService = DeckService.getInstance()
 const projectsService = ProjectsService.getInstance()
@@ -118,6 +119,7 @@ export default {
 	name: 'DeckBoard',
 	components: {
 		DeckCardPolicyManager,
+		MemberAccessSummary,
 		NcButton,
 		OpenInNew,
 		Refresh,
@@ -132,23 +134,20 @@ export default {
 			default: null,
 		},
 	},
-		data() {
-			return {
-				isPermissionsCollapsed: true,
-				isOverviewCollapsed: true,
-				board: null,
-				permissions: null,
-				error: '',
-				loading: false,
-				projectMembers: [],
-				embeddedReady: false,
-				embeddedError: '',
-				embeddedHandle: null,
-				overviewHandle: null,
-				overviewReady: false,
-				overviewError: '',
-			}
-		},
+	data() {
+		return {
+			isPermissionsCollapsed: true,
+			isOverviewCollapsed: true,
+			board: null,
+			permissions: null,
+			error: '',
+			loading: false,
+			projectMembers: [],
+			embeddedReady: false,
+			embeddedError: '',
+			embeddedHandle: null,
+		}
+	},
 	computed: {
 		boardTitle() {
 			return this.board?.title || 'Deck board'
@@ -185,10 +184,9 @@ export default {
 			this.loadProjectMembers()
 		},
 	},
-		beforeDestroy() {
-			this.unmountEmbedded()
-			this.unmountPermissionsOverview()
-		},
+	beforeDestroy() {
+		this.unmountEmbedded()
+	},
 	methods: {
 		async load() {
 			this.resetState()
@@ -238,9 +236,6 @@ export default {
 			this.error = ''
 			this.embeddedReady = false
 			this.embeddedError = ''
-			this.overviewReady = false
-			this.overviewError = ''
-			this.unmountPermissionsOverview()
 		},
 		openBoard() {
 			if (!this.deckBoardUrl) {
@@ -329,62 +324,6 @@ export default {
 			} catch (e) {
 				this.unmountEmbedded()
 				this.embeddedError = 'Could not mount Deck tasks UI.'
-			}
-		},
-		async toggleOverview() {
-			this.isOverviewCollapsed = !this.isOverviewCollapsed
-			if (!this.isOverviewCollapsed && !this.overviewHandle) {
-				await this.$nextTick()
-				await this.mountPermissionsOverview()
-			}
-		},
-		unmountPermissionsOverview() {
-			if (this.overviewHandle && typeof this.overviewHandle.destroy === 'function') {
-				try {
-					this.overviewHandle.destroy()
-				} catch (e) {
-					// ignore
-				}
-			}
-			this.overviewHandle = null
-			this.overviewReady = false
-		},
-		async mountPermissionsOverview() {
-			this.overviewError = ''
-			this.overviewReady = false
-
-			const boardId = Number(this.boardId)
-			if (!Number.isFinite(boardId) || boardId <= 0) {
-				this.unmountPermissionsOverview()
-				return
-			}
-
-			const ok = await this.ensureEmbeddedApiLoaded()
-			if (!ok) {
-				this.overviewError = 'Deck embedded UI is not available.'
-				return
-			}
-
-			if (!window?.OCA?.Deck?.EmbeddedPermissionsOverview?.mount) {
-				this.overviewError = 'Permissions overview is not available. Build and deploy the Deck app update, then reload.'
-				return
-			}
-
-			this.unmountPermissionsOverview()
-
-			const el = this.$refs.permissionsOverviewMount
-			if (!el) {
-				this.overviewError = 'Could not mount permissions overview.'
-				return
-			}
-			el.innerHTML = ''
-
-			try {
-				this.overviewHandle = window.OCA.Deck.EmbeddedPermissionsOverview.mount({ el, boardId })
-				this.overviewReady = true
-			} catch (e) {
-				this.unmountPermissionsOverview()
-				this.overviewError = 'Could not mount permissions overview.'
 			}
 		},
 	},
@@ -555,12 +494,4 @@ export default {
 	to { opacity: 1; transform: translateY(0); }
 }
 
-.deck-permissions-overview-mount {
-	width: 100%;
-	min-height: 300px;
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
-	background: var(--color-main-background);
-	overflow: hidden;
-}
 </style>

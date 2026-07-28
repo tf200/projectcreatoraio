@@ -152,6 +152,28 @@ class ProjectApiController extends Controller
 
     #[NoCSRFRequired]
     #[NoAdminRequired]
+    public function getDeckAccessSummary(int $projectId): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
+        return new DataResponse($this->projectService->getDeckAccessSummary(
+            $projectId,
+            $currentUser->getUID(),
+            $this->canEditPreparationWeeks($project),
+        ));
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
     public function addMember(int $projectId, string $userId = ''): DataResponse
     {
         $params = $this->request->getParams();

@@ -430,7 +430,7 @@ class ProjectService
             $rolesByUser[$roleRow->getUserId()] = $roleRow->getDrasciRole();
         }
 
-        $functionalRolesByUser = $this->getFunctionalRoleKeysByUser($project);
+        $functionalRolesByUser = $this->getFunctionalRoleKeysByUser($project, $memberIds);
 
         $members = [];
         foreach ($memberIds as $memberId) {
@@ -473,6 +473,158 @@ class ProjectService
             'key' => (string) $role->getRoleKey(),
             'name' => (string) $role->getRoleName(),
         ], $this->policyRoleMapper->findByBoard($boardId));
+    }
+
+    /**
+     * Build a read-only overview of effective Deck access for project members.
+     *
+     * @return array<string, mixed>
+     */
+    public function getDeckAccessSummary(int $projectId, string $viewerId, bool $teamScope): array
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        $members = $this->getProjectMembers($projectId);
+        if (!$teamScope) {
+            $members = array_values(array_filter(
+                $members,
+                static fn (array $member): bool => $member['id'] === $viewerId,
+            ));
+        }
+
+        $functionalRoleLabels = [];
+        foreach ($this->getProjectFunctionalRoles($projectId) as $role) {
+            $functionalRoleLabels[$role['key']] = $role['name'];
+        }
+
+        $boardId = (int) ($project->getBoardId() ?? 0);
+        if ($boardId <= 0) {
+            return $this->formatDeckAccessSummary(null, [], $members, $functionalRoleLabels, $teamScope);
+        }
+
+        if ($this->cardMapper === null
+            || !method_exists($this->cardMapper, 'findAllByBoardId')
+            || $this->deckPermissionService === null
+            || !method_exists($this->deckPermissionService, 'checkPermission')) {
+            throw new OCSException('Deck access information is unavailable because Deck is not enabled.', 503);
+        }
+
+        try {
+            $cards = $this->cardMapper->findAllByBoardId($boardId);
+        } catch (Throwable $e) {
+            throw new OCSException('The Deck board for this project is unavailable.', 503, $e);
+        }
+
+        return $this->formatDeckAccessSummary($boardId, $cards, $members, $functionalRoleLabels, $teamScope);
+    }
+
+    /**
+     * @param object[] $cards
+     * @param array<int, array<string, mixed>> $members
+     * @param array<string, string> $functionalRoleLabels
+     * @return array<string, mixed>
+     */
+    private function formatDeckAccessSummary(
+        ?int $boardId,
+        array $cards,
+        array $members,
+        array $functionalRoleLabels,
+        bool $teamScope,
+    ): array {
+        $totalCards = count($cards);
+        $summaries = [];
+
+        foreach ($members as $member) {
+            $userId = (string) $member['id'];
+            $canRead = $boardId !== null && $this->hasNativeDeckPermission($boardId, Acl::PERMISSION_READ, $userId);
+            $canEdit = $boardId !== null && $this->hasNativeDeckPermission($boardId, Acl::PERMISSION_EDIT, $userId);
+            $actionCards = [
+                'view' => [],
+                'move' => [],
+                'verify' => [],
+                'sign' => [],
+            ];
+
+            foreach ($cards as $card) {
+                $canView = $canRead && $this->cardPolicyService->assertActionLogic($card, $boardId, 'view', $userId);
+                if ($canView) {
+                    $actionCards['view'][] = $card;
+                }
+
+                if (!$canEdit || !$canView) {
+                    continue;
+                }
+
+                foreach (['move', 'verify', 'sign'] as $action) {
+                    if ($this->cardPolicyService->assertActionLogic($card, $boardId, $action, $userId)) {
+                        $actionCards[$action][] = $card;
+                    }
+                }
+            }
+
+            $actions = [];
+            foreach ($actionCards as $action => $allowedCards) {
+                $allowedCount = count($allowedCards);
+                $actions[$action] = [
+                    'allowed' => $allowedCount,
+                    'total' => $totalCards,
+                    'status' => $this->deckAccessStatus($allowedCount, $totalCards),
+                    'allowedCards' => array_map(static fn (object $card): array => [
+                        'id' => (int) $card->getId(),
+                        'title' => (string) $card->getTitle(),
+                    ], $allowedCards),
+                ];
+            }
+
+            $roleKeys = array_values($member['functionalRoleKeys'] ?? []);
+            $summaries[] = [
+                'id' => $userId,
+                'displayName' => (string) $member['displayName'],
+                'isOwner' => (bool) $member['isOwner'],
+                'drasciRole' => $member['drasciRole'],
+                'drasciRoleLabel' => (string) $member['drasciRoleLabel'],
+                'functionalRoleKeys' => $roleKeys,
+                'functionalRoleLabels' => array_values(array_map(
+                    static fn (string $roleKey): string => $functionalRoleLabels[$roleKey] ?? $roleKey,
+                    $roleKeys,
+                )),
+                'boardAccess' => $canEdit ? 'edit' : ($canRead ? 'read' : 'none'),
+                'actions' => $actions,
+            ];
+        }
+
+        return [
+            'boardId' => $boardId,
+            'totalCards' => $totalCards,
+            'scope' => $teamScope ? 'team' : 'self',
+            'members' => $summaries,
+        ];
+    }
+
+    private function hasNativeDeckPermission(int $boardId, int $permission, string $userId): bool
+    {
+        if ($this->deckPermissionService === null || !method_exists($this->deckPermissionService, 'checkPermission')) {
+            return false;
+        }
+
+        try {
+            $this->deckPermissionService->checkPermission(null, $boardId, $permission, $userId);
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    private function deckAccessStatus(int $allowed, int $total): string
+    {
+        if ($allowed === 0 || $total === 0) {
+            return 'none';
+        }
+
+        return $allowed === $total ? 'all' : 'some';
     }
 
     /**
@@ -598,7 +750,7 @@ class ProjectService
                 $ownerId,
                 $drasciRole,
                 $functionalRoles === null
-                    ? ($this->getFunctionalRoleKeysByUser($project)[$userId] ?? [])
+                    ? ($this->getFunctionalRoleKeysByUser($project, [$userId])[$userId] ?? [])
                     : array_keys($functionalRoles),
             ),
         ];
@@ -676,7 +828,7 @@ class ProjectService
 
         $effectiveFunctionalRoleKeys = $functionalRoles !== null
             ? array_keys($functionalRoles)
-            : ($this->getFunctionalRoleKeysByUser($project)[$userId] ?? []);
+            : ($this->getFunctionalRoleKeysByUser($project, [$userId])[$userId] ?? []);
         $effectiveDrasciRole = $drasciRole;
         if ($effectiveDrasciRole === null) {
             $effectiveDrasciRole = $this->memberRoleMapper->findByProjectAndUser($projectId, $userId)?->getDrasciRole();
@@ -688,12 +840,24 @@ class ProjectService
     }
 
     /**
+     * @param string[] $projectMemberIds
      * @return array<string, string[]>
      */
-    private function getFunctionalRoleKeysByUser(Project $project): array
+    private function getFunctionalRoleKeysByUser(Project $project, array $projectMemberIds): array
     {
         $boardId = (int) ($project->getBoardId() ?? 0);
         if ($boardId <= 0) {
+            return [];
+        }
+
+        $projectMembers = [];
+        foreach ($projectMemberIds as $projectMemberId) {
+            $projectMemberId = trim((string) $projectMemberId);
+            if ($projectMemberId !== '') {
+                $projectMembers[$projectMemberId] = true;
+            }
+        }
+        if ($projectMembers === []) {
             return [];
         }
 
@@ -705,21 +869,47 @@ class ProjectService
 
         $memberships = $this->policyMembershipMapper->findByRoles(array_keys($rolesById));
         $roleKeysByUser = [];
+        $groupMembers = [];
         foreach ($memberships as $membership) {
-            if ($membership->getParticipantType() !== 'user') {
-                continue;
-            }
-
             $roleKey = $rolesById[(int) $membership->getRoleId()] ?? null;
             if ($roleKey === null) {
                 continue;
             }
 
-            $userId = (string) $membership->getParticipantId();
-            $roleKeysByUser[$userId][] = $roleKey;
+            $participantId = trim((string) $membership->getParticipantId());
+            if ($participantId === '') {
+                continue;
+            }
+
+            if ($membership->getParticipantType() === 'user') {
+                if (isset($projectMembers[$participantId])) {
+                    $roleKeysByUser[$participantId][$roleKey] = true;
+                }
+                continue;
+            }
+
+            if ($membership->getParticipantType() !== 'group') {
+                continue;
+            }
+
+            if (!array_key_exists($participantId, $groupMembers)) {
+                $groupMembers[$participantId] = [];
+                $group = $this->groupManager->get($participantId);
+                foreach ($group?->getUsers() ?? [] as $user) {
+                    $userId = trim((string) $user->getUID());
+                    if (isset($projectMembers[$userId])) {
+                        $groupMembers[$participantId][$userId] = true;
+                    }
+                }
+            }
+
+            foreach ($groupMembers[$participantId] as $userId => $_) {
+                $roleKeysByUser[$userId][$roleKey] = true;
+            }
         }
 
         foreach ($roleKeysByUser as &$roleKeys) {
+            $roleKeys = array_keys($roleKeys);
             sort($roleKeys);
         }
         unset($roleKeys);

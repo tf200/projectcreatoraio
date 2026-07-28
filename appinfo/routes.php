@@ -48,6 +48,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#getDeckAccessSummary",
+            "url" => "/api/v1/projects/{projectId}/deck-access-summary",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#addMember",
             "url" => "/api/v1/projects/{projectId}/members",
             "verb" => "POST",

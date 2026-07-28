@@ -43,10 +43,15 @@
 			<div class="pc-toolbar">
 				<div class="pc-toolbar-search">
 					<span class="pc-search-icon">🔍</span>
-					<input v-model.trim="cardSearch" type="search" placeholder="Search cards..." class="pc-search-input">
+					<input
+						v-model.trim="cardSearch"
+						type="search"
+						placeholder="Search cards..."
+						class="pc-search-input"
+						aria-label="Search cards">
 				</div>
 				<div class="pc-toolbar-filters">
-					<select v-model.number="stackFilter" class="pc-stack-select">
+					<select v-model.number="stackFilter" class="pc-stack-select" aria-label="Filter cards by stack">
 						<option :value="0">All stacks ({{ cards.length }} cards)</option>
 						<option v-for="s in stacks" :key="s.id" :value="Number(s.id)">{{ s.title }}</option>
 					</select>
@@ -62,27 +67,37 @@
 				<table class="pc-data-grid">
 					<thead>
 						<tr>
-							<th class="pc-col-check">
-								<input type="checkbox" :checked="allVisibleSelected" @change="toggleSelectAllVisible" title="Select all visible">
+							<th scope="col" class="pc-col-check">
+								<input
+									type="checkbox"
+									:checked="allVisibleSelected"
+									aria-label="Select all visible cards"
+									@change="toggleSelectAllVisible">
 							</th>
-							<th class="pc-col-name">Card Name</th>
-							<th class="pc-col-stack">Stack</th>
-							<th class="pc-col-perms">Who can Move</th>
-							<th class="pc-col-perms">Who can Sign</th>
-							<th class="pc-col-perms">Who can Verify</th>
-							<th class="pc-col-perms">Who can View</th>
-							<th class="pc-col-actions"></th>
+							<th scope="col" class="pc-col-name">Card Name</th>
+							<th
+								v-for="action in summaryActions"
+								:key="action"
+								scope="col"
+								class="pc-col-perms">
+								Who can {{ actionLabel(action) }}
+							</th>
+							<th scope="col" class="pc-col-actions"><span class="pc-visually-hidden">Reset permissions</span></th>
 						</tr>
 					</thead>
 					<tbody>
 						<tr v-if="filteredCards.length === 0">
-							<td colspan="8" class="pc-empty-row">No cards match your filters.</td>
+							<td colspan="7" class="pc-empty-row">No cards match your filters.</td>
 						</tr>
 						<tr v-for="card in filteredCards" :key="card.id" 
 							:class="{ 'is-selected': isSelected(card.id), 'is-custom': card.hasAnyOverride }"
 							@click="toggleSelection(card.id, $event)">
 							<td class="pc-col-check" @click.stop>
-								<input type="checkbox" :value="card.id" v-model="selectedCardIds">
+								<input
+									v-model="selectedCardIds"
+									type="checkbox"
+									:value="card.id"
+									:aria-label="`Select ${card.title}`">
 							</td>
 							<td class="pc-col-name">
 								<div class="pc-card-title-wrap">
@@ -90,47 +105,32 @@
 									<span v-if="card.hasAnyOverride" class="pc-badge pc-badge-custom" title="This card has explicit functional-role rules">{{ overrideCount(card) }} override{{ overrideCount(card) === 1 ? '' : 's' }}</span>
 								</div>
 							</td>
-							<td class="pc-col-stack">
-								<span class="pc-stack-label">{{ getStackTitle(card.stackId) }}</span>
-							</td>
-							<td class="pc-col-perms">
-								<div class="pc-role-chips">
-									<span v-for="rk in getEffectivePerms(card, 'move')" :key="rk" class="pc-role-chip" :style="chipStyleByKey(rk)">
-										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'move', rk) }"></span>
-										{{ effectiveRoleName(card, 'move', rk) }}
+							<td v-for="action in summaryActions" :key="`${card.id}-${action}`" class="pc-col-perms">
+								<div class="pc-permission-summary">
+									<span class="pc-permission-source" :class="`pc-permission-source--${effectivePermissionSource(card, action)}`">
+										{{ effectivePermissionSourceLabel(card, action) }}
 									</span>
-									<span v-if="!getEffectivePerms(card, 'move').length" :class="isExplicitAction(card, 'move') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'move') ? 'Nobody' : '—' }}</span>
-								</div>
-							</td>
-							<td class="pc-col-perms">
-								<div class="pc-role-chips">
-									<span v-for="rk in getEffectivePerms(card, 'sign')" :key="`${card.id}-s-${rk}`" class="pc-role-chip" :style="chipStyleByKey(rk)">
-										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'sign', rk) }"></span>
-										{{ effectiveRoleName(card, 'sign', rk) }}
+									<div v-for="role in effectivePermissionRows(card, action)" :key="role.key" class="pc-permission-role">
+										<span class="pc-role-chip" :style="{ borderColor: role.color }">
+											<span class="pc-dot" :style="{ background: role.color }"></span>
+											{{ role.name }}
+										</span>
+										<span v-if="role.memberNames.length" class="pc-member-names">{{ role.memberNames.join(', ') }}</span>
+										<span v-else class="pc-unassigned-members">No assigned members</span>
+									</div>
+									<span v-if="!getEffectivePerms(card, action).length" :class="isExplicitAction(card, action) ? 'pc-nobody' : 'pc-no-roles'">
+										{{ isExplicitAction(card, action) ? 'Nobody' : 'No roles configured' }}
 									</span>
-									<span v-if="!getEffectivePerms(card, 'sign').length" :class="isExplicitAction(card, 'sign') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'sign') ? 'Nobody' : '—' }}</span>
-								</div>
-							</td>
-							<td class="pc-col-perms">
-								<div class="pc-role-chips">
-									<span v-for="rk in getEffectivePerms(card, 'verify')" :key="`${card.id}-v-${rk}`" class="pc-role-chip" :style="chipStyleByKey(rk)">
-										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'verify', rk) }"></span>
-										{{ effectiveRoleName(card, 'verify', rk) }}
-									</span>
-									<span v-if="!getEffectivePerms(card, 'verify').length" :class="isExplicitAction(card, 'verify') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'verify') ? 'Nobody' : '—' }}</span>
-								</div>
-							</td>
-							<td class="pc-col-perms">
-								<div class="pc-role-chips">
-									<span v-for="rk in getEffectivePerms(card, 'view')" :key="`${card.id}-vw-${rk}`" class="pc-role-chip" :style="{ borderColor: effectiveRoleColor(card, 'view', rk) }">
-										<span class="pc-dot" :style="{ background: effectiveRoleColor(card, 'view', rk) }"></span>
-										{{ effectiveRoleName(card, 'view', rk) }}
-									</span>
-									<span v-if="!getEffectivePerms(card, 'view').length" :class="isExplicitAction(card, 'view') ? 'pc-nobody' : 'muted-dash'">{{ isExplicitAction(card, 'view') ? 'Nobody' : '—' }}</span>
 								</div>
 							</td>
 							<td class="pc-col-actions" @click.stop>
-								<NcButton v-if="card.hasAnyOverride" type="tertiary" size="small" aria-label="Reset to DRASCI defaults" @click="resetCard(card)" title="Reset all actions to DRASCI defaults">
+								<NcButton
+									v-if="card.hasAnyOverride"
+									type="tertiary"
+									size="small"
+									title="Reset all actions to DRASCI defaults"
+									:aria-label="`Reset ${card.title} to DRASCI defaults`"
+									@click="resetCard(card)">
 									<template #icon>↺</template>
 								</NcButton>
 							</td>
@@ -408,6 +408,7 @@ export default {
 			defaults: { move: [], sign: [], verify: [], view: [] },
 			defaultRoleKeys: { move: [], sign: [], verify: [], view: [] },
 			policyActions: ['move', 'sign', 'verify', 'view'],
+			summaryActions: ['view', 'move', 'verify', 'sign'],
 			
 			cards: [],
 			stacks: [],
@@ -869,19 +870,59 @@ export default {
 		chipStyleByRoleId(roleId) { return { borderColor: this.roleColorById(roleId) } },
 		roleNameByKey(roleKey) { return this.roleByKey[roleKey]?.name || roleKey },
 		roleColorByKey(roleKey) { return this.roleByKey[roleKey]?.color || 'var(--color-border)' },
-		chipStyleByKey(roleKey) { return { borderColor: this.roleColorByKey(roleKey) } },
 		actionLabel(action) { return action.charAt(0).toUpperCase() + action.slice(1) },
 		isExplicitAction(card, action) { return card.actions?.[action]?.mode === 'override' },
 		overrideCount(card) {
 			return this.policyActions.filter(action => this.isExplicitAction(card, action)).length
 		},
-		effectiveRoleName(card, action, roleKey) {
-			return card.effectiveRules?.[action]?.source === 'drasci_default'
-				? (this.drasciByKey[roleKey]?.name || roleKey)
-				: this.roleNameByKey(roleKey)
+		effectivePermissionSource(card, action) {
+			const source = card.effectiveRules?.[action]?.source
+			if (source === 'functional_override' || source === 'drasci_default') return source
+			return this.isExplicitAction(card, action) ? 'functional_override' : 'drasci_default'
+		},
+		effectivePermissionSourceLabel(card, action) {
+			return this.effectivePermissionSource(card, action) === 'functional_override' ? 'Functional' : 'DRASCI'
+		},
+		effectivePermissionRows(card, action) {
+			const source = this.effectivePermissionSource(card, action)
+			const seenRoleKeys = new Set()
+
+			return this.getEffectivePerms(card, action)
+				.map(roleKey => String(roleKey || '').trim())
+				.filter(roleKey => {
+					if (!roleKey || seenRoleKeys.has(roleKey)) return false
+					seenRoleKeys.add(roleKey)
+					return true
+				})
+				.map(roleKey => {
+					const seenNames = new Set()
+					const memberNames = (this.members || [])
+						.filter(member => source === 'drasci_default'
+							? String(member?.drasciRole || '').trim() === roleKey
+							: (Array.isArray(member?.functionalRoleKeys) ? member.functionalRoleKeys : [])
+								.map(key => String(key || '').trim())
+								.includes(roleKey))
+						.map(member => String(member?.displayName || member?.id || member?.uid || '').trim())
+						.filter(name => {
+							const normalizedName = this.normStr(name)
+							if (!normalizedName || seenNames.has(normalizedName)) return false
+							seenNames.add(normalizedName)
+							return true
+						})
+						.sort((a, b) => a.localeCompare(b))
+
+					return {
+						key: roleKey,
+						name: source === 'drasci_default'
+							? (this.drasciByKey[roleKey]?.name || roleKey)
+							: this.roleNameByKey(roleKey),
+						color: this.effectiveRoleColor(card, action, roleKey),
+						memberNames,
+					}
+				})
 		},
 		effectiveRoleColor(card, action, roleKey) {
-			if (card.effectiveRules?.[action]?.source !== 'drasci_default') {
+			if (this.effectivePermissionSource(card, action) !== 'drasci_default') {
 				return this.roleColorByKey(roleKey)
 			}
 			const colors = {
@@ -1299,9 +1340,19 @@ export default {
 .pc-col-check { width: 40px; text-align: center; }
 .pc-col-check input { width: 16px; height: 16px; cursor: pointer; }
 .pc-col-name { min-width: 250px; font-weight: 500; color: var(--pc-text); }
-.pc-col-stack { width: 150px; }
-.pc-col-perms { width: 250px; }
+.pc-col-perms { min-width: 250px; }
 .pc-col-actions { width: 60px; text-align: right; }
+.pc-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
 
 .pc-card-title-wrap {
 	display: flex;
@@ -1318,19 +1369,8 @@ export default {
 	font-weight: bold;
 	letter-spacing: 0.5px;
 }
-.pc-stack-label {
-	font-size: 13px;
-	color: var(--pc-text-muted);
-}
-.muted-dash { color: var(--pc-border); font-weight: bold; }
 .pc-nobody { color: var(--color-error); font-size: 12px; font-weight: 600; }
 
-/* Chips inside table */
-.pc-role-chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-}
 .pc-role-chip {
 	display: inline-flex;
 	align-items: center;
@@ -1342,6 +1382,47 @@ export default {
 	background: var(--pc-bg);
 }
 .pc-dot { width: 8px; height: 8px; border-radius: 50%; }
+.pc-permission-summary {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+}
+.pc-permission-source {
+	padding: 2px 6px;
+	border-radius: 4px;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+.pc-permission-source--drasci_default {
+	background: rgba(37, 99, 235, 0.12);
+	color: #1d4ed8;
+}
+.pc-permission-source--functional_override {
+	background: rgba(124, 58, 237, 0.12);
+	color: #6d28d9;
+}
+.pc-permission-role {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 3px;
+}
+.pc-member-names {
+	color: var(--pc-text);
+	font-size: 12px;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+.pc-unassigned-members,
+.pc-no-roles {
+	color: var(--pc-text-muted);
+	font-size: 12px;
+	font-style: italic;
+}
 
 /* Floating Action Bar */
 .pc-floating-action-bar {

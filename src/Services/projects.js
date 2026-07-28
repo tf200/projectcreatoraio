@@ -216,6 +216,24 @@ export class ProjectsService {
         }
     }
 
+	/**
+	 * Get the effective Deck card access summary for project members.
+	 *
+	 * @param {number} projectId Project ID.
+	 * @return {Promise<object|null>} Deck access summary.
+	 */
+	async getDeckAccessSummary(projectId) {
+		const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/deck-access-summary`)
+		const response = await axios.get(url, {
+			headers: {
+				'OCS-APIRequest': 'true',
+				'Content-Type': 'application/json',
+			},
+		})
+
+		return response?.data ?? null
+	}
+
     /**
      * Add a member to a project.
      *
