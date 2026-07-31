@@ -5,7 +5,6 @@ namespace OCA\ProjectCreatorAIO\Db;
 use OCP\IDBConnection;
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\AppFramework\Db\DoesNotExistException;
 
 class ProjectMemberRoleMapper extends QBMapper {
     public const TABLE_NAME = 'project_member_roles';
@@ -15,20 +14,19 @@ class ProjectMemberRoleMapper extends QBMapper {
     }
 
     /**
-     * Find a role record for a project user.
+     * Find all DRASCI roles for a project user.
+     *
+     * @return ProjectMemberRole[]
      */
-    public function findByProjectAndUser(int $projectId, string $userId): ?ProjectMemberRole {
+    public function findByProjectAndUser(int $projectId, string $userId): array {
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
             ->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
-            ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+            ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->orderBy('drasci_role', 'ASC');
 
-        try {
-            return $this->findEntity($qb);
-        } catch (DoesNotExistException $e) {
-            return null;
-        }
+        return $this->findEntities($qb);
     }
 
     /**
@@ -47,25 +45,31 @@ class ProjectMemberRoleMapper extends QBMapper {
     }
 
     /**
-     * Upsert a DRASCI role for a project user.
+     * Replace all DRASCI roles for a project user.
+     *
+     * @param string[] $drasciRoles
      */
-    public function upsertRole(int $projectId, string $userId, string $drasciRole): ProjectMemberRole {
-        $existing = $this->findByProjectAndUser($projectId, $userId);
+    public function replaceRoles(int $projectId, string $userId, array $drasciRoles): void {
+        $this->deleteByProjectAndUser($projectId, $userId);
         $now = new \DateTime();
 
-        if ($existing !== null) {
-            $existing->setDrasciRole($drasciRole);
-            $existing->setUpdatedAt($now);
-            return $this->update($existing);
+        foreach (array_values(array_unique($drasciRoles)) as $drasciRole) {
+            $entity = new ProjectMemberRole();
+            $entity->setProjectId($projectId);
+            $entity->setUserId($userId);
+            $entity->setDrasciRole($drasciRole);
+            $entity->setCreatedAt($now);
+            $entity->setUpdatedAt($now);
+            $this->insert($entity);
         }
+    }
 
-        $entity = new ProjectMemberRole();
-        $entity->setProjectId($projectId);
-        $entity->setUserId($userId);
-        $entity->setDrasciRole($drasciRole);
-        $entity->setCreatedAt($now);
-        $entity->setUpdatedAt($now);
-        return $this->insert($entity);
+    public function deleteByProjectAndUser(int $projectId, string $userId): void {
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete($this->getTableName())
+            ->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
+            ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->executeStatement();
     }
 
     /**

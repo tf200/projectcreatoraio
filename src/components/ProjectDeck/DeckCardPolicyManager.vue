@@ -898,7 +898,11 @@ export default {
 					const seenNames = new Set()
 					const memberNames = (this.members || [])
 						.filter(member => source === 'drasci_default'
-							? String(member?.drasciRole || '').trim() === roleKey
+							? (Array.isArray(member?.drasciRoles)
+								? member.drasciRoles
+								: (member?.drasciRole ? [member.drasciRole] : []))
+								.map(key => String(key || '').trim())
+								.includes(roleKey)
 							: (Array.isArray(member?.functionalRoleKeys) ? member.functionalRoleKeys : [])
 								.map(key => String(key || '').trim())
 								.includes(roleKey))
@@ -1013,9 +1017,15 @@ export default {
 						const edit = this.bulkEdits[action]
 						if (!edit.dirty) continue
 						try {
+							const allowedFunctionalRoleKeys = edit.mode === 'override'
+								? (Array.isArray(edit.roles) ? edit.roles : [])
+									.map(role => typeof role === 'string' ? role : role?.value)
+									.filter(roleKey => typeof roleKey === 'string' && roleKey.trim() !== '')
+									.map(roleKey => roleKey.trim())
+								: []
 							const response = await deckService.updateCardPolicyAction(this.boardIdNum, cardId, action, {
 								mode: edit.mode,
-								allowedFunctionalRoleKeys: edit.mode === 'override' ? edit.roles.map(role => role.value) : [],
+								allowedFunctionalRoleKeys,
 								expectedRevision: Number(this.settings.revision || 0),
 							})
 							if (response?.revision !== undefined) this.settings.revision = Number(response.revision)

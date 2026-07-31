@@ -11,6 +11,7 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
@@ -225,7 +226,7 @@ class ProjectService
                 $locZip,
             );
             $createdProject = $project;
-            $this->memberRoleMapper->upsertRole((int)$project->getId(), $owner->getUID(), 'accountable');
+            $this->memberRoleMapper->replaceRoles((int)$project->getId(), $owner->getUID(), ['accountable']);
 
             $seededCards = [];
             if ($this->deckDefaultCardsService !== null && $createdBoard !== null) {
@@ -427,7 +428,7 @@ class ProjectService
         $roleRows = $this->memberRoleMapper->findByProject($projectId);
         $rolesByUser = [];
         foreach ($roleRows as $roleRow) {
-            $rolesByUser[$roleRow->getUserId()] = $roleRow->getDrasciRole();
+            $rolesByUser[$roleRow->getUserId()][] = $roleRow->getDrasciRole();
         }
 
         $functionalRolesByUser = $this->getFunctionalRoleKeysByUser($project, $memberIds);
@@ -439,8 +440,8 @@ class ProjectService
                 continue;
             }
 
-            $role = $rolesByUser[$memberId] ?? null;
-            $members[] = $this->formatProjectMember($user, $ownerId, $role, $functionalRolesByUser[$memberId] ?? []);
+            $roles = $rolesByUser[$memberId] ?? [];
+            $members[] = $this->formatProjectMember($user, $ownerId, $roles, $functionalRolesByUser[$memberId] ?? []);
         }
 
         usort($members, static function (array $a, array $b): int {
@@ -584,6 +585,8 @@ class ProjectService
                 'id' => $userId,
                 'displayName' => (string) $member['displayName'],
                 'isOwner' => (bool) $member['isOwner'],
+                'drasciRoles' => array_values($member['drasciRoles']),
+                'drasciRoleLabels' => array_values($member['drasciRoleLabels']),
                 'drasciRole' => $member['drasciRole'],
                 'drasciRoleLabel' => (string) $member['drasciRoleLabel'],
                 'functionalRoleKeys' => $roleKeys,
@@ -630,12 +633,12 @@ class ProjectService
     /**
      * Adds an organization member to the project group and provisions a private folder link.
      *
-     * @return array{added: bool, alreadyMember: bool, member: array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}}
+     * @param string[] $drasciRoles
      */
     public function addMemberToProject(
         int $projectId,
         string $userId,
-        string $drasciRole = '',
+        array $drasciRoles,
         ?array $functionalRoleKeys = null,
     ): array
     {
@@ -644,10 +647,7 @@ class ProjectService
             throw new OCSException('A user ID is required to add a project member.', 400);
         }
 
-        $drasciRole = trim($drasciRole);
-        if ($drasciRole === '' || !array_key_exists($drasciRole, self::DRASCI_ROLES)) {
-            throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
-        }
+        $drasciRoles = $this->normalizeDrasciRoles($drasciRoles);
 
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
@@ -705,11 +705,11 @@ class ProjectService
 
         $this->db->beginTransaction();
         try {
-            $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+            $this->memberRoleMapper->replaceRoles($projectId, $userId, $drasciRoles);
             if ($functionalRoles !== null) {
                 $this->replaceFunctionalRoleMemberships($project, $userId, $functionalRoles);
             } else {
-                $this->cardPolicyService->syncLegacyProjectMemberRole((int) ($project->getBoardId() ?? 0), $userId, $drasciRole);
+                $this->cardPolicyService->syncLegacyProjectMemberRole((int) ($project->getBoardId() ?? 0), $userId, $drasciRoles);
             }
             $this->db->commit();
         } catch (Throwable $e) {
@@ -748,7 +748,7 @@ class ProjectService
             'member' => $this->formatProjectMember(
                 $user,
                 $ownerId,
-                $drasciRole,
+                $drasciRoles,
                 $functionalRoles === null
                     ? ($this->getFunctionalRoleKeysByUser($project, [$userId])[$userId] ?? [])
                     : array_keys($functionalRoles),
@@ -757,28 +757,26 @@ class ProjectService
     }
 
     /**
-     * Manually assign or update a DRASCI role for an existing project member.
+     * Manually assign or update DRASCI roles for an existing project member.
      *
-     * @return array{member: array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string}}
+     * @param ?string[] $drasciRoles
      */
     public function updateProjectMemberRoles(
         int $projectId,
         string $userId,
-        ?string $drasciRole = null,
+        ?array $drasciRoles = null,
         ?array $functionalRoleKeys = null,
     ): array
     {
         $userId = trim($userId);
-        $drasciRole = $drasciRole === null ? null : trim($drasciRole);
-
         if ($userId === '') {
             throw new OCSException('A user ID is required.', 400);
         }
-        if ($drasciRole === null && $functionalRoleKeys === null) {
+        if ($drasciRoles === null && $functionalRoleKeys === null) {
             throw new OCSException('At least one role dimension must be provided.', 400);
         }
-        if ($drasciRole !== null && ($drasciRole === '' || !array_key_exists($drasciRole, self::DRASCI_ROLES))) {
-            throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
+        if ($drasciRoles !== null) {
+            $drasciRoles = $this->normalizeDrasciRoles($drasciRoles);
         }
 
         $project = $this->projectMapper->find($projectId);
@@ -812,13 +810,13 @@ class ProjectService
 
         $this->db->beginTransaction();
         try {
-            if ($drasciRole !== null) {
-                $this->memberRoleMapper->upsertRole($projectId, $userId, $drasciRole);
+            if ($drasciRoles !== null) {
+                $this->memberRoleMapper->replaceRoles($projectId, $userId, $drasciRoles);
             }
             if ($functionalRoles !== null) {
                 $this->replaceFunctionalRoleMemberships($project, $userId, $functionalRoles);
-            } elseif ($drasciRole !== null) {
-                $this->cardPolicyService->syncLegacyProjectMemberRole((int) ($project->getBoardId() ?? 0), $userId, $drasciRole);
+            } elseif ($drasciRoles !== null) {
+                $this->cardPolicyService->syncLegacyProjectMemberRole((int) ($project->getBoardId() ?? 0), $userId, $drasciRoles);
             }
             $this->db->commit();
         } catch (Throwable $e) {
@@ -829,13 +827,16 @@ class ProjectService
         $effectiveFunctionalRoleKeys = $functionalRoles !== null
             ? array_keys($functionalRoles)
             : ($this->getFunctionalRoleKeysByUser($project, [$userId])[$userId] ?? []);
-        $effectiveDrasciRole = $drasciRole;
-        if ($effectiveDrasciRole === null) {
-            $effectiveDrasciRole = $this->memberRoleMapper->findByProjectAndUser($projectId, $userId)?->getDrasciRole();
+        $effectiveDrasciRoles = $drasciRoles;
+        if ($effectiveDrasciRoles === null) {
+            $effectiveDrasciRoles = array_map(
+                static fn (ProjectMemberRole $role): string => (string) $role->getDrasciRole(),
+                $this->memberRoleMapper->findByProjectAndUser($projectId, $userId),
+            );
         }
 
         return [
-            'member' => $this->formatProjectMember($user, $ownerId, $effectiveDrasciRole, $effectiveFunctionalRoleKeys),
+            'member' => $this->formatProjectMember($user, $ownerId, $effectiveDrasciRoles, $effectiveFunctionalRoleKeys),
         ];
     }
 
@@ -1085,27 +1086,66 @@ class ProjectService
 
     /**
      * @param string[] $functionalRoleKeys
-     * @return array{id: string, displayName: string, email: string, isOwner: bool, drasciRole: ?string, drasciRoleLabel: string, functionalRoleKeys: string[]}
+     * @param string[] $drasciRoles
      */
     private function formatProjectMember(
         IUser $user,
         string $ownerId,
-        ?string $drasciRole = null,
+        array $drasciRoles = [],
         array $functionalRoleKeys = [],
     ): array
     {
         $userId = $user->getUID();
-        $label = isset(self::DRASCI_ROLES[$drasciRole]) ? self::DRASCI_ROLES[$drasciRole] : 'Unassigned';
+        $drasciRoles = $this->sortDrasciRoles($drasciRoles);
+        $drasciRoleLabels = array_map(
+            static fn (string $role): string => self::DRASCI_ROLES[$role] ?? $role,
+            $drasciRoles,
+        );
+        $legacyRole = $drasciRoles[0] ?? null;
 
         return [
             'id' => $userId,
             'displayName' => $user->getDisplayName() ?: $userId,
             'email' => $user->getEMailAddress() ?: '',
             'isOwner' => $ownerId !== '' && $userId === $ownerId,
-            'drasciRole' => $drasciRole,
-            'drasciRoleLabel' => $label,
+            'drasciRoles' => $drasciRoles,
+            'drasciRoleLabels' => $drasciRoleLabels,
+            'drasciRole' => $legacyRole,
+            'drasciRoleLabel' => $drasciRoleLabels[0] ?? 'Unassigned',
             'functionalRoleKeys' => array_values($functionalRoleKeys),
         ];
+    }
+
+    /** @param mixed[] $drasciRoles */
+    private function normalizeDrasciRoles(array $drasciRoles): array
+    {
+        $normalized = [];
+        foreach ($drasciRoles as $role) {
+            if (!is_string($role)) {
+                throw new OCSException('Every DRASCI role must be a string.', 400);
+            }
+            $role = trim($role);
+            if (!array_key_exists($role, self::DRASCI_ROLES)) {
+                throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
+            }
+            $normalized[$role] = true;
+        }
+
+        if ($normalized === []) {
+            throw new OCSException('At least one DRASCI role is required.', 400);
+        }
+
+        return $this->sortDrasciRoles(array_keys($normalized));
+    }
+
+    /** @param string[] $drasciRoles */
+    private function sortDrasciRoles(array $drasciRoles): array
+    {
+        $selected = array_fill_keys($drasciRoles, true);
+        return array_values(array_filter(
+            array_keys(self::DRASCI_ROLES),
+            static fn (string $role): bool => isset($selected[$role]),
+        ));
     }
 
     public function buildProjectPayload(Project $project): array

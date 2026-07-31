@@ -91,7 +91,7 @@ final class CardPolicyServiceTest extends TestCase {
 
 		$memberRole = new ProjectMemberRole();
 		$memberRole->setDrasciRole('accountable');
-		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn($memberRole);
+		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn([$memberRole]);
 
 		$this->assertTrue($this->service->assertActionLogic($this->card(30), 10, 'sign', 'alice'));
 	}
@@ -111,7 +111,7 @@ final class CardPolicyServiceTest extends TestCase {
 
 		$memberRole = new ProjectMemberRole();
 		$memberRole->setDrasciRole('accountable');
-		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn($memberRole);
+		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn([$memberRole]);
 
 		$this->assertTrue($this->service->assertActionLogic($this->card(30), 10, 'sign', 'alice'));
 	}
@@ -122,6 +122,25 @@ final class CardPolicyServiceTest extends TestCase {
 		$this->defaultDrasciMapper->expects($this->never())->method('findByBoardAndAction');
 
 		$this->assertFalse($this->service->assertActionLogic($this->card(30), 10, 'sign', 'alice'));
+	}
+
+	public function testV2DrasciDefaultAllowsAnyMatchingMemberRole(): void {
+		$this->configureV2Board();
+		$this->cardPolicyMapper->method('findByCard')->willReturn(null);
+
+		$default = new BoardPolicyDefaultDrasci();
+		$default->setDrasciRole('accountable');
+		$this->defaultDrasciMapper->method('findByBoardAndAction')->with(10, 'sign')->willReturn([$default]);
+
+		$consulted = new ProjectMemberRole();
+		$consulted->setDrasciRole('consulted');
+		$accountable = new ProjectMemberRole();
+		$accountable->setDrasciRole('accountable');
+		$this->memberRoleMapper->method('findByProjectAndUser')
+			->with(20, 'alice')
+			->willReturn([$consulted, $accountable]);
+
+		$this->assertTrue($this->service->assertActionLogic($this->card(30), 10, 'sign', 'alice'));
 	}
 
 	public function testV2FunctionalOverrideAllowsMatchingMembership(): void {
@@ -166,7 +185,7 @@ final class CardPolicyServiceTest extends TestCase {
 
 		$memberRole = new ProjectMemberRole();
 		$memberRole->setDrasciRole('accountable');
-		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn($memberRole);
+		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn([$memberRole]);
 
 		$this->assertSame([
 			'canMove' => false,

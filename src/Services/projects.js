@@ -239,13 +239,13 @@ export class ProjectsService {
      *
      * @param {number} projectId
      * @param {string} userId
-     * @param {string} drasciRole
+     * @param {string[]} drasciRoles
      * @param {string[]} functionalRoleKeys
      * @returns {Promise<{added:boolean,alreadyMember:boolean,member:object}|null>}
      */
-    async addMember(projectId, userId, drasciRole, functionalRoleKeys) {
+    async addMember(projectId, userId, drasciRoles, functionalRoleKeys) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`)
-        const response = await axios.post(url, { userId, drasciRole, functionalRoleKeys }, {
+        const response = await axios.post(url, { userId, drasciRoles, functionalRoleKeys }, {
             headers: {
                 'OCS-APIRequest': 'true',
                 'Content-Type': 'application/json',
@@ -260,15 +260,15 @@ export class ProjectsService {
      *
      * @param {number} projectId
      * @param {string} userId
-     * @param {string|undefined} drasciRole
+     * @param {string[]|undefined} drasciRoles
      * @param {string[]|undefined} functionalRoleKeys
      * @returns {Promise<{member:object}|null>}
      */
-    async updateMemberRole(projectId, userId, drasciRole = undefined, functionalRoleKeys = undefined) {
+    async updateMemberRole(projectId, userId, drasciRoles = undefined, functionalRoleKeys = undefined) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members/${encodeURIComponent(userId)}/role`)
         const payload = {}
-        if (drasciRole !== undefined) {
-            payload.drasciRole = drasciRole
+        if (drasciRoles !== undefined) {
+            payload.drasciRoles = drasciRoles
         }
         if (functionalRoleKeys !== undefined) {
             payload.functionalRoleKeys = functionalRoleKeys

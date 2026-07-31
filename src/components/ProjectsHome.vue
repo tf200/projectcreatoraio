@@ -633,17 +633,17 @@
 										@update:model-value="memberInviteSelection = $event" />
 									<NcSelect
 										class="projects-home__member-invite-role-select"
-										:model-value="memberInviteRole"
+										:model-value="memberInviteRoles"
 										:options="drasciRoleOptions"
 										:show-label="true"
-										:multiple="false"
+										:multiple="true"
 										:searchable="false"
-										:clearable="true"
-										input-label="DRASCI role"
+										:clearable="false"
+										input-label="DRASCI roles"
 										label="label"
 										track-by="value"
-										placeholder="Select role"
-										@update:model-value="memberInviteRole = $event" />
+										placeholder="Select roles"
+										@update:model-value="memberInviteRoles = $event || []" />
 									<NcSelect
 										class="projects-home__member-invite-functional-select"
 										:model-value="memberInviteFunctionalRoles"
@@ -660,7 +660,7 @@
 									<NcButton
 										class="projects-home__member-invite-button"
 										type="primary"
-										:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || memberInviteFunctionalRoles.length === 0 || !selectedProject.id"
+										:disabled="memberInviteLoading || !memberInviteSelection || memberInviteRoles.length === 0 || memberInviteFunctionalRoles.length === 0 || !selectedProject.id"
 										@click="inviteSelectedMember">
 										<template #icon>
 											<Plus :size="16" />
@@ -697,19 +697,19 @@
 										</div>
 										<div class="projects-home__member-role">
 											<NcSelect
-												:model-value="getDrasciRoleOption(member.drasciRole)"
+												:model-value="getDrasciRoleOptions(member.drasciRoles, member.drasciRole)"
 												:options="drasciRoleOptions"
 												:loading="memberRoleUpdating[member.id]"
 												:show-label="false"
-												:multiple="false"
+												:multiple="true"
 												:searchable="false"
 												:clearable="false"
 												:disabled="memberRoleUpdating[member.id] || !canManageMembers"
 												label="label"
 												track-by="value"
-												placeholder="Unassigned"
+												placeholder="Select roles"
 												class="projects-home__member-role-select"
-												@update:model-value="updateMemberDrasciRole(member, $event)" />
+												@update:model-value="updateMemberDrasciRoles(member, $event)" />
 										</div>
 										<div class="projects-home__member-functional-role">
 											<NcSelect
@@ -919,17 +919,17 @@
 								@update:model-value="memberInviteSelection = $event" />
 							<NcSelect
 								class="projects-home__member-invite-role-select"
-								:model-value="memberInviteRole"
+								:model-value="memberInviteRoles"
 								:options="drasciRoleOptions"
 								:show-label="true"
-								:multiple="false"
+								:multiple="true"
 								:searchable="false"
-								:clearable="true"
-								input-label="DRASCI role"
+								:clearable="false"
+								input-label="DRASCI roles"
 								label="label"
 								track-by="value"
-								placeholder="Select role"
-								@update:model-value="memberInviteRole = $event" />
+								placeholder="Select roles"
+								@update:model-value="memberInviteRoles = $event || []" />
 							<NcSelect
 								class="projects-home__member-invite-functional-select"
 								:model-value="memberInviteFunctionalRoles"
@@ -946,7 +946,7 @@
 							<NcButton
 								class="projects-home__member-invite-button"
 								type="primary"
-								:disabled="memberInviteLoading || !memberInviteSelection || !memberInviteRole || memberInviteFunctionalRoles.length === 0 || !selectedProject.id"
+								:disabled="memberInviteLoading || !memberInviteSelection || memberInviteRoles.length === 0 || memberInviteFunctionalRoles.length === 0 || !selectedProject.id"
 								@click="inviteSelectedMember">
 								<template #icon>
 									<Plus :size="16" />
@@ -983,19 +983,19 @@
 								</div>
 								<div class="projects-home__member-role">
 									<NcSelect
-										:model-value="getDrasciRoleOption(member.drasciRole)"
+										:model-value="getDrasciRoleOptions(member.drasciRoles, member.drasciRole)"
 										:options="drasciRoleOptions"
 										:loading="memberRoleUpdating[member.id]"
 										:show-label="false"
-										:multiple="false"
+										:multiple="true"
 										:searchable="false"
 										:clearable="false"
 										:disabled="memberRoleUpdating[member.id] || !canManageMembers"
 										label="label"
 										track-by="value"
-										placeholder="Unassigned"
+										placeholder="Select roles"
 										class="projects-home__member-role-select"
-										@update:model-value="updateMemberDrasciRole(member, $event)" />
+										@update:model-value="updateMemberDrasciRoles(member, $event)" />
 								</div>
 								<div class="projects-home__member-functional-role">
 									<NcSelect
@@ -1362,7 +1362,7 @@ export default {
 			memberInviteLoading: false,
 			memberInviteMessage: '',
 			memberSearchTimeout: null,
-			memberInviteRole: null,
+			memberInviteRoles: [],
 			memberInviteFunctionalRoles: [],
 			memberRoleUpdating: {},
 			functionalRoleOptions: [],
@@ -2029,7 +2029,7 @@ export default {
 			this.membersLoading = false
 			this.membersError = ''
 			this.memberInviteSelection = null
-			this.memberInviteRole = null
+			this.memberInviteRoles = []
 			this.memberInviteFunctionalRoles = []
 			this.functionalRoleOptions = []
 			this.memberInviteOptions = []
@@ -2053,11 +2053,9 @@ export default {
 			}
 			return null
 		},
-		getDrasciRoleOption(roleValue) {
-			if (!roleValue) {
-				return null
-			}
-			return this.drasciRoleOptions.find((opt) => opt.value === roleValue) || null
+		getDrasciRoleOptions(roleValues, legacyRole = null) {
+			const selected = new Set(Array.isArray(roleValues) ? roleValues : (legacyRole ? [legacyRole] : []))
+			return this.drasciRoleOptions.filter((option) => selected.has(option.value))
 		},
 		getFunctionalRoleOptions(roleKeys) {
 			const selected = new Set(Array.isArray(roleKeys) ? roleKeys : [])
@@ -2116,7 +2114,7 @@ export default {
 			}, 250)
 		},
 		async inviteSelectedMember() {
-			if (!this.selectedProject?.id || !this.memberInviteSelection || !this.memberInviteRole || this.memberInviteFunctionalRoles.length === 0) {
+			if (!this.selectedProject?.id || !this.memberInviteSelection || this.memberInviteRoles.length === 0 || this.memberInviteFunctionalRoles.length === 0) {
 				return
 			}
 			const userId = typeof this.memberInviteSelection === 'string'
@@ -2125,25 +2123,20 @@ export default {
 			if (!userId) {
 				return
 			}
-			const role = typeof this.memberInviteRole === 'string'
-				? this.memberInviteRole
-				: this.memberInviteRole?.value
-			if (!role) {
-				return
-			}
+			const drasciRoles = this.memberInviteRoles.map((option) => typeof option === 'string' ? option : option.value)
 			const functionalRoleKeys = this.memberInviteFunctionalRoles.map((option) => typeof option === 'string' ? option : option.value)
 			this.memberInviteLoading = true
 			this.memberInviteMessage = ''
 			this.membersError = ''
 			try {
-				const result = await projectsService.addMember(this.selectedProject.id, String(userId), role, functionalRoleKeys)
+				const result = await projectsService.addMember(this.selectedProject.id, String(userId), drasciRoles, functionalRoleKeys)
 				await this.loadProjectMembers(this.selectedProject.id)
 				this.loadedMembersProjectId = Number(this.selectedProject.id)
 				this.memberInviteMessage = result?.alreadyMember
 					? 'This user is already a project member.'
 					: 'Member added to project successfully.'
 				this.memberInviteSelection = null
-				this.memberInviteRole = null
+				this.memberInviteRoles = []
 				this.memberInviteFunctionalRoles = []
 				this.memberInviteOptions = []
 			} catch (error) {
@@ -2152,9 +2145,15 @@ export default {
 				this.memberInviteLoading = false
 			}
 		},
-		async updateMemberDrasciRole(member, roleSelection) {
-			const role = typeof roleSelection === 'string' ? roleSelection : roleSelection?.value
-			if (!this.selectedProject?.id || !member?.id || !role) {
+		async updateMemberDrasciRoles(member, roleSelection) {
+			const roles = Array.isArray(roleSelection)
+				? roleSelection.map((option) => typeof option === 'string' ? option : option.value).filter(Boolean)
+				: []
+			if (!this.selectedProject?.id || !member?.id) {
+				return
+			}
+			if (roles.length === 0) {
+				this.membersError = 'Every project member must have at least one DRASCI role.'
 				return
 			}
 			this.memberRoleUpdating = {
@@ -2165,7 +2164,7 @@ export default {
 				const result = await projectsService.updateMemberRole(
 					this.selectedProject.id,
 					member.id,
-					role,
+					roles,
 					member.functionalRoleKeys || [],
 				)
 				const updatedMember = result?.member

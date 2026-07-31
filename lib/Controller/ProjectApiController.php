@@ -181,9 +181,11 @@ class ProjectApiController extends Controller
             $userId = $params['userId'];
         }
 
-        $drasciRole = '';
-        if (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
-            $drasciRole = $params['drasciRole'];
+        $drasciRoles = [];
+        if (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
+            $drasciRoles = $params['drasciRoles'];
+        } elseif (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
+            $drasciRoles = [$params['drasciRole']];
         }
 
         $functionalRoleKeys = null;
@@ -201,7 +203,7 @@ class ProjectApiController extends Controller
             throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
         }
 
-        $result = $this->projectService->addMemberToProject($projectId, $userId, $drasciRole, $functionalRoleKeys);
+        $result = $this->projectService->addMemberToProject($projectId, $userId, $drasciRoles, $functionalRoleKeys);
 
         return new DataResponse($result, $result['added'] ? 201 : 200);
     }
@@ -211,9 +213,11 @@ class ProjectApiController extends Controller
     public function updateMemberRole(int $projectId, string $userId): DataResponse
     {
         $params = $this->request->getParams();
-        $drasciRole = null;
-        if (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
-            $drasciRole = $params['drasciRole'];
+        $drasciRoles = null;
+        if (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
+            $drasciRoles = $params['drasciRoles'];
+        } elseif (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
+            $drasciRoles = [$params['drasciRole']];
         }
 
         $functionalRoleKeys = null;
@@ -231,7 +235,7 @@ class ProjectApiController extends Controller
             throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
         }
 
-        $result = $this->projectService->updateProjectMemberRoles($projectId, $userId, $drasciRole, $functionalRoleKeys);
+        $result = $this->projectService->updateProjectMemberRoles($projectId, $userId, $drasciRoles, $functionalRoleKeys);
 
         return new DataResponse($result);
     }

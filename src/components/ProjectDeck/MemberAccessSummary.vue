@@ -46,8 +46,11 @@
 								<span v-if="member.isOwner" class="member-access-summary__owner">Owner</span>
 							</div>
 							<div class="member-access-summary__roles">
-								<span class="member-access-summary__role member-access-summary__role--drasci">
-									DRASCI: {{ member.drasciRoleLabel }}
+								<span
+									v-for="role in member.drasciRoles"
+									:key="role.key"
+									class="member-access-summary__role member-access-summary__role--drasci">
+									DRASCI: {{ role.label }}
 								</span>
 								<span
 									v-for="role in member.functionalRoles"
@@ -165,6 +168,16 @@ export default {
 			return members.map(member => {
 				const boardAccess = String(member.boardAccess || 'none')
 				const hasBoardAccess = boardAccess !== 'none'
+				const drasciRoleKeys = Array.isArray(member.drasciRoles)
+					? member.drasciRoles
+					: (member.drasciRole ? [member.drasciRole] : [])
+				const drasciRoleLabels = Array.isArray(member.drasciRoleLabels)
+					? member.drasciRoleLabels
+					: (member.drasciRoleLabel ? [member.drasciRoleLabel] : drasciRoleKeys)
+				const drasciRoles = drasciRoleLabels.map((label, index) => ({
+					key: drasciRoleKeys[index] || `${label}:${index}`,
+					label,
+				}))
 				const functionalRoleKeys = Array.isArray(member.functionalRoleKeys) ? member.functionalRoleKeys : []
 				const functionalRoleLabels = Array.isArray(member.functionalRoleLabels) ? member.functionalRoleLabels : []
 				const functionalRoles = functionalRoleLabels
@@ -178,7 +191,7 @@ export default {
 					...member,
 					id: String(member.id || ''),
 					displayName: member.displayName || member.id || 'Unknown member',
-					drasciRoleLabel: member.drasciRoleLabel || member.drasciRole || 'Unassigned',
+					drasciRoles,
 					functionalRoles,
 					hasBoardAccess,
 					boardAccessLabel: boardAccess === 'edit'

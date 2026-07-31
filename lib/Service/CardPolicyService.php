@@ -337,8 +337,8 @@ class CardPolicyService {
 			return false;
 		}
 
-		$memberRole = $this->projectMemberRoleMapper->findByProjectAndUser((int)$project->getId(), $userId);
-		if ($memberRole === null) {
+		$memberRoles = $this->projectMemberRoleMapper->findByProjectAndUser((int)$project->getId(), $userId);
+		if ($memberRoles === []) {
 			return false;
 		}
 
@@ -347,7 +347,13 @@ class CardPolicyService {
 			$this->defaultDrasciMapper->findByBoardAndAction($boardId, $action),
 		);
 
-		return in_array((string)$memberRole->getDrasciRole(), $allowedDrasciRoles, true);
+		foreach ($memberRoles as $memberRole) {
+			if (in_array((string)$memberRole->getDrasciRole(), $allowedDrasciRoles, true)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/** @param int[] $roleIds */
@@ -519,7 +525,8 @@ class CardPolicyService {
 		$this->seedDefaultCardPolicies($boardId, $createdRoles, $seededCards);
 	}
 
-	public function syncLegacyProjectMemberRole(int $boardId, string $userId, ?string $drasciRole): void {
+	/** @param string[] $drasciRoles */
+	public function syncLegacyProjectMemberRole(int $boardId, string $userId, array $drasciRoles): void {
 		$settings = $this->settingMapper->findByBoard($boardId);
 		if ($settings === null || $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
 			return;
@@ -539,15 +546,16 @@ class CardPolicyService {
 			}
 		}
 
-		if ($drasciRole === null || $drasciRole === '') {
-			return;
+		$roleKeys = [];
+		foreach ($drasciRoles as $drasciRole) {
+			$roleKeys[in_array($drasciRole, ['driver', 'responsible', 'accountable'], true)
+				? 'cpl'
+				: 'client_developer'] = true;
 		}
-
-		$roleKey = in_array($drasciRole, ['driver', 'responsible', 'accountable'], true)
-			? 'cpl'
-			: 'client_developer';
-		if (isset($roles[$roleKey])) {
-			$this->addMembership((int)$roles[$roleKey]->getId(), 'user', $userId);
+		foreach (array_keys($roleKeys) as $roleKey) {
+			if (isset($roles[$roleKey])) {
+				$this->addMembership((int)$roles[$roleKey]->getId(), 'user', $userId);
+			}
 		}
 	}
 
