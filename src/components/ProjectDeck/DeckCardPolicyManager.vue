@@ -16,8 +16,8 @@
 		<div v-else-if="settings.permissionMode !== 'card_policy' || Number(settings.policyVersion || 1) < 2" class="pc-enable-state">
 			<div class="pc-enable-icon">🛡️</div>
 			<h3>Granular Permissions Disabled</h3>
-			<p class="muted">Upgrade this board to DRASCI defaults with explicit functional-role overrides.</p>
-			<NcButton type="primary" size="large" @click="enable">Enable DRASCI Permissions</NcButton>
+			<p class="muted">Upgrade this board to DRASCIVS defaults with explicit functional-role overrides.</p>
+			<NcButton type="primary" size="large" @click="enable">Enable DRASCIVS Permissions</NcButton>
 		</div>
 
 		<div v-else class="pc-policy-container">
@@ -26,7 +26,7 @@
 			<div class="pc-app-header">
 				<div class="pc-header-titles">
 					<h2>Card Permissions</h2>
-					<p class="muted">DRASCI controls inherited access. Functional roles handle explicit card exceptions.</p>
+					<p class="muted">DRASCIVS controls inherited access. Functional roles handle explicit card exceptions.</p>
 				</div>
 				<div class="pc-header-actions">
 					<NcButton type="tertiary" @click="showMembersModal = true">
@@ -128,8 +128,8 @@
 									v-if="card.hasAnyOverride"
 									type="tertiary"
 									size="small"
-									title="Reset all actions to DRASCI defaults"
-									:aria-label="`Reset ${card.title} to DRASCI defaults`"
+									title="Reset all actions to DRASCIVS defaults"
+									:aria-label="`Reset ${card.title} to DRASCIVS defaults`"
 									@click="resetCard(card)">
 									<template #icon>↺</template>
 								</NcButton>
@@ -152,7 +152,7 @@
 							<label>{{ actionLabel(action) }}:</label>
 							<select v-model="bulkEdits[action].mode" class="pc-mode-select" @change="bulkEdits[action].dirty = true">
 								<option value="unchanged">Unchanged</option>
-								<option value="inherit">Inherit DRASCI</option>
+								<option value="inherit">Inherit DRASCIVS</option>
 								<option value="override">Override</option>
 							</select>
 							<NcSelect
@@ -180,7 +180,7 @@
 		<NcModal v-if="showDefaultsModal" @close="showDefaultsModal = false" title="Board Defaults" size="normal">
 			<div class="pc-modal-content">
 				<div class="pc-modal-header-desc">
-					<p>These DRASCI permissions apply whenever a card action has no explicit functional-role override.</p>
+					<p>These DRASCIVS permissions apply whenever a card action has no explicit functional-role override.</p>
 				</div>
 				<div class="pc-modal-field">
 					<label>Who can move cards</label>
@@ -591,13 +591,15 @@ export default {
 				if (generation !== this.loadGeneration || requestedBoardId !== this.boardIdNum) return
 				const data = this.unwrap(raw)
 				this.settings = data.settings || { permissionMode: 'legacy', policyVersion: 1, revision: 0, approvedStackId: null, doneStackId: null }
-				this.drasciRoles = data.drasciRoles || [
+				this.drasciRoles = data.drascivsRoles || data.drasciRoles || [
 					{ key: 'driver', name: 'Driver' },
 					{ key: 'responsible', name: 'Responsible' },
 					{ key: 'accountable', name: 'Accountable' },
 					{ key: 'supportive', name: 'Supportive' },
 					{ key: 'consulted', name: 'Consulted' },
 					{ key: 'informed', name: 'Informed' },
+					{ key: 'verifier', name: 'Verifier' },
+					{ key: 'signer', name: 'Signer' },
 				]
 				this.roles = data.functionalRoles || data.roles || []
 				this.memberships = data.memberships || []
@@ -881,7 +883,7 @@ export default {
 			return this.isExplicitAction(card, action) ? 'functional_override' : 'drasci_default'
 		},
 		effectivePermissionSourceLabel(card, action) {
-			return this.effectivePermissionSource(card, action) === 'functional_override' ? 'Functional' : 'DRASCI'
+			return this.effectivePermissionSource(card, action) === 'functional_override' ? 'Functional' : 'DRASCIVS'
 		},
 		effectivePermissionRows(card, action) {
 			const source = this.effectivePermissionSource(card, action)
@@ -936,6 +938,8 @@ export default {
 				supportive: '#059669',
 				consulted: '#D97706',
 				informed: '#64748B',
+				verifier: '#0891B2',
+				signer: '#BE185D',
 			}
 			return colors[roleKey] || 'var(--color-border)'
 		},

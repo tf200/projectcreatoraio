@@ -612,7 +612,7 @@
 											Project Members
 										</h3>
 										<p class="projects-home__section-subtitle">
-											DRASCI responsibilities and functional project roles are managed independently
+											DRASCIVS responsibilities and functional project roles are managed independently
 										</p>
 									</div>
 								</div>
@@ -639,7 +639,7 @@
 										:multiple="true"
 										:searchable="false"
 										:clearable="false"
-										input-label="DRASCI roles"
+										input-label="DRASCIVS roles"
 										label="label"
 										track-by="value"
 										placeholder="Select roles"
@@ -697,7 +697,7 @@
 										</div>
 										<div class="projects-home__member-role">
 											<NcSelect
-												:model-value="getDrasciRoleOptions(member.drasciRoles, member.drasciRole)"
+												:model-value="getDrasciRoleOptions(member.drascivsRoles || member.drasciRoles, member.drasciRole)"
 												:options="drasciRoleOptions"
 												:loading="memberRoleUpdating[member.id]"
 												:show-label="false"
@@ -898,7 +898,7 @@
 									Project Members
 								</h3>
 								<p class="projects-home__section-subtitle">
-									DRASCI responsibilities and functional project roles are managed independently
+									DRASCIVS responsibilities and functional project roles are managed independently
 								</p>
 							</div>
 						</div>
@@ -925,7 +925,7 @@
 								:multiple="true"
 								:searchable="false"
 								:clearable="false"
-								input-label="DRASCI roles"
+								input-label="DRASCIVS roles"
 								label="label"
 								track-by="value"
 								placeholder="Select roles"
@@ -983,7 +983,7 @@
 								</div>
 								<div class="projects-home__member-role">
 									<NcSelect
-										:model-value="getDrasciRoleOptions(member.drasciRoles, member.drasciRole)"
+										:model-value="getDrasciRoleOptions(member.drascivsRoles || member.drasciRoles, member.drasciRole)"
 										:options="drasciRoleOptions"
 										:loading="memberRoleUpdating[member.id]"
 										:show-label="false"
@@ -1373,6 +1373,8 @@ export default {
 				{ value: 'supportive', label: 'Supportive' },
 				{ value: 'consulted', label: 'Consulted' },
 				{ value: 'informed', label: 'Informed' },
+				{ value: 'verifier', label: 'Verifier' },
+				{ value: 'signer', label: 'Signer' },
 			],
 			showOcrDocumentTypesModal: false,
 			ocrDocumentTypesVersion: 0,
@@ -2153,7 +2155,7 @@ export default {
 				return
 			}
 			if (roles.length === 0) {
-				this.membersError = 'Every project member must have at least one DRASCI role.'
+				this.membersError = 'Every project member must have at least one DRASCIVS role.'
 				return
 			}
 			this.memberRoleUpdating = {

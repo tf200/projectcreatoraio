@@ -83,14 +83,14 @@ final class CardPolicyServiceTest extends TestCase {
 		$this->cardPolicyMapper->method('findByCard')->willReturn(null);
 
 		$default = new BoardPolicyDefaultDrasci();
-		$default->setDrasciRole('accountable');
+		$default->setDrasciRole('signer');
 		$this->defaultDrasciMapper->expects($this->once())
 			->method('findByBoardAndAction')
 			->with(10, 'sign')
 			->willReturn([$default]);
 
 		$memberRole = new ProjectMemberRole();
-		$memberRole->setDrasciRole('accountable');
+		$memberRole->setDrasciRole('signer');
 		$this->memberRoleMapper->method('findByProjectAndUser')->with(20, 'alice')->willReturn([$memberRole]);
 
 		$this->assertTrue($this->service->assertActionLogic($this->card(30), 10, 'sign', 'alice'));

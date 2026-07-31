@@ -245,7 +245,7 @@ export class ProjectsService {
      */
     async addMember(projectId, userId, drasciRoles, functionalRoleKeys) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`)
-        const response = await axios.post(url, { userId, drasciRoles, functionalRoleKeys }, {
+        const response = await axios.post(url, { userId, drascivsRoles: drasciRoles, functionalRoleKeys }, {
             headers: {
                 'OCS-APIRequest': 'true',
                 'Content-Type': 'application/json',
@@ -268,7 +268,7 @@ export class ProjectsService {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members/${encodeURIComponent(userId)}/role`)
         const payload = {}
         if (drasciRoles !== undefined) {
-            payload.drasciRoles = drasciRoles
+            payload.drascivsRoles = drasciRoles
         }
         if (functionalRoleKeys !== undefined) {
             payload.functionalRoleKeys = functionalRoleKeys

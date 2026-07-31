@@ -63,6 +63,8 @@ class ProjectService
         'supportive'   => 'Supportive',
         'consulted'    => 'Consulted',
         'informed'     => 'Informed',
+        'verifier'     => 'Verifier',
+        'signer'       => 'Signer',
     ];
 
 	// Card-visibility helpers live in CardVisibility.
@@ -585,6 +587,8 @@ class ProjectService
                 'id' => $userId,
                 'displayName' => (string) $member['displayName'],
                 'isOwner' => (bool) $member['isOwner'],
+                'drascivsRoles' => array_values($member['drascivsRoles'] ?? $member['drasciRoles'] ?? []),
+                'drascivsRoleLabels' => array_values($member['drascivsRoleLabels'] ?? $member['drasciRoleLabels'] ?? []),
                 'drasciRoles' => array_values($member['drasciRoles']),
                 'drasciRoleLabels' => array_values($member['drasciRoleLabels']),
                 'drasciRole' => $member['drasciRole'],
@@ -757,7 +761,7 @@ class ProjectService
     }
 
     /**
-     * Manually assign or update DRASCI roles for an existing project member.
+     * Manually assign or update DRASCIVS roles for an existing project member.
      *
      * @param ?string[] $drasciRoles
      */
@@ -1108,6 +1112,8 @@ class ProjectService
             'displayName' => $user->getDisplayName() ?: $userId,
             'email' => $user->getEMailAddress() ?: '',
             'isOwner' => $ownerId !== '' && $userId === $ownerId,
+            'drascivsRoles' => $drasciRoles,
+            'drascivsRoleLabels' => $drasciRoleLabels,
             'drasciRoles' => $drasciRoles,
             'drasciRoleLabels' => $drasciRoleLabels,
             'drasciRole' => $legacyRole,
@@ -1122,17 +1128,17 @@ class ProjectService
         $normalized = [];
         foreach ($drasciRoles as $role) {
             if (!is_string($role)) {
-                throw new OCSException('Every DRASCI role must be a string.', 400);
+                throw new OCSException('Every DRASCIVS role must be a string.', 400);
             }
             $role = trim($role);
             if (!array_key_exists($role, self::DRASCI_ROLES)) {
-                throw new OCSException('A valid DRASCI role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
+                throw new OCSException('A valid DRASCIVS role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
             }
             $normalized[$role] = true;
         }
 
         if ($normalized === []) {
-            throw new OCSException('At least one DRASCI role is required.', 400);
+            throw new OCSException('At least one DRASCIVS role is required.', 400);
         }
 
         return $this->sortDrasciRoles(array_keys($normalized));

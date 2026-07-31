@@ -43,6 +43,8 @@ class PolicyApiController extends Controller {
 		'supportive' => 'Supportive',
 		'consulted' => 'Consulted',
 		'informed' => 'Informed',
+		'verifier' => 'Verifier',
+		'signer' => 'Signer',
 	];
 	private const STANDARD_FUNCTIONAL_ROLES = [
 		'cpl' => 'CPL',
@@ -50,10 +52,10 @@ class PolicyApiController extends Controller {
 		'grid_operator' => 'Grid operator (Elektra)',
 	];
 	private const DEFAULT_DRASCI = [
-		'view' => ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed'],
+		'view' => ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed', 'verifier', 'signer'],
 		'move' => ['driver', 'responsible', 'supportive'],
-		'sign' => ['accountable'],
-		'verify' => ['accountable', 'responsible'],
+		'sign' => ['signer'],
+		'verify' => ['verifier'],
 	];
 
 	public function __construct(
@@ -185,6 +187,7 @@ class PolicyApiController extends Controller {
 
 		return [
 			'settings' => $settings,
+			'drascivsRoles' => $drasciRoles,
 			'drasciRoles' => $drasciRoles,
 			'functionalRoles' => $roles,
 			'roles' => $roles,
@@ -859,7 +862,7 @@ class PolicyApiController extends Controller {
 		$normalized = [];
 		foreach ($roleKeys as $roleKey) {
 			if (!is_string($roleKey) || !isset(self::DRASCI_ROLES[$roleKey])) {
-				throw new OCSException('DRASCI defaults may only contain: ' . implode(', ', array_keys(self::DRASCI_ROLES)), Http::STATUS_BAD_REQUEST);
+				throw new OCSException('DRASCIVS defaults may only contain: ' . implode(', ', array_keys(self::DRASCI_ROLES)), Http::STATUS_BAD_REQUEST);
 			}
 			$normalized[$roleKey] = true;
 		}

@@ -501,12 +501,12 @@ class CardPolicyService {
 			$createdRoles[$key] = $this->roleMapper->insert($role);
 		}
 
-		// 3. Set DRASCI default permissions.
+		// 3. Set DRASCIVS default permissions.
 		$defaultMappings = [
-			'view' => ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed'],
+			'view' => ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed', 'verifier', 'signer'],
 			'move' => ['driver', 'responsible', 'supportive'],
-			'sign' => ['accountable'],
-			'verify' => ['accountable', 'responsible'],
+			'sign' => ['signer'],
+			'verify' => ['verifier'],
 		];
 		foreach ($defaultMappings as $action => $roleKeys) {
 			foreach ($roleKeys as $roleKey) {
@@ -548,7 +548,7 @@ class CardPolicyService {
 
 		$roleKeys = [];
 		foreach ($drasciRoles as $drasciRole) {
-			$roleKeys[in_array($drasciRole, ['driver', 'responsible', 'accountable'], true)
+			$roleKeys[in_array($drasciRole, ['driver', 'responsible', 'accountable', 'verifier', 'signer'], true)
 				? 'cpl'
 				: 'client_developer'] = true;
 		}

@@ -182,7 +182,9 @@ class ProjectApiController extends Controller
         }
 
         $drasciRoles = [];
-        if (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
+        if (is_array($params) && array_key_exists('drascivsRoles', $params) && is_array($params['drascivsRoles'])) {
+            $drasciRoles = $params['drascivsRoles'];
+        } elseif (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
             $drasciRoles = $params['drasciRoles'];
         } elseif (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
             $drasciRoles = [$params['drasciRole']];
@@ -214,7 +216,9 @@ class ProjectApiController extends Controller
     {
         $params = $this->request->getParams();
         $drasciRoles = null;
-        if (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
+        if (is_array($params) && array_key_exists('drascivsRoles', $params) && is_array($params['drascivsRoles'])) {
+            $drasciRoles = $params['drascivsRoles'];
+        } elseif (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
             $drasciRoles = $params['drasciRoles'];
         } elseif (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
             $drasciRoles = [$params['drasciRole']];

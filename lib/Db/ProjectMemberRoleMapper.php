@@ -14,7 +14,7 @@ class ProjectMemberRoleMapper extends QBMapper {
     }
 
     /**
-     * Find all DRASCI roles for a project user.
+     * Find all DRASCIVS roles for a project user.
      *
      * @return ProjectMemberRole[]
      */
@@ -45,7 +45,7 @@ class ProjectMemberRoleMapper extends QBMapper {
     }
 
     /**
-     * Replace all DRASCI roles for a project user.
+     * Replace all DRASCIVS roles for a project user.
      *
      * @param string[] $drasciRoles
      */
