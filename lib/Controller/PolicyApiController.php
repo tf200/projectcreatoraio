@@ -647,8 +647,9 @@ class PolicyApiController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function updateCardPolicyAction(int $boardId, int $cardId, string $action): JSONResponse {
+	public function updateCardPolicyAction(int $boardId, int $cardId, string $cardAction): JSONResponse {
 		try {
+			$action = $cardAction;
 			$this->assertCanManagePolicy($boardId);
 			if (!in_array($action, self::ACTIONS, true)) {
 				throw new OCSException('Unsupported policy action.', Http::STATUS_BAD_REQUEST);
