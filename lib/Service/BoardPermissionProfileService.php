@@ -58,7 +58,7 @@ class BoardPermissionProfileService {
 			$roleKeys[(int)$role->getId()] = (string)$role->getRoleKey();
 		}
 
-		$stacks = $this->rows('deck_stacks', ['id', 'title', 'order', 'is_done'], ['board_id' => $boardId, 'deleted_at' => 0], ['order', 'id']);
+		$stacks = $this->rows('deck_stacks', ['id', 'title', 'order', 'is_done_column'], ['board_id' => $boardId, 'deleted_at' => 0], ['order', 'id']);
 		$payloadStacks = [];
 		$stackRefs = [];
 		foreach ($stacks as $index => $stack) {
@@ -69,7 +69,7 @@ class BoardPermissionProfileService {
 				'title' => (string)$stack['title'],
 				'order' => (int)$stack['order'],
 				'approved' => (int)$settings->getApprovedStackId() === (int)$stack['id'],
-				'done' => (bool)$stack['is_done'] || (int)$settings->getDoneStackId() === (int)$stack['id'],
+				'done' => (bool)$stack['is_done_column'] || (int)$settings->getDoneStackId() === (int)$stack['id'],
 			];
 		}
 

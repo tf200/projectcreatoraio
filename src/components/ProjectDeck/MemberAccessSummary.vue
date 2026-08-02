@@ -14,27 +14,72 @@
 		</div>
 
 		<template v-else-if="summary">
+			<!-- EXECUTIVE METRICS HEADER BAR -->
 			<header class="member-access-summary__header">
-				<div>
+				<div class="member-access-summary__header-info">
 					<div class="member-access-summary__scope">
 						{{ scopeLabel }}
 					</div>
 					<h4>{{ scopeTitle }}</h4>
 					<p>{{ scopeDescription }}</p>
 				</div>
-				<div class="member-access-summary__card-count">
-					<strong>{{ totalCards }}</strong>
-					<span>active {{ totalCards === 1 ? 'card' : 'cards' }}</span>
+				<div class="member-access-summary__metrics-grid">
+					<div class="member-access-summary__metric">
+						<strong>{{ totalMembersCount }}</strong>
+						<span>Total Members</span>
+					</div>
+					<div class="member-access-summary__metric member-access-summary__metric--success">
+						<strong>{{ fullAccessCount }}</strong>
+						<span>Full Edit Access</span>
+					</div>
+					<div class="member-access-summary__metric member-access-summary__metric--warning">
+						<strong>{{ readOnlyAccessCount }}</strong>
+						<span>Read Only</span>
+					</div>
+					<div class="member-access-summary__metric member-access-summary__metric--danger">
+						<strong>{{ deniedAccessCount }}</strong>
+						<span>Access Denied</span>
+					</div>
+					<div class="member-access-summary__metric">
+						<strong>{{ totalCards }}</strong>
+						<span>Active Cards</span>
+					</div>
 				</div>
 			</header>
 
-			<div v-if="memberRows.length === 0" class="member-access-summary__state">
-				<strong>No members to show</strong>
-				<span>There are no access results for this scope.</span>
+			<!-- SEARCH & FILTER TOOLBAR -->
+			<div class="member-access-summary__toolbar">
+				<div class="member-access-summary__search">
+					<Magnify :size="18" class="member-access-summary__search-icon" />
+					<input
+						v-model.trim="searchQuery"
+						type="search"
+						placeholder="Search members by name..."
+						class="member-access-summary__search-input"
+						aria-label="Search members by name">
+				</div>
+				<div class="member-access-summary__filters">
+					<select v-model="accessFilter" class="member-access-summary__select" aria-label="Filter members by access level">
+						<option value="all">All Access Levels ({{ totalMembersCount }})</option>
+						<option value="edit">Full Edit Access ({{ fullAccessCount }})</option>
+						<option value="read">Read Only Access ({{ readOnlyAccessCount }})</option>
+						<option value="denied">Access Denied ({{ deniedAccessCount }})</option>
+					</select>
+					<span class="member-access-summary__count-badge">
+						Showing {{ filteredMemberRows.length }} of {{ totalMembersCount }} members
+					</span>
+				</div>
 			</div>
 
+			<!-- EMPTY STATE -->
+			<div v-if="filteredMemberRows.length === 0" class="member-access-summary__state">
+				<strong>No members match your filter</strong>
+				<span>Try searching for a different member name or changing the access filter.</span>
+			</div>
+
+			<!-- MEMBER CARDS GRID -->
 			<div v-else class="member-access-summary__members">
-				<article v-for="member in memberRows" :key="member.id" class="member-access-summary__member">
+				<article v-for="member in filteredMemberRows" :key="member.id" class="member-access-summary__member">
 					<div class="member-access-summary__person">
 						<NcAvatar
 							:user="member.id"
@@ -76,7 +121,10 @@
 							class="member-access-summary__action"
 							:class="`member-access-summary__action--${action.state}`">
 							<div class="member-access-summary__action-heading">
-								<strong>{{ action.label }}</strong>
+								<div class="member-access-summary__action-title-wrap">
+									<component :is="actionIcon(action.key)" :size="16" class="member-access-summary__action-icon" />
+									<strong>{{ action.label }}</strong>
+								</div>
 								<span class="member-access-summary__action-status">{{ action.statusLabel }}</span>
 							</div>
 							<button
@@ -108,6 +156,11 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
+import Eye from 'vue-material-design-icons/Eye.vue'
+import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
+import CheckCircle from 'vue-material-design-icons/CheckCircle.vue'
+import Pen from 'vue-material-design-icons/Pen.vue'
+import Magnify from 'vue-material-design-icons/Magnify.vue'
 
 import { ProjectsService } from '../../Services/projects.js'
 
@@ -126,6 +179,11 @@ export default {
 		NcAvatar,
 		NcButton,
 		NcLoadingIcon,
+		Eye,
+		SwapHorizontal,
+		CheckCircle,
+		Pen,
+		Magnify,
 	},
 	props: {
 		projectId: {
@@ -140,6 +198,8 @@ export default {
 			error: '',
 			expandedActions: {},
 			requestId: 0,
+			searchQuery: '',
+			accessFilter: 'all',
 		}
 	},
 	computed: {
@@ -149,6 +209,18 @@ export default {
 		},
 		totalCards() {
 			return Math.max(0, Number(this.summary?.totalCards) || 0)
+		},
+		totalMembersCount() {
+			return this.memberRows.length
+		},
+		fullAccessCount() {
+			return this.memberRows.filter(m => m.boardAccess === 'edit').length
+		},
+		readOnlyAccessCount() {
+			return this.memberRows.filter(m => m.boardAccess === 'read').length
+		},
+		deniedAccessCount() {
+			return this.memberRows.filter(m => !m.hasBoardAccess || m.boardAccess === 'none').length
 		},
 		scopeLabel() {
 			return this.summary?.scope === 'team' ? 'Team scope' : 'Self scope'
@@ -162,6 +234,22 @@ export default {
 			}
 			const count = this.memberRows.length
 			return `${count} ${count === 1 ? 'member' : 'members'} included in this overview.`
+		},
+		filteredMemberRows() {
+			let list = this.memberRows
+			if (this.searchQuery.trim()) {
+				const q = this.searchQuery.toLowerCase().trim()
+				list = list.filter(m => m.displayName.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
+			}
+			if (this.accessFilter !== 'all') {
+				list = list.filter(m => {
+					if (this.accessFilter === 'edit') return m.boardAccess === 'edit'
+					if (this.accessFilter === 'read') return m.boardAccess === 'read'
+					if (this.accessFilter === 'denied') return !m.hasBoardAccess || m.boardAccess === 'none'
+					return true
+				})
+			}
+			return list
 		},
 		memberRows() {
 			const members = Array.isArray(this.summary?.members) ? this.summary.members : []
@@ -218,6 +306,15 @@ export default {
 		this.requestId += 1
 	},
 	methods: {
+		actionIcon(key) {
+			switch (key) {
+				case 'view': return 'Eye'
+				case 'move': return 'SwapHorizontal'
+				case 'verify': return 'CheckCircle'
+				case 'sign': return 'Pen'
+				default: return 'Eye'
+			}
+		},
 		async loadSummary() {
 			const requestId = ++this.requestId
 			this.summary = null
@@ -312,10 +409,16 @@ export default {
 	align-items: center;
 	justify-content: space-between;
 	gap: 24px;
-	padding: 18px 20px;
+	padding: 20px 24px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 8px);
-	background: var(--color-background-hover);
+	background: var(--color-main-background);
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.member-access-summary__header-info {
+	flex: 1;
+	min-width: 200px;
 }
 
 .member-access-summary__scope {
@@ -334,6 +437,7 @@ export default {
 
 .member-access-summary__header h4 {
 	font-size: 18px;
+	font-weight: bold;
 }
 
 .member-access-summary__header p {
@@ -342,23 +446,105 @@ export default {
 	font-size: 13px;
 }
 
-.member-access-summary__card-count {
+.member-access-summary__metrics-grid {
 	display: flex;
-	flex: 0 0 auto;
-	align-items: baseline;
-	gap: 6px;
-	padding-left: 20px;
-	border-left: 1px solid var(--color-border-dark);
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
 }
 
-.member-access-summary__card-count strong {
-	font-size: 26px;
-	line-height: 1;
+.member-access-summary__metric {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 10px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 8px);
+	background: var(--color-background-hover);
+	min-width: 90px;
+	text-align: center;
 }
 
-.member-access-summary__card-count span {
+.member-access-summary__metric strong {
+	font-size: 20px;
+	font-weight: bold;
+	line-height: 1.1;
+}
+
+.member-access-summary__metric span {
+	font-size: 11px;
 	color: var(--color-text-maxcontrast);
+	margin-top: 2px;
+	white-space: nowrap;
+}
+
+.member-access-summary__metric--success strong { color: var(--color-success); }
+.member-access-summary__metric--warning strong { color: var(--color-warning); }
+.member-access-summary__metric--danger strong { color: var(--color-error); }
+
+/* TOOLBAR */
+.member-access-summary__toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 8px);
+	background: var(--color-main-background);
+}
+
+.member-access-summary__search {
+	position: relative;
+	flex: 1;
+	max-width: 380px;
+	display: flex;
+	align-items: center;
+}
+
+.member-access-summary__search-icon {
+	position: absolute;
+	left: 12px;
+	color: var(--color-text-maxcontrast);
+	pointer-events: none;
+}
+
+.member-access-summary__search-input {
+	width: 100%;
+	padding: 8px 16px 8px 36px;
+	border: 1px solid var(--color-border);
+	border-radius: 20px;
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
 	font-size: 13px;
+	transition: border-color 0.2s;
+}
+
+.member-access-summary__search-input:focus {
+	border-color: var(--color-primary-element);
+	outline: none;
+}
+
+.member-access-summary__filters {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.member-access-summary__select {
+	padding: 8px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
+	font-size: 13px;
+}
+
+.member-access-summary__count-badge {
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+	white-space: nowrap;
 }
 
 .member-access-summary__state {
@@ -506,6 +692,17 @@ export default {
 .member-access-summary__action-heading {
 	display: grid;
 	gap: 3px;
+}
+
+.member-access-summary__action-title-wrap {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.member-access-summary__action-icon {
+	color: var(--color-primary-element);
+	flex-shrink: 0;
 }
 
 .member-access-summary__action-heading strong {

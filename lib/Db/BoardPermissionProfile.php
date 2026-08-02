@@ -13,7 +13,7 @@ class BoardPermissionProfile extends Entity implements JsonSerializable {
 	protected ?int $organizationId = null;
 	protected ?string $creatorUid = null;
 	protected ?string $name = null;
-	protected int $schemaVersion = 2;
+	protected ?int $schemaVersion = null;
 	protected ?string $payloadJson = null;
 	protected ?DateTime $createdAt = null;
 	protected ?DateTime $updatedAt = null;

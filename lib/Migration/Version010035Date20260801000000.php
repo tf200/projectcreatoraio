@@ -20,7 +20,7 @@ class Version010035Date20260801000000 extends SimpleMigrationStep {
 			$table->addColumn('organization_id', Types::BIGINT, ['notnull' => true]);
 			$table->addColumn('creator_uid', Types::STRING, ['length' => 64, 'notnull' => true]);
 			$table->addColumn('name', Types::STRING, ['length' => 255, 'notnull' => true]);
-			$table->addColumn('schema_version', Types::INTEGER, ['notnull' => true]);
+			$table->addColumn('schema_version', Types::INTEGER, ['notnull' => true, 'default' => 2]);
 			$table->addColumn('payload_json', Types::TEXT, ['notnull' => true]);
 			$table->addColumn('created_at', Types::DATETIME, ['notnull' => true]);
 			$table->addColumn('updated_at', Types::DATETIME, ['notnull' => true]);
