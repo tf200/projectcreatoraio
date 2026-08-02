@@ -23,20 +23,39 @@ export class DeckTemplatesService {
 		return data?.ocs?.data || data
 	}
 
-	async list(boardId = null) {
-		return []
+	async list(boardId) {
+		const response = await axios.get(this.profileUrl(boardId), { headers: this.headers() })
+		return this.unwrap(response.data)
 	}
 
 	async createFromBoard(boardId, name) {
-		return { id: 1, name }
+		const response = await axios.post(this.profileUrl(boardId), { name }, { headers: this.headers() })
+		return this.unwrap(response.data)
 	}
 
-	async delete(templateId, boardId = null) {
-		return { success: true }
+	async delete(profileId, boardId) {
+		const response = await axios.delete(this.profileUrl(boardId, profileId), { headers: this.headers() })
+		return this.unwrap(response.data)
 	}
 
-	async get(templateId, boardId) {
-		return { id: templateId, boardId, name: 'Default Template', rules: [] }
+	async get(profileId, boardId) {
+		const response = await axios.get(this.profileUrl(boardId, profileId), { headers: this.headers() })
+		return this.unwrap(response.data)
+	}
+
+	async preview(profileId, boardId) {
+		const response = await axios.post(`${this.profileUrl(boardId, profileId)}/preview`, {}, { headers: this.headers() })
+		return this.unwrap(response.data)
+	}
+
+	async apply(profileId, boardId, data = {}) {
+		const response = await axios.post(`${this.profileUrl(boardId, profileId)}/apply`, data, { headers: this.headers() })
+		return this.unwrap(response.data)
+	}
+
+	profileUrl(boardId, profileId = null) {
+		const base = `/apps/projectcreatoraio/api/v1/boards/${Number(boardId)}/profiles`
+		return generateUrl(profileId === null ? base : `${base}/${encodeURIComponent(profileId)}`)
 	}
 
 }

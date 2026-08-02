@@ -321,6 +321,12 @@ return [
             "url" => "/api/v1/boards/{boardId}/policy/cards/{cardId}",
             "verb" => "DELETE",
         ],
+        ["name" => "board_permission_profile_api#listProfiles", "url" => "/api/v1/boards/{boardId}/profiles", "verb" => "GET"],
+        ["name" => "board_permission_profile_api#createProfile", "url" => "/api/v1/boards/{boardId}/profiles", "verb" => "POST"],
+        ["name" => "board_permission_profile_api#getProfile", "url" => "/api/v1/boards/{boardId}/profiles/{profileId}", "verb" => "GET"],
+        ["name" => "board_permission_profile_api#previewProfile", "url" => "/api/v1/boards/{boardId}/profiles/{profileId}/preview", "verb" => "POST"],
+        ["name" => "board_permission_profile_api#applyProfile", "url" => "/api/v1/boards/{boardId}/profiles/{profileId}/apply", "verb" => "POST"],
+        ["name" => "board_permission_profile_api#deleteProfile", "url" => "/api/v1/boards/{boardId}/profiles/{profileId}", "verb" => "DELETE"],
         [
             "name" => "page#index",
             "url" => "/",

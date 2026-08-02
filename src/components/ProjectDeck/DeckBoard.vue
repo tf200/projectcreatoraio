@@ -32,69 +32,63 @@
 				</div>
 			</div>
 
-			<!-- Advanced Permissions Section -->
-			<div v-if="!loading && !error && canManage" class="pc-collapsible-section" :class="{ 'is-open': !isPermissionsCollapsed }">
-				<button class="pc-collapsible-header" @click="isPermissionsCollapsed = !isPermissionsCollapsed">
-					<div class="pc-collapsible-title">
-						<span class="pc-collapsible-icon">🛡️</span>
-						<div>
-							<h3>Advanced Permissions</h3>
-							<p class="muted">
-								Manage custom rules and roles for individual cards
-							</p>
-						</div>
-					</div>
-					<div class="pc-collapsible-chevron" :class="{ 'is-rotated': !isPermissionsCollapsed }">
-						▼
-					</div>
+			<!-- TOP SUB-NAVIGATION TABS -->
+			<div class="deck-board__tabs">
+				<button
+					class="deck-board__tab"
+					:class="{ 'deck-board__tab--active': activeTab === 'board' }"
+					@click="activeTab = 'board'">
+					<ViewDashboard :size="18" class="deck-board__tab-icon" />
+					<span>Task Board</span>
 				</button>
-
-				<div v-show="!isPermissionsCollapsed" class="pc-collapsible-body">
-					<DeckCardPolicyManager
-						v-if="!loading && !error && canManage"
-						:board-id="boardId"
-						:members="projectMembers" />
-				</div>
-			</div>
-
-			<!-- Permissions Overview Section -->
-			<div v-if="!loading && !error" class="pc-collapsible-section" :class="{ 'is-open': !isOverviewCollapsed }">
-				<button class="pc-collapsible-header" @click="isOverviewCollapsed = !isOverviewCollapsed">
-					<div class="pc-collapsible-title">
-						<span class="pc-collapsible-icon">📊</span>
-						<div>
-							<h3>Permissions Overview</h3>
-							<p class="muted">
-								See what each member is allowed to do on this board
-							</p>
-						</div>
-					</div>
-					<div class="pc-collapsible-chevron" :class="{ 'is-rotated': !isOverviewCollapsed }">
-						▼
-					</div>
+				<button
+					v-if="!loading && !error && canManage"
+					class="deck-board__tab"
+					:class="{ 'deck-board__tab--active': activeTab === 'permissions' }"
+					@click="activeTab = 'permissions'">
+					<ShieldAccount :size="18" class="deck-board__tab-icon" />
+					<span>Card Permissions</span>
 				</button>
-
-				<div v-show="!isOverviewCollapsed" class="pc-collapsible-body">
-					<MemberAccessSummary
-						v-if="!isOverviewCollapsed"
-						:project-id="projectId" />
-				</div>
+				<button
+					v-if="!loading && !error"
+					class="deck-board__tab"
+					:class="{ 'deck-board__tab--active': activeTab === 'overview' }"
+					@click="activeTab = 'overview'">
+					<AccountGroup :size="18" class="deck-board__tab-icon" />
+					<span>Permissions Overview</span>
+				</button>
 			</div>
 
-			<div v-if="loading" class="deck-board__muted">
-				Loading board...
-			</div>
-			<div v-else-if="error" class="deck-board__muted">
-				{{ error }}
-			</div>
-			<div v-else class="deck-board__embed">
-				<div v-if="embeddedError" class="deck-board__muted">
-					{{ embeddedError }}
+			<!-- TAB CONTENT: TASK BOARD -->
+			<div v-show="activeTab === 'board'" class="deck-board__tab-content">
+				<div v-if="loading" class="deck-board__muted">
+					Loading board...
 				</div>
-				<div v-else-if="!embeddedReady" class="deck-board__muted">
-					Loading Deck tasks UI...
+				<div v-else-if="error" class="deck-board__muted">
+					{{ error }}
 				</div>
-				<div ref="deckMount" class="deck-board__mount" />
+				<div v-else class="deck-board__embed">
+					<div v-if="embeddedError" class="deck-board__muted">
+						{{ embeddedError }}
+					</div>
+					<div v-else-if="!embeddedReady" class="deck-board__muted">
+						Loading Deck tasks UI...
+					</div>
+					<div ref="deckMount" class="deck-board__mount" />
+				</div>
+			</div>
+
+			<!-- TAB CONTENT: CARD PERMISSIONS -->
+			<div v-if="activeTab === 'permissions' && !loading && !error && canManage" class="deck-board__tab-content">
+				<DeckCardPolicyManager
+					:board-id="boardId"
+					:members="projectMembers" />
+			</div>
+
+			<!-- TAB CONTENT: PERMISSIONS OVERVIEW -->
+			<div v-if="activeTab === 'overview' && !loading && !error" class="deck-board__tab-content">
+				<MemberAccessSummary
+					:project-id="projectId" />
 			</div>
 		</div>
 	</div>
@@ -106,6 +100,9 @@ import { generateFilePath, generateUrl } from '@nextcloud/router'
 
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
+import ViewDashboard from 'vue-material-design-icons/ViewDashboard.vue'
+import ShieldAccount from 'vue-material-design-icons/ShieldAccount.vue'
+import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 
 import { DeckService } from '../../Services/deck.js'
 import { ProjectsService } from '../../Services/projects.js'
@@ -123,6 +120,9 @@ export default {
 		NcButton,
 		OpenInNew,
 		Refresh,
+		ViewDashboard,
+		ShieldAccount,
+		AccountGroup,
 	},
 	props: {
 		boardId: {
@@ -136,8 +136,7 @@ export default {
 	},
 	data() {
 		return {
-			isPermissionsCollapsed: true,
-			isOverviewCollapsed: true,
+			activeTab: 'board',
 			board: null,
 			permissions: null,
 			error: '',
@@ -413,85 +412,55 @@ export default {
 	}
 }
 
-/* Collapsible Section Styles */
-.pc-collapsible-section {
-	margin-top: 24px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--color-main-background);
-	overflow: hidden;
-	transition: box-shadow 0.2s;
-}
-
-.pc-collapsible-section.is-open {
-	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-	border-color: var(--color-primary-element-light, var(--color-border));
-}
-
-.pc-collapsible-header {
-	width: 100%;
+/* Sub-navigation Tabs */
+.deck-board__tabs {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	padding: 16px 24px;
-	background: var(--color-background-hover);
-	border: none;
-	cursor: pointer;
-	text-align: left;
-	transition: background-color 0.2s;
-}
-
-.pc-collapsible-header:hover {
-	background: var(--color-main-background);
-}
-
-.pc-collapsible-section.is-open .pc-collapsible-header {
+	gap: 4px;
+	margin-top: 16px;
+	margin-bottom: 20px;
 	border-bottom: 1px solid var(--color-border);
-	background: var(--color-main-background);
+	padding-bottom: 0;
 }
 
-.pc-collapsible-title {
+.deck-board__tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 16px;
+	background: transparent;
+	border: none;
+	border-bottom: 2px solid transparent;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+	cursor: pointer;
+	transition: all 0.2s ease;
+	border-radius: var(--border-radius-large, 8px) var(--border-radius-large, 8px) 0 0;
+}
+
+.deck-board__tab:hover {
+	color: var(--color-main-text);
+	background: var(--color-background-hover);
+}
+
+.deck-board__tab--active {
+	color: var(--color-primary-element);
+	border-bottom-color: var(--color-primary-element);
+	background: var(--color-background-hover);
+}
+
+.deck-board__tab-icon {
 	display: flex;
 	align-items: center;
-	gap: 16px;
 }
 
-.pc-collapsible-icon {
-	font-size: 24px;
-	opacity: 0.8;
+.deck-board__tab-content {
+	animation: fadeIn 0.2s ease-out;
 }
 
-.pc-collapsible-title h3 {
-	margin: 0 0 4px 0;
-	font-size: 16px;
-	font-weight: bold;
-	color: var(--color-main-text);
-}
-
-.pc-collapsible-title p {
-	margin: 0;
-	font-size: 13px;
-}
-
-.pc-collapsible-chevron {
-	font-size: 12px;
-	color: var(--color-text-maxcontrast);
-	transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pc-collapsible-chevron.is-rotated {
-	transform: rotate(180deg);
-}
-
-.pc-collapsible-body {
-	padding: 24px;
-	background: var(--color-main-background);
-	animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
-	from { opacity: 0; transform: translateY(-10px); }
+@keyframes fadeIn {
+	from { opacity: 0; transform: translateY(4px); }
 	to { opacity: 1; transform: translateY(0); }
 }
-
 </style>

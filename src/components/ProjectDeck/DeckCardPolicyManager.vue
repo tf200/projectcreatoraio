@@ -7,14 +7,14 @@
 		</div>
 
 		<div v-else-if="error" class="pc-error-state">
-			<div class="pc-error-icon">⚠️</div>
+			<Alert :size="48" class="pc-error-icon" />
 			<h3>Failed to load permissions</h3>
 			<p>{{ error }}</p>
 			<NcButton @click="load">Retry</NcButton>
 		</div>
 
 		<div v-else-if="settings.permissionMode !== 'card_policy' || Number(settings.policyVersion || 1) < 2" class="pc-enable-state">
-			<div class="pc-enable-icon">🛡️</div>
+			<ShieldAccount :size="48" class="pc-enable-icon" />
 			<h3>Granular Permissions Disabled</h3>
 			<p class="muted">Upgrade this board to DRASCIVS defaults with explicit functional-role overrides.</p>
 			<NcButton type="primary" size="large" @click="enable">Enable DRASCIVS Permissions</NcButton>
@@ -29,12 +29,16 @@
 					<p class="muted">DRASCIVS controls inherited access. Functional roles handle explicit card exceptions.</p>
 				</div>
 				<div class="pc-header-actions">
+					<NcButton type="tertiary" @click="openProfiles">
+						<template #icon><ShieldAccount :size="18" /></template>
+						Profiles
+					</NcButton>
 					<NcButton type="tertiary" @click="showMembersModal = true">
-						<template #icon><span class="pc-emoji-icon">👥</span></template>
+						<template #icon><AccountGroup :size="18" /></template>
 						Board Roles & Members
 					</NcButton>
 					<NcButton type="tertiary" @click="showDefaultsModal = true">
-						<template #icon><span class="pc-emoji-icon">⚙️</span></template>
+						<template #icon><Cog :size="18" /></template>
 						Board Defaults
 					</NcButton>
 				</div>
@@ -42,7 +46,7 @@
 
 			<div class="pc-toolbar">
 				<div class="pc-toolbar-search">
-					<span class="pc-search-icon">🔍</span>
+					<Magnify :size="18" class="pc-search-icon" />
 					<input
 						v-model.trim="cardSearch"
 						type="search"
@@ -107,19 +111,25 @@
 							</td>
 							<td v-for="action in summaryActions" :key="`${card.id}-${action}`" class="pc-col-perms">
 								<div class="pc-permission-summary">
-									<span class="pc-permission-source" :class="`pc-permission-source--${effectivePermissionSource(card, action)}`">
-										{{ effectivePermissionSourceLabel(card, action) }}
-									</span>
-									<div v-for="role in effectivePermissionRows(card, action)" :key="role.key" class="pc-permission-role">
-										<span class="pc-role-chip" :style="{ borderColor: role.color }">
+									<div class="pc-role-chips-inline">
+										<span
+											v-for="role in effectivePermissionRows(card, action)"
+											:key="role.key"
+											class="pc-role-chip"
+											:style="{ borderColor: role.color }"
+											:title="roleTooltip(role)">
 											<span class="pc-dot" :style="{ background: role.color }"></span>
-											{{ role.name }}
+											<span class="pc-role-name">{{ role.name }}</span>
 										</span>
-										<span v-if="role.memberNames.length" class="pc-member-names">{{ role.memberNames.join(', ') }}</span>
-										<span v-else class="pc-unassigned-members">No assigned members</span>
+										<span v-if="!getEffectivePerms(card, action).length" :class="isExplicitAction(card, action) ? 'pc-nobody' : 'pc-no-roles'">
+											{{ isExplicitAction(card, action) ? 'Nobody' : 'No roles' }}
+										</span>
 									</div>
-									<span v-if="!getEffectivePerms(card, action).length" :class="isExplicitAction(card, action) ? 'pc-nobody' : 'pc-no-roles'">
-										{{ isExplicitAction(card, action) ? 'Nobody' : 'No roles configured' }}
+									<span
+										v-if="effectivePermissionSource(card, action) === 'functional_override'"
+										class="pc-permission-source pc-permission-source--functional_override"
+										title="Explicit card override active">
+										Override
 									</span>
 								</div>
 							</td>
@@ -292,81 +302,102 @@
 			</div>
 		</NcModal>
 
-		<!-- MODAL: TEMPLATES -->
-		<NcModal v-if="showTemplatesModal" @close="showTemplatesModal = false" title="Permission Templates" size="large">
+		<!-- MODAL: PROFILES -->
+		<NcModal v-if="showProfilesModal" @close="closeProfiles" title="Permission Profiles" size="large">
 			<div class="pc-modal-content pc-templates-modal">
 				<div class="pc-modal-header-desc">
-					<p class="muted">Apply an existing template to this board, or save the current setup as a new template.</p>
+					<p class="muted">Reuse an organization workflow on this board, or save the current workflow as a profile.</p>
 				</div>
 
-				<!-- List saved templates section -->
 				<div class="pc-template-list-box">
 					<div class="pc-box-header">
-						<h4 style="margin: 0;">Available Templates</h4>
+						<h4 style="margin: 0;">Organization Profiles</h4>
 					</div>
 					
-					<div v-if="templatesLoading" class="pc-state-message muted">
-						<div class="pc-spinner"></div> Loading templates...
+					<div v-if="profilesLoading" class="pc-state-message muted">
+						<div class="pc-spinner"></div> Loading profiles...
 					</div>
-					<div v-else-if="templatesError" class="pc-state-message error">
-						{{ templatesError }}
+					<div v-else-if="profilesError" class="pc-state-message error">
+						{{ profilesError }}
 					</div>
 					<div v-else>
-						<div v-if="templates.length === 0" class="pc-empty-state muted">
-							<span style="font-size: 24px; display: block; margin-bottom: 8px;">📋</span>
-							No templates saved yet. Save the current board setup below.
+						<div v-if="profiles.length === 0" class="pc-empty-state muted">
+							No profiles saved yet. Save the current workflow below.
 						</div>
 						<div v-else class="pc-template-cards">
-								<div v-for="t in templates" :key="t.id" class="pc-template-card">
-									<div class="pc-template-card-info">
-										<strong class="pc-template-name">{{ t.name }}</strong>
-										<span class="pc-template-meta muted">By {{ t.createdBy }} · {{ formatIso(t.createdAt) }}</span>
-									</div>
-									<div class="pc-template-card-actions">
-										<NcButton
-											type="primary"
-											size="small"
-											:loading="applyingTemplateId === t.id"
-											:disabled="(!!applyingTemplateId && applyingTemplateId !== t.id) || t.canApply === false"
-											:title="t.canApply === false ? 'Only project owners can apply templates' : ''"
-											@click="applyTemplate(t)">
-											<template #icon>✨</template>
-											Apply Template
-										</NcButton>
-										<NcButton
-											type="tertiary"
-											size="small"
-											:disabled="t.canDelete === false"
-											:title="t.canDelete === false ? 'You can only delete templates you created' : 'Delete template'"
-											aria-label="Delete template"
-											@click="deleteTemplate(t)">
-											<template #icon>
-												<span style="color: var(--color-error); font-size: 16px;">🗑️</span>
-											</template>
-										</NcButton>
-									</div>
+							<div v-for="profile in profiles" :key="profile.id" class="pc-template-card">
+								<div class="pc-template-card-info">
+									<strong class="pc-template-name">{{ profile.name }}</strong>
+									<span v-if="profile.createdBy || profile.createdAt" class="pc-template-meta muted">{{ profileMeta(profile) }}</span>
 								</div>
+								<div class="pc-template-card-actions">
+									<NcButton
+										type="primary"
+										size="small"
+										:loading="previewingProfileId === profile.id"
+										:disabled="profile.canApply === false || (!!previewingProfileId && previewingProfileId !== profile.id)"
+										@click="previewProfile(profile)">
+										Preview
+									</NcButton>
+									<NcButton
+										type="tertiary"
+										size="small"
+										:disabled="profile.canDelete === false || deletingProfileId === profile.id"
+										aria-label="Delete profile"
+										@click="deleteProfile(profile)">
+										Delete
+									</NcButton>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
 
 				<hr class="pc-modal-divider">
 
-				<!-- Create new template section -->
 				<div class="pc-template-create-box">
-					<h4 style="margin: 0 0 12px;">Save Current Board as Template</h4>
-					<p class="muted" style="margin: 0 0 12px; font-size: 13px;">This will capture the current stacks, cards, roles, and permission settings.</p>
+					<h4 style="margin: 0 0 12px;">Save Current Workflow</h4>
+					<p class="muted" style="margin: 0 0 12px; font-size: 13px;">Save this board's workflow and permission configuration for the organization.</p>
 					<div class="pc-template-create-row">
-						<NcTextField class="pc-flex-1" v-model="templateName" label="Template name" :show-label="false" placeholder="e.g., Standard Flow v2" />
-						<NcButton type="secondary" :loading="savingTemplate" :disabled="!templateName.trim()" @click="saveTemplate">
-							<template #icon>💾</template>
-							Save as Template
+						<NcTextField class="pc-flex-1" v-model="profileName" label="Profile name" :show-label="false" placeholder="Standard workflow" />
+						<NcButton type="secondary" :loading="savingProfile" :disabled="!profileName.trim()" @click="saveProfile">
+							Save Profile
 						</NcButton>
 					</div>
 				</div>
 
-				<div class="pc-modal-footer">
-					<NcButton @click="showTemplatesModal = false">Close</NcButton>
+				<div v-if="profilePreview" class="pc-profile-preview">
+					<hr class="pc-modal-divider">
+					<h4>Preview: {{ selectedProfile.name }}</h4>
+					<div v-if="previewCounts.length" class="pc-preview-counts">
+						<div v-for="item in previewCounts" :key="item.label" class="pc-preview-count"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></div>
+					</div>
+					<p v-if="previewConflicts.length" class="pc-help-muted">Resolve every ambiguous card before applying.</p>
+					<div v-for="(conflict, index) in previewConflicts" :key="conflictKey(conflict, index)" class="pc-conflict">
+						<strong>{{ conflictLabel(conflict, index) }}</strong>
+						<p v-if="conflict.message || conflict.description" class="muted">{{ conflict.message || conflict.description }}</p>
+						<label class="pc-visually-hidden" :for="`profile-conflict-${index}`">Resolution</label>
+						<select :id="`profile-conflict-${index}`" v-model="profileResolutions[conflictKey(conflict, index)]" class="pc-stack-select">
+							<option disabled value="">Choose a resolution</option>
+							<option v-for="option in conflictOptions(conflict)" :key="String(optionValue(option))" :value="optionValue(option)">{{ optionLabel(option) }}</option>
+						</select>
+					</div>
+					<div class="pc-modal-footer">
+						<NcButton @click="clearPreview">Cancel Preview</NcButton>
+						<NcButton type="primary" :loading="applyingProfile" :disabled="!canApplyProfile" @click="applyProfile">Apply Profile</NcButton>
+					</div>
+				</div>
+
+				<div v-if="profileResult" class="pc-profile-result">
+					<hr class="pc-modal-divider">
+					<h4>Apply Result</h4>
+					<div class="pc-result-grid">
+						<div v-for="item in resultDetails" :key="item.label"><strong>{{ item.label }}:</strong> {{ item.value }}</div>
+					</div>
+				</div>
+
+				<div v-if="!profilePreview" class="pc-modal-footer">
+					<NcButton @click="closeProfiles">Close</NcButton>
 				</div>
 			</div>
 		</NcModal>
@@ -382,6 +413,12 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 
+import ShieldAccount from 'vue-material-design-icons/ShieldAccount.vue'
+import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import Cog from 'vue-material-design-icons/Cog.vue'
+import Magnify from 'vue-material-design-icons/Magnify.vue'
+import Alert from 'vue-material-design-icons/Alert.vue'
+
 import { DeckService } from '../../Services/deck.js'
 import { DeckTemplatesService } from '../../Services/deckTemplates.js'
 
@@ -390,7 +427,7 @@ const deckTemplatesService = DeckTemplatesService.getInstance()
 
 export default {
 	name: 'DeckCardPolicyManager',
-	components: { NcButton, NcColorPicker, NcSelect, NcModal, NcTextField },
+	components: { NcButton, NcColorPicker, NcSelect, NcModal, NcTextField, ShieldAccount, AccountGroup, Cog, Magnify, Alert },
 	props: {
 		boardId: { type: [String, Number], required: true },
 		members: { type: Array, default: () => [] },
@@ -422,16 +459,22 @@ export default {
 			// Modals
 			showDefaultsModal: false,
 			showMembersModal: false,
-			showTemplatesModal: false,
+			showProfilesModal: false,
 			membersModalTab: 'members',
 
-			// Templates
-			templates: [],
-			templatesLoading: false,
-			templatesError: '',
-			templateName: '',
-			savingTemplate: false,
-			applyingTemplateId: null,
+			// Profiles
+			profiles: [],
+			profilesLoading: false,
+			profilesError: '',
+			profileName: '',
+			savingProfile: false,
+			deletingProfileId: null,
+			previewingProfileId: null,
+			selectedProfile: null,
+			profilePreview: null,
+			profileResolutions: {},
+			applyingProfile: false,
+			profileResult: null,
 			
 			// Forms
 			newMembership: { role: null, user: null },
@@ -495,6 +538,27 @@ export default {
 		allVisibleSelected() {
 			if (this.filteredCards.length === 0) return false
 			return this.filteredCards.every(c => this.selectedCardIds.includes(c.id))
+		},
+		previewConflicts() {
+			return this.profilePreview?.conflicts || []
+		},
+		previewCounts() {
+			const counts = this.profilePreview?.counts || {}
+			return Object.entries(counts)
+				.filter(([, value]) => typeof value === 'number')
+				.map(([label, value]) => ({ label: this.humanize(label), value }))
+		},
+		canApplyProfile() {
+			return !!this.selectedProfile && !!this.profilePreview?.previewToken && this.previewConflicts.every(conflict => {
+				const value = this.profileResolutions[conflict.key]
+				return value !== undefined && value !== null && value !== ''
+			})
+		},
+		resultDetails() {
+			return Object.entries(this.profileResult || {}).map(([label, value]) => ({
+				label: this.humanize(label),
+				value: typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value),
+			}))
 		},
 	},
 	watch: {
@@ -632,233 +696,111 @@ export default {
 				if (generation === this.loadGeneration) this.loading = false
 			}
 		},
-		async openTemplates() {
-			this.showTemplatesModal = true
-			await this.loadTemplates()
+		async openProfiles() {
+			this.showProfilesModal = true
+			this.profileResult = null
+			await this.loadProfiles()
 		},
-		async loadTemplates() {
-			this.templatesLoading = true
-			this.templatesError = ''
+		closeProfiles() {
+			this.showProfilesModal = false
+			this.clearPreview()
+		},
+		async loadProfiles() {
+			this.profilesLoading = true
+			this.profilesError = ''
 			try {
-				this.templates = await deckTemplatesService.list(this.boardIdNum)
+				const data = await deckTemplatesService.list(this.boardIdNum)
+				this.profiles = Array.isArray(data) ? data : (data?.profiles || data?.items || [])
 			} catch (e) {
-				this.templatesError = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to load templates'
+				this.profilesError = this.errorMessage(e, 'Failed to load profiles')
 			} finally {
-				this.templatesLoading = false
+				this.profilesLoading = false
 			}
 		},
-		async saveTemplate() {
-			this.savingTemplate = true
+		async saveProfile() {
+			this.savingProfile = true
 			try {
-				await deckTemplatesService.createFromBoard(this.boardIdNum, this.templateName.trim())
-				showSuccess('Template saved')
-				this.templateName = ''
-				await this.loadTemplates()
+				await deckTemplatesService.createFromBoard(this.boardIdNum, this.profileName.trim())
+				this.profileName = ''
+				showSuccess('Profile saved')
+				await this.loadProfiles()
 			} catch (e) {
-				showError(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to save template')
+				showError(this.errorMessage(e, 'Failed to save profile'))
 			} finally {
-				this.savingTemplate = false
+				this.savingProfile = false
 			}
 		},
-		async deleteTemplate(t) {
-			if (!t?.id) return
+		async deleteProfile(profile) {
+			if (!profile?.id || !confirm(`Delete profile "${profile.name}"?`)) return
+			this.deletingProfileId = profile.id
 			try {
-				await deckTemplatesService.delete(t.id, this.boardIdNum)
-				showSuccess('Template deleted')
-				await this.loadTemplates()
+				await deckTemplatesService.delete(profile.id, this.boardIdNum)
+				if (this.selectedProfile?.id === profile.id) this.clearPreview()
+				showSuccess('Profile deleted')
+				await this.loadProfiles()
 			} catch (e) {
-				showError(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to delete template')
+				showError(this.errorMessage(e, 'Failed to delete profile'))
+			} finally {
+				this.deletingProfileId = null
 			}
 		},
-		async applyTemplate(t) {
-			if (!t?.id) return
-			if (t?.canApply === false) {
-				showError('Only project owners can apply templates')
-				return
-			}
-			if (this.applyingTemplateId) return
-			if (!confirm(`Apply template "${t.name}" to this board? This can create missing roles, stacks, and cards.`)) return
-			this.applyingTemplateId = t.id
+		async previewProfile(profile) {
+			this.previewingProfileId = profile.id
+			this.profileResult = null
 			try {
-				const tpl = await deckTemplatesService.get(t.id, this.boardIdNum)
-				const payload = tpl?.payload
-				if (!payload || typeof payload !== 'object') {
-					throw new Error('Invalid template payload')
-				}
-
-				let rawState = await deckService.getCardPolicy(this.boardIdNum)
-				let state = this.unwrap(rawState)
-				const mode = String(state?.settings?.permissionMode || '')
-				if (mode !== 'card_policy') {
-					await deckService.enableCardPolicy(this.boardIdNum)
-					rawState = await deckService.getCardPolicy(this.boardIdNum)
-					state = this.unwrap(rawState)
-				}
-
-				const report = {
-					createdRoles: 0,
-					createdStacks: 0,
-					createdCards: 0,
-					appliedCardPolicies: 0,
-					clearedCardPolicies: 0,
-					skippedCardPolicies: 0,
-					skippedCards: 0,
-					ambiguousCards: 0,
-					missingRoleKeys: new Set(),
-				}
-
-				// Roles
-				const existingRoleKeys = new Set((state?.roles || []).map(r => String(r.roleKey || '')))
-				for (const r of (payload.roles || [])) {
-					const roleKey = String(r?.roleKey || '').trim()
-					if (!roleKey) continue
-					if (existingRoleKeys.has(roleKey)) continue
-					await deckService.createCardPolicyRole(this.boardIdNum, {
-						roleKey,
-						name: String(r?.name || roleKey),
-						color: String(r?.color || '#111111'),
-					})
-					report.createdRoles++
-					existingRoleKeys.add(roleKey)
-				}
-
-				// Refresh state after role creation
-				rawState = await deckService.getCardPolicy(this.boardIdNum)
-				state = this.unwrap(rawState)
-				const finalRoleKeys = new Set((state?.roles || []).map(r => String(r.roleKey || '')))
-
-				// Defaults
-				const defaults = payload.defaults || {}
-				const move = (defaults.move || []).map(String).filter(k => finalRoleKeys.has(k))
-				const sign = (defaults.sign || defaults.approve || []).map(String).filter(k => finalRoleKeys.has(k))
-				const verify = (defaults.verify || defaults.approve || []).map(String).filter(k => finalRoleKeys.has(k))
-				const view = (defaults.view || []).map(String).filter(k => finalRoleKeys.has(k))
-				await deckService.updateCardPolicyDefaults(this.boardIdNum, { move, sign, verify, view })
-
-				// Stacks
-				let stacks = await deckService.listStacks(this.boardIdNum)
-				const stackIdByTitle = new Map(stacks.map(s => [this.normStr(s.title), Number(s.id)]))
-				for (const s of (payload.stacks || [])) {
-					const title = String(s?.title || '').trim()
-					if (!title) continue
-					const key = this.normStr(title)
-					if (stackIdByTitle.has(key)) continue
-					const created = await deckService.createStack(this.boardIdNum, title, Number(s?.order ?? 999))
-					const createdId = Number(created?.id)
-					if (createdId > 0) {
-						report.createdStacks++
-						stackIdByTitle.set(key, createdId)
-					}
-				}
-
-				stacks = await deckService.listStacks(this.boardIdNum)
-				const refreshedStackIdByTitle = new Map(stacks.map(s => [this.normStr(s.title), Number(s.id)]))
-
-				// Cards (use card-policy state because it returns all cards + ids)
-				rawState = await deckService.getCardPolicy(this.boardIdNum)
-				state = this.unwrap(rawState)
-				let boardCards = (state?.cards || []).map(c => ({
-					id: Number(c.id),
-					title: String(c.title || ''),
-					stackId: Number(c.stackId || 0),
-				}))
-
-				const findCardsByTitle = (title) => {
-					const k = this.normStr(title)
-					return boardCards.filter(c => this.normStr(c.title) === k)
-				}
-				const findCardInStack = (title, stackId) => {
-					const k = this.normStr(title)
-					return boardCards.find(c => c.stackId === Number(stackId) && this.normStr(c.title) === k) || null
-				}
-
-				for (const c of (payload.cards || [])) {
-					const title = String(c?.title || '').trim()
-					const stackTitle = String(c?.stackTitle || '').trim()
-					if (!title || !stackTitle) {
-						report.skippedCards++
-						continue
-					}
-					const desiredStackId = refreshedStackIdByTitle.get(this.normStr(stackTitle))
-					let targetCard = desiredStackId ? findCardInStack(title, desiredStackId) : null
-					if (!targetCard) {
-						const matches = findCardsByTitle(title)
-						if (matches.length === 1) {
-							// Card exists elsewhere: keep it in its current stack
-							targetCard = matches[0]
-						} else if (matches.length > 1) {
-							// Ambiguous: create a new card in the template stack if possible
-							report.ambiguousCards++
-							if (desiredStackId) {
-								const created = await deckService.createCard(desiredStackId, title, Number(c?.order ?? 999), String(c?.description || ''))
-								const createdId = Number(created?.id)
-								if (createdId > 0) {
-									report.createdCards++
-									targetCard = { id: createdId, title, stackId: desiredStackId }
-									boardCards.push(targetCard)
-								}
-							}
-						} else {
-							// Not found: create in the template stack
-							if (desiredStackId) {
-								const created = await deckService.createCard(desiredStackId, title, Number(c?.order ?? 999), String(c?.description || ''))
-								const createdId = Number(created?.id)
-								if (createdId > 0) {
-									report.createdCards++
-									targetCard = { id: createdId, title, stackId: desiredStackId }
-									boardCards.push(targetCard)
-								}
-							}
-						}
-					}
-
-					if (!targetCard?.id) {
-						report.skippedCards++
-						continue
-					}
-
-					const policy = c?.policy || {}
-					const moveKeys = (policy.move || []).map(String)
-					const signKeys = (policy.sign || policy.approve || []).map(String)
-					const verifyKeys = (policy.verify || policy.approve || []).map(String)
-					const viewKeys = (policy.view || []).map(String)
-					const hadAnyKeys = moveKeys.length > 0 || signKeys.length > 0 || verifyKeys.length > 0 || viewKeys.length > 0
-					const filteredMove = moveKeys.filter(k => finalRoleKeys.has(k))
-					const filteredSign = signKeys.filter(k => finalRoleKeys.has(k))
-					const filteredVerify = verifyKeys.filter(k => finalRoleKeys.has(k))
-					const filteredView = viewKeys.filter(k => finalRoleKeys.has(k))
-
-					for (const k of [...moveKeys, ...signKeys, ...verifyKeys, ...viewKeys]) {
-						if (k && !finalRoleKeys.has(k)) report.missingRoleKeys.add(k)
-					}
-
-					if (filteredMove.length || filteredSign.length || filteredVerify.length || filteredView.length) {
-						await deckService.setCardPolicy(this.boardIdNum, Number(targetCard.id), {
-							move: filteredMove,
-							sign: filteredSign,
-							verify: filteredVerify,
-							view: filteredView,
-						})
-						report.appliedCardPolicies++
-					} else if (!hadAnyKeys) {
-						await deckService.clearCardPolicy(this.boardIdNum, Number(targetCard.id))
-						report.clearedCardPolicies++
-					} else {
-						report.skippedCardPolicies++
-					}
-				}
-
-				const missing = Array.from(report.missingRoleKeys)
-				const msg = `Applied template. Roles +${report.createdRoles}, stacks +${report.createdStacks}, cards +${report.createdCards}, policies set ${report.appliedCardPolicies}, cleared ${report.clearedCardPolicies}, skipped ${report.skippedCardPolicies}.` +
-					(missing.length ? ` Missing role keys skipped: ${missing.join(', ')}.` : '') +
-					(report.ambiguousCards ? ` Ambiguous titles: ${report.ambiguousCards} (created new cards in template stacks).` : '')
-				showSuccess(msg)
+				this.selectedProfile = await deckTemplatesService.get(profile.id, this.boardIdNum)
+				this.selectedProfile = { ...profile, ...this.selectedProfile }
+				this.profilePreview = await deckTemplatesService.preview(profile.id, this.boardIdNum)
+				this.profileResolutions = Object.fromEntries(this.previewConflicts.map((conflict, index) => [this.conflictKey(conflict, index), '']))
+			} catch (e) {
+				showError(this.errorMessage(e, 'Failed to preview profile'))
+				this.clearPreview()
+			} finally {
+				this.previewingProfileId = null
+			}
+		},
+		clearPreview() {
+			this.selectedProfile = null
+			this.profilePreview = null
+			this.profileResolutions = {}
+		},
+		async applyProfile() {
+			if (!this.canApplyProfile || this.applyingProfile) return
+			this.applyingProfile = true
+			try {
+				this.profileResult = await deckTemplatesService.apply(this.selectedProfile.id, this.boardIdNum, {
+					resolutions: this.profileResolutions,
+					expectedPreviewToken: this.profilePreview.previewToken,
+				})
+				showSuccess('Profile applied')
+				this.clearPreview()
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.message || e?.response?.data?.ocs?.data?.message || e?.message || 'Failed to apply template')
+				showError(this.errorMessage(e, 'Failed to apply profile'))
 			} finally {
-				this.applyingTemplateId = null
+				this.applyingProfile = false
 			}
+		},
+		profileMeta(profile) {
+			return [profile.createdBy ? `By ${profile.createdBy}` : '', this.formatIso(profile.createdAt)].filter(Boolean).join(' - ')
+		},
+		humanize(value) {
+			return String(value).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, char => char.toUpperCase())
+		},
+		conflictKey(conflict, index) {
+			return conflict.key || String(index)
+		},
+		conflictLabel(conflict, index) {
+			return conflict.title || conflict.cardTitle || conflict.name || `Ambiguous card ${index + 1}`
+		},
+		conflictOptions(conflict) {
+			return conflict.options || []
+		},
+		optionValue(option) {
+			return option.value
+		},
+		optionLabel(option) {
+			return option.label
 		},
 		getStackTitle(stackId) {
 			const s = this.stacks.find(s => Number(s.id) === Number(stackId))
@@ -872,6 +814,12 @@ export default {
 		chipStyleByRoleId(roleId) { return { borderColor: this.roleColorById(roleId) } },
 		roleNameByKey(roleKey) { return this.roleByKey[roleKey]?.name || roleKey },
 		roleColorByKey(roleKey) { return this.roleByKey[roleKey]?.color || 'var(--color-border)' },
+		roleTooltip(role) {
+			if (role && role.memberNames && role.memberNames.length) {
+				return `${role.name}: ${role.memberNames.join(', ')}`
+			}
+			return role ? `${role.name} (No assigned members)` : ''
+		},
 		actionLabel(action) { return action.charAt(0).toUpperCase() + action.slice(1) },
 		isExplicitAction(card, action) { return card.actions?.[action]?.mode === 'override' },
 		overrideCount(card) {
@@ -1212,7 +1160,6 @@ export default {
 	--pc-radius: var(--border-radius-large, 8px);
 	
 	position: relative;
-	height: calc(100vh - 120px);
 	min-height: 500px;
 	display: flex;
 	flex-direction: column;
@@ -1388,24 +1335,34 @@ export default {
 .pc-role-chip {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: 5px;
 	padding: 2px 8px;
-	border-radius: 999px;
+	border-radius: 12px;
 	border: 1px solid var(--pc-border);
 	font-size: 12px;
-	background: var(--pc-bg);
+	font-weight: 500;
+	background: var(--pc-bg-hover);
+	color: var(--pc-text);
+	cursor: help;
+	white-space: nowrap;
 }
-.pc-dot { width: 8px; height: 8px; border-radius: 50%; }
+.pc-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .pc-permission-summary {
 	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 8px;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.pc-role-chips-inline {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: wrap;
 }
 .pc-permission-source {
-	padding: 2px 6px;
+	padding: 1px 5px;
 	border-radius: 4px;
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 700;
 	letter-spacing: 0.04em;
 	line-height: 1.4;
@@ -1416,14 +1373,8 @@ export default {
 	color: #1d4ed8;
 }
 .pc-permission-source--functional_override {
-	background: rgba(124, 58, 237, 0.12);
+	background: rgba(124, 58, 237, 0.15);
 	color: #6d28d9;
-}
-.pc-permission-role {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 3px;
 }
 .pc-member-names {
 	color: var(--pc-text);
@@ -1605,6 +1556,40 @@ export default {
 	gap: 12px;
 	align-items: center;
 }
+.pc-profile-preview,
+.pc-profile-result {
+	margin-top: 24px;
+}
+.pc-preview-counts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 12px;
+	margin: 16px 0;
+}
+.pc-preview-count {
+	display: flex;
+	flex-direction: column;
+	padding: 12px;
+	background: var(--color-background-hover);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+}
+.pc-preview-count strong { font-size: 20px; }
+.pc-preview-count span { color: var(--color-text-maxcontrast); font-size: 12px; }
+.pc-conflict {
+	display: grid;
+	gap: 8px;
+	margin-top: 12px;
+	padding: 16px;
+	border: 1px solid var(--color-warning, #e6a700);
+	border-radius: var(--border-radius-large);
+}
+.pc-conflict p { margin: 0; }
+.pc-result-grid {
+	display: grid;
+	gap: 8px;
+	overflow-wrap: anywhere;
+}
 .pc-state-message {
 	padding: 20px;
 	text-align: center;
@@ -1614,5 +1599,19 @@ export default {
 .pc-state-message.error {
 	color: var(--color-error);
 	background: rgba(255, 0, 0, 0.05);
+}
+@media (max-width: 700px) {
+	.pc-app-header,
+	.pc-toolbar,
+	.pc-template-create-row,
+	.pc-template-card {
+		align-items: stretch;
+		flex-direction: column;
+	}
+	.pc-header-actions,
+	.pc-toolbar-filters {
+		flex-wrap: wrap;
+	}
+	.pc-toolbar-search { width: 100%; }
 }
 </style>

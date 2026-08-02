@@ -104,6 +104,9 @@ use OCA\ProjectCreatorAIO\Db\CardPolicyOverrideMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Controller\PolicyApiController;
+use OCA\ProjectCreatorAIO\Controller\BoardPermissionProfileApiController;
+use OCA\ProjectCreatorAIO\Db\BoardPermissionProfileMapper;
+use OCA\ProjectCreatorAIO\Service\BoardPermissionProfileService;
 
 class Application extends App implements IBootstrap {
     public const APP_ID = 'projectcreatoraio';
@@ -282,6 +285,22 @@ class Application extends App implements IBootstrap {
 				$deckEnabled ? $c->get(StackMapper::class) : null,
 				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null
 			);
+		});
+		$context->registerService(BoardPermissionProfileMapper::class, fn(ContainerInterface $c) => new BoardPermissionProfileMapper($c->get(IDBConnection::class)));
+		$context->registerService(BoardPermissionProfileService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class); $deck = $appManager->isEnabledForAnyone('deck') && class_exists(StackService::class);
+			return new BoardPermissionProfileService($c->get(IDBConnection::class), $c->get(BoardPermissionProfileMapper::class),
+				$c->get(BoardPolicySettingMapper::class), $c->get(BoardPolicyRoleMapper::class), $c->get(BoardPolicyDefaultDrasciMapper::class),
+				$c->get(CardPolicyMapper::class), $c->get(CardPolicyOverrideMapper::class), $c->get(CardPolicyRoleMapper::class),
+				$deck ? $c->get(StackService::class) : null, $deck ? $c->get(CardService::class) : null, $deck ? $c->get(StackMapper::class) : null);
+		});
+		$context->registerService(BoardPermissionProfileApiController::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$organization = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationUserMapper::class);
+			return new BoardPermissionProfileApiController(self::APP_ID, $c->get(\OCP\IRequest::class),
+				$c->get(BoardPermissionProfileMapper::class), $c->get(BoardPermissionProfileService::class), $c->get(ProjectMapper::class),
+				$c->get(CardPolicyService::class), $c->get(IUserSession::class), $c->get(IGroupManager::class),
+				$organization ? $c->get(OrganizationUserMapper::class) : null);
 		});
 
 		$context->registerService(PolicyApiController::class, function (ContainerInterface $c) {
