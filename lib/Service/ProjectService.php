@@ -100,6 +100,7 @@ class ProjectService
         private readonly BoardPolicyRoleMapper $policyRoleMapper,
         private readonly BoardPolicyMembershipMapper $policyMembershipMapper,
         private readonly CardPolicyService $cardPolicyService,
+        private readonly OrganizationPdfService $organizationPdfService,
     ) {
     }
 
@@ -191,6 +192,14 @@ class ProjectService
             if ($createdWhiteBoardId <= 0) {
                 throw new OCSException('Whiteboard file creation failed.');
             }
+
+            $resolvedOrgId = $organization !== null ? $organization->getId() : $organizationId;
+            $this->createDefaultPdfFile(
+                $createdFolders['shared']['name'],
+                $resolvedOrgId,
+                $createdFolders['shared']['group_folder_id'] ?? null,
+                $createdFolders['shared']['folder'] ?? null
+            );
 
             $whiteBoardId = (string) $createdWhiteBoardId;
             $memberIds = array_values(array_unique(array_merge($members, [$owner->getUID()])));
@@ -2366,5 +2375,71 @@ class ProjectService
         }
 
         return (int) $createdId;
+    }
+
+    /**
+     * Creates a default PDF file in the shared folder for the project's organization.
+     */
+    private function createDefaultPdfFile(
+        string $folderName,
+        ?int $organizationId,
+        ?int $groupFolderId = 0,
+        ?Folder $fallbackFolder = null
+    ): ?int {
+        $pdfContent = $this->organizationPdfService->getOrganizationPdfContent($organizationId);
+        if ($pdfContent === null || $pdfContent === '') {
+            $this->logger->info('No default PDF template available for project creation.', [
+                'organizationId' => $organizationId,
+            ]);
+            return null;
+        }
+
+        $fileName = 'Welcome_Document.pdf';
+
+        if ($groupFolderId === null || $groupFolderId <= 0) {
+            if ($fallbackFolder === null) {
+                return null;
+            }
+            if ($fallbackFolder->nodeExists($fileName)) {
+                $file = $fallbackFolder->get($fileName);
+                return (int) $file->getId();
+            }
+            $file = $fallbackFolder->newFile($fileName, $pdfContent);
+            return (int) $file->getId();
+        }
+
+        if ($this->folderManager === null || $this->folderStorageManager === null) {
+            return null;
+        }
+
+        $groupFolder = $this->folderManager->getFolder($groupFolderId);
+        if ($groupFolder === null) {
+            return null;
+        }
+
+        $storage = $this->folderStorageManager->getBaseStorageForFolder(
+            $groupFolderId,
+            $groupFolder->useSeparateStorage(),
+            $groupFolder,
+            null,
+            false,
+            'files'
+        );
+
+        $cache = $storage->getCache();
+        $existingId = $cache->getId($fileName);
+        if ($existingId !== -1) {
+            return (int) $existingId;
+        }
+
+        if ($storage->file_put_contents($fileName, $pdfContent) === false) {
+            $this->logger->warning("Unable to write default PDF file {$fileName} in GroupFolder {$groupFolderId}");
+            return null;
+        }
+
+        $storage->getScanner()->scan($fileName);
+        $createdId = $cache->getId($fileName);
+
+        return $createdId !== -1 ? (int) $createdId : null;
     }
 }

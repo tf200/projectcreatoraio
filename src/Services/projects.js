@@ -934,4 +934,52 @@ export class ProjectsService {
             return [];
         }
     }
+
+    /**
+     * Get organization default PDF info
+     * @param {number} organizationId
+     */
+    async getOrganizationPdfInfo(organizationId) {
+        const url = generateUrl(`/apps/projectcreatoraio/api/v1/organizations/${organizationId}/default-pdf`);
+        const response = await axios.get(url, {
+            headers: {
+                'OCS-APIRequest': 'true',
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * Upload organization default PDF
+     * @param {number} organizationId
+     * @param {File} file
+     */
+    async uploadOrganizationPdf(organizationId, file) {
+        const url = generateUrl(`/apps/projectcreatoraio/api/v1/organizations/${organizationId}/default-pdf`);
+        const formData = new FormData();
+        formData.append('pdf', file);
+        const response = await axios.post(url, formData, {
+            headers: {
+                'OCS-APIRequest': 'true',
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
+    }
+
+    /**
+     * Delete organization default PDF (reset to fallback)
+     * @param {number} organizationId
+     */
+    async deleteOrganizationPdf(organizationId) {
+        const url = generateUrl(`/apps/projectcreatoraio/api/v1/organizations/${organizationId}/default-pdf`);
+        const response = await axios.delete(url, {
+            headers: {
+                'OCS-APIRequest': 'true',
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    }
 }

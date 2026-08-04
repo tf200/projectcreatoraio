@@ -210,6 +210,21 @@ return [
             "verb" => "DELETE",
         ],
         [
+            "name" => "organization_pdf#getPdfInfo",
+            "url" => "/api/v1/organizations/{organizationId}/default-pdf",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "organization_pdf#uploadPdf",
+            "url" => "/api/v1/organizations/{organizationId}/default-pdf",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "organization_pdf#deletePdf",
+            "url" => "/api/v1/organizations/{organizationId}/default-pdf",
+            "verb" => "DELETE",
+        ],
+        [
             "name" => "project_api#getWhiteboardInfo",
             "url" => "/api/v1/projects/{projectId}/whiteboard",
             "verb" => "GET",

@@ -583,6 +583,16 @@
 											Document types
 										</NcButton>
 										<NcButton
+											v-if="hasProjectAccess && selectedProjectOrganizationId"
+											type="tertiary"
+											class="projects-home__default-pdf-button"
+											@click.stop.prevent="showOrganizationPdfModal = true">
+											<template #icon>
+												<FileDocumentOutline :size="18" />
+											</template>
+											Default PDF
+										</NcButton>
+										<NcButton
 											type="secondary"
 											:disabled="!selectedProject.folderPath"
 											@click.stop.prevent="downloadProject(selectedProject)">
@@ -1207,6 +1217,11 @@
 			:organization-id="selectedProjectOrganizationId"
 			@close="showOcrDocumentTypesModal = false"
 			@updated="handleOcrDocumentTypesUpdated" />
+
+		<OrganizationPdfModal
+			:show="showOrganizationPdfModal"
+			:organization-id="selectedProjectOrganizationId"
+			@close="showOrganizationPdfModal = false" />
 	</div>
 </template>
 
@@ -1228,6 +1243,7 @@ import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import Draw from 'vue-material-design-icons/Draw.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
+import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import FilterRemove from 'vue-material-design-icons/FilterRemove.vue'
 import History from 'vue-material-design-icons/History.vue'
 import FolderOpen from 'vue-material-design-icons/FolderOpen.vue'
@@ -1270,6 +1286,7 @@ import ProjectCreator from './ProjectCreator.vue'
 import ProjectNotesList from './ProjectNotesList.vue'
 import ProjectCardVisibilityTab from './ProjectCardVisibilityTab.vue'
 import OcrDocumentTypesModal from './OcrDocumentTypesModal.vue'
+import OrganizationPdfModal from './OrganizationPdfModal.vue'
 import ProjectActivity from './ProjectActivity/ProjectActivity.vue'
 import ProjectCalendar from './ProjectCalendar.vue'
 
@@ -1318,6 +1335,7 @@ export default {
 		ProjectNotesList,
 		ProjectCardVisibilityTab,
 		OcrDocumentTypesModal,
+		OrganizationPdfModal,
 		ProjectActivity,
 		History,
 		ViewDashboard,
@@ -1377,6 +1395,7 @@ export default {
 				{ value: 'signer', label: 'Signer' },
 			],
 			showOcrDocumentTypesModal: false,
+			showOrganizationPdfModal: false,
 			ocrDocumentTypesVersion: 0,
 			showProjectProfileModal: false,
 			exportRequesting: false,
