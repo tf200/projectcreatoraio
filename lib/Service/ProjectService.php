@@ -2394,7 +2394,7 @@ class ProjectService
             return null;
         }
 
-        $fileName = 'Welcome_Document.pdf';
+        $fileName = $this->organizationPdfService->getOrganizationPdfFileName($organizationId);
 
         if ($groupFolderId === null || $groupFolderId <= 0) {
             if ($fallbackFolder === null) {

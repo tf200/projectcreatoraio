@@ -28,7 +28,7 @@
 					<div class="org-pdf-modal__status-info">
 						<span class="org-pdf-modal__status-label">Current Template:</span>
 						<strong v-if="hasCustomPdf" class="org-pdf-modal__status-value org-pdf-modal__status-value--custom">
-							Custom Organization PDF
+							{{ currentFileName || 'Custom Organization PDF' }}
 						</strong>
 						<span v-else class="org-pdf-modal__status-value">
 							System Default PDF (Fallback)
@@ -59,6 +59,19 @@
 							<small>Only .pdf files are accepted</small>
 						</div>
 					</div>
+				</div>
+
+				<div v-if="selectedFile" class="org-pdf-modal__filename-section">
+					<NcTextField
+						v-model="fileName"
+						label="Filename in new projects"
+						:show-label="true"
+						input-label="Filename in new projects"
+						placeholder="e.g. Welcome guide.pdf"
+						:disabled="uploading" />
+					<p class="org-pdf-modal__filename-help">
+						This name will be used in each new project's shared files. The .pdf extension is added if omitted.
+					</p>
 				</div>
 			</div>
 
@@ -98,6 +111,7 @@
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import Upload from 'vue-material-design-icons/Upload.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
@@ -114,6 +128,7 @@ export default {
 		NcButton,
 		NcLoadingIcon,
 		NcModal,
+		NcTextField,
 		FileDocumentOutline,
 		Upload,
 		Delete,
@@ -136,6 +151,8 @@ export default {
 			uploading: false,
 			hasCustomPdf: false,
 			selectedFile: null,
+			currentFileName: '',
+			fileName: '',
 			error: null,
 		}
 	},
@@ -154,6 +171,8 @@ export default {
 			this.uploading = false
 			this.hasCustomPdf = false
 			this.selectedFile = null
+			this.currentFileName = ''
+			this.fileName = ''
 			this.error = null
 		},
 		handleClose() {
@@ -166,6 +185,7 @@ export default {
 			try {
 				const info = await projectsService.getOrganizationPdfInfo(this.organizationId)
 				this.hasCustomPdf = !!(info && info.has_custom_pdf)
+				this.currentFileName = info?.file_name || ''
 			} catch (e) {
 				console.error('Failed to load organization PDF info:', e)
 				this.error = 'Failed to load document template settings.'
@@ -182,23 +202,38 @@ export default {
 			const files = event.target.files
 			if (files && files.length > 0) {
 				const file = files[0]
-				if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+				if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
 					this.error = 'Please select a valid PDF document (.pdf).'
 					this.selectedFile = null
 					return
 				}
 				this.error = null
 				this.selectedFile = file
+				this.fileName = file.name
 			}
+		},
+		normalizeFileName(fileName) {
+			const normalized = String(fileName || '').trim()
+			if (normalized === '') {
+				return ''
+			}
+			return /\.pdf$/i.test(normalized) ? normalized : `${normalized}.pdf`
 		},
 		async handleUpload() {
 			if (!this.selectedFile || !this.organizationId) return
+			const fileName = this.normalizeFileName(this.fileName)
+			if (fileName === '') {
+				this.error = 'Enter a filename for the PDF template.'
+				return
+			}
 			this.uploading = true
 			this.error = null
 			try {
-				await projectsService.uploadOrganizationPdf(this.organizationId, this.selectedFile)
+				const response = await projectsService.uploadOrganizationPdf(this.organizationId, this.selectedFile, fileName)
 				this.hasCustomPdf = true
+				this.currentFileName = response?.file_name || fileName
 				this.selectedFile = null
+				this.fileName = ''
 				if (this.$refs.fileInput) {
 					this.$refs.fileInput.value = ''
 				}
@@ -332,6 +367,18 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+}
+
+.org-pdf-modal__filename-section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.org-pdf-modal__filename-help {
+	margin: 0;
+	color: var(--color-text-maxcontrast);
+	font-size: 0.8rem;
 }
 
 .org-pdf-modal__label {

@@ -954,11 +954,13 @@ export class ProjectsService {
      * Upload organization default PDF
      * @param {number} organizationId
      * @param {File} file
+     * @param {string} fileName
      */
-    async uploadOrganizationPdf(organizationId, file) {
+    async uploadOrganizationPdf(organizationId, file, fileName) {
         const url = generateUrl(`/apps/projectcreatoraio/api/v1/organizations/${organizationId}/default-pdf`);
         const formData = new FormData();
         formData.append('pdf', file);
+        formData.append('fileName', fileName);
         const response = await axios.post(url, formData, {
             headers: {
                 'OCS-APIRequest': 'true',

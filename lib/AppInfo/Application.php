@@ -78,6 +78,7 @@ use OCP\IGroupManager;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
+use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
@@ -227,6 +228,7 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardPolicyRoleMapper::class),
 				$c->get(BoardPolicyMembershipMapper::class),
 				$c->get(CardPolicyService::class),
+				$c->get(OrganizationPdfService::class),
 			);
 		});
 

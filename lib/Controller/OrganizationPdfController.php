@@ -16,6 +16,7 @@ use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
+use InvalidArgumentException;
 
 class OrganizationPdfController extends Controller
 {
@@ -40,6 +41,9 @@ class OrganizationPdfController extends Controller
         return new DataResponse([
             'organization_id' => $organizationId,
             'has_custom_pdf' => $hasCustom,
+            'file_name' => $hasCustom
+                ? $this->organizationPdfService->getOrganizationPdfFileName($organizationId)
+                : null,
         ]);
     }
 
@@ -64,12 +68,23 @@ class OrganizationPdfController extends Controller
             return new DataResponse(['error' => 'The uploaded file is not a valid PDF document.'], 400);
         }
 
-        $this->organizationPdfService->saveOrganizationPdf($organizationId, $fileContent);
+        $requestedFileName = $this->request->getParam('fileName', $uploadedFile['name'] ?? '');
+        if (!is_string($requestedFileName) || trim($requestedFileName) === '') {
+            $requestedFileName = (string) ($uploadedFile['name'] ?? '');
+        }
+
+        try {
+            $fileName = $this->organizationPdfService->normalizePdfFileName($requestedFileName);
+            $this->organizationPdfService->saveOrganizationPdf($organizationId, $fileContent, $fileName);
+        } catch (InvalidArgumentException $e) {
+            return new DataResponse(['error' => $e->getMessage()], 400);
+        }
 
         return new DataResponse([
             'success' => true,
             'organization_id' => $organizationId,
             'has_custom_pdf' => true,
+            'file_name' => $fileName,
         ]);
     }
 
