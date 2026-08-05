@@ -113,6 +113,10 @@ class OrganizationPdfController extends Controller
             throw new OCSNotFoundException('Organization not found');
         }
 
+        if (($membership['role'] ?? '') !== 'admin') {
+            throw new OCSForbiddenException('Organization admin privilege required to manage default PDF templates');
+        }
+
         return $userId;
     }
 }
