@@ -599,14 +599,19 @@
 												<span class="projects-home__value">{{ selectedProject.client_email || '-' }}</span>
 											</div>
 										</div>
+										</div>
 									</div>
-								</div>
-								<p v-if="projectProfileError" class="projects-home__inline-error projects-home__inline-error--left">
-									{{ projectProfileError }}
-								</p>
-								<p v-if="projectProfileMessage" class="projects-home__inline-success">
-									{{ projectProfileMessage }}
-								</p>
+									<ProjectLocationMap
+										class="projects-home__location-map"
+										:street="selectedProject.loc_street || ''"
+										:city="selectedProject.loc_city || ''"
+										:zip="selectedProject.loc_zip || ''" />
+									<p v-if="projectProfileError" class="projects-home__inline-error projects-home__inline-error--left">
+										{{ projectProfileError }}
+									</p>
+									<p v-if="projectProfileMessage" class="projects-home__inline-success">
+										{{ projectProfileMessage }}
+									</p>
 							</section>
 
 							<!-- Notes Section -->
@@ -1408,6 +1413,7 @@ import TimelineSummary from './ProjectTimeline/TimelineSummary.vue'
 import ProjectFilesBrowser from './ProjectFiles/ProjectFilesBrowser.vue'
 import WhiteboardBoard from './ProjectWhiteboard/WhiteboardBoard.vue'
 import ProjectCreator from './ProjectCreator.vue'
+import ProjectLocationMap from './ProjectLocationMap.vue'
 import ProjectNotesList from './ProjectNotesList.vue'
 import ProjectCardVisibilityTab from './ProjectCardVisibilityTab.vue'
 import OcrDocumentTypesModal from './OcrDocumentTypesModal.vue'
@@ -1459,6 +1465,7 @@ export default {
 		ProjectFilesBrowser,
 		WhiteboardBoard,
 		ProjectCreator,
+		ProjectLocationMap,
 		ProjectNotesList,
 		ProjectCardVisibilityTab,
 		OcrDocumentTypesModal,
@@ -3685,6 +3692,10 @@ export default {
 	border: 1px solid var(--color-border-dark);
 	border-radius: 10px;
 	overflow: hidden;
+}
+
+.projects-home__location-map {
+	margin-top: 16px;
 }
 
 .projects-home__sheet-col {
