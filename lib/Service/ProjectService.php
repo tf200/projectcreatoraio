@@ -1684,7 +1684,7 @@ class ProjectService
      *
      * @return array{notes: array, total: int, private_available: bool}
      */
-    public function getProjectNotesList(int $projectId, string $userId, string $visibility = 'public', int $page = 1, int $limit = 12): array
+    public function getProjectNotesList(int $projectId, string $userId, string $visibility = 'public', string $noteType = '', int $page = 1, int $limit = 12): array
     {
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
@@ -1694,11 +1694,11 @@ class ProjectService
         $offset = ($page - 1) * $limit;
 
         if ($visibility === 'private') {
-            $notes = $this->noteMapper->findPrivateByProjectAndUser($projectId, $userId, $limit, $offset);
-            $total = $this->noteMapper->countPrivateByProjectAndUser($projectId, $userId);
+            $notes = $this->noteMapper->findPrivateByProjectAndUser($projectId, $userId, $noteType, $limit, $offset);
+            $total = $this->noteMapper->countPrivateByProjectAndUser($projectId, $userId, $noteType);
         } else {
-            $notes = $this->noteMapper->findPublicByProject($projectId, $limit, $offset);
-            $total = $this->noteMapper->countPublicByProject($projectId);
+            $notes = $this->noteMapper->findPublicByProject($projectId, $noteType, $limit, $offset);
+            $total = $this->noteMapper->countPublicByProject($projectId, $noteType);
         }
 
         $hasPrivateFolder = $this->hasPrivateFolderForUser($projectId, $userId);

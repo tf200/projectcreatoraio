@@ -281,7 +281,7 @@ class ProjectApiController extends Controller
 
     #[NoCSRFRequired]
     #[NoAdminRequired]
-    public function listNotes(int $projectId, string $visibility = 'public', int $page = 1, int $limit = 12): DataResponse
+    public function listNotes(int $projectId, string $visibility = 'public', string $noteType = '', int $page = 1, int $limit = 12): DataResponse
     {
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
@@ -296,6 +296,7 @@ class ProjectApiController extends Controller
         }
 
         $visibility = in_array($visibility, ['public', 'private', 'cards'], true) ? $visibility : 'public';
+        $noteType = ProjectNote::isValidNoteType($noteType) ? $noteType : '';
         $limit = max(1, min(100, $limit));
         $page = max(1, $page);
 
@@ -306,7 +307,7 @@ class ProjectApiController extends Controller
                 throw new OCSForbiddenException('You do not have permission to view this Deck board');
             }
         } else {
-            $result = $this->projectService->getProjectNotesList($projectId, $currentUser->getUID(), $visibility, $page, $limit);
+            $result = $this->projectService->getProjectNotesList($projectId, $currentUser->getUID(), $visibility, $noteType, $page, $limit);
         }
 
         return new DataResponse([

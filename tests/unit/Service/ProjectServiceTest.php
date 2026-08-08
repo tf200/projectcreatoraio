@@ -11,6 +11,7 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
@@ -33,6 +34,39 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 final class ProjectServiceTest extends TestCase {
+	public function testProjectNotesListFiltersByNoteType(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$note = new ProjectNote();
+		$note->setNoteType(ProjectNote::NOTE_TYPE_DECISION);
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->once())
+			->method('findPublicByProject')
+			->with(42, ProjectNote::NOTE_TYPE_DECISION, 12, 12)
+			->willReturn([$note]);
+		$noteMapper->expects($this->once())
+			->method('countPublicByProject')
+			->with(42, ProjectNote::NOTE_TYPE_DECISION)
+			->willReturn(13);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			noteMapper: $noteMapper,
+		);
+
+		$result = $service->getProjectNotesList(42, 'alice', 'public', ProjectNote::NOTE_TYPE_DECISION, 2, 12);
+
+		$this->assertSame(13, $result['total']);
+		$this->assertSame(ProjectNote::NOTE_TYPE_DECISION, $result['notes'][0]['noteType']);
+	}
+
 	public function testProjectMembersIncludeDirectAndGroupFunctionalRoles(): void {
 		$project = new Project();
 		$project->setId(42);
@@ -386,6 +420,7 @@ final class ProjectServiceTest extends TestCase {
 		?CardPolicyService $cardPolicyService = null,
 		?array $members = null,
 		array $functionalRoles = [],
+		?ProjectNoteMapper $noteMapper = null,
 	): ProjectService {
 		$service = new TestableProjectService(
 			userSession: $this->createMock(IUserSession::class),
@@ -394,7 +429,7 @@ final class ProjectServiceTest extends TestCase {
 			deckDefaultCardsService: null,
 			rootFolder: $this->createMock(IRootFolder::class),
 			projectMapper: $projectMapper,
-			noteMapper: $this->createMock(ProjectNoteMapper::class),
+			noteMapper: $noteMapper ?? $this->createMock(ProjectNoteMapper::class),
 			fileTreeService: $this->createMock(FileTreeService::class),
 			organizationMapper: null,
 			organizationUserMapper: null,

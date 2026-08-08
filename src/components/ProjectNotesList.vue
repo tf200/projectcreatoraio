@@ -48,23 +48,34 @@
 				Open in Talk
 			</NcButton>
 		</div>
-		<div v-if="mainTab === 'project'" class="project-notes-list__sub-tabs">
-			<button
-				type="button"
-				class="project-notes-list__sub-tab"
-				:class="{ 'project-notes-list__sub-tab--active': subTab === 'public' }"
-				@click="switchSubTab('public')">
-				<Earth :size="14" />
-				<span>Public</span>
-			</button>
-			<button
-				type="button"
-				class="project-notes-list__sub-tab"
-				:class="{ 'project-notes-list__sub-tab--active': subTab === 'private' }"
-				@click="switchSubTab('private')">
-				<Lock :size="14" />
-				<span>Private</span>
-			</button>
+		<div v-if="mainTab === 'project'" class="project-notes-list__filters">
+			<div class="project-notes-list__sub-tabs">
+				<button
+					type="button"
+					class="project-notes-list__sub-tab"
+					:class="{ 'project-notes-list__sub-tab--active': subTab === 'public' }"
+					@click="switchSubTab('public')">
+					<Earth :size="14" />
+					<span>Public</span>
+				</button>
+				<button
+					type="button"
+					class="project-notes-list__sub-tab"
+					:class="{ 'project-notes-list__sub-tab--active': subTab === 'private' }"
+					@click="switchSubTab('private')">
+					<Lock :size="14" />
+					<span>Private</span>
+				</button>
+			</div>
+			<label class="project-notes-list__type-filter">
+				<span>Note type</span>
+				<select v-model="noteTypeFilter">
+					<option value="">All note types</option>
+					<option v-for="type in noteTypeOptions" :key="type.value" :value="type.value">
+						{{ type.label }}
+					</option>
+				</select>
+			</label>
 		</div>
 		<div v-if="mainTab === 'cards'" class="project-notes-list__sub-tabs">
 			<button
@@ -312,7 +323,7 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import CreateNoteModal from './CreateNoteModal.vue'
 import CardDetailModal from './CardDetailModal.vue'
 import { ProjectsService } from '../Services/projects.js'
-import { noteTypeLabel } from '../constants/note-types.js'
+import { NOTE_TYPES, noteTypeLabel } from '../constants/note-types.js'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -355,6 +366,7 @@ export default {
 			loading: true,
 			mainTab: 'project',
 			subTab: 'public',
+			noteTypeFilter: '',
 			cardSubTab: 'notes',
 			notes: [],
 			comments: [],
@@ -384,6 +396,9 @@ export default {
 				return true
 			}
 			return this.privateAvailable
+		},
+		noteTypeOptions() {
+			return NOTE_TYPES
 		},
 		emptyTitle() {
 			if (this.mainTab === 'cards' && this.cardSubTab === 'comments') {
@@ -434,6 +449,9 @@ export default {
 				this.loadNotes(1)
 			}
 		},
+		noteTypeFilter() {
+			this.loadNotes(1)
+		},
 		cardSubTab() {
 			if (this.mainTab === 'cards') {
 				this.loadNotes(1)
@@ -470,6 +488,7 @@ export default {
 			try {
 				const result = await projectsService.listNotes(this.projectId, {
 					visibility,
+					noteType: this.mainTab === 'project' ? this.noteTypeFilter : undefined,
 					page,
 					limit: this.perPage,
 				})
@@ -702,6 +721,31 @@ export default {
 	border-radius: 10px;
 	padding: 3px;
 	align-self: flex-start;
+}
+
+.project-notes-list__filters {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.project-notes-list__type-filter {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-text-lighter);
+}
+
+.project-notes-list__type-filter select {
+	max-width: 180px;
+	padding: 7px 28px 7px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font: inherit;
 }
 
 .project-notes-list__sub-tab {
@@ -1208,6 +1252,15 @@ export default {
 
 	.project-notes-list__sub-tabs {
 		align-self: stretch;
+	}
+
+	.project-notes-list__filters {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.project-notes-list__type-filter {
+		justify-content: space-between;
 	}
 
 	.project-notes-list__sub-tab {

@@ -726,14 +726,14 @@ export class ProjectsService {
 	 * List notes for a project with pagination.
 	 *
 	 * @param {number} projectId
-	 * @param {{visibility?: string, page?: number, limit?: number}} [options]
+	 * @param {{visibility?: string, noteType?: string, page?: number, limit?: number}} [options]
 	 * @returns {Promise<{notes: array, total: number, page: number, limit: number, private_available: boolean}|null>}
 	 */
-	async listNotes(projectId, { visibility = 'public', page = 1, limit = 12 } = {}) {
+	async listNotes(projectId, { visibility = 'public', noteType = '', page = 1, limit = 12 } = {}) {
 		try {
 			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/notes/list`)
 			const response = await axios.get(url, {
-				params: { visibility, page, limit },
+				params: { visibility, noteType, page, limit },
 				headers: {
 					'OCS-APIRequest': 'true',
 					'Content-Type': 'application/json',

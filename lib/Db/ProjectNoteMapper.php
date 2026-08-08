@@ -73,13 +73,17 @@ class ProjectNoteMapper extends QBMapper
     /**
      * Get public notes for a project
      */
-    public function findPublicByProject(int $projectId, ?int $limit = null, ?int $offset = null): array {
+    public function findPublicByProject(int $projectId, string $noteType = '', ?int $limit = null, ?int $offset = null): array {
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
             ->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
             ->andWhere($qb->expr()->eq('visibility', $qb->createNamedParameter('public')))
             ->orderBy('created_at', 'DESC');
+
+        if (ProjectNote::isValidNoteType($noteType)) {
+            $qb->andWhere($qb->expr()->eq('note_type', $qb->createNamedParameter($noteType)));
+        }
 
         if ($limit !== null) {
             $qb->setMaxResults($limit);
@@ -94,7 +98,7 @@ class ProjectNoteMapper extends QBMapper
     /**
      * Get private notes for a project and user
      */
-    public function findPrivateByProjectAndUser(int $projectId, string $userId, ?int $limit = null, ?int $offset = null): array {
+    public function findPrivateByProjectAndUser(int $projectId, string $userId, string $noteType = '', ?int $limit = null, ?int $offset = null): array {
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
@@ -102,6 +106,10 @@ class ProjectNoteMapper extends QBMapper
             ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
             ->andWhere($qb->expr()->eq('visibility', $qb->createNamedParameter('private')))
             ->orderBy('created_at', 'DESC');
+
+        if (ProjectNote::isValidNoteType($noteType)) {
+            $qb->andWhere($qb->expr()->eq('note_type', $qb->createNamedParameter($noteType)));
+        }
 
         if ($limit !== null) {
             $qb->setMaxResults($limit);
@@ -116,12 +124,16 @@ class ProjectNoteMapper extends QBMapper
     /**
      * Count public notes for a project
      */
-    public function countPublicByProject(int $projectId): int {
+    public function countPublicByProject(int $projectId, string $noteType = ''): int {
         $qb = $this->db->getQueryBuilder();
         $qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
             ->from($this->getTableName())
             ->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
             ->andWhere($qb->expr()->eq('visibility', $qb->createNamedParameter('public')));
+
+        if (ProjectNote::isValidNoteType($noteType)) {
+            $qb->andWhere($qb->expr()->eq('note_type', $qb->createNamedParameter($noteType)));
+        }
 
         $result = $qb->executeQuery();
         $row = $result->fetch();
@@ -133,13 +145,17 @@ class ProjectNoteMapper extends QBMapper
     /**
      * Count private notes for a project and user
      */
-    public function countPrivateByProjectAndUser(int $projectId, string $userId): int {
+    public function countPrivateByProjectAndUser(int $projectId, string $userId, string $noteType = ''): int {
         $qb = $this->db->getQueryBuilder();
         $qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
             ->from($this->getTableName())
             ->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
             ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
             ->andWhere($qb->expr()->eq('visibility', $qb->createNamedParameter('private')));
+
+        if (ProjectNote::isValidNoteType($noteType)) {
+            $qb->andWhere($qb->expr()->eq('note_type', $qb->createNamedParameter($noteType)));
+        }
 
         $result = $qb->executeQuery();
         $row = $result->fetch();
