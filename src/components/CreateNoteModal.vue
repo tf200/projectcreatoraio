@@ -48,6 +48,19 @@
 				</div>
 
 				<div class="create-note-modal__field">
+					<label class="create-note-modal__label" :for="isEditing ? 'edit-note-type' : 'create-note-type'">Type</label>
+					<select
+						:id="isEditing ? 'edit-note-type' : 'create-note-type'"
+						v-model="noteType"
+						class="create-note-modal__select"
+						:disabled="isSaving">
+						<option v-for="type in noteTypeOptions" :key="type.value" :value="type.value">
+							{{ type.label }}
+						</option>
+					</select>
+				</div>
+
+				<div class="create-note-modal__field">
 					<label class="create-note-modal__label">Visibility</label>
 					<div class="create-note-modal__visibility-options">
 						<button
@@ -112,6 +125,7 @@ import Lock from 'vue-material-design-icons/Lock.vue'
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 import { ProjectsService } from '../Services/projects.js'
 import WysiwygEditor from './WysiwygEditor.vue'
+import { DEFAULT_NOTE_TYPE, NOTE_TYPES } from '../constants/note-types.js'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -157,6 +171,7 @@ export default {
 			noteTitle: '',
 			noteContent: '',
 			noteVisibility: 'public',
+			noteType: DEFAULT_NOTE_TYPE,
 			isSaving: false,
 			error: '',
 		}
@@ -184,6 +199,9 @@ export default {
 				? 'Write your private notes here... (only you can see this)'
 				: 'Write your notes here... (visible to all project members)'
 		},
+		noteTypeOptions() {
+			return NOTE_TYPES
+		},
 	},
 	watch: {
 		show: {
@@ -201,10 +219,12 @@ export default {
 				this.noteTitle = this.note.title || ''
 				this.noteContent = this.note.content || ''
 				this.noteVisibility = this.note.visibility || 'public'
+				this.noteType = this.note.noteType || DEFAULT_NOTE_TYPE
 			} else {
 				this.noteTitle = ''
 				this.noteContent = ''
 				this.noteVisibility = this.visibility
+				this.noteType = DEFAULT_NOTE_TYPE
 			}
 			this.error = ''
 		},
@@ -232,6 +252,7 @@ export default {
 						{
 							title: this.noteTitle.trim(),
 							content: this.noteContent,
+							noteType: this.noteType,
 						},
 					)
 					if (result) {
@@ -244,6 +265,7 @@ export default {
 							title: this.noteTitle.trim(),
 							content: this.noteContent,
 							visibility: this.noteVisibility,
+							noteType: this.noteType,
 						},
 					)
 					if (result) {
@@ -328,6 +350,21 @@ export default {
 	gap: 16px;
 }
 
+.create-note-modal__select {
+	min-height: 44px;
+	padding: 0 12px;
+	border: 1px solid var(--color-border-dark);
+	border-radius: 10px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-size: 14px;
+}
+
+.create-note-modal__select:focus {
+	border-color: var(--color-primary-element);
+	outline: 2px solid var(--color-primary-element-light);
+}
+
 .create-note-modal__visibility-btn {
 	display: flex;
 	align-items: flex-start;
@@ -341,6 +378,11 @@ export default {
 	text-align: left;
 }
 
+.create-note-modal__visibility-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
 .create-note-modal__visibility-btn:hover:not(:disabled) {
 	border-color: var(--color-primary-element);
 	background: var(--color-background-hover);
@@ -350,11 +392,6 @@ export default {
 	border-color: var(--color-primary-element);
 	background: var(--color-primary-element-light);
 	border-width: 1px;
-}
-
-.create-note-modal__visibility-btn:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
 }
 
 .create-note-modal__visibility-info {

@@ -18,13 +18,21 @@ class ProjectNoteMapper extends QBMapper
     /**
      * Create a new note
      */
-    public function createNote(int $projectId, string $userId, string $title, string $content, string $visibility): ProjectNote {
+    public function createNote(
+        int $projectId,
+        string $userId,
+        string $title,
+        string $content,
+        string $visibility,
+        string $noteType = ProjectNote::NOTE_TYPE_GENERAL,
+    ): ProjectNote {
         $note = new ProjectNote();
         $note->setProjectId($projectId);
         $note->setUserId($userId);
         $note->setTitle($title);
         $note->setContent($content);
         $note->setVisibility($visibility);
+        $note->setNoteType(ProjectNote::normalizeNoteType($noteType));
 
         $now = new \DateTime();
         $note->setCreatedAt($now);

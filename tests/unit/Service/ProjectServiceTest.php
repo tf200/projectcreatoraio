@@ -14,6 +14,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
+use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
@@ -292,6 +293,47 @@ final class ProjectServiceTest extends TestCase {
 		$service->getDeckAccessSummary(42, 'alice', false);
 	}
 
+	public function testCardCommentsRequireDeckBoardReadPermission(): void {
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($this->project(42, 'alice', 10));
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			new TestCardMapper([new TestCard(1, 'Secret')]),
+			new TestDeckPermissionService(['alice' => [0 => false]]),
+		);
+
+		$this->expectException(\RuntimeException::class);
+		$service->getCardCommentsList(42, 'alice');
+	}
+
+	public function testCardCommentsExcludeCardsHiddenByPolicy(): void {
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($this->project(42, 'alice', 10));
+		$policy = $this->createMock(CardPolicyService::class);
+		$policy->expects($this->once())
+			->method('assertActionLogic')
+			->with($this->isInstanceOf(TestCard::class), 10, 'view', 'alice')
+			->willReturn(false);
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			new TestCardMapper([new TestCard(1, 'Secret')]),
+			new TestDeckPermissionService(),
+			$policy,
+		);
+
+		$this->assertSame(['comments' => [], 'total' => 0], $service->getCardCommentsList(42, 'alice'));
+	}
+
 	private function role(int $id, string $key): BoardPolicyRole {
 		$role = new BoardPolicyRole();
 		$role->setId($id);
@@ -376,6 +418,7 @@ final class ProjectServiceTest extends TestCase {
 			policyRoleMapper: $policyRoleMapper,
 			policyMembershipMapper: $policyMembershipMapper,
 			cardPolicyService: $cardPolicyService ?? $this->createMock(CardPolicyService::class),
+			organizationPdfService: $this->createMock(OrganizationPdfService::class),
 		);
 		$service->members = $members;
 		$service->functionalRoles = $functionalRoles;

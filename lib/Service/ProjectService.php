@@ -12,6 +12,7 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
+use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
@@ -1778,7 +1779,7 @@ class ProjectService
         ];
     }
 
-    public function getCardCommentsList(int $projectId, int $page = 1, int $limit = 20): array
+    public function getCardCommentsList(int $projectId, string $userId, int $page = 1, int $limit = 20): array
     {
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
@@ -1786,7 +1787,25 @@ class ProjectService
         }
 
         $boardId = $project->getBoardId();
-        if ($boardId === null || $boardId === '') {
+        if ($boardId === null || $boardId === '' || $this->cardMapper === null || $this->deckPermissionService === null) {
+            return [
+                'comments' => [],
+                'total' => 0,
+            ];
+        }
+
+        $boardId = (int) $boardId;
+        $this->deckPermissionService->checkPermission(null, $boardId, Acl::PERMISSION_READ, $userId);
+
+        $cards = $this->cardMapper->findAllByBoardId($boardId);
+        $visibleCardIds = [];
+        foreach ($cards as $card) {
+            if ($this->cardPolicyService->assertActionLogic($card, $boardId, 'view', $userId)) {
+                $visibleCardIds[] = (int) $card->getId();
+            }
+        }
+
+        if ($visibleCardIds === []) {
             return [
                 'comments' => [],
                 'total' => 0,
@@ -1803,22 +1822,25 @@ class ProjectService
             ->from('comments', 'c')
             ->innerJoin('c', 'deck_cards', 'card', $countQb->expr()->eq('c.object_id', $countQb->expr()->castColumn('card.id', IQueryBuilder::PARAM_STR)))
             ->innerJoin('card', 'deck_stacks', 'stack', $countQb->expr()->eq('card.stack_id', 'stack.id'))
-            ->where($countQb->expr()->eq('stack.board_id', $countQb->createNamedParameter((int) $boardId, IQueryBuilder::PARAM_INT)))
+            ->where($countQb->expr()->eq('stack.board_id', $countQb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)))
+            ->andWhere($countQb->expr()->in('card.id', $countQb->createNamedParameter($visibleCardIds, IQueryBuilder::PARAM_INT_ARRAY)))
             ->andWhere($countQb->expr()->eq('c.object_type', $countQb->createNamedParameter('deckCard')));
         $total = (int) $countQb->executeQuery()->fetchOne();
 
         // Fetch comments with card info
         $qb->select(
             'c.id', 'c.object_id', 'c.message', 'c.actor_id', 'c.actor_type',
-            'c.creation_timestamp', 'c.parent_id',
+            'c.creation_timestamp', 'c.parent_id', 'c.meta_data',
             'card.title as card_title', 'card.id as card_id'
         )
             ->from('comments', 'c')
             ->innerJoin('c', 'deck_cards', 'card', $qb->expr()->eq('c.object_id', $qb->expr()->castColumn('card.id', IQueryBuilder::PARAM_STR)))
             ->innerJoin('card', 'deck_stacks', 'stack', $qb->expr()->eq('card.stack_id', 'stack.id'))
-            ->where($qb->expr()->eq('stack.board_id', $qb->createNamedParameter((int) $boardId, IQueryBuilder::PARAM_INT)))
+            ->where($qb->expr()->eq('stack.board_id', $qb->createNamedParameter($boardId, IQueryBuilder::PARAM_INT)))
+            ->andWhere($qb->expr()->in('card.id', $qb->createNamedParameter($visibleCardIds, IQueryBuilder::PARAM_INT_ARRAY)))
             ->andWhere($qb->expr()->eq('c.object_type', $qb->createNamedParameter('deckCard')))
             ->orderBy('c.creation_timestamp', 'DESC')
+            ->addOrderBy('c.id', 'DESC')
             ->setMaxResults($limit)
             ->setFirstResult($offset);
 
@@ -1826,6 +1848,14 @@ class ProjectService
 
         $comments = array_map(function ($row) {
             $actorDisplayName = $this->userManager->getDisplayName($row['actor_id']) ?? $row['actor_id'];
+            $noteType = ProjectNote::NOTE_TYPE_GENERAL;
+            if (is_string($row['meta_data'] ?? null) && $row['meta_data'] !== '') {
+                $metadata = json_decode($row['meta_data'], true);
+                if (is_array($metadata) && ProjectNote::isValidNoteType($metadata['deck.noteType'] ?? null)) {
+                    $noteType = $metadata['deck.noteType'];
+                }
+            }
+
             return [
                 'id' => (int) $row['id'],
                 'cardId' => (int) $row['card_id'],
@@ -1835,6 +1865,7 @@ class ProjectService
                 'message' => $row['message'],
                 'createdAt' => $this->formatDeckTimestamp((int) $row['creation_timestamp']),
                 'parentId' => $row['parent_id'] !== '0' ? (int) $row['parent_id'] : null,
+                'noteType' => $noteType,
             ];
         }, $rows);
 

@@ -821,7 +821,7 @@ export class ProjectsService {
 	 * Create a new note.
 	 *
 	 * @param {number} projectId
-	 * @param {{title: string, content: string, visibility: 'public'|'private'}} payload
+	 * @param {{title: string, content: string, visibility: 'public'|'private', noteType?: string}} payload
 	 * @returns {Promise<object|null>}
 	 */
 	async createNote(projectId, payload) {
@@ -845,7 +845,7 @@ export class ProjectsService {
 	 *
 	 * @param {number} projectId
 	 * @param {number} noteId
-	 * @param {{title?: string, content?: string}} payload
+	 * @param {{title?: string, content?: string, noteType?: string}} payload
 	 * @returns {Promise<object|null>}
 	 */
 	async updateNote(projectId, noteId, payload) {

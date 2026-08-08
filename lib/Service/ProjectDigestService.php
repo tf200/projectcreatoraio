@@ -12,6 +12,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectActivityEvent;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCP\IURLGenerator;
 use OCP\Mail\Headers\AutoSubmitted;
 use OCP\Mail\IMailer;
@@ -76,6 +77,10 @@ class ProjectDigestService {
 			$projectId,
 			$afterEventId,
 			$cursor === null ? $initialNotBefore : null,
+		);
+		$events = array_map(
+			static fn (ProjectActivityEvent $event): ProjectActivityEvent => ProjectActivityService::prepareEventForUser($event, $recipientUid),
+			$events,
 		);
 		if ($events === []) {
 			return;
@@ -253,7 +258,19 @@ class ProjectDigestService {
 	private function formatNoteLabel(array $payload): string {
 		$visibility = trim((string) ($payload['visibility'] ?? 'public'));
 		$title = trim((string) ($payload['title'] ?? ''));
+		$noteType = ProjectNote::normalizeNoteType($payload['noteType'] ?? null);
 		$type = $visibility === 'private' ? 'a private note' : 'a public note';
+		if ($noteType !== ProjectNote::NOTE_TYPE_GENERAL) {
+			$noteTypeLabel = strtolower(ProjectNote::noteTypeLabel($noteType));
+			if (!str_ends_with($noteTypeLabel, 'note')) {
+				$noteTypeLabel .= ' note';
+			}
+			$type = sprintf(
+				'a %s %s',
+				$visibility === 'private' ? 'private' : 'public',
+				$noteTypeLabel,
+			);
+		}
 		return $title === '' ? $type : sprintf('%s "%s"', $type, $title);
 	}
 

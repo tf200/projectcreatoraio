@@ -9,6 +9,7 @@ use OCA\Deck\Db\CardMapper;
 use OCA\Deck\Db\StackMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCA\ProjectCreatorAIO\ProjectStatus;
@@ -323,13 +324,14 @@ class ProjectDownloadService
 			$title = trim((string) ($note->getTitle() ?? ''));
 			$content = trim((string) ($note->getContent() ?? ''));
 			$userId = (string) ($note->getUserId() ?? '');
+			$noteType = ProjectNote::noteTypeLabel($note->getNoteType());
 			$createdAt = $note->getCreatedAt() instanceof DateTime
 				? $note->getCreatedAt()->format('Y-m-d H:i:s')
 				: '—';
 
 			$heading = $title !== '' ? $title : 'Untitled';
 			$md .= "## {$heading}\n\n";
-			$md .= "_By {$userId} on {$createdAt}_\n\n";
+			$md .= "_{$noteType} by {$userId} on {$createdAt}_\n\n";
 
 			if ($content !== '') {
 				$md .= $content . "\n";

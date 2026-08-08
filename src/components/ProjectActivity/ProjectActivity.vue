@@ -76,7 +76,8 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import History from 'vue-material-design-icons/History.vue'
-import { ProjectsService } from '../../Services/projects'
+import { ProjectsService } from '../../Services/projects.js'
+import { DEFAULT_NOTE_TYPE, NOTE_TYPES, noteTypeLabel } from '../../constants/note-types.js'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -194,6 +195,9 @@ export default {
 		formatDescription(event) {
 			const type = event.eventType
 			const payload = event.payload || {}
+			if (payload.redacted === true) {
+				return `${type.replace('note_', '')} a private note`
+			}
 
 			switch (type) {
 			// Internal
@@ -210,11 +214,11 @@ export default {
 			case 'member_removed':
 				return `removed ${payload.memberDisplayName || payload.memberUid || 'a member'}`
 			case 'note_created':
-				return `created note "${payload.title || 'Untitled'}"`
+				return `created ${this.formatNoteType(payload.noteType)}note "${payload.title || 'Untitled'}"`
 			case 'note_updated':
-				return `updated note "${payload.title || 'Untitled'}"`
+				return `updated ${this.formatNoteType(payload.noteType)}note "${payload.title || 'Untitled'}"`
 			case 'note_deleted':
-				return `deleted note "${payload.title || 'Untitled'}"`
+				return `deleted ${this.formatNoteType(payload.noteType)}note "${payload.title || 'Untitled'}"`
 			case 'project_notes_updated':
 				return 'updated project notes'
 			case 'timeline_item_created':
@@ -266,8 +270,7 @@ export default {
 
 			// Talk
 			case 'talk_message_sent':
-				const preview = payload.messagePreview || ''
-				return `sent a Talk message${preview ? ': "' + preview + '"' : ''}`
+				return `sent a Talk message${payload.messagePreview ? ': "' + payload.messagePreview + '"' : ''}`
 			case 'talk_participant_added':
 				return `added ${payload.participantDisplayName || payload.participantUid || 'someone'} to Talk`
 			case 'talk_participant_removed':
@@ -292,6 +295,14 @@ export default {
 			default:
 				return type.replace(/_/g, ' ')
 			}
+		},
+		formatNoteType(value) {
+			const normalized = NOTE_TYPES.some((type) => type.value === value) ? value : DEFAULT_NOTE_TYPE
+			if (normalized === DEFAULT_NOTE_TYPE) {
+				return ''
+			}
+			const label = noteTypeLabel(normalized).toLowerCase().replace(/ note$/, '')
+			return `${label} `
 		},
 		formatSource(source) {
 			const labels = {

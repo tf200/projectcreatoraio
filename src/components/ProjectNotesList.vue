@@ -124,6 +124,9 @@
 					</p>
 				</div>
 				<div class="project-notes-list__comment-footer">
+					<span class="project-notes-list__comment-type">
+						{{ noteTypeLabel(comment.noteType) }}
+					</span>
 					<span
 						class="project-notes-list__comment-card-badge"
 						@click.stop="openCardDetailByCardId(comment.cardId, comment.cardTitle)">
@@ -226,12 +229,19 @@
 						</div>
 						<span class="project-notes-list__author-name">{{ note.visibility === 'card' ? `Card #${note.cardId}` : note.userId }}</span>
 					</div>
-					<div class="project-notes-list__note-type" :class="`project-notes-list__note-type--${note.visibility}`">
-						<CardTextOutline v-if="note.visibility === 'card'" :size="14" />
-						<Earth v-else-if="note.visibility === 'public'" :size="14" />
-						<Lock v-else :size="14" />
-						<span v-if="note.visibility === 'card'">{{ note.cardNoteCount }} note{{ note.cardNoteCount !== 1 ? 's' : '' }}</span>
-						<span v-else>{{ note.visibility }}</span>
+					<div v-if="note.visibility === 'card'" class="project-notes-list__note-type project-notes-list__note-type--card">
+						<CardTextOutline :size="14" />
+						<span>{{ note.cardNoteCount }} note{{ note.cardNoteCount !== 1 ? 's' : '' }}</span>
+					</div>
+					<div v-else class="project-notes-list__note-badges">
+						<div class="project-notes-list__note-visibility" :class="`project-notes-list__note-visibility--${note.visibility}`">
+							<Earth v-if="note.visibility === 'public'" :size="14" />
+							<Lock v-else :size="14" />
+							<span>{{ note.visibility }}</span>
+						</div>
+						<div class="project-notes-list__note-type project-notes-list__note-type--semantic">
+							<span>{{ noteTypeLabel(note.noteType) }}</span>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -302,6 +312,7 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import CreateNoteModal from './CreateNoteModal.vue'
 import CardDetailModal from './CardDetailModal.vue'
 import { ProjectsService } from '../Services/projects.js'
+import { noteTypeLabel } from '../constants/note-types.js'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -430,6 +441,7 @@ export default {
 		},
 	},
 	methods: {
+		noteTypeLabel,
 		async loadNotes(page) {
 			this.loading = true
 			this.currentPage = page
@@ -913,12 +925,32 @@ export default {
 	border-radius: 6px;
 }
 
-.project-notes-list__note-type--public {
+.project-notes-list__note-badges {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	min-width: 0;
+}
+
+.project-notes-list__note-visibility {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 10px;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	padding: 4px 8px;
+	border-radius: 6px;
+}
+
+.project-notes-list__note-visibility--public {
 	color: var(--color-success);
 	background: var(--color-success-light);
 }
 
-.project-notes-list__note-type--private {
+.project-notes-list__note-visibility--private {
 	color: var(--color-warning);
 	background: var(--color-warning-light);
 }
@@ -926,6 +958,15 @@ export default {
 .project-notes-list__note-type--card {
 	color: var(--color-primary-element);
 	background: var(--color-primary-element-light);
+}
+
+.project-notes-list__note-type--semantic {
+	color: var(--color-primary-element);
+	background: var(--color-primary-element-light);
+	max-width: 150px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .project-notes-list__note-actions {
@@ -1018,9 +1059,26 @@ export default {
 .project-notes-list__comment-footer {
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
 	padding: 12px 20px;
 	background: var(--color-background-hover);
 	border-top: 1px solid var(--color-border);
+}
+
+.project-notes-list__comment-type {
+	display: inline-flex;
+	align-items: center;
+	max-width: 180px;
+	padding: 4px 10px;
+	border-radius: 8px;
+	background: var(--color-primary-element-light);
+	color: var(--color-primary-element);
+	font-size: 11px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .project-notes-list__comment-card-badge {
@@ -1123,7 +1181,7 @@ export default {
 	color: var(--color-main-text);
 	line-height: 1.5;
 	white-space: pre-wrap;
-	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
 .project-notes-list__chat-load-more {

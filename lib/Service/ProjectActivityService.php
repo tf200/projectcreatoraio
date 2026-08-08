@@ -172,8 +172,32 @@ class ProjectActivityService {
 	/**
 	 * @return ProjectActivityEvent[]
 	 */
-	public function getProjectActivity(int $projectId, int $limit = 20, int $offset = 0, ?string $source = null): array {
-		return $this->eventMapper->findForProject($projectId, null, $limit, $offset, $source);
+	public function getProjectActivity(int $projectId, string $userId, int $limit = 20, int $offset = 0, ?string $source = null): array {
+		return array_map(
+			static fn (ProjectActivityEvent $event): ProjectActivityEvent => self::prepareEventForUser($event, $userId),
+			$this->eventMapper->findForProject($projectId, null, $limit, $offset, $source),
+		);
+	}
+
+	public static function prepareEventForUser(ProjectActivityEvent $event, string $userId): ProjectActivityEvent {
+		$payload = $event->getPayloadArray();
+		$isPrivateNote = in_array($event->getEventType(), [
+			self::EVENT_NOTE_CREATED,
+			self::EVENT_NOTE_UPDATED,
+			self::EVENT_NOTE_DELETED,
+		], true) && ($payload['visibility'] ?? null) === 'private';
+
+		if (!$isPrivateNote || $event->getActorUid() === $userId) {
+			return $event;
+		}
+
+		$redacted = clone $event;
+		$redacted->setPayloadArray([
+			'visibility' => 'private',
+			'redacted' => true,
+			'projectName' => $payload['projectName'] ?? '',
+		]);
+		return $redacted;
 	}
 
 	public function recordProjectNotesUpdated(Project $project, IUser $actor, bool $publicUpdated, bool $privateUpdated): void {
@@ -225,6 +249,7 @@ class ProjectActivityService {
 			'noteId' => (int) ($note->getId() ?? 0),
 			'title' => trim((string) ($note->getTitle() ?? '')),
 			'visibility' => trim((string) ($note->getVisibility() ?? 'public')),
+			'noteType' => ProjectNote::normalizeNoteType($note->getNoteType()),
 		];
 	}
 

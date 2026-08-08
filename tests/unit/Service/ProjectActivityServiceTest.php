@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Tests\Unit\Service;
 
 use OCA\ProjectCreatorAIO\Db\Project;
+use OCA\ProjectCreatorAIO\Db\ProjectActivityEvent;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
@@ -26,6 +27,7 @@ final class ProjectActivityServiceTest extends TestCase {
 					'noteId' => 7,
 					'title' => 'Weekly recap',
 					'visibility' => 'public',
+					'noteType' => 'decision',
 					'projectName' => 'Alpha',
 				],
 			);
@@ -40,6 +42,7 @@ final class ProjectActivityServiceTest extends TestCase {
 		$note->setId(7);
 		$note->setTitle('Weekly recap');
 		$note->setVisibility('public');
+		$note->setNoteType('decision');
 
 		$actor = $this->createConfiguredMock(IUser::class, [
 			'getUID' => 'owner1',
@@ -47,5 +50,29 @@ final class ProjectActivityServiceTest extends TestCase {
 		]);
 
 		$service->recordNoteCreated($project, $note, $actor);
+	}
+
+	public function testPrivateNotePayloadIsRedactedForOtherUsers(): void {
+		$event = new ProjectActivityEvent();
+		$event->setActorUid('owner1');
+		$event->setEventType(ProjectActivityService::EVENT_NOTE_CREATED);
+		$event->setPayloadArray([
+			'noteId' => 7,
+			'title' => 'Confidential risk',
+			'visibility' => 'private',
+			'noteType' => ProjectNote::NOTE_TYPE_RISK_BLOCKER,
+			'projectName' => 'Alpha',
+		]);
+
+		$ownerEvent = ProjectActivityService::prepareEventForUser($event, 'owner1');
+		$memberEvent = ProjectActivityService::prepareEventForUser($event, 'member1');
+
+		$this->assertSame('Confidential risk', $ownerEvent->getPayloadArray()['title']);
+		$this->assertSame([
+			'visibility' => 'private',
+			'redacted' => true,
+			'projectName' => 'Alpha',
+		], $memberEvent->getPayloadArray());
+		$this->assertNotSame($event, $memberEvent);
 	}
 }

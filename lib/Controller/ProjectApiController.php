@@ -329,10 +329,19 @@ class ProjectApiController extends Controller
 
         $this->assertCanAccessProject($project);
 
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
         $limit = max(1, min(100, $limit));
         $page = max(1, $page);
 
-        $result = $this->projectService->getCardCommentsList($projectId, $page, $limit);
+        try {
+            $result = $this->projectService->getCardCommentsList($projectId, $currentUser->getUID(), $page, $limit);
+        } catch (NoPermissionException) {
+            throw new OCSForbiddenException('You do not have permission to view this Deck board');
+        }
 
         return new DataResponse([
             'comments' => $result['comments'],
@@ -381,7 +390,8 @@ class ProjectApiController extends Controller
         int $projectId,
         string $title,
         string $content,
-        string $visibility = 'public'
+        string $visibility = 'public',
+        mixed $noteType = ProjectNote::NOTE_TYPE_GENERAL,
     ): DataResponse {
         $params = $this->request->getParams();
         if (is_array($params)) {
@@ -393,6 +403,12 @@ class ProjectApiController extends Controller
             }
             if (array_key_exists('visibility', $params)) {
                 $visibility = is_string($params['visibility']) ? $params['visibility'] : 'public';
+            }
+            if (array_key_exists('noteType', $params)) {
+                if (!is_string($params['noteType'])) {
+                    return new DataResponse(['message' => 'Invalid note type'], 400);
+                }
+                $noteType = $params['noteType'];
             }
         }
 
@@ -413,6 +429,10 @@ class ProjectApiController extends Controller
             return new DataResponse(['message' => 'Invalid visibility. Use "public" or "private"'], 400);
         }
 
+        if (!ProjectNote::isValidNoteType($noteType)) {
+            return new DataResponse(['message' => 'Invalid note type'], 400);
+        }
+
         // Check if private notes are available
         if ($visibility === 'private') {
             $hasPrivateFolder = $this->projectService->hasPrivateFolderForUser($projectId, $currentUser->getUID());
@@ -428,7 +448,8 @@ class ProjectApiController extends Controller
             $currentUser->getUID(),
             $title,
             $content,
-            $visibility
+            $visibility,
+            $noteType,
         );
 
         $this->projectActivityService->recordNoteCreated($project, $note, $currentUser);
@@ -442,7 +463,8 @@ class ProjectApiController extends Controller
         int $projectId,
         int $noteId,
         ?string $title = null,
-        ?string $content = null
+        ?string $content = null,
+        mixed $noteType = null,
     ): DataResponse {
         $params = $this->request->getParams();
         if (is_array($params)) {
@@ -451,6 +473,12 @@ class ProjectApiController extends Controller
             }
             if (array_key_exists('content', $params)) {
                 $content = is_string($params['content']) ? $params['content'] : '';
+            }
+            if (array_key_exists('noteType', $params)) {
+                if (!is_string($params['noteType'])) {
+                    return new DataResponse(['message' => 'Invalid note type'], 400);
+                }
+                $noteType = $params['noteType'];
             }
         }
 
@@ -485,6 +513,12 @@ class ProjectApiController extends Controller
         }
         if ($content !== null) {
             $note->setContent($this->sanitizeNoteHtml($content));
+        }
+        if ($noteType !== null) {
+            if (!ProjectNote::isValidNoteType($noteType)) {
+                return new DataResponse(['message' => 'Invalid note type'], 400);
+            }
+            $note->setNoteType($noteType);
         }
 
         $updatedNote = $this->noteMapper->updateNote($note);
@@ -965,7 +999,12 @@ class ProjectApiController extends Controller
 		$limit = max(1, min(100, $limit));
 		$offset = max(0, $offset);
 
-		$events = $this->projectActivityService->getProjectActivity($projectId, $limit + 1, $offset, $source);
+		$currentUser = $this->userSession->getUser();
+		if ($currentUser === null) {
+			throw new OCSForbiddenException('Authentication required');
+		}
+
+		$events = $this->projectActivityService->getProjectActivity($projectId, $currentUser->getUID(), $limit + 1, $offset, $source);
 		$hasMore = count($events) > $limit;
 		if ($hasMore) {
 			$events = array_slice($events, 0, $limit);
