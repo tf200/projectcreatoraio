@@ -17,10 +17,12 @@ class ProjectNotificationService {
 	public const SUBJECT_WHITEBOARD_UPDATED = 'project_whiteboard_updated';
 	public const SUBJECT_DECK_STALE = 'project_deck_stale';
 	public const SUBJECT_EXPORT_READY = 'project_export_ready';
+	public const SUBJECT_STATUS_CHANGED = 'project_status_changed';
 	private const OBJECT_TYPE_PROJECT_MEMBER = 'project_member';
 	private const OBJECT_TYPE_PROJECT_WHITEBOARD = 'project_whiteboard';
 	private const OBJECT_TYPE_PROJECT_DECK_STALE = 'project_deck_stale';
 	private const OBJECT_TYPE_PROJECT_EXPORT = 'project_export';
+	private const OBJECT_TYPE_PROJECT_STATUS = 'project_status';
 	private const WHITEBOARD_COOLDOWN_SECONDS = 120;
 	private ?ICache $cooldownCache;
 
@@ -160,6 +162,51 @@ class ProjectNotificationService {
 				$this->notificationManager->notify($notification);
 			} catch (\Throwable $e) {
 				$this->logger->error('Failed to send project stale notification', [
+					'app' => Application::APP_ID,
+					'exception' => $e,
+					'projectId' => $projectId,
+					'recipientUid' => $recipientUid,
+				]);
+			}
+		}
+	}
+
+	public function notifyStatusChanged(Project $project, int $oldStatus, int $newStatus, ?IUser $actor = null): void {
+		$projectId = (int) ($project->getId() ?? 0);
+		if ($projectId <= 0 || $oldStatus === $newStatus) {
+			return;
+		}
+
+		$projectName = trim((string) ($project->getName() ?? ''));
+		$actorUid = trim((string) ($actor?->getUID() ?? ''));
+		$actorDisplayName = trim((string) ($actor?->getDisplayName() ?? ''));
+		if ($actorDisplayName === '' && $actorUid !== '') {
+			$actorDisplayName = $actorUid;
+		}
+
+		foreach ($this->getProjectRecipientUserIds($project, $actorUid === '' ? [] : [$actorUid]) as $recipientUid) {
+			$notification = $this->notificationManager->createNotification();
+			$notification
+				->setApp(Application::APP_ID)
+				->setUser($recipientUid)
+				->setObject(self::OBJECT_TYPE_PROJECT_STATUS, (string) $projectId)
+				->setSubject(
+					self::SUBJECT_STATUS_CHANGED,
+					[
+						'projectId' => (string) $projectId,
+						'projectName' => $projectName,
+						'oldStatus' => (string) $oldStatus,
+						'newStatus' => (string) $newStatus,
+						'actorUid' => $actorUid,
+						'actorDisplayName' => $actorDisplayName,
+					],
+				)
+				->setDateTime(new \DateTime());
+
+			try {
+				$this->notificationManager->notify($notification);
+			} catch (\Throwable $e) {
+				$this->logger->error('Failed to send project status notification', [
 					'app' => Application::APP_ID,
 					'exception' => $e,
 					'projectId' => $projectId,

@@ -28,6 +28,7 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 			->willThrowException(new \RuntimeException('SQLSTATE[HY000]: General error: 1 no such column: last_deck_move_at'));
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
+		$notificationService->expects($this->never())->method('notifyStatusChanged');
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects($this->once())->method('warning');
@@ -50,6 +51,9 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 		$projectMapper->expects($this->once())->method('updateProjectDetails')->with($project);
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
+		$notificationService->expects($this->once())
+			->method('notifyStatusChanged')
+			->with($project, ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER, ProjectDeckActivityService::STATUS_ACTIVE);
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
@@ -73,6 +77,9 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 		$projectMapper->expects($this->once())->method('updateProjectDetails')->with($project);
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
+		$notificationService->expects($this->once())
+			->method('notifyStatusChanged')
+			->with($project, ProjectDeckActivityService::STATUS_ON_HOLD, ProjectDeckActivityService::STATUS_ACTIVE);
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
@@ -98,6 +105,9 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
 		$notificationService->expects($this->once())->method('notifyDeckStale')->with($project);
+		$notificationService->expects($this->once())
+			->method('notifyStatusChanged')
+			->with($project, ProjectDeckActivityService::STATUS_ACTIVE, ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER);
 
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
@@ -122,6 +132,9 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
 		$notificationService->expects($this->never())->method('notifyDeckStale');
+		$notificationService->expects($this->once())
+			->method('notifyStatusChanged')
+			->with($project, ProjectDeckActivityService::STATUS_ACTIVE, ProjectDeckActivityService::STATUS_ON_HOLD);
 
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);

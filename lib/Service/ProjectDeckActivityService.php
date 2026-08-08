@@ -45,6 +45,7 @@ class ProjectDeckActivityService {
 	}
 
 	public function recordCardMove(Project $project, ?DateTimeInterface $movedAt = null): void {
+		$oldStatus = (int) ($project->getStatus() ?? self::STATUS_ACTIVE);
 		$moveTime = $this->toMutableDateTime($movedAt ?? new DateTime());
 		$project->setLastDeckMoveAt($moveTime);
 		$project->setStaleNotifiedAt(null);
@@ -56,7 +57,9 @@ class ProjectDeckActivityService {
 			$project->setStatus(self::STATUS_ACTIVE);
 		}
 
-		$this->persistProjectDetails($project);
+		if ($this->persistProjectDetails($project)) {
+			$this->projectNotificationService->notifyStatusChanged($project, $oldStatus, (int) $project->getStatus());
+		}
 	}
 
 	public function processLifecycleStatuses(?DateTimeInterface $now = null): void {
@@ -89,7 +92,9 @@ class ProjectDeckActivityService {
 		if ($status === self::STATUS_DONE) {
 			if (!$this->getDoneReadiness($project)['ready']) {
 				$project->setStatus(self::STATUS_ACTIVE);
-				$this->persistProjectDetails($project);
+				if ($this->persistProjectDetails($project)) {
+					$this->projectNotificationService->notifyStatusChanged($project, $status, self::STATUS_ACTIVE);
+				}
 			}
 			return;
 		}
@@ -104,7 +109,9 @@ class ProjectDeckActivityService {
 			if (in_array($status, [self::STATUS_WAITING_ON_CUSTOMER, self::STATUS_ON_HOLD], true)) {
 				$project->setStatus(self::STATUS_ACTIVE);
 				$project->setStaleNotifiedAt(null);
-				$this->persistProjectDetails($project);
+				if ($this->persistProjectDetails($project)) {
+					$this->projectNotificationService->notifyStatusChanged($project, $status, self::STATUS_ACTIVE);
+				}
 			}
 			return;
 		}
@@ -112,7 +119,9 @@ class ProjectDeckActivityService {
 		if ($anchorDate <= $onHoldCutoff) {
 			if ($status !== self::STATUS_ON_HOLD) {
 				$project->setStatus(self::STATUS_ON_HOLD);
-				$this->persistProjectDetails($project);
+				if ($this->persistProjectDetails($project)) {
+					$this->projectNotificationService->notifyStatusChanged($project, $status, self::STATUS_ON_HOLD);
+				}
 			}
 			return;
 		}
@@ -130,7 +139,9 @@ class ProjectDeckActivityService {
 		}
 
 		if ($needsUpdate) {
-			$this->persistProjectDetails($project);
+			if ($this->persistProjectDetails($project)) {
+				$this->projectNotificationService->notifyStatusChanged($project, $status, (int) $project->getStatus());
+			}
 		}
 	}
 
@@ -142,9 +153,10 @@ class ProjectDeckActivityService {
 		return DateTime::createFromInterface($dateTime);
 	}
 
-	private function persistProjectDetails(Project $project): void {
+	private function persistProjectDetails(Project $project): bool {
 		try {
 			$this->projectMapper->updateProjectDetails($project);
+			return true;
 		} catch (\Throwable $e) {
 			if (!$this->isMissingDeckActivityColumnError($e)) {
 				throw $e;
@@ -154,6 +166,7 @@ class ProjectDeckActivityService {
 				'exception' => $e,
 				'projectId' => $project->getId(),
 			]);
+			return false;
 		}
 	}
 

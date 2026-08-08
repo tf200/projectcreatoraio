@@ -143,4 +143,45 @@ final class NotifierTest extends TestCase {
 		$this->assertSame('Project {project} is waiting on customer because no cards moved for 90 days', $prepared->getRichSubject());
 		$this->assertSame('Alpha', $prepared->getRichSubjectParameters()['project']['name']);
 	}
+
+	public function testPrepareProjectStatusChangedNotification(): void {
+		$l10n = $this->createMock(IL10N::class);
+		$l10n->method('t')->willReturnCallback(static fn (string $text): string => $text);
+		$l10nFactory = $this->createMock(IFactory::class);
+		$l10nFactory->method('get')->willReturn($l10n);
+
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')
+			->with('projectcreatoraio.page.index')
+			->willReturn('https://cloud.test/apps/projectcreatoraio');
+		$urlGenerator->method('imagePath')
+			->with(Application::APP_ID, 'app.svg')
+			->willReturn('/apps/projectcreatoraio/img/app.svg');
+		$urlGenerator->method('getAbsoluteURL')
+			->with('/apps/projectcreatoraio/img/app.svg')
+			->willReturn('https://cloud.test/apps/projectcreatoraio/img/app.svg');
+
+		$manager = \OC::$server->get(INotificationManager::class);
+		$notification = $manager->createNotification();
+		$notification
+			->setApp(Application::APP_ID)
+			->setUser('member-2')
+			->setObject('project_status', '42')
+			->setSubject(ProjectNotificationService::SUBJECT_STATUS_CHANGED, [
+				'projectId' => '42',
+				'projectName' => 'Alpha',
+				'oldStatus' => '1',
+				'newStatus' => '4',
+				'actorUid' => 'owner1',
+				'actorDisplayName' => 'Owner One',
+			])
+			->setDateTime(new \DateTime());
+
+		$prepared = (new Notifier($l10nFactory, $urlGenerator))->prepare($notification, 'en');
+
+		$this->assertSame('{actor} changed {project} status from {oldStatus} to {newStatus}', $prepared->getRichSubject());
+		$this->assertSame('Active', $prepared->getRichSubjectParameters()['oldStatus']['name']);
+		$this->assertSame('Done', $prepared->getRichSubjectParameters()['newStatus']['name']);
+		$this->assertSame('Owner One', $prepared->getRichSubjectParameters()['actor']['name']);
+	}
 }

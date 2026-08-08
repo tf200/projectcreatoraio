@@ -217,4 +217,54 @@ final class ProjectNotificationServiceTest extends TestCase {
 		$service = new ProjectNotificationService($notificationManager, $projectMemberResolver, $cacheFactory, $logger);
 		$service->notifyDeckStale($project);
 	}
+
+	public function testNotifyStatusChangedPublishesToOtherMembers(): void {
+		$notification = $this->createMock(INotification::class);
+		$notification->method('setApp')->willReturnSelf();
+		$notification->method('setUser')->willReturnSelf();
+		$notification->method('setObject')->willReturnSelf();
+		$notification->method('setSubject')->willReturnSelf();
+		$notification->method('setDateTime')->willReturnSelf();
+
+		$notificationManager = $this->createMock(INotificationManager::class);
+		$notificationManager->expects($this->once())->method('createNotification')->willReturn($notification);
+		$notificationManager->expects($this->once())->method('notify')->with($notification);
+
+		$recipient = $this->createConfiguredMock(IUser::class, ['getUID' => 'member-2']);
+		$projectMemberResolver = $this->createMock(ProjectMemberResolver::class);
+		$projectMemberResolver->expects($this->once())
+			->method('getProjectMembers')
+			->with($this->isInstanceOf(Project::class), ['owner1'])
+			->willReturn([$recipient]);
+
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('isLocalCacheAvailable')->willReturn(false);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$logger = $this->createMock(LoggerInterface::class);
+
+		$project = new Project();
+		$project->setId(42);
+		$project->setName('Alpha');
+		$actor = $this->createConfiguredMock(IUser::class, [
+			'getUID' => 'owner1',
+			'getDisplayName' => 'Owner One',
+		]);
+
+		$notification->expects($this->once())->method('setUser')->with('member-2')->willReturnSelf();
+		$notification->expects($this->once())->method('setObject')->with('project_status', '42')->willReturnSelf();
+		$notification->expects($this->once())
+			->method('setSubject')
+			->with(ProjectNotificationService::SUBJECT_STATUS_CHANGED, [
+				'projectId' => '42',
+				'projectName' => 'Alpha',
+				'oldStatus' => '1',
+				'newStatus' => '4',
+				'actorUid' => 'owner1',
+				'actorDisplayName' => 'Owner One',
+			])
+			->willReturnSelf();
+
+		$service = new ProjectNotificationService($notificationManager, $projectMemberResolver, $cacheFactory, $logger);
+		$service->notifyStatusChanged($project, 1, 4, $actor);
+	}
 }

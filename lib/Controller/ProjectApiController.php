@@ -4,6 +4,7 @@ namespace OCA\Projectcreatoraio\Controller;
 use OCA\ProjectCreatorAIO\BackgroundJob\GenerateProjectExportJob;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
@@ -43,6 +44,7 @@ class ProjectApiController extends Controller
         protected ProjectNoteMapper $noteMapper,
         protected ProjectService $projectService,
         private ProjectActivityService $projectActivityService,
+        private ProjectNotificationService $projectNotificationService,
         private ProjectRetentionService $projectRetentionService,
         private ProjectDownloadService $downloadService,
         private ProjectTalkIntegrationService $talkIntegrationService,
@@ -1337,6 +1339,15 @@ class ProjectApiController extends Controller
                 $this->projectActivityService->recordProjectRestored($existingProject, $currentUser);
             } else {
                 $this->projectActivityService->recordProjectUpdated($existingProject, $currentUser, $changedFields);
+            }
+
+            if (in_array('status', $changedFields, true)) {
+                $this->projectNotificationService->notifyStatusChanged(
+                    $updatedProject,
+                    (int) $oldValues['status'],
+                    (int) $newValues['status'],
+                    $currentUser,
+                );
             }
         }
 

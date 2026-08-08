@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Notification;
 
 use OCA\ProjectCreatorAIO\AppInfo\Application;
+use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
@@ -162,8 +163,67 @@ class Notifier implements INotifier {
 
 			return $notification;
 
+		case ProjectNotificationService::SUBJECT_STATUS_CHANGED:
+			$params = $notification->getSubjectParameters();
+			$projectName = trim((string) ($params['projectName'] ?? ''));
+			$actorDisplayName = trim((string) ($params['actorDisplayName'] ?? ''));
+			$oldStatus = $this->getStatusLabel((int) ($params['oldStatus'] ?? -1), $l);
+			$newStatus = $this->getStatusLabel((int) ($params['newStatus'] ?? -1), $l);
+
+			if ($projectName === '') {
+				$projectName = $l->t('Unnamed project');
+			}
+
+			$subject = $actorDisplayName === ''
+				? $l->t('Project {project} status changed from {oldStatus} to {newStatus}')
+				: $l->t('{actor} changed {project} status from {oldStatus} to {newStatus}');
+			$subjectParameters = [
+				'project' => [
+					'type' => 'highlight',
+					'id' => (string) ($params['projectId'] ?? ''),
+					'name' => $projectName,
+				],
+				'oldStatus' => [
+					'type' => 'highlight',
+					'id' => (string) ($params['oldStatus'] ?? ''),
+					'name' => $oldStatus,
+				],
+				'newStatus' => [
+					'type' => 'highlight',
+					'id' => (string) ($params['newStatus'] ?? ''),
+					'name' => $newStatus,
+				],
+			];
+			if ($actorDisplayName !== '') {
+				$subjectParameters['actor'] = [
+					'type' => 'highlight',
+					'id' => (string) ($params['actorUid'] ?? ''),
+					'name' => $actorDisplayName,
+				];
+			}
+
+			$notification
+				->setRichSubject($subject, $subjectParameters)
+				->setLink($this->urlGenerator->linkToRouteAbsolute('projectcreatoraio.page.index'))
+				->setIcon($this->urlGenerator->getAbsoluteURL(
+					$this->urlGenerator->imagePath(Application::APP_ID, 'app.svg'),
+				));
+
+			return $notification;
+
 		default:
 				throw new UnknownNotificationException();
 		}
+	}
+
+	private function getStatusLabel(int $status, \OCP\L10N\IL10N $l): string {
+		return match ($status) {
+			ProjectStatus::ARCHIVED => $l->t('Archived'),
+			ProjectStatus::ACTIVE => $l->t('Active'),
+			ProjectStatus::WAITING_ON_CUSTOMER => $l->t('Waiting on Customer'),
+			ProjectStatus::ON_HOLD => $l->t('On Hold'),
+			ProjectStatus::DONE => $l->t('Done'),
+			default => $l->t('Unknown'),
+		};
 	}
 }
