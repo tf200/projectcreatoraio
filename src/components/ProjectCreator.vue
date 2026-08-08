@@ -132,6 +132,21 @@
 							placeholder="e.g., 10001"
 							:show-label="true" />
 					</div>
+					<div class="location-map">
+						<p class="location-map__title">Map preview</p>
+						<p v-if="mapLocationHint" class="location-map__status">
+							{{ mapLocationHint }}
+						</p>
+						<iframe
+							v-else-if="mapEmbedUrl"
+							class="location-map__frame"
+							:title="`Map of ${locationQuery}`"
+							:src="mapEmbedUrl"
+							loading="lazy" />
+						<p v-if="mapEmbedUrl" class="location-map__attribution">
+							© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors
+						</p>
+					</div>
 				</div>
 
 				<!-- SECTION 4: DESCRIPTION -->
@@ -220,6 +235,11 @@ export default {
 			submissionStatus: '',
 			statusMessage: '',
 			statusDescription: '',
+			mapLocation: null,
+			mapLoading: false,
+			mapError: '',
+			mapLookupTimer: null,
+			mapLookupId: 0,
 			PROJECT_TYPES,
 		};
 	},
@@ -252,8 +272,108 @@ export default {
 
 			return true;
 		},
+		locationQuery() {
+			const street = this.project.loc_street.trim();
+			const city = this.project.loc_city.trim();
+			const zip = this.project.loc_zip.trim();
+
+			if (!street || (!city && !zip)) {
+				return '';
+			}
+
+			return [street, [zip, city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+		},
+		mapEmbedUrl() {
+			if (!this.mapLocation) {
+				return '';
+			}
+
+			const latitude = Number(this.mapLocation.lat);
+			const longitude = Number(this.mapLocation.lon);
+			const longitudeOffset = 0.008;
+			const latitudeOffset = 0.004;
+			const bbox = [
+				longitude - longitudeOffset,
+				latitude - latitudeOffset,
+				longitude + longitudeOffset,
+				latitude + latitudeOffset,
+			].join(',');
+			const params = new URLSearchParams({
+				bbox,
+				layer: 'mapnik',
+				marker: `${latitude},${longitude}`,
+			});
+
+			return `https://www.openstreetmap.org/export/embed.html?${params.toString()}`;
+		},
+		mapLocationHint() {
+			if (!this.locationQuery) {
+				return 'Enter a street and city or ZIP code to preview the project location.';
+			}
+			if (this.mapLoading) {
+				return 'Finding this location...';
+			}
+			if (this.mapError) {
+				return this.mapError;
+			}
+			return '';
+		},
+	},
+	watch: {
+		locationQuery() {
+			this.scheduleMapLookup();
+		},
+	},
+	beforeDestroy() {
+		clearTimeout(this.mapLookupTimer);
 	},
 	methods: {
+		scheduleMapLookup() {
+			clearTimeout(this.mapLookupTimer);
+			this.mapLookupId++;
+			this.mapLocation = null;
+			this.mapError = '';
+			this.mapLoading = false;
+
+			if (!this.locationQuery) {
+				return;
+			}
+
+			this.mapLoading = true;
+			this.mapLookupTimer = setTimeout(() => this.lookupMapLocation(), 1000);
+		},
+		async lookupMapLocation() {
+			const lookupId = this.mapLookupId;
+			const query = this.locationQuery;
+			try {
+				const params = new URLSearchParams({
+					q: query,
+					format: 'jsonv2',
+					limit: '1',
+					addressdetails: '0',
+				});
+				const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+				if (!response.ok) {
+					throw new Error('Location search failed');
+				}
+
+				const results = await response.json();
+				if (lookupId !== this.mapLookupId) {
+					return;
+				}
+
+				this.mapLocation = results[0] || null;
+				this.mapError = this.mapLocation ? '' : 'No map location was found for this address.';
+			} catch (error) {
+				if (lookupId === this.mapLookupId) {
+					this.mapError = 'The map preview is unavailable. You can still create the project.';
+				}
+			} finally {
+				if (lookupId === this.mapLookupId) {
+					this.mapLoading = false;
+				}
+			}
+		},
 		handleDependencyError(error) {
 			this.showProjectCreationErrorMessage(error)
 		},
@@ -314,7 +434,7 @@ export default {
 				this.statusDescription = '';
 			}
 		},
-	}
+	},
 }
 </script>
 
@@ -378,6 +498,43 @@ export default {
 .form-row-item {
 	flex: 1;
 	min-width: 0;
+}
+
+.location-map {
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+	overflow: hidden;
+	background: var(--color-background-dark);
+}
+
+.location-map__title,
+.location-map__status,
+.location-map__attribution {
+	margin: 0;
+	padding: 8px 12px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.location-map__title {
+	font-weight: 700;
+	color: var(--color-main-text);
+	border-bottom: 1px solid var(--color-border);
+}
+
+.location-map__frame {
+	display: block;
+	width: 100%;
+	height: 220px;
+	border: 0;
+}
+
+.location-map__attribution {
+	border-top: 1px solid var(--color-border);
+}
+
+.location-map__attribution a {
+	color: var(--color-primary-element);
 }
 
 /* STICKY FOOTER ACTION BAR */

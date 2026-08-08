@@ -56,6 +56,8 @@ class PageController extends Controller {
 		// Allow embedding same-origin pages (Files/Viewer) in an iframe.
 		// Needed for the embedded project whiteboard editor.
 		$response->getContentSecurityPolicy()->addAllowedFrameDomain("'self'");
+		$response->getContentSecurityPolicy()->addAllowedFrameDomain('https://www.openstreetmap.org');
+		$response->getContentSecurityPolicy()->addAllowedConnectDomain('https://nominatim.openstreetmap.org');
 		// Allow service workers/workers used by Viewer/Whiteboard.
 		$response->getContentSecurityPolicy()->addAllowedWorkerSrcDomain("'self'");
 
