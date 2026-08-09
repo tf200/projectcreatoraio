@@ -7,6 +7,7 @@ namespace OCA\ProjectCreatorAIO\Notification;
 use OCA\ProjectCreatorAIO\AppInfo\Application;
 use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
+use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
 use OCP\Notification\INotification;
@@ -216,7 +217,7 @@ class Notifier implements INotifier {
 		}
 	}
 
-	private function getStatusLabel(int $status, \OCP\L10N\IL10N $l): string {
+	private function getStatusLabel(int $status, IL10N $l): string {
 		return match ($status) {
 			ProjectStatus::ARCHIVED => $l->t('Archived'),
 			ProjectStatus::ACTIVE => $l->t('Active'),

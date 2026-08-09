@@ -7,9 +7,9 @@ namespace OCA\ProjectCreatorAIO\Tests\Unit\Notification;
 use OCA\ProjectCreatorAIO\AppInfo\Application;
 use OCA\ProjectCreatorAIO\Notification\Notifier;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
+use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
-use OCP\L10N\IL10N;
 use OCP\Notification\IManager as INotificationManager;
 use PHPUnit\Framework\TestCase;
 
