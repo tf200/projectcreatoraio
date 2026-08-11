@@ -155,30 +155,30 @@ class ProjectRetentionService
 
 	private function deleteSharedFolder(Project $project): void
 	{
-		$folderId = (int) ($project->getFolderId() ?? 0);
-		if ($folderId <= 0) {
+		$rootNodeId = (int) ($project->getFolderId() ?? 0);
+		$groupFolderId = (int) ($project->getGroupFolderId() ?? 0);
+		if ($rootNodeId <= 0 && $groupFolderId <= 0) {
 			return;
 		}
 
-		if ($this->folderManager !== null && $this->folderStorageManager !== null) {
+		if ($groupFolderId > 0 && $this->folderManager !== null && $this->folderStorageManager !== null) {
 			try {
-				$groupFolder = $this->folderManager->getFolder($folderId);
+				$groupFolder = $this->folderManager->getFolder($groupFolderId);
 				if ($groupFolder === null) {
-					// Might be standard folder fallback, delete it using filesystem fallback below
-					$this->deleteStandardFolderFallback($project, $folderId);
+					$this->deleteStandardFolderFallback($project, $rootNodeId);
 					return;
 				}
 				$this->folderStorageManager->deleteStoragesForFolder($groupFolder);
-				$this->folderManager->removeFolder($folderId);
+				$this->folderManager->removeFolder($groupFolderId);
 			} catch (\Throwable $e) {
 				$this->logger->warning('Shared folder cleanup skipped during project purge', [
 					'projectId' => $project->getId(),
-					'folderId' => $folderId,
+					'groupFolderId' => $groupFolderId,
 					'exception' => $e,
 				]);
 			}
 		} else {
-			$this->deleteStandardFolderFallback($project, $folderId);
+			$this->deleteStandardFolderFallback($project, $rootNodeId);
 		}
 	}
 

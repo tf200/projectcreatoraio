@@ -35,6 +35,7 @@ class Project extends Entity implements JsonSerializable {
     protected string|null $projectGroupGid = null;
     protected string|null $talkConversationToken = null;
     protected int|null    $folderId    = null;
+    protected int|null    $groupFolderId = null;
     public    string|null $folderPath  = null;
     protected int|null    $status      = null;
     protected int|null    $organizationId = null;
@@ -76,6 +77,7 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('projectGroupGid', Types::STRING);
         $this->addType('talkConversationToken', Types::STRING);
         $this->addType('folderId',    Types::INTEGER);
+        $this->addType('groupFolderId', Types::INTEGER);
         $this->addType('folderPath',  Types::STRING);
         $this->addType('status',      Types::INTEGER);
         $this->addType('organizationId', Types::INTEGER);
@@ -119,6 +121,7 @@ class Project extends Entity implements JsonSerializable {
             'project_group_gid' => $this->projectGroupGid,
             'talk_conversation_token' => $this->talkConversationToken,
             'folderId'   => $this->folderId,
+            'groupFolderId' => $this->groupFolderId,
             'folderPath' => $this->folderPath,
             'status'     => $this->status,
             'organization_id' => $this->organizationId,

@@ -7,6 +7,8 @@ use OCA\ProjectCreatorAIO\BackgroundJob\GenerateProjectExportJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\ProcessPendingFileProcessingJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\PurgeArchivedProjectsJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\PurgeOldExportsJob;
+use OCA\ProjectCreatorAIO\BackgroundJob\ReconcileChangedProjectQuotasJob;
+use OCA\ProjectCreatorAIO\BackgroundJob\ReconcileProjectQuotasJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\SendProjectDigestJob;
 use OCA\ProjectCreatorAIO\Db\PrivateFolderLinkMapper;
 use OCA\ProjectCreatorAIO\Dashboard\ProjectsWidget;
@@ -28,6 +30,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Listener\DeckEventListener;
 use OCA\ProjectCreatorAIO\Listener\FileEventListener;
 use OCA\ProjectCreatorAIO\Listener\FileProcessingWrittenListener;
+use OCA\ProjectCreatorAIO\Listener\EntitlementsChangedListener;
 use OCA\ProjectCreatorAIO\Listener\TalkEventListener;
 use OCA\ProjectCreatorAIO\Listener\WhiteboardWrittenListener;
 use OCA\ProjectCreatorAIO\Notification\Notifier;
@@ -37,6 +40,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDigestService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
+use OCA\ProjectCreatorAIO\Service\ProjectQuotaService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCA\Talk\Events\AttendeeRemovedEvent;
@@ -95,6 +99,7 @@ use OCA\Organization\Db\OrganizationMapper;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\Organization\Db\SubscriptionMapper;
 use OCA\Organization\Db\PlanMapper;
+use OCA\Organization\Event\EntitlementsChangedEvent;
 use OCA\ProjectCreatorAIO\Db\BoardPolicySettingMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
@@ -120,6 +125,7 @@ class Application extends App implements IBootstrap {
 		$context->registerNotifierService(Notifier::class);
 		$context->registerEventListener(NodeWrittenEvent::class, WhiteboardWrittenListener::class);
 		$context->registerEventListener(NodeWrittenEvent::class, FileProcessingWrittenListener::class);
+		$context->registerEventListener(EntitlementsChangedEvent::class, EntitlementsChangedListener::class);
 
 		// Only register Deck event listeners if Deck app is active
 		if (class_exists(BoardCreatedEvent::class)) {
@@ -232,6 +238,20 @@ class Application extends App implements IBootstrap {
 			);
 		});
 
+		$context->registerService(ProjectQuotaService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$groupfoldersEnabled = $appManager->isEnabledForAnyone('groupfolders') && class_exists(FolderManager::class);
+			$organizationEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(SubscriptionMapper::class);
+
+			return new ProjectQuotaService(
+				$c->get(ProjectMapper::class),
+				$groupfoldersEnabled ? $c->get(FolderManager::class) : null,
+				$organizationEnabled ? $c->get(SubscriptionMapper::class) : null,
+				$organizationEnabled ? $c->get(PlanMapper::class) : null,
+				$c->get(LoggerInterface::class),
+			);
+		});
+
 		$context->registerService(TimelinePlanningService::class, function (ContainerInterface $c) {
 			return new TimelinePlanningService(
 				$c->get(IDBConnection::class),
@@ -333,6 +353,20 @@ class Application extends App implements IBootstrap {
 			);
 		});
 
+		$context->registerService(ReconcileProjectQuotasJob::class, function (ContainerInterface $c) {
+			return new ReconcileProjectQuotasJob(
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectQuotaService::class),
+			);
+		});
+
+		$context->registerService(ReconcileChangedProjectQuotasJob::class, function (ContainerInterface $c) {
+			return new ReconcileChangedProjectQuotasJob(
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectQuotaService::class),
+			);
+		});
+
 		$context->registerService(SendProjectDigestJob::class, function (ContainerInterface $c) {
 			return new SendProjectDigestJob(
 				$c->get(ITimeFactory::class),
@@ -431,6 +465,9 @@ class Application extends App implements IBootstrap {
 			}
 			if (!$jobList->has(PurgeOldExportsJob::class, null)) {
 				$jobList->add(PurgeOldExportsJob::class);
+			}
+			if (!$jobList->has(ReconcileProjectQuotasJob::class, null)) {
+				$jobList->add(ReconcileProjectQuotasJob::class);
 			}
 		});
 	}

@@ -32,6 +32,7 @@ class ProjectMapper extends QBMapper
         string $projectGroupGid,
         ?string $talkConversationToken,
         int $folderId,
+        int $groupFolderId,
         string $folderPath,
         array $privateFolders,
         ?string $whiteBoardId,
@@ -56,6 +57,7 @@ class ProjectMapper extends QBMapper
         $project->setProjectGroupGid($projectGroupGid);
         $project->setTalkConversationToken($talkConversationToken);
         $project->setFolderId($folderId);
+        $project->setGroupFolderId($groupFolderId);
         $project->setFolderPath($folderPath);
         $project->setClientName($clientName);
         $project->setClientRole($clientRole);
@@ -145,6 +147,23 @@ class ProjectMapper extends QBMapper
                 $qb->expr()->eq('m.uid', $qb->createNamedParameter($userId))
             )
             ->orderBy('p.created_at', 'DESC');
+
+        return $this->findEntities($qb);
+    }
+
+    /**
+     * @return Project[]
+     */
+    public function findQuotaManaged(int $limit = 100, int $offset = 0): array
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('*')
+            ->from(self::TABLE_NAME)
+            ->where($qb->expr()->isNotNull('organization_id'))
+            ->andWhere($qb->expr()->isNotNull('group_folder_id'))
+            ->orderBy('id', 'ASC')
+            ->setMaxResults($limit)
+            ->setFirstResult($offset);
 
         return $this->findEntities($qb);
     }

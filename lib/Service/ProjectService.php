@@ -138,6 +138,9 @@ class ProjectService
             if ($owner === null) {
                 throw new OCSException('You must be logged in to create a project.');
             }
+            if ($this->folderManager === null || $this->folderStorageManager === null) {
+                throw new OCSException('Team Folders must be enabled to create quota-managed projects.', 503);
+            }
 
             $organization = null;
             $plan = null;
@@ -224,6 +227,7 @@ class ProjectService
                 $group->getGID(),
                 $createdConversationToken,
                 $createdFolders['shared']['id'],
+                $createdFolders['shared']['group_folder_id'],
                 $createdFolders['shared']['name'],
                 $createdFolders['private'],
                 $whiteBoardId,
@@ -1351,6 +1355,16 @@ class ProjectService
         IGroup $group,
         ?object $plan
     ): array {
+        if ($this->folderManager === null || $this->folderStorageManager === null) {
+            throw new OCSException('Team Folders must be enabled to create quota-managed projects.', 503);
+        }
+        if ($plan === null) {
+            throw new OCSException('The organization plan is required to provision project storage.', 500);
+        }
+        if ($plan->getSharedStoragePerProject() <= 0) {
+            throw new OCSException('The organization plan must define a positive project storage quota.', 500);
+        }
+
         $ownerFolder = $this->rootFolder->getUserFolder($owner->getUID());
         $allCreatedFolders = [];
 
@@ -1361,39 +1375,20 @@ class ProjectService
             $ownerFolder
         );
 
-        if ($this->folderManager !== null) {
-            $groupFolderId = $this->folderManager->createFolder($sharedFolderName);
-            $folder = $this->folderManager->getFolder($groupFolderId);
-            $storageId = $folder->storageId;
-            $rootId = $folder->rootId;
-
-            $this->folderManager->addApplicableGroup($groupFolderId, $group->getGID());
-            if ($plan !== null) {
-                $this->folderManager->setFolderQuota($groupFolderId, $plan->getSharedStoragePerProject());
-            }
-            $this->folderManager->setGroupPermissions(
-                $groupFolderId,
-                $group->getGID(),
-                Constants::PERMISSION_ALL
-            );
-        } else {
-            // Fallback: Create a standard folder inside owner's root folder and share it with the group
-            $sharedFolder = $ownerFolder->newFolder($sharedFolderName);
-            $rootId = $sharedFolder->getId();
-            $groupFolderId = null;
-
-            // Share the folder with the project group
-            try {
-                $share = $this->shareManager->newShare();
-                $share->setNode($sharedFolder)
-                    ->setShareType(Constants::SHARE_TYPE_GROUP)
-                    ->setSharedWith($group->getGID())
-                    ->setPermissions(Constants::PERMISSION_ALL);
-                $this->shareManager->createShare($share);
-            } catch (Throwable $e) {
-                $this->logger->warning('Failed to share fallback folder with project group', ['exception' => $e]);
-            }
+        $groupFolderId = $this->folderManager->createFolder($sharedFolderName);
+        $folder = $this->folderManager->getFolder($groupFolderId);
+        if ($folder === null) {
+            throw new OCSException('The project Team Folder could not be loaded after creation.', 500);
         }
+        $rootId = $folder->rootId;
+
+        $this->folderManager->addApplicableGroup($groupFolderId, $group->getGID());
+        $this->folderManager->setFolderQuota($groupFolderId, $plan->getSharedStoragePerProject());
+        $this->folderManager->setGroupPermissions(
+            $groupFolderId,
+            $group->getGID(),
+            Constants::PERMISSION_ALL
+        );
 
         // Create private folders for each member
         $privateFolders = [];
@@ -1418,19 +1413,11 @@ class ProjectService
             ];
         }
 
-        if ($this->folderManager !== null) {
-            return [
-                'shared' => ['id' => $rootId, 'name' => $sharedFolderName, 'group_folder_id' => $groupFolderId],
-                'private' => $privateFolders,
-                'all' => $allCreatedFolders,
-            ];
-        } else {
-            return [
-                'shared' => ['id' => $rootId, 'name' => $sharedFolderName, 'group_folder_id' => null, 'folder' => $sharedFolder],
-                'private' => $privateFolders,
-                'all' => $allCreatedFolders,
-            ];
-        }
+        return [
+            'shared' => ['id' => $rootId, 'name' => $sharedFolderName, 'group_folder_id' => $groupFolderId],
+            'private' => $privateFolders,
+            'all' => $allCreatedFolders,
+        ];
     }
 
     private function refreshFilesystemMountsForUser(IUser $user): void
