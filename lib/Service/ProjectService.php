@@ -204,6 +204,7 @@ class ProjectService
                 $createdFolders['shared']['group_folder_id'] ?? null,
                 $createdFolders['shared']['folder'] ?? null
             );
+            $this->refreshTeamFolderSize($createdFolders['shared']['group_folder_id']);
 
             $whiteBoardId = (string) $createdWhiteBoardId;
             $memberIds = array_values(array_unique(array_merge($members, [$owner->getUID()])));
@@ -2459,5 +2460,32 @@ class ProjectService
         $createdId = $cache->getId($fileName);
 
         return $createdId !== -1 ? (int) $createdId : null;
+    }
+
+    /**
+     * Recalculate the new Team Folder root after all seeded files are written.
+     * Individual file scans create their cache entries but do not update the
+     * aggregate size stored on the Team Folder root.
+     */
+    private function refreshTeamFolderSize(int $groupFolderId): void
+    {
+        if ($this->folderManager === null || $this->folderStorageManager === null) {
+            throw new OCSException('Team Folders is unavailable while finalizing project storage.', 503);
+        }
+
+        $groupFolder = $this->folderManager->getFolder($groupFolderId);
+        if ($groupFolder === null) {
+            throw new OCSException('The project Team Folder could not be loaded while finalizing storage.', 500);
+        }
+
+        $storage = $this->folderStorageManager->getBaseStorageForFolder(
+            $groupFolderId,
+            $groupFolder->useSeparateStorage(),
+            $groupFolder,
+            null,
+            false,
+            'files'
+        );
+        $storage->getScanner()->scan('');
     }
 }
