@@ -28,25 +28,36 @@
 					<span>Chat</span>
 				</button>
 			</div>
-			<NcButton
-				v-if="mainTab === 'project'"
-				type="secondary"
-				:disabled="!canCreateNote"
-				@click="openCreateModal">
-				<template #icon>
-					<Plus :size="20" />
-				</template>
-				Add note
-			</NcButton>
-			<NcButton
-				v-if="mainTab === 'chat' && talkUrl"
-				type="secondary"
-				@click="openTalkChat">
-				<template #icon>
-					<OpenInNew :size="20" />
-				</template>
-				Open in Talk
-			</NcButton>
+			<div class="project-notes-list__actions">
+				<NcButton
+					type="secondary"
+					:disabled="loading"
+					@click="refreshNotes">
+					<template #icon>
+						<Refresh :size="20" />
+					</template>
+					Refresh
+				</NcButton>
+				<NcButton
+					v-if="mainTab === 'project'"
+					type="secondary"
+					:disabled="!canCreateNote"
+					@click="openCreateModal">
+					<template #icon>
+						<Plus :size="20" />
+					</template>
+					Add note
+				</NcButton>
+				<NcButton
+					v-if="mainTab === 'chat' && talkUrl"
+					type="secondary"
+					@click="openTalkChat">
+					<template #icon>
+						<OpenInNew :size="20" />
+					</template>
+					Open in Talk
+				</NcButton>
+			</div>
 		</div>
 		<div v-if="mainTab === 'project'" class="project-notes-list__filters">
 			<div class="project-notes-list__sub-tabs">
@@ -311,6 +322,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import Earth from 'vue-material-design-icons/Earth.vue'
 import Lock from 'vue-material-design-icons/Lock.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
+import Refresh from 'vue-material-design-icons/Refresh.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
@@ -335,6 +347,7 @@ export default {
 		Earth,
 		Lock,
 		Plus,
+		Refresh,
 		Delete,
 		ChevronLeft,
 		ChevronRight,
@@ -501,6 +514,16 @@ export default {
 				console.error('Failed to load notes:', error)
 			} finally {
 				this.loading = false
+			}
+		},
+		refreshNotes() {
+			if (this.mainTab === 'chat') {
+				this.chatOffset = 0
+				this.chatMessages = []
+				this.chatHasMore = false
+				this.loadChatMessages()
+			} else {
+				this.loadNotes(this.currentPage)
 			}
 		},
 		switchMainTab(tab) {
@@ -677,6 +700,13 @@ export default {
 	justify-content: space-between;
 	align-items: center;
 	gap: 32px;
+}
+
+.project-notes-list__actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
 }
 
 .project-notes-list__main-tabs {
