@@ -10,6 +10,7 @@ use DateTimeInterface;
 use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
@@ -28,6 +29,7 @@ class ProjectDeckActivityService {
 		private readonly ProjectNotificationService $projectNotificationService,
 		private readonly IDBConnection $db,
 		private readonly LoggerInterface $logger,
+		private readonly ?ProjectNoteMapper $projectNoteMapper = null,
 	) {
 	}
 
@@ -50,15 +52,25 @@ class ProjectDeckActivityService {
 		$project->setLastDeckMoveAt($moveTime);
 		$project->setStaleNotifiedAt(null);
 
+		$statusChanged = false;
 		if (in_array((int) ($project->getStatus() ?? self::STATUS_ACTIVE), [
 			self::STATUS_WAITING_ON_CUSTOMER,
 			self::STATUS_ON_HOLD,
 		], true)) {
 			$project->setStatus(self::STATUS_ACTIVE);
+			$statusChanged = true;
 		}
 
 		if ($this->persistProjectDetails($project)) {
-			$this->projectNotificationService->notifyStatusChanged($project, $oldStatus, (int) $project->getStatus());
+			if ($statusChanged) {
+				$this->projectNotificationService->notifyStatusChanged($project, $oldStatus, self::STATUS_ACTIVE);
+				$this->createStatusNote(
+					$project,
+					$oldStatus,
+					self::STATUS_ACTIVE,
+					'Deck activity resumed (card moved on board)',
+				);
+			}
 		}
 	}
 
@@ -94,6 +106,12 @@ class ProjectDeckActivityService {
 				$project->setStatus(self::STATUS_ACTIVE);
 				if ($this->persistProjectDetails($project)) {
 					$this->projectNotificationService->notifyStatusChanged($project, $status, self::STATUS_ACTIVE);
+					$this->createStatusNote(
+						$project,
+						$status,
+						self::STATUS_ACTIVE,
+						'Deck card readiness check (incomplete cards remaining on board)',
+					);
 				}
 			}
 			return;
@@ -111,6 +129,12 @@ class ProjectDeckActivityService {
 				$project->setStaleNotifiedAt(null);
 				if ($this->persistProjectDetails($project)) {
 					$this->projectNotificationService->notifyStatusChanged($project, $status, self::STATUS_ACTIVE);
+					$this->createStatusNote(
+						$project,
+						$status,
+						self::STATUS_ACTIVE,
+						'Deck activity resumed (recent card activity detected)',
+					);
 				}
 			}
 			return;
@@ -121,15 +145,23 @@ class ProjectDeckActivityService {
 				$project->setStatus(self::STATUS_ON_HOLD);
 				if ($this->persistProjectDetails($project)) {
 					$this->projectNotificationService->notifyStatusChanged($project, $status, self::STATUS_ON_HOLD);
+					$this->createStatusNote(
+						$project,
+						$status,
+						self::STATUS_ON_HOLD,
+						'Deck inactivity (no card activity for 330+ days)',
+					);
 				}
 			}
 			return;
 		}
 
 		$needsUpdate = false;
+		$statusChanged = false;
 		if ($status !== self::STATUS_WAITING_ON_CUSTOMER) {
 			$project->setStatus(self::STATUS_WAITING_ON_CUSTOMER);
 			$needsUpdate = true;
+			$statusChanged = true;
 		}
 
 		if ($project->getStaleNotifiedAt() === null) {
@@ -140,8 +172,41 @@ class ProjectDeckActivityService {
 
 		if ($needsUpdate) {
 			if ($this->persistProjectDetails($project)) {
-				$this->projectNotificationService->notifyStatusChanged($project, $status, (int) $project->getStatus());
+				if ($statusChanged) {
+					$this->projectNotificationService->notifyStatusChanged($project, $status, (int) $project->getStatus());
+					$this->createStatusNote(
+						$project,
+						$status,
+						self::STATUS_WAITING_ON_CUSTOMER,
+						'Deck inactivity (no card activity for 90+ days)',
+					);
+				}
 			}
+		}
+	}
+
+	private function createStatusNote(Project $project, int $oldStatus, int $newStatus, string $reason): void {
+		$projectId = (int) ($project->getId() ?? 0);
+		if ($projectId <= 0 || $oldStatus === $newStatus || $this->projectNoteMapper === null) {
+			return;
+		}
+
+		try {
+			$this->projectNoteMapper->createStatusChangeNote(
+				$projectId,
+				'system',
+				$oldStatus,
+				$newStatus,
+				$reason,
+			);
+		} catch (\Throwable $e) {
+			$this->logger->error('Failed to create status change note', [
+				'exception' => $e,
+				'projectId' => $projectId,
+				'oldStatus' => $oldStatus,
+				'newStatus' => $newStatus,
+				'reason' => $reason,
+			]);
 		}
 	}
 

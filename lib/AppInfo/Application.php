@@ -346,6 +346,16 @@ class Application extends App implements IBootstrap {
 			);
 		});
 
+		$context->registerService(ProjectDeckActivityService::class, function (ContainerInterface $c) {
+			return new ProjectDeckActivityService(
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectNotificationService::class),
+				$c->get(IDBConnection::class),
+				$c->get(LoggerInterface::class),
+				$c->get(ProjectNoteMapper::class),
+			);
+		});
+
 		$context->registerService(DetectStaleProjectsJob::class, function (ContainerInterface $c) {
 			return new DetectStaleProjectsJob(
 				$c->get(ITimeFactory::class),

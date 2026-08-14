@@ -8,6 +8,7 @@ use DateInterval;
 use DateTime;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCP\IDBConnection;
@@ -29,11 +30,13 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
 		$notificationService->expects($this->never())->method('notifyStatusChanged');
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->never())->method('createStatusChangeNote');
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects($this->once())->method('warning');
 
-		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger);
+		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger, $noteMapper);
 		$service->recordCardMoveByBoardId(15, new DateTime('2026-03-06 12:00:00'));
 
 		$this->assertInstanceOf(DateTime::class, $project->getLastDeckMoveAt());
@@ -54,10 +57,14 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 		$notificationService->expects($this->once())
 			->method('notifyStatusChanged')
 			->with($project, ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER, ProjectDeckActivityService::STATUS_ACTIVE);
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->once())
+			->method('createStatusChangeNote')
+			->with(42, 'system', ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER, ProjectDeckActivityService::STATUS_ACTIVE, 'Deck activity resumed (card moved on board)');
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
-		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger);
+		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger, $noteMapper);
 		$service->recordCardMoveByBoardId(15, new DateTime('2026-03-06 12:00:00'));
 
 		$this->assertSame(ProjectDeckActivityService::STATUS_ACTIVE, $project->getStatus());
@@ -80,10 +87,14 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 		$notificationService->expects($this->once())
 			->method('notifyStatusChanged')
 			->with($project, ProjectDeckActivityService::STATUS_ON_HOLD, ProjectDeckActivityService::STATUS_ACTIVE);
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->once())
+			->method('createStatusChangeNote')
+			->with(42, 'system', ProjectDeckActivityService::STATUS_ON_HOLD, ProjectDeckActivityService::STATUS_ACTIVE, 'Deck activity resumed (card moved on board)');
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
-		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger);
+		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger, $noteMapper);
 		$service->recordCardMoveByBoardId(15, new DateTime('2026-03-06 12:00:00'));
 
 		$this->assertSame(ProjectDeckActivityService::STATUS_ACTIVE, $project->getStatus());
@@ -109,10 +120,15 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 			->method('notifyStatusChanged')
 			->with($project, ProjectDeckActivityService::STATUS_ACTIVE, ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER);
 
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->once())
+			->method('createStatusChangeNote')
+			->with(42, 'system', ProjectDeckActivityService::STATUS_ACTIVE, ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER, 'Deck inactivity (no card activity for 90+ days)');
+
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
-		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger);
+		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger, $noteMapper);
 		$service->processStaleProjects(new DateTime('2026-03-06 12:00:00'));
 
 		$this->assertSame(ProjectDeckActivityService::STATUS_WAITING_ON_CUSTOMER, $project->getStatus());
@@ -136,10 +152,15 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 			->method('notifyStatusChanged')
 			->with($project, ProjectDeckActivityService::STATUS_ACTIVE, ProjectDeckActivityService::STATUS_ON_HOLD);
 
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->once())
+			->method('createStatusChangeNote')
+			->with(42, 'system', ProjectDeckActivityService::STATUS_ACTIVE, ProjectDeckActivityService::STATUS_ON_HOLD, 'Deck inactivity (no card activity for 330+ days)');
+
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
-		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger);
+		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger, $noteMapper);
 		$service->processStaleProjects(new DateTime('2026-03-06 12:00:00'));
 
 		$this->assertSame(ProjectDeckActivityService::STATUS_ON_HOLD, $project->getStatus());
@@ -159,11 +180,13 @@ final class ProjectDeckActivityServiceTest extends TestCase {
 
 		$notificationService = $this->createMock(ProjectNotificationService::class);
 		$notificationService->expects($this->never())->method('notifyDeckStale');
+		$noteMapper = $this->createMock(ProjectNoteMapper::class);
+		$noteMapper->expects($this->never())->method('createStatusChangeNote');
 
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);
 
-		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger);
+		$service = new ProjectDeckActivityService($projectMapper, $notificationService, $db, $logger, $noteMapper);
 		$service->processStaleProjects(new DateTime('2026-03-06 12:00:00'));
 	}
 }

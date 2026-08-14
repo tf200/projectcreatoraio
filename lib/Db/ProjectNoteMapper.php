@@ -2,6 +2,7 @@
 
 namespace OCA\ProjectCreatorAIO\Db;
 
+use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCP\IDBConnection;
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -39,6 +40,37 @@ class ProjectNoteMapper extends QBMapper
         $note->setUpdatedAt($now);
 
         return $this->insert($note);
+    }
+
+    /**
+     * Create an audit note for project status changes
+     */
+    public function createStatusChangeNote(
+        int $projectId,
+        string $userId,
+        int $oldStatus,
+        int $newStatus,
+        string $reason,
+        string $noteType = ProjectNote::NOTE_TYPE_AUDIT,
+    ): ProjectNote {
+        $oldLabel = ProjectStatus::getLabel($oldStatus);
+        $newLabel = ProjectStatus::getLabel($newStatus);
+        $title = 'Project status has been updated';
+        $content = sprintf(
+            "Project status updated from %s to %s.\n\nReason: %s",
+            $oldLabel,
+            $newLabel,
+            $reason,
+        );
+
+        return $this->createNote(
+            $projectId,
+            $userId,
+            $title,
+            $content,
+            'public',
+            $noteType,
+        );
     }
 
     /**

@@ -1342,6 +1342,23 @@ class ProjectApiController extends Controller
             }
 
             if (in_array('status', $changedFields, true)) {
+                $oldStatus = (int) $oldValues['status'];
+                $newStatus = (int) $newValues['status'];
+                if ($oldStatus !== $newStatus) {
+                    $actorDisplayName = trim((string) ($currentUser->getDisplayName() ?? ''));
+                    $actorUid = $currentUser->getUID();
+                    $actorLabel = $actorDisplayName !== '' && $actorDisplayName !== $actorUid
+                        ? $actorDisplayName . ' (' . $actorUid . ')'
+                        : $actorUid;
+                    $this->noteMapper->createStatusChangeNote(
+                        $id,
+                        $actorUid,
+                        $oldStatus,
+                        $newStatus,
+                        'User action (' . $actorLabel . ')',
+                    );
+                }
+
                 $this->projectNotificationService->notifyStatusChanged(
                     $updatedProject,
                     (int) $oldValues['status'],
