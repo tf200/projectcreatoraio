@@ -928,7 +928,8 @@ class ProjectApiController extends Controller
                 'deck' => $this->appManager->isEnabledForUser('deck'),
                 'talk' => $this->appManager->isEnabledForUser('spreed'),
                 'calendar' => $this->appManager->isEnabledForUser('calendar'),
-                'libresign' => $this->appManager->isEnabledForUser('libresign'),
+                'libresign' => $this->appManager->isEnabledForUser('signatures') || $this->appManager->isEnabledForUser('libresign'),
+                'signatures' => $this->appManager->isEnabledForUser('signatures') || $this->appManager->isEnabledForUser('libresign'),
             ]
         ]);
     }

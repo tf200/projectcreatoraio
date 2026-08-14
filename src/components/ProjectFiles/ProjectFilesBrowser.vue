@@ -262,7 +262,7 @@
 								:disabled="signingUploadBusy"
 								placeholder="client@example.com\nmanager@example.com" />
 							<div class="project-files__hint">
-								Upload PDF files and immediately send them to LibreSign.
+								Upload PDF files and immediately send them for signatures.
 							</div>
 							<div v-if="signingUploadSigners.length > 0" class="project-files__placement-section">
 								<div class="project-files__placement-header-row">
@@ -526,7 +526,7 @@
 						:disabled="signingBusy"
 						placeholder="client@example.com\nmanager@example.com" />
 					<div class="project-files__hint">
-						Add one signer email per line. LibreSign will send the signing flow.
+						Add one signer email per line. Signatures will send the signing flow.
 					</div>
 					<div v-if="signingSigners.length > 0" class="project-files__placement-section">
 						<div class="project-files__placement-header-row">

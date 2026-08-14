@@ -39,8 +39,8 @@ class ProjectSigningService {
 	}
 
 	public function createRequest(Project $project, int $fileId, string $flow, array $signers, string $createdBy, array $placements = []): ProjectSigningRequest {
-		if (!$this->appManager->isEnabledForUser('libresign')) {
-			throw new OCSException('LibreSign is not enabled.', 503);
+		if (!$this->appManager->isEnabledForUser('signatures') && !$this->appManager->isEnabledForUser('libresign')) {
+			throw new OCSException('Signatures is not enabled.', 503);
 		}
 
 		$flow = $flow === 'ordered_numeric' ? 'ordered_numeric' : 'parallel';
@@ -144,7 +144,8 @@ class ProjectSigningService {
 
 	private function requestLibreSignSignature(File $file, string $flow, array $signers): array {
 		$client = $this->clientService->newClient();
-		$url = $this->urlGenerator->getAbsoluteURL('/ocs/v2.php/apps/libresign/api/v1/request-signature');
+		$app = $this->appManager->isEnabledForUser('signatures') ? 'signatures' : 'libresign';
+		$url = $this->urlGenerator->getAbsoluteURL("/ocs/v2.php/apps/{$app}/api/v1/request-signature");
 		$options = [
 			'headers' => [
 				'OCS-APIRequest' => 'true',
@@ -173,13 +174,13 @@ class ProjectSigningService {
 		try {
 			$response = $client->post($url, $options);
 		} catch (\Throwable $e) {
-			throw new \RuntimeException('LibreSign rejected request: ' . $this->extractHttpErrorMessage($e), 0, $e);
+			throw new \RuntimeException('Signatures rejected request: ' . $this->extractHttpErrorMessage($e), 0, $e);
 		}
 		$statusCode = $response->getStatusCode();
 		$body = (string) $response->getBody();
 		$decoded = json_decode($body, true);
 		if ($statusCode < 200 || $statusCode >= 300 || !is_array($decoded)) {
-			throw new \RuntimeException('LibreSign returned HTTP ' . $statusCode . ': ' . $this->extractLibreSignMessage($decoded));
+			throw new \RuntimeException('Signatures returned HTTP ' . $statusCode . ': ' . $this->extractLibreSignMessage($decoded));
 		}
 		return $decoded;
 	}
@@ -234,7 +235,8 @@ class ProjectSigningService {
 
 	private function requestLibreSignFileElement(string $uuid, int $fileId, int $signRequestId, array $placement): void {
 		$client = $this->clientService->newClient();
-		$url = $this->urlGenerator->getAbsoluteURL('/ocs/v2.php/apps/libresign/api/v1/file-element/' . rawurlencode($uuid));
+		$app = $this->appManager->isEnabledForUser('signatures') ? 'signatures' : 'libresign';
+		$url = $this->urlGenerator->getAbsoluteURL("/ocs/v2.php/apps/{$app}/api/v1/file-element/" . rawurlencode($uuid));
 		$options = [
 			'headers' => [
 				'OCS-APIRequest' => 'true',
