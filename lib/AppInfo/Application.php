@@ -9,6 +9,7 @@ use OCA\ProjectCreatorAIO\BackgroundJob\PurgeArchivedProjectsJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\PurgeOldExportsJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\ReconcileChangedProjectQuotasJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\ReconcileProjectQuotasJob;
+use OCA\ProjectCreatorAIO\BackgroundJob\ReconcileProjectAdministratorAccessJob;
 use OCA\ProjectCreatorAIO\BackgroundJob\SendProjectDigestJob;
 use OCA\ProjectCreatorAIO\Db\PrivateFolderLinkMapper;
 use OCA\ProjectCreatorAIO\Dashboard\ProjectsWidget;
@@ -41,6 +42,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectDigestService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectQuotaService;
+use OCA\ProjectCreatorAIO\Service\ProjectAdministratorAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCA\Talk\Events\AttendeeRemovedEvent;
@@ -235,6 +237,27 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardPolicyMembershipMapper::class),
 				$c->get(CardPolicyService::class),
 				$c->get(OrganizationPdfService::class),
+				$c->get(ProjectAdministratorAccessService::class),
+			);
+		});
+
+		$context->registerService(ProjectAdministratorAccessService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$groupfoldersEnabled = $appManager->isEnabledForAnyone('groupfolders') && class_exists(FolderManager::class);
+			$organizationEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationUserMapper::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(ChangeHelper::class);
+
+			return new ProjectAdministratorAccessService(
+				$c->get(ProjectMapper::class),
+				$c->get(IGroupManager::class),
+				$c->get(IUserManager::class),
+				$c->get(IRootFolder::class),
+				$c->get(IShareManager::class),
+				$c->get(IDBConnection::class),
+				$groupfoldersEnabled ? $c->get(FolderManager::class) : null,
+				$deckEnabled ? $c->get(ChangeHelper::class) : null,
+				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null,
+				$c->get(LoggerInterface::class),
 			);
 		});
 
@@ -370,6 +393,13 @@ class Application extends App implements IBootstrap {
 			);
 		});
 
+		$context->registerService(ReconcileProjectAdministratorAccessJob::class, function (ContainerInterface $c) {
+			return new ReconcileProjectAdministratorAccessJob(
+				$c->get(ITimeFactory::class),
+				$c->get(ProjectAdministratorAccessService::class),
+			);
+		});
+
 		$context->registerService(ReconcileChangedProjectQuotasJob::class, function (ContainerInterface $c) {
 			return new ReconcileChangedProjectQuotasJob(
 				$c->get(ITimeFactory::class),
@@ -478,6 +508,9 @@ class Application extends App implements IBootstrap {
 			}
 			if (!$jobList->has(ReconcileProjectQuotasJob::class, null)) {
 				$jobList->add(ReconcileProjectQuotasJob::class);
+			}
+			if (!$jobList->has(ReconcileProjectAdministratorAccessJob::class, null)) {
+				$jobList->add(ReconcileProjectAdministratorAccessJob::class);
 			}
 		});
 	}

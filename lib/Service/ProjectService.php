@@ -102,6 +102,7 @@ class ProjectService
         private readonly BoardPolicyMembershipMapper $policyMembershipMapper,
         private readonly CardPolicyService $cardPolicyService,
         private readonly OrganizationPdfService $organizationPdfService,
+        private readonly ProjectAdministratorAccessService $administratorAccessService,
     ) {
     }
 
@@ -243,6 +244,7 @@ class ProjectService
                 $locZip,
             );
             $createdProject = $project;
+            $this->administratorAccessService->syncProject($project);
             $this->memberRoleMapper->replaceRoles((int)$project->getId(), $owner->getUID(), ['accountable']);
 
             $seededCards = [];
@@ -1072,6 +1074,7 @@ class ProjectService
                 (int) $privateFolder->getId(),
                 $privateFolder->getPath(),
             );
+            $this->administratorAccessService->syncProject($project);
             return ['created' => true, 'folder' => $privateFolder];
         } catch (Throwable $e) {
             $this->logger->error('Failed to ensure private folder for member', [
@@ -1506,6 +1509,9 @@ class ProjectService
     public function getProjectFiles(int $projectId): array
     {
         $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSException('Authentication required', 401);
+        }
 
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
@@ -1523,21 +1529,33 @@ class ProjectService
 
         $privateFolderLinks = [];
         $privateFilesTrees = [];
+        $isProjectAdministrator = $this->canAdministrateProject($project, $currentUser->getUID());
 
-        $link = $this->projectMapper->findPrivateFolderForUser(
-            $projectId,
-            $currentUser->getUID()
-        );
-        if ($link !== null) {
-            $privateFolderLinks[] = $link;
+        if ($isProjectAdministrator) {
+            $privateFolderLinks = $this->projectMapper->findAllPrivateFoldersByProject($projectId);
+        } else {
+            $link = $this->projectMapper->findPrivateFolderForUser($projectId, $currentUser->getUID());
+            if ($link !== null) {
+                $privateFolderLinks[] = $link;
+            }
         }
-
-        error_log("privateFolderLinks  : " . print_r($privateFolderLinks, true));
 
         foreach ($privateFolderLinks as $link) {
             try {
-                $path = basename($link->getFolderPath());
-                $privateFolderNode = $userFolder->get($path);
+                $privateFolderNode = null;
+                if ($isProjectAdministrator) {
+                    foreach ($this->rootFolder->getById((int) $link->getFolderId()) as $node) {
+                        if ($node instanceof Folder) {
+                            $privateFolderNode = $node;
+                            break;
+                        }
+                    }
+                } else {
+                    $privateFolderNode = $userFolder->get(basename((string) $link->getFolderPath()));
+                }
+                if (!$privateFolderNode instanceof Folder) {
+                    continue;
+                }
                 $privateFilesTrees[] = $this->fileTreeService->buildTree($privateFolderNode);
             } catch (NotFoundException $e) {
                 continue;
@@ -1548,6 +1566,20 @@ class ProjectService
             'shared' => [$sharedFilesTree],
             'private' => $privateFilesTrees
         ];
+    }
+
+    private function canAdministrateProject(Project $project, string $userId): bool
+    {
+        if ($this->groupManager->isAdmin($userId)) {
+            return true;
+        }
+        if ($this->organizationUserMapper === null) {
+            return false;
+        }
+        $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
+        return $membership !== null
+            && ($membership['role'] ?? '') === 'admin'
+            && (int) ($membership['organization_id'] ?? 0) === (int) $project->getOrganizationId();
     }
 
     /**
