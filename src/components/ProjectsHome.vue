@@ -225,7 +225,7 @@
 		</aside>
 
 		<!-- Main Content Area -->
-		<main v-show="!isNarrow || mobilePane === 'details'" class="projects-home__main">
+		<main v-show="!isNarrow || mobilePane === 'details'" ref="mainContainer" class="projects-home__main">
 			<div v-if="showOrganizationSettings" class="projects-home__settings-view">
 				<NcButton
 					v-if="isNarrow"
@@ -1351,6 +1351,11 @@
 			:show="showOrganizationPdfModal"
 			:organization-id="organizationSettingsOrganizationId"
 			@close="showOrganizationPdfModal = false" />
+
+		<!-- Floating Scroll to Top Button -->
+		<ScrollToTopButton
+			:target="getMainContainer"
+			:enabled="canShowScrollTop" />
 	</div>
 </template>
 
@@ -1421,6 +1426,7 @@ import OrganizationPdfModal from './OrganizationPdfModal.vue'
 import OrganizationsFetcher from './OrganizationsFetcher.vue'
 import ProjectActivity from './ProjectActivity/ProjectActivity.vue'
 import ProjectCalendar from './ProjectCalendar.vue'
+import ScrollToTopButton from './ScrollToTopButton.vue'
 
 const projectsService = ProjectsService.getInstance()
 const webdavClient = createClient(generateRemoteUrl('dav'))
@@ -1477,6 +1483,7 @@ export default {
 		Calendar,
 		Cog,
 		ProjectCalendar,
+		ScrollToTopButton,
 	},
 	data() {
 		return {
@@ -1689,6 +1696,9 @@ export default {
 		canClearFilters() {
 			return this.searchQuery.trim() !== '' || this.statusFilter !== 'all' || this.sortKey !== 'default'
 		},
+		canShowScrollTop() {
+			return Boolean(this.selectedProject || this.showOrganizationSettings) && (!this.isNarrow || this.mobilePane === 'details')
+		},
 	},
 	async mounted() {
 		this.updateNarrowState()
@@ -1712,6 +1722,9 @@ export default {
 		window.removeEventListener('popstate', this.handlePopState)
 	},
 	methods: {
+		getMainContainer() {
+			return this.$refs.mainContainer
+		},
 		// Sidebar collapse toggle
 		toggleSidebar() {
 			this.isSidebarCollapsed = !this.isSidebarCollapsed
@@ -2066,6 +2079,9 @@ export default {
 				this.mobilePane = 'details'
 			}
 			this.applyTabSideEffects(fetched.id, tab)
+			if (this.$refs.mainContainer) {
+				this.$refs.mainContainer.scrollTop = 0
+			}
 			if (updateUrl) {
 				this.syncUrl(fetched.id, tab, false)
 			}
@@ -2497,6 +2513,7 @@ export default {
 }
 
 .projects-home {
+	position: relative;
 	display: grid;
 	grid-template-columns: 360px minmax(0, 1fr);
 	gap: 0;
