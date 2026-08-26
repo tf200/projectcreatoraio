@@ -169,6 +169,16 @@ class CardPolicyService {
 		return $this->getBoardWorkflow($boardId)['completionByStack'];
 	}
 
+	public function isCombiProjectCard(object $card): bool {
+		$boardId = $this->getBoardIdFromCard($card);
+		if ($boardId === null) {
+			return false;
+		}
+
+		$project = $this->projectMapper->findByBoardId($boardId);
+		return $project !== null && $project->getType() === self::TYPE_COMBI;
+	}
+
 	/**
 	 * @return array{canMove: bool, canSign: bool, canVerify: bool}
 	 */

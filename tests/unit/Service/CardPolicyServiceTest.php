@@ -208,6 +208,22 @@ final class CardPolicyServiceTest extends TestCase {
 		], $this->service->getCapabilities($this->cardOnBoard(30, 10), 'admin'));
 	}
 
+	public function testIdentifiesCombiProjectCard(): void {
+		$project = new Project();
+		$project->setType(0);
+		$this->projectMapper->method('findByBoardId')->with(10)->willReturn($project);
+
+		$this->assertTrue($this->service->isCombiProjectCard($this->cardOnBoard(30, 10)));
+	}
+
+	public function testRejectsOtherProjectTypesAsCombi(): void {
+		$project = new Project();
+		$project->setType(1);
+		$this->projectMapper->method('findByBoardId')->with(10)->willReturn($project);
+
+		$this->assertFalse($this->service->isCombiProjectCard($this->cardOnBoard(30, 10)));
+	}
+
 	public function testLegacyUpgradeCreatesOneMarkerPerPopulatedValidAction(): void {
 		$policyWithRoles = new CardPolicy();
 		$policyWithRoles->setId(40);
