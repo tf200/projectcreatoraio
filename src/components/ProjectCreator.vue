@@ -40,15 +40,6 @@
 							:options="PROJECT_TYPES"
 							:show-label="true"
 							:multiple="false" />
-
-						<NcTextField
-							v-model="project.required_preparation_weeks"
-							type="number"
-							min="0"
-							label="Preparation Time (weeks)"
-							class="form-row-item"
-							placeholder="e.g., 2"
-							:show-label="true" />
 					</div>
 
 					<div v-if="isAdmin" class="form-row">
@@ -73,11 +64,16 @@
 							placeholder="e.g., ACME Corp"
 							:show-label="true" />
 
-						<NcTextField
-							v-model="project.client_role"
-							label="Client Role"
+						<NcSelect
+							v-model="selectedClientRoles"
+							:options="CLIENT_ROLE_OPTIONS"
+							label="label"
+							track-by="value"
+							:multiple="true"
+							:close-on-select="false"
+							input-label="Client Roles"
 							class="form-row-item"
-							placeholder="e.g., Project sponsor"
+							placeholder="Select client roles"
 							:show-label="true" />
 					</div>
 
@@ -192,6 +188,7 @@ import Plus from 'vue-material-design-icons/Plus.vue';
 
 import { getCurrentUser } from '@nextcloud/auth';
 import { PROJECT_TYPES } from '../macros/project-types';
+import { CLIENT_ROLE_OPTIONS, getClientRoleOptions, getClientRoleValues } from '../macros/client-roles';
 import { ProjectsService } from '../Services/projects';
 import { Project } from '../Models/project';
 
@@ -227,6 +224,7 @@ export default {
 			statusMessage: '',
 			statusDescription: '',
 			PROJECT_TYPES,
+			CLIENT_ROLE_OPTIONS,
 		};
 	},
 	computed: {
@@ -242,6 +240,14 @@ export default {
 			},
 			set(option) {
 				this.project.type = option ? option.id : null;
+			},
+		},
+		selectedClientRoles: {
+			get() {
+				return getClientRoleOptions(this.project.client_role)
+			},
+			set(options) {
+				this.project.client_role = getClientRoleValues(options)
 			},
 		},
 		isAdmin() {

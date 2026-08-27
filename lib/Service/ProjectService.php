@@ -118,7 +118,7 @@ class ProjectService
         string $description,
         ?int $organizationId = null,
         ?string $clientName = null,
-        ?string $clientRole = null,
+        array|string|null $clientRole = null,
         ?string $clientPhone = null,
         ?string $clientEmail = null,
         ?string $clientAddress = null,
@@ -235,7 +235,7 @@ class ProjectService
                 $whiteBoardId,
                 $requiredPreparationWeeks,
                 $clientName,
-                $clientRole,
+                Project::encodeClientRoles($clientRole),
                 $clientPhone,
                 $clientEmail,
                 $clientAddress,
@@ -2286,7 +2286,7 @@ class ProjectService
         ?int $type = null,
         ?string $description = null,
         ?string $client_name = null,
-        ?string $client_role = null,
+        array|string|null $client_role = null,
         ?string $client_phone = null,
         ?string $client_email = null,
         ?string $client_address = null,
@@ -2317,7 +2317,7 @@ class ProjectService
         if ($client_name !== null)
             $project->setClientName($client_name);
         if ($client_role !== null)
-            $project->setClientRole($client_role);
+            $project->setClientRole(Project::encodeClientRoles($client_role));
         if ($client_phone !== null)
             $project->setClientPhone($client_phone);
         if ($client_email !== null)

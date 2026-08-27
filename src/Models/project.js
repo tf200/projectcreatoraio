@@ -27,9 +27,9 @@ export class Project {
     client_name = '';
 
     /**
-     * @type {string}
+     * @type {string[]}
      */
-    client_role = '';
+    client_role = [];
 
     /**
      * @type {string}
@@ -72,11 +72,6 @@ export class Project {
     organizationId = null;
 
     /**
-     * @type {number}
-     */
-    required_preparation_weeks = 0;
-
-    /**
      * @type {string[]}
      */
     members = [];
@@ -97,8 +92,6 @@ export class Project {
         this.type = type;
         this.members = members;
         this.organizationId = organizationId;
-
-        this.required_preparation_weeks = 0
     }
 
     get isValid() {
@@ -121,7 +114,6 @@ export class Project {
             type: this.type,
             organizationId: this.organizationId,
             members: this.members,
-            required_preparation_weeks: this.required_preparation_weeks,
         };
     }
 }

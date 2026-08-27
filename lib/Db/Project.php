@@ -94,6 +94,41 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('updatedAt',   Types::DATETIME);
     }
 
+    public static function encodeClientRoles(array|string|null $roles): ?string {
+        if ($roles === null) {
+            return null;
+        }
+
+        if (is_string($roles)) {
+            return $roles;
+        }
+
+        $normalized = array_values(array_unique(array_filter(array_map(
+            static fn ($role): string => is_string($role) ? trim($role) : '',
+            $roles,
+        ))));
+
+        return json_encode($normalized, JSON_THROW_ON_ERROR);
+    }
+
+    public static function decodeClientRoles(?string $roles): array {
+        if ($roles === null || trim($roles) === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($roles, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [$roles];
+        }
+
+        if (!is_array($decoded)) {
+            return [$roles];
+        }
+
+        return array_values(array_filter($decoded, static fn ($role): bool => is_string($role) && trim($role) !== ''));
+    }
+
     public function jsonSerialize(): array {
         return [
             'id'          => $this->id,
@@ -105,7 +140,7 @@ class Project extends Entity implements JsonSerializable {
             
             // Client
             'client_name'    => $this->clientName,
-            'client_role'    => $this->clientRole,
+            'client_role'    => self::decodeClientRoles($this->clientRole),
             'client_phone'   => $this->clientPhone,
             'client_email'   => $this->clientEmail,
             'client_address' => $this->clientAddress,

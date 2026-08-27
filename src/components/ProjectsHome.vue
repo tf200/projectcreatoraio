@@ -588,7 +588,7 @@
 											</div>
 											<div class="projects-home__kv">
 												<span class="projects-home__label">Role / Title</span>
-												<span class="projects-home__value">{{ selectedProject.client_role || '-' }}</span>
+												<span class="projects-home__value">{{ formatClientRoles(selectedProject.client_role) }}</span>
 											</div>
 											<div class="projects-home__kv">
 												<span class="projects-home__label">Phone</span>
@@ -1266,12 +1266,16 @@
 								:show-label="true"
 								input-label="Client name"
 								placeholder="e.g., Acme Corporation" />
-							<NcTextField
-								v-model="projectProfileDraft.client_role"
-								label="Role / Title"
+							<NcSelect
+								v-model="selectedProfileClientRoles"
+								:options="CLIENT_ROLE_OPTIONS"
+								label="label"
+								track-by="value"
+								:multiple="true"
+								:close-on-select="false"
 								:show-label="true"
-								input-label="Role / Title"
-								placeholder="e.g., Project Manager" />
+								input-label="Client Roles"
+								placeholder="Select client roles" />
 							<NcTextField
 								v-model="projectProfileDraft.client_phone"
 								label="Phone number"
@@ -1399,6 +1403,13 @@ import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { createClient } from 'webdav'
 
 import { PROJECT_TYPES } from '../macros/project-types.js'
+import {
+	CLIENT_ROLE_OPTIONS,
+	formatClientRoles,
+	getClientRoleOptions,
+	getClientRoleValues,
+	normalizeClientRoles,
+} from '../macros/client-roles.js'
 import {
 	PROJECT_STATUS_FILTER_OPTIONS,
 	PROJECT_STATUS_OPTIONS,
@@ -1530,6 +1541,7 @@ export default {
 			memberInviteFunctionalRoles: [],
 			memberRoleUpdating: {},
 			functionalRoleOptions: [],
+			CLIENT_ROLE_OPTIONS,
 			drasciRoleOptions: [
 				{ value: 'driver', label: 'Driver' },
 				{ value: 'responsible', label: 'Responsible' },
@@ -1550,7 +1562,7 @@ export default {
 				name: '',
 				description: '',
 				client_name: '',
-				client_role: '',
+				client_role: [],
 				client_phone: '',
 				client_email: '',
 				client_address: '',
@@ -1565,6 +1577,14 @@ export default {
 		}
 	},
 	computed: {
+		selectedProfileClientRoles: {
+			get() {
+				return getClientRoleOptions(this.projectProfileDraft.client_role)
+			},
+			set(options) {
+				this.projectProfileDraft.client_role = getClientRoleValues(options)
+			},
+		},
 		hasProjectAccess() {
 			if (this.context === null) {
 				return true
@@ -1722,6 +1742,7 @@ export default {
 		window.removeEventListener('popstate', this.handlePopState)
 	},
 	methods: {
+		formatClientRoles,
 		getMainContainer() {
 			return this.$refs.mainContainer
 		},
@@ -1793,7 +1814,7 @@ export default {
 				name: selected.name || '',
 				description: selected.description || '',
 				client_name: selected.client_name || '',
-				client_role: selected.client_role || '',
+				client_role: normalizeClientRoles(selected.client_role),
 				client_phone: selected.client_phone || '',
 				client_email: selected.client_email || '',
 				client_address: selected.client_address || '',
@@ -1824,7 +1845,7 @@ export default {
 			this.projectProfileDraft = {
 				name: '',
 				client_name: '',
-				client_role: '',
+				client_role: [],
 				client_phone: '',
 				client_email: '',
 				client_address: '',
