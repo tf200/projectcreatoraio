@@ -582,20 +582,10 @@
 											Project Files
 										</h3>
 										<p class="projects-home__section-subtitle">
-											Manage project documents and OCR document types from here.
+											Manage project documents from here.
 										</p>
 									</div>
 									<div class="projects-home__tab-toolbar-actions">
-										<NcButton
-											v-if="hasProjectAccess && selectedProjectOrganizationId"
-											type="tertiary"
-											class="projects-home__document-types-button"
-											@click.stop.prevent="showOcrDocumentTypesModal = true">
-											<template #icon>
-												<Pencil :size="18" />
-											</template>
-											Document types
-										</NcButton>
 										<NcButton
 											type="secondary"
 											:disabled="!selectedProject.folderPath"
@@ -611,7 +601,6 @@
 									:project-id="Number(selectedProject.id) || null"
 									:shared-roots="projectFiles.shared"
 									:private-roots="projectFiles.private"
-									:document-types-version="ocrDocumentTypesVersion"
 									:loading="filesLoading"
 									:error="filesError"
 									@refresh="refreshProjectFiles" />
@@ -868,20 +857,10 @@
 									Project Files
 								</h3>
 								<p class="projects-home__section-subtitle">
-									Manage project documents and OCR document types from here.
+									Manage project documents from here.
 								</p>
 							</div>
 							<div class="projects-home__tab-toolbar-actions">
-								<NcButton
-									v-if="hasProjectAccess && selectedProjectOrganizationId"
-									type="tertiary"
-									class="projects-home__document-types-button"
-									@click.stop.prevent="showOcrDocumentTypesModal = true">
-									<template #icon>
-										<Pencil :size="18" />
-									</template>
-									Document types
-								</NcButton>
 								<NcButton
 									type="secondary"
 									:disabled="!selectedProject.folderPath"
@@ -897,7 +876,6 @@
 							:project-id="Number(selectedProject.id) || null"
 							:shared-roots="projectFiles.shared"
 							:private-roots="projectFiles.private"
-							:document-types-version="ocrDocumentTypesVersion"
 							:loading="filesLoading"
 							:error="filesError"
 							@refresh="refreshProjectFiles" />
@@ -1220,13 +1198,6 @@
 			</div>
 		</NcModal>
 
-		<OcrDocumentTypesModal
-			:show="showOcrDocumentTypesModal"
-			:organization-id="selectedProjectOrganizationId"
-			@close="showOcrDocumentTypesModal = false"
-			@updated="handleOcrDocumentTypesUpdated" />
-
-
 		<!-- Floating Scroll to Top Button -->
 		<ScrollToTopButton
 			:target="getMainContainer"
@@ -1301,7 +1272,6 @@ import ProjectCreator from './ProjectCreator.vue'
 import ProjectLocationMap from './ProjectLocationMap.vue'
 import ProjectNotesList from './ProjectNotesList.vue'
 import ProjectCardVisibilityTab from './ProjectCardVisibilityTab.vue'
-import OcrDocumentTypesModal from './OcrDocumentTypesModal.vue'
 import ProjectActivity from './ProjectActivity/ProjectActivity.vue'
 import ProjectCalendar from './ProjectCalendar.vue'
 import ScrollToTopButton from './ScrollToTopButton.vue'
@@ -1351,7 +1321,6 @@ export default {
 		ProjectLocationMap,
 		ProjectNotesList,
 		ProjectCardVisibilityTab,
-		OcrDocumentTypesModal,
 		ProjectActivity,
 		History,
 		ViewDashboard,
@@ -1412,8 +1381,6 @@ export default {
 				{ value: 'verifier', label: 'Verifier' },
 				{ value: 'signer', label: 'Signer' },
 			],
-			showOcrDocumentTypesModal: false,
-			ocrDocumentTypesVersion: 0,
 			showProjectProfileModal: false,
 			exportRequesting: false,
 			exportQueuedMessage: '',
@@ -1508,19 +1475,6 @@ export default {
 		},
 		canEditSelectedProjectDetails() {
 			return this.hasProjectAccess && !!this.selectedProject
-		},
-		selectedProjectOrganizationId() {
-			const selectedProjectOrg = Number(this.selectedProject?.organization_id)
-			if (Number.isFinite(selectedProjectOrg) && selectedProjectOrg > 0) {
-				return selectedProjectOrg
-			}
-
-			const contextOrg = Number(this.context?.organizationId)
-			if (Number.isFinite(contextOrg) && contextOrg > 0) {
-				return contextOrg
-			}
-
-			return null
 		},
 		isSelectedProjectCombi() {
 			return Number(this.selectedProject?.type) === 0
@@ -2076,9 +2030,6 @@ export default {
 			this.filesError = ''
 			this.filesLoading = false
 			this.projectFiles = { private: [], shared: [] }
-		},
-		handleOcrDocumentTypesUpdated() {
-			this.ocrDocumentTypesVersion += 1
 		},
 		resetMembersState() {
 			this.projectMembers = []
@@ -2937,20 +2888,6 @@ export default {
 	justify-content: flex-end;
 	gap: 12px;
 	flex-wrap: wrap;
-}
-
-.projects-home__document-types-button :deep(button) {
-	background: #fff;
-	border: 1px solid var(--color-border-dark);
-	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-	color: var(--color-main-text);
-}
-
-.projects-home__document-types-button :deep(button:hover),
-.projects-home__document-types-button :deep(button:focus-visible) {
-	background: #fff;
-	border-color: var(--color-primary-element);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary-element) 14%, transparent);
 }
 
 /* Detail Grid */
