@@ -206,136 +206,11 @@
 				</ul>
 			</div>
 
-			<div v-if="canManageProjects" class="projects-home__sidebar-settings">
-				<button
-					type="button"
-					class="projects-home__settings-nav"
-					:class="{ 'projects-home__settings-nav--active': showOrganizationSettings }"
-					:title="isSidebarCollapsed && !isNarrow ? 'Organization settings' : undefined"
-					@click="openOrganizationSettings">
-					<span class="projects-home__settings-nav-icon">
-						<Cog :size="18" />
-					</span>
-					<span v-if="!isSidebarCollapsed || isNarrow" class="projects-home__settings-nav-content">
-						<strong>Organization settings</strong>
-						<small>Defaults for new projects</small>
-					</span>
-				</button>
-			</div>
 		</aside>
 
 		<!-- Main Content Area -->
 		<main v-show="!isNarrow || mobilePane === 'details'" ref="mainContainer" class="projects-home__main">
-			<div v-if="showOrganizationSettings" class="projects-home__settings-view">
-				<NcButton
-					v-if="isNarrow"
-					type="tertiary"
-					class="projects-home__back"
-					@click="closeOrganizationSettings">
-					<template #icon>
-						<ChevronLeft :size="18" />
-					</template>
-					Back to projects
-				</NcButton>
-
-				<header class="projects-home__settings-hero">
-					<div class="projects-home__settings-hero-main">
-						<div class="projects-home__settings-hero-icon">
-							<Cog :size="26" />
-						</div>
-						<div>
-							<p class="projects-home__settings-eyebrow">
-								Workspace controls
-							</p>
-							<h2 class="projects-home__settings-title">
-								Organization settings
-							</h2>
-							<p class="projects-home__settings-subtitle">
-								Set defaults once and have them ready whenever your team starts a new project.
-							</p>
-						</div>
-					</div>
-					<span class="projects-home__settings-scope">
-						<OfficeBuilding :size="16" />
-						Organization-wide
-					</span>
-				</header>
-
-				<div class="projects-home__settings-grid">
-					<section class="projects-home__settings-card projects-home__settings-card--accent">
-						<div class="projects-home__settings-card-icon">
-							<FileDocumentOutline :size="24" />
-						</div>
-						<div class="projects-home__settings-card-content">
-							<p class="projects-home__settings-eyebrow">
-								Project creation default
-							</p>
-							<h3 class="projects-home__settings-card-title">
-								Default PDF template
-							</h3>
-							<p class="projects-home__settings-card-description">
-								Choose the PDF that will be copied into every new project shared folder for this organization.
-							</p>
-
-							<div v-if="context?.isGlobalAdmin" class="projects-home__settings-selector">
-								<OrganizationsFetcher
-									:model-value="settingsOrganizationId"
-									input-label="Organization to configure"
-									placeholder="Search for an organization..."
-									@update:modelValue="settingsOrganizationId = $event"
-									@error="handleOrganizationSettingsError" />
-								<p v-if="organizationSettingsError" class="projects-home__inline-error projects-home__inline-error--left">
-									{{ organizationSettingsError }}
-								</p>
-							</div>
-							<div v-else class="projects-home__settings-scope-note">
-								<span class="projects-home__settings-scope-note-label">Applies to</span>
-								<strong>Your organization</strong>
-								<span>Every project created from now on</span>
-							</div>
-
-							<div class="projects-home__settings-card-actions">
-								<NcButton
-									type="primary"
-									:disabled="!organizationSettingsOrganizationId"
-									@click="showOrganizationPdfModal = true">
-									<template #icon>
-										<FileDocumentOutline :size="18" />
-									</template>
-									Manage PDF template
-								</NcButton>
-								<span v-if="context?.isGlobalAdmin && !organizationSettingsOrganizationId" class="projects-home__settings-action-hint">
-									Select an organization to continue
-								</span>
-							</div>
-						</div>
-					</section>
-
-					<aside class="projects-home__settings-card projects-home__settings-card--note">
-						<p class="projects-home__settings-eyebrow">
-							How defaults work
-						</p>
-						<h3 class="projects-home__settings-card-title">
-							Set it once. Start faster.
-						</h3>
-						<ol class="projects-home__settings-steps">
-							<li>
-								<span>01</span>
-								Upload or replace the organization template.
-							</li>
-							<li>
-								<span>02</span>
-								Create a project as usual.
-							</li>
-							<li>
-								<span>03</span>
-								The PDF is added automatically to its shared files.
-							</li>
-						</ol>
-					</aside>
-				</div>
-			</div>
-			<div v-else-if="selectedProject" class="projects-home__main-content">
+			<div v-if="selectedProject" class="projects-home__main-content">
 				<!-- Hero Section -->
 				<header class="projects-home__hero">
 					<div v-if="isNarrow" class="projects-home__hero-mobile">
@@ -1351,10 +1226,6 @@
 			@close="showOcrDocumentTypesModal = false"
 			@updated="handleOcrDocumentTypesUpdated" />
 
-		<OrganizationPdfModal
-			:show="showOrganizationPdfModal"
-			:organization-id="organizationSettingsOrganizationId"
-			@close="showOrganizationPdfModal = false" />
 
 		<!-- Floating Scroll to Top Button -->
 		<ScrollToTopButton
@@ -1381,7 +1252,6 @@ import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import Draw from 'vue-material-design-icons/Draw.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
-import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import FilterRemove from 'vue-material-design-icons/FilterRemove.vue'
 import History from 'vue-material-design-icons/History.vue'
 import FolderOpen from 'vue-material-design-icons/FolderOpen.vue'
@@ -1397,7 +1267,6 @@ import Pencil from 'vue-material-design-icons/Pencil.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import ViewDashboard from 'vue-material-design-icons/ViewDashboard.vue'
 import Calendar from 'vue-material-design-icons/Calendar.vue'
-import Cog from 'vue-material-design-icons/Cog.vue'
 
 import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { createClient } from 'webdav'
@@ -1433,8 +1302,6 @@ import ProjectLocationMap from './ProjectLocationMap.vue'
 import ProjectNotesList from './ProjectNotesList.vue'
 import ProjectCardVisibilityTab from './ProjectCardVisibilityTab.vue'
 import OcrDocumentTypesModal from './OcrDocumentTypesModal.vue'
-import OrganizationPdfModal from './OrganizationPdfModal.vue'
-import OrganizationsFetcher from './OrganizationsFetcher.vue'
 import ProjectActivity from './ProjectActivity/ProjectActivity.vue'
 import ProjectCalendar from './ProjectCalendar.vue'
 import ScrollToTopButton from './ScrollToTopButton.vue'
@@ -1458,7 +1325,6 @@ export default {
 		Delete,
 		Draw,
 		Download,
-		FileDocumentOutline,
 		FilterRemove,
 		FolderOpen,
 		FolderOutline,
@@ -1486,13 +1352,10 @@ export default {
 		ProjectNotesList,
 		ProjectCardVisibilityTab,
 		OcrDocumentTypesModal,
-		OrganizationPdfModal,
-		OrganizationsFetcher,
 		ProjectActivity,
 		History,
 		ViewDashboard,
 		Calendar,
-		Cog,
 		ProjectCalendar,
 		ScrollToTopButton,
 	},
@@ -1507,9 +1370,6 @@ export default {
 			projectDeleting: false,
 			projectDeleteError: '',
 			showCreateModal: false,
-			showOrganizationSettings: false,
-			settingsOrganizationId: null,
-			organizationSettingsError: '',
 			activeTab: 'overview',
 			sortKey: 'default',
 			isNarrow: false,
@@ -1553,7 +1413,6 @@ export default {
 				{ value: 'signer', label: 'Signer' },
 			],
 			showOcrDocumentTypesModal: false,
-			showOrganizationPdfModal: false,
 			ocrDocumentTypesVersion: 0,
 			showProjectProfileModal: false,
 			exportRequesting: false,
@@ -1596,20 +1455,6 @@ export default {
 		},
 		canManageProjects() {
 			return !!(this.context?.isGlobalAdmin || this.context?.organizationRole === 'admin')
-		},
-		organizationSettingsOrganizationId() {
-			const selectedOrganizationId = Number(this.settingsOrganizationId)
-			if (Number.isFinite(selectedOrganizationId) && selectedOrganizationId > 0) {
-				return selectedOrganizationId
-			}
-			if (this.context?.isGlobalAdmin) {
-				return null
-			}
-
-			const contextOrganizationId = Number(this.context?.organizationId)
-			return Number.isFinite(contextOrganizationId) && contextOrganizationId > 0
-				? contextOrganizationId
-				: null
 		},
 		canEditProjectStatus() {
 			if (this.canManageProjects) {
@@ -1717,7 +1562,7 @@ export default {
 			return this.searchQuery.trim() !== '' || this.statusFilter !== 'all' || this.sortKey !== 'default'
 		},
 		canShowScrollTop() {
-			return Boolean(this.selectedProject || this.showOrganizationSettings) && (!this.isNarrow || this.mobilePane === 'details')
+			return Boolean(this.selectedProject) && (!this.isNarrow || this.mobilePane === 'details')
 		},
 	},
 	async mounted() {
@@ -1749,26 +1594,6 @@ export default {
 		// Sidebar collapse toggle
 		toggleSidebar() {
 			this.isSidebarCollapsed = !this.isSidebarCollapsed
-		},
-		openOrganizationSettings() {
-			if (!this.canManageProjects) {
-				return
-			}
-
-			this.organizationSettingsError = ''
-			this.showOrganizationSettings = true
-			if (this.isNarrow) {
-				this.mobilePane = 'details'
-			}
-		},
-		closeOrganizationSettings() {
-			this.showOrganizationSettings = false
-			if (this.isNarrow) {
-				this.mobilePane = 'list'
-			}
-		},
-		handleOrganizationSettingsError(error) {
-			this.organizationSettingsError = error?.response?.data?.message || 'Unable to load organizations.'
 		},
 		// Get project initials for collapsed sidebar
 		projectInitials(project) {
@@ -2056,9 +1881,6 @@ export default {
 			this.contextError = ''
 			try {
 				this.context = await projectsService.context()
-				if (!this.settingsOrganizationId && this.context?.organizationId) {
-					this.settingsOrganizationId = Number(this.context.organizationId)
-				}
 			} catch (error) {
 				this.context = null
 				this.contextError = error?.response?.data?.message || 'Unable to load project context.'
@@ -2078,7 +1900,6 @@ export default {
 			}
 		},
 		async selectProject(project, options = {}) {
-			this.showOrganizationSettings = false
 			const tab = this.normalizeTab(options.tab || 'overview')
 			const updateUrl = options.updateUrl !== false
 			const fetched = await projectsService.get(project.id)
@@ -2598,77 +2419,6 @@ export default {
 	padding: 12px 0;
 }
 
-.projects-home__sidebar-settings {
-	flex-shrink: 0;
-	padding: 12px;
-	border-top: 1px solid var(--color-border);
-	background: var(--color-background-hover);
-}
-
-.projects-home__settings-nav {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	width: 100%;
-	padding: 10px;
-	border: 1px solid transparent;
-	border-radius: 10px;
-	background: transparent;
-	color: var(--color-main-text);
-	text-align: left;
-	cursor: pointer;
-	transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.projects-home__settings-nav:hover,
-.projects-home__settings-nav--active {
-	background: var(--color-primary-element-light);
-	border-color: var(--color-primary-element);
-}
-
-.projects-home__settings-nav:focus-visible {
-	outline: 2px solid var(--color-primary-element);
-	outline-offset: 2px;
-}
-
-.projects-home__settings-nav-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 32px;
-	height: 32px;
-	flex: 0 0 32px;
-	border-radius: 8px;
-	background: var(--color-primary-element-light);
-	color: var(--color-primary-element);
-}
-
-.projects-home__settings-nav-content {
-	display: flex;
-	min-width: 0;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.projects-home__settings-nav-content strong {
-	font-size: 13px;
-	font-weight: 700;
-}
-
-.projects-home__settings-nav-content small {
-	color: var(--color-text-maxcontrast);
-	font-size: 11px;
-}
-
-.projects-home__sidebar--collapsed .projects-home__sidebar-settings {
-	padding: 8px;
-}
-
-.projects-home__sidebar--collapsed .projects-home__settings-nav {
-	justify-content: center;
-	padding: 8px 0;
-}
-
 /* Main Content Area */
 .projects-home__main {
 	height: 100%;
@@ -2683,196 +2433,6 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
-}
-
-.projects-home__settings-view {
-	display: flex;
-	flex-direction: column;
-	gap: 20px;
-	width: 100%;
-	max-width: 1080px;
-	margin: 0 auto;
-}
-
-.projects-home__settings-hero {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 20px;
-	padding: 24px;
-	border: 1px solid var(--color-border-dark);
-	border-radius: 14px;
-	background:
-		radial-gradient(circle at 0% 0%, rgba(36, 153, 255, 0.16), transparent 52%),
-		linear-gradient(135deg, var(--color-main-background), var(--color-background-hover));
-}
-
-.projects-home__settings-hero-main {
-	display: flex;
-	align-items: flex-start;
-	gap: 14px;
-}
-
-.projects-home__settings-hero-icon,
-.projects-home__settings-card-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	border-radius: 10px;
-	background: var(--color-primary-element-light);
-	color: var(--color-primary-element);
-}
-
-.projects-home__settings-hero-icon {
-	width: 48px;
-	height: 48px;
-}
-
-.projects-home__settings-eyebrow {
-	margin: 0 0 5px;
-	color: var(--color-primary-element);
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	line-height: 1.3;
-	text-transform: uppercase;
-}
-
-.projects-home__settings-title {
-	margin: 0;
-	font-size: 24px;
-	font-weight: 750;
-	line-height: 1.2;
-}
-
-.projects-home__settings-subtitle {
-	max-width: 600px;
-	margin: 6px 0 0;
-	color: var(--color-text-maxcontrast);
-	font-size: 14px;
-	line-height: 1.5;
-}
-
-.projects-home__settings-scope {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	flex: 0 0 auto;
-	padding: 7px 10px;
-	border: 1px solid var(--color-border);
-	border-radius: 999px;
-	background: var(--color-main-background);
-	color: var(--color-text-maxcontrast);
-	font-size: 12px;
-	font-weight: 600;
-}
-
-.projects-home__settings-grid {
-	display: grid;
-	grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
-	align-items: start;
-	gap: 16px;
-}
-
-.projects-home__settings-card {
-	min-width: 0;
-	padding: 22px;
-	border: 1px solid var(--color-border-dark);
-	border-radius: 14px;
-	background: var(--color-main-background);
-}
-
-.projects-home__settings-card--accent {
-	display: flex;
-	align-items: flex-start;
-	gap: 16px;
-	border-left: 4px solid var(--color-primary-element);
-}
-
-.projects-home__settings-card--note {
-	background: var(--color-background-hover);
-}
-
-.projects-home__settings-card-icon {
-	width: 44px;
-	height: 44px;
-}
-
-.projects-home__settings-card-content {
-	min-width: 0;
-	flex: 1;
-}
-
-.projects-home__settings-card-title {
-	margin: 0;
-	font-size: 18px;
-	font-weight: 700;
-	line-height: 1.3;
-}
-
-.projects-home__settings-card-description {
-	margin: 8px 0 0;
-	color: var(--color-text-maxcontrast);
-	font-size: 13px;
-	line-height: 1.55;
-}
-
-.projects-home__settings-selector {
-	max-width: 420px;
-	margin-top: 18px;
-}
-
-.projects-home__settings-scope-note {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
-	margin-top: 18px;
-	padding: 12px 14px;
-	border: 1px solid var(--color-border);
-	border-radius: 10px;
-	background: var(--color-background-hover);
-	font-size: 13px;
-}
-
-.projects-home__settings-scope-note-label,
-.projects-home__settings-action-hint {
-	color: var(--color-text-maxcontrast);
-	font-size: 12px;
-}
-
-.projects-home__settings-card-actions {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 10px;
-	margin-top: 20px;
-}
-
-.projects-home__settings-steps {
-	display: flex;
-	flex-direction: column;
-	gap: 16px;
-	margin: 18px 0 0;
-	padding: 0;
-	list-style: none;
-}
-
-.projects-home__settings-steps li {
-	display: grid;
-	grid-template-columns: 30px minmax(0, 1fr);
-	align-items: start;
-	gap: 10px;
-	color: var(--color-text-maxcontrast);
-	font-size: 13px;
-	line-height: 1.45;
-}
-
-.projects-home__settings-steps li span {
-	color: var(--color-primary-element);
-	font-size: 11px;
-	font-weight: 800;
-	letter-spacing: 0.06em;
 }
 
 .projects-home__empty-main {
@@ -3913,28 +3473,6 @@ export default {
 	.projects-home__main {
 		padding: 16px;
 		overflow: visible;
-	}
-
-	.projects-home__settings-hero {
-		flex-direction: column;
-		padding: 18px;
-	}
-
-	.projects-home__settings-title {
-		font-size: 21px;
-	}
-
-	.projects-home__settings-grid {
-		grid-template-columns: 1fr;
-	}
-
-	.projects-home__settings-card--accent {
-		flex-direction: column;
-	}
-
-	.projects-home__settings-card-actions {
-		align-items: flex-start;
-		flex-direction: column;
 	}
 
 	.projects-home__hero-main {
