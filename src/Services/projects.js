@@ -513,11 +513,17 @@ export class ProjectsService {
 	 * @param {number} limit
 	 * @param {number} offset
 	 * @param {string|null} source
-	 * @returns {Promise<{events:Array,hasMore:boolean}>}
+	 * @param {string|null} cursor
+	 * @returns {Promise<{events:Array,hasMore:boolean,nextCursor:string|null}>}
 	 */
-	async getActivity(projectId, limit = 20, offset = 0, source = null) {
+	async getActivity(projectId, limit = 20, offset = 0, source = null, cursor = null) {
 		try {
-			const params = { limit, offset }
+			const params = { limit }
+			if (cursor) {
+				params.cursor = cursor
+			} else if (offset > 0) {
+				params.offset = offset
+			}
 			if (source) {
 				params.source = source
 			}
@@ -529,10 +535,10 @@ export class ProjectsService {
 					'Content-Type': 'application/json',
 				},
 			})
-			return response.data ?? { events: [], hasMore: false }
+			return response.data ?? { events: [], hasMore: false, nextCursor: null }
 		} catch (e) {
 			console.error('Failed to fetch activity:', e)
-			return { events: [], hasMore: false }
+			return { events: [], hasMore: false, nextCursor: null }
 		}
 	}
 

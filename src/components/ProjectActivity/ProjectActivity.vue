@@ -9,12 +9,24 @@
 				class="project-activity__source-filter"
 				aria-label="Filter by source"
 				@change="fetchEvents">
-				<option value="">All sources</option>
-				<option value="internal">Project</option>
-				<option value="deck">Deck</option>
-				<option value="files">Files</option>
-				<option value="talk">Talk</option>
-				<option value="whiteboard">Whiteboard</option>
+				<option value="">
+					All sources
+				</option>
+				<option value="internal">
+					Project
+				</option>
+				<option value="deck">
+					Deck
+				</option>
+				<option value="files">
+					Files
+				</option>
+				<option value="talk">
+					Talk
+				</option>
+				<option value="whiteboard">
+					Whiteboard
+				</option>
 			</select>
 		</div>
 
@@ -102,6 +114,7 @@ export default {
 			hasMore: false,
 			offset: 0,
 			limit: 20,
+			nextCursor: null,
 			selectedSource: '',
 		}
 	},
@@ -161,11 +174,13 @@ export default {
 			}
 			this.loading = true
 			this.offset = 0
+			this.nextCursor = null
 			try {
 				const source = this.selectedSource || null
 				const result = await projectsService.getActivity(this.normalizedProjectId, this.limit, this.offset, source)
 				this.events = result.events || []
 				this.hasMore = result.hasMore || false
+				this.nextCursor = result.nextCursor || null
 				this.offset = this.events.length
 			} catch (e) {
 				console.error('Failed to load activity:', e)
@@ -181,10 +196,11 @@ export default {
 			this.loading = true
 			try {
 				const source = this.selectedSource || null
-				const result = await projectsService.getActivity(this.normalizedProjectId, this.limit, this.offset, source)
+				const result = await projectsService.getActivity(this.normalizedProjectId, this.limit, this.offset, source, this.nextCursor)
 				const newEvents = result.events || []
 				this.events = [...this.events, ...newEvents]
 				this.hasMore = result.hasMore || false
+				this.nextCursor = result.nextCursor || null
 				this.offset += newEvents.length
 			} catch (e) {
 				console.error('Failed to load more activity:', e)
@@ -197,6 +213,9 @@ export default {
 			const payload = event.payload || {}
 			if (payload.redacted === true) {
 				return `${type.replace('note_', '')} a private note`
+			}
+			if (payload.nativeActivity === true) {
+				return this.formatNativeDeckDescription(payload.nativeSubject, payload)
 			}
 
 			switch (type) {
@@ -294,6 +313,46 @@ export default {
 
 			default:
 				return type.replace(/_/g, ' ')
+			}
+		},
+		formatNativeDeckDescription(subject, payload) {
+			const card = `Deck card "${payload.cardTitle || 'Untitled'}"`
+			const board = payload.boardTitle ? `Deck board "${payload.boardTitle}"` : 'the Deck board'
+			switch (subject) {
+			case 'board_create': return `created ${board}`
+			case 'board_update':
+			case 'board_update_title': return `updated ${board}`
+			case 'board_update_archived': return `archived ${board}`
+			case 'board_delete': return `deleted ${board}`
+			case 'board_restore': return `restored ${board}`
+			case 'board_share': return `shared ${board}`
+			case 'board_unshare': return `unshared ${board}`
+			case 'stack_create': return `created Deck stack "${payload.stackTitle || 'Untitled'}"`
+			case 'stack_update':
+			case 'stack_update_title':
+			case 'stack_update_order': return `updated Deck stack "${payload.stackTitle || 'Untitled'}"`
+			case 'stack_delete': return `deleted Deck stack "${payload.stackTitle || 'Untitled'}"`
+			case 'card_create': return `created ${card}`
+			case 'card_delete': return `deleted ${card}`
+			case 'card_restore': return `restored ${card}`
+			case 'card_update_title': return `renamed ${card}`
+			case 'card_update_description': return `updated the description of ${card}`
+			case 'card_update_duedate': return `updated the due date of ${card}`
+			case 'card_update_archive': return `archived ${card}`
+			case 'card_update_unarchive': return `unarchived ${card}`
+			case 'card_update_done': return `marked ${card} as done`
+			case 'card_update_undone': return `marked ${card} as not done`
+			case 'card_update_stackId': return `moved ${card} to "${payload.stackTitle || 'another stack'}"`
+			case 'card_user_assign': return `assigned ${payload.assignedUserDisplayName || payload.assignedUserUid || 'a user'} to ${card}`
+			case 'card_user_unassign': return `unassigned ${payload.assignedUserDisplayName || payload.assignedUserUid || 'a user'} from ${card}`
+			case 'label_assign': return `added label "${payload.labelTitle || 'Untitled'}" to ${card}`
+			case 'label_unassign': return `removed label "${payload.labelTitle || 'Untitled'}" from ${card}`
+			case 'attachment_create': return `added an attachment to ${card}`
+			case 'attachment_update': return `updated an attachment on ${card}`
+			case 'attachment_delete': return `deleted an attachment from ${card}`
+			case 'attachment_restore': return `restored an attachment on ${card}`
+			case 'card_comment_create': return `commented on ${card}`
+			default: return `updated ${card}`
 			}
 		},
 		formatNoteType(value) {

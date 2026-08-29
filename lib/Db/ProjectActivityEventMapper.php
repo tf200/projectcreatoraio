@@ -83,6 +83,42 @@ class ProjectActivityEventMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
+	/**
+	 * @param array{timestamp?: string, id?: int}|null $cursor
+	 * @return ProjectActivityEvent[]
+	 */
+	public function findForProjectBefore(int $projectId, int $limit = 20, ?string $source = null, ?array $cursor = null, ?string $excludeSource = null): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
+			->orderBy('occurred_at', 'DESC')
+			->addOrderBy('id', 'DESC')
+			->setMaxResults($limit);
+
+		if ($source !== null && $source !== '') {
+			$qb->andWhere($qb->expr()->eq('source', $qb->createNamedParameter($source, IQueryBuilder::PARAM_STR)));
+		}
+		if ($excludeSource !== null && $excludeSource !== '') {
+			$qb->andWhere($qb->expr()->neq('source', $qb->createNamedParameter($excludeSource, IQueryBuilder::PARAM_STR)));
+		}
+
+		$timestamp = (string)($cursor['timestamp'] ?? '');
+		$id = (int)($cursor['id'] ?? 0);
+		if ($timestamp !== '' && $id > 0) {
+			$before = new DateTime($timestamp);
+			$qb->andWhere($qb->expr()->orX(
+				$qb->expr()->lt('occurred_at', $qb->createNamedParameter($before, IQueryBuilder::PARAM_DATETIME_MUTABLE)),
+				$qb->expr()->andX(
+					$qb->expr()->eq('occurred_at', $qb->createNamedParameter($before, IQueryBuilder::PARAM_DATETIME_MUTABLE)),
+					$qb->expr()->lt('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)),
+				),
+			));
+		}
+
+		return $this->findEntities($qb);
+	}
+
 	public function deleteByProject(int $projectId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete($this->getTableName())

@@ -4,6 +4,7 @@ namespace OCA\Projectcreatoraio\Controller;
 use OCA\ProjectCreatorAIO\BackgroundJob\GenerateProjectExportJob;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectActivityAggregationService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
@@ -21,6 +22,7 @@ use OCA\Deck\NoPermissionException;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\AppFramework\OCS\OCSNotFoundException;
+use OCP\AppFramework\OCS\OCSBadRequestException;
 use OCP\AppFramework\Http\OCS\OCSForbiddenException;
 use OCP\BackgroundJob\IJobList;
 use OCP\IGroupManager;
@@ -44,6 +46,7 @@ class ProjectApiController extends Controller
         protected ProjectNoteMapper $noteMapper,
         protected ProjectService $projectService,
         private ProjectActivityService $projectActivityService,
+        private ProjectActivityAggregationService $projectActivityAggregationService,
         private ProjectNotificationService $projectNotificationService,
         private ProjectRetentionService $projectRetentionService,
         private ProjectDownloadService $downloadService,
@@ -992,7 +995,7 @@ class ProjectApiController extends Controller
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
-	public function getActivity(int $projectId, int $limit = 20, int $offset = 0, ?string $source = null): DataResponse {
+	public function getActivity(int $projectId, int $limit = 20, int $offset = 0, ?string $source = null, ?string $cursor = null): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
 			throw new OCSNotFoundException("Project with ID $projectId not found");
@@ -1002,22 +1005,23 @@ class ProjectApiController extends Controller
 
 		$limit = max(1, min(100, $limit));
 		$offset = max(0, $offset);
+		if ($cursor === null && $offset >= 500) {
+			throw new OCSBadRequestException('Use cursor pagination for activity offsets of 500 or greater');
+		}
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
 			throw new OCSForbiddenException('Authentication required');
 		}
 
-		$events = $this->projectActivityService->getProjectActivity($projectId, $currentUser->getUID(), $limit + 1, $offset, $source);
-		$hasMore = count($events) > $limit;
-		if ($hasMore) {
-			$events = array_slice($events, 0, $limit);
-		}
-
-		return new DataResponse([
-			'events' => array_map(fn ($e) => $e->jsonSerialize(), $events),
-			'hasMore' => $hasMore,
-		]);
+		return new DataResponse($this->projectActivityAggregationService->getActivity(
+			$project,
+			$currentUser->getUID(),
+			$limit,
+			$source,
+			$cursor,
+			$offset,
+		));
 	}
 
 	#[NoCSRFRequired]

@@ -81,8 +81,11 @@ use OCP\Share\IManager as IShareManager;
 use OCP\L10N\IFactory as IL10NFactory;
 use OCP\IUserSession;
 use OCP\IGroupManager;
+use OCP\IConfig;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\NativeDeckActivityReader;
+use OCA\ProjectCreatorAIO\Service\ProjectActivityAggregationService;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
 use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
@@ -238,6 +241,49 @@ class Application extends App implements IBootstrap {
 				$c->get(CardPolicyService::class),
 				$c->get(OrganizationPdfService::class),
 				$c->get(ProjectAdministratorAccessService::class),
+			);
+		});
+
+		$context->registerService(NativeDeckActivityReader::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$activityConnection = null;
+			if ($appManager->isEnabledForAnyone('activity')) {
+				$config = $c->get(IConfig::class);
+				$externalActivityDatabase = false;
+				foreach (['dbuser', 'dbpassword', 'dbname', 'dbhost', 'dbport', 'dbdriveroptions'] as $key) {
+					if ($config->getSystemValue('activity_' . $key, null) !== null) {
+						$externalActivityDatabase = true;
+						break;
+					}
+				}
+
+				try {
+					$activityConnection = $externalActivityDatabase
+						? \OC::$server->getRegisteredAppContainer('activity')->get('ActivityConnectionAdapter')
+						: $c->get(IDBConnection::class);
+				} catch (\Throwable $e) {
+					$c->get(LoggerInterface::class)->warning('Native Activity database connection is unavailable', [
+						'exception' => $e,
+					]);
+					$activityConnection = null;
+				}
+			}
+
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(CardMapper::class);
+			return new NativeDeckActivityReader(
+				$activityConnection,
+				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$deckEnabled ? $c->get(BoardMapper::class) : null,
+				$deckEnabled ? $c->get(PermissionService::class) : null,
+				$c->get(IUserManager::class),
+				$c->get(LoggerInterface::class),
+			);
+		});
+
+		$context->registerService(ProjectActivityAggregationService::class, function (ContainerInterface $c) {
+			return new ProjectActivityAggregationService(
+				$c->get(ProjectActivityEventMapper::class),
+				$c->get(NativeDeckActivityReader::class),
 			);
 		});
 
