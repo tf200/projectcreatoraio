@@ -70,6 +70,10 @@ final class DeckDefaultCardsServiceTest extends TestCase {
 
 				return $card;
 			});
+		$expectedImportantCardCount = count(ProjectTypeDeckDefaults::getImportantTitles(ProjectTypeDeckDefaults::TYPE_COMBI));
+		$cardService->expects($this->exactly($expectedImportantCardCount))
+			->method('assignLabelForSystem')
+			->with($this->isType('int'), 8);
 
 		$boardService = $this->createMock(BoardService::class);
 		$boardService->expects($this->once())

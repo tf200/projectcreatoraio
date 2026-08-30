@@ -209,7 +209,7 @@ class DeckDefaultCardsService
 			$seededCards[$cardTemplate['key']] = $card;
 			if ($importantLabelId !== null && ($cardTemplate['important'] ?? false)) {
 				try {
-					$this->cardService->assignLabel((int)$card->getId(), $importantLabelId);
+					$this->cardService->assignLabelForSystem((int)$card->getId(), $importantLabelId);
 				} catch (Throwable $e) {
 					$this->logger->warning('Deck default card seeding: unable to assign important label', [
 						'exception' => $e,
