@@ -35,8 +35,8 @@
 							v-for="note in card.cardNotes"
 							:key="note.id"
 							class="card-detail-modal__note-item">
-							<p class="card-detail-modal__note-text">{{ note.content }}</p>
-							<span class="card-detail-modal__note-date">{{ formatDate(note.updatedAt) }}</span>
+							<p class="card-detail-modal__note-text">{{ note.text }}</p>
+							<span class="card-detail-modal__note-date">{{ formatDate(note.lastModified) }}</span>
 						</div>
 					</div>
 					<p v-else class="card-detail-modal__empty">No private notes on this card.</p>
@@ -72,7 +72,10 @@ export default {
 		},
 		formatDate(dateString) {
 			if (!dateString) return ''
-			const date = new Date(dateString)
+			const timestamp = typeof dateString === 'number' && dateString < 1e12
+				? dateString * 1000
+				: dateString
+			const date = new Date(timestamp)
 			const now = new Date()
 			const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
 			if (diffDays === 0) {
