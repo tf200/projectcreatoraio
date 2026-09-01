@@ -364,6 +364,7 @@ export default {
 	},
 	data() {
 		return {
+			showProcessCompletedItem: false, // Temporarily hidden from UI
 			loading: true,
 			saving: false,
 			allItems: [],
@@ -392,6 +393,7 @@ export default {
 	computed: {
 		items() {
 			return (this.allItems || [])
+				.filter((item) => this.showProcessCompletedItem || item.systemKey !== 'process_completed')
 				.slice()
 				.sort((a, b) => (Number(a.orderIndex) || 0) - (Number(b.orderIndex) || 0))
 		},
@@ -763,7 +765,13 @@ export default {
 				// Ensure v-model update is applied before persisting
 				await this.$nextTick()
 				const baseUrl = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline`)
-				const response = await axios.put(`${baseUrl}/reorder`, { ids: this.items.map((item) => item.id) })
+				const visibleIds = this.items.map((item) => item.id)
+				const allProjectIds = (this.allItems || []).map((item) => item.id)
+				const reorderedIds = [
+					...visibleIds,
+					...allProjectIds.filter((id) => !visibleIds.includes(id)),
+				]
+				const response = await axios.put(`${baseUrl}/reorder`, { ids: reorderedIds })
 				this.allItems = response.data || []
 			} catch (error) {
 				console.error('Error updating order:', error)

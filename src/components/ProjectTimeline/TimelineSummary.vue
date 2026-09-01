@@ -42,8 +42,8 @@
 				<div class="step__connector" :class="{ 'step__connector--active': summary.processCompleted.status === 'complete', 'step__connector--dashed': summary.processCompleted.status !== 'complete' }"></div>
 			</div>
 
-			<!-- Step 3: Readiness -->
-			<div class="step" :class="{ 'step--active': summary.processCompleted.status === 'complete', 'step--pending': summary.processCompleted.status === 'incomplete' }">
+			<!-- Step 3: Readiness (Temporarily hidden from UI) -->
+			<div v-if="showProcessCompletedStep" class="step" :class="{ 'step--active': summary.processCompleted.status === 'complete', 'step--pending': summary.processCompleted.status === 'incomplete' }">
 				<div class="step__icon" :class="statusIconClass">
 					<Check v-if="summary.processCompleted.status === 'complete'" :size="16" />
 					<Clock v-else-if="summary.processCompleted.status === 'incomplete'" :size="16" />
@@ -162,6 +162,7 @@ export default {
 	},
 	data() {
 		return {
+			showProcessCompletedStep: false, // Temporarily hidden from UI
 			loading: true,
 			saving: false,
 			summary: {
