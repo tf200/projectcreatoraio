@@ -78,6 +78,25 @@ final class CardPolicyServiceTest extends TestCase {
 		);
 	}
 
+	public function testSuperAdminHasFullAccessToProjectBoard(): void {
+		$project = new Project();
+		$this->projectMapper->expects($this->once())->method('findByBoardId')->with(10)->willReturn($project);
+
+		$this->assertTrue($this->service->hasFullBoardAccess(10, 'admin'));
+	}
+
+	public function testSuperAdminDoesNotHaveFullAccessToOrdinaryBoard(): void {
+		$this->projectMapper->expects($this->once())->method('findByBoardId')->with(10)->willReturn(null);
+
+		$this->assertFalse($this->service->hasFullBoardAccess(10, 'admin'));
+	}
+
+	public function testRegularUserDoesNotHaveFullProjectBoardAccess(): void {
+		$this->projectMapper->expects($this->never())->method('findByBoardId');
+
+		$this->assertFalse($this->service->hasFullBoardAccess(10, 'alice'));
+	}
+
 	public function testV2UsesDrasciDefaultWhenActionHasNoOverride(): void {
 		$this->configureV2Board();
 		$this->cardPolicyMapper->method('findByCard')->willReturn(null);

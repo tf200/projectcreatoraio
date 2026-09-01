@@ -87,6 +87,14 @@ class CardPolicyService {
 		return true;
 	}
 
+	public function hasFullBoardAccess(int $boardId, ?string $userId): bool {
+		if ($userId === null || $userId === '' || !$this->groupManager->isAdmin($userId)) {
+			return false;
+		}
+
+		return $this->projectMapper->findByBoardId($boardId) !== null;
+	}
+
 	/**
 	 * Assert if a card movement transition is allowed
 	 */
