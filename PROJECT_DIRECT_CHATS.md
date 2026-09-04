@@ -158,16 +158,16 @@ projectcreatoraio/
 ---
 
 ### Phase 6: Frontend Integration (Vue 2.7)
-- [ ] **6.1 Service Wrapper:** Add API helper functions in `src/Services/projects.js`:
+- [x] **6.1 Service Wrapper:** Add API helper functions in `src/Services/projects.js`:
   - `listDirectChats(projectId)`
   - `getOrCreateDirectChat(projectId, targetUserId)`
   - `getDirectChatMessages(projectId, targetUserId, options)`
-- [ ] **6.2 Members Tab Trigger:** In `src/components/ProjectsHome.vue` (under the Members list):
+- [x] **6.2 Members Tab Trigger:** In `src/components/ProjectsHome.vue` (under the Members list):
   - Add a "Chat" action button on each member item (skipping current user).
-  - On click, invoke `getOrCreateDirectChat` and open Talk or switch to project chat view.
-- [ ] **6.3 Chat Workspace Switcher:** In `src/components/ProjectNotesList.vue` (under the Chat tab):
+  - On click, invoke `startDirectChat(member)` to navigate to Notes/Chat with target member selected.
+- [x] **6.3 Chat Workspace Switcher:** In `src/components/ProjectNotesList.vue` (under the Chat tab):
   - Add a conversation selector: "Team Chat" vs "Direct Chats with Members".
-  - Show member avatar, display name, and last activity.
+  - Show member avatar, display name, user ID, and email in member picker.
   - Render message thread and provide an "Open in Talk" deep-link button.
 
 ---
@@ -190,3 +190,4 @@ projectcreatoraio/
 | **2026-09-04** | Phase 3: Project Service & Business Logic | Added `isProjectMember`, `getOrCreateDirectChat`, `listUserDirectChats`, `getDirectChatMessages` in `ProjectService`, dependency injection in `Application.php`, and 10 new unit tests in `ProjectServiceTest.php`. | Completed |
 | **2026-09-04** | Phase 4: API & Routing Layer | Registered API routes in `appinfo/routes.php`, implemented `listDirectChats`, `getOrCreateDirectChat`, `createDirectChat`, and `getDirectChatMessages` in `ProjectApiController.php`, fixed `OCSForbiddenException` namespace import, and added 10 unit tests in `ProjectApiControllerDirectChatTest.php`. | Completed |
 | **2026-09-04** | Phase 5: Activity Logging & Lifecycle Retention | Updated `TalkEventListener` to associate direct chat events with project activities, added `EVENT_TALK_DIRECT_MESSAGE_SENT` in `ProjectActivityService`, updated `ProjectRetentionService` to purge direct chats and delete Talk rooms, and added unit tests in `ProjectRetentionServiceTest` and `TalkEventListenerTest`. | Completed |
+| **2026-09-04** | Phase 6: Frontend Integration | Added `listDirectChats`, `getOrCreateDirectChat`, and `getDirectChatMessages` client API methods in `projects.js`, wired "Chat" trigger buttons on member items in `ProjectsHome.vue`, and implemented Team Chat vs Direct Chats switcher, member selector, active conversation thread, and "Open in Talk" deep linking in `ProjectNotesList.vue`. | Completed |

@@ -19,7 +19,7 @@
 					<span>Card Notes</span>
 				</button>
 				<button
-					v-if="talkConversationToken"
+					v-if="talkConversationToken || eligibleDirectMembers.length > 0"
 					type="button"
 					class="project-notes-list__main-tab"
 					:class="{ 'project-notes-list__main-tab--active': mainTab === 'chat' }"
@@ -31,7 +31,7 @@
 			<div class="project-notes-list__actions">
 				<NcButton
 					type="secondary"
-					:disabled="loading"
+					:disabled="loading || directChatLoading"
 					@click="refreshNotes">
 					<template #icon>
 						<Refresh :size="20" />
@@ -49,7 +49,7 @@
 					Add note
 				</NcButton>
 				<NcButton
-					v-if="mainTab === 'chat' && talkUrl"
+					v-if="mainTab === 'chat' && currentTalkUrl"
 					type="secondary"
 					@click="openTalkChat">
 					<template #icon>
@@ -106,6 +106,28 @@
 				<span>Comments</span>
 			</button>
 		</div>
+		<div v-if="mainTab === 'chat'" class="project-notes-list__sub-tabs">
+			<button
+				v-if="talkConversationToken"
+				type="button"
+				class="project-notes-list__sub-tab"
+				:class="{ 'project-notes-list__sub-tab--active': chatSubTab === 'team' }"
+				@click="switchChatSubTab('team')">
+				<AccountMultiple :size="14" />
+				<span>Team Chat</span>
+			</button>
+			<button
+				type="button"
+				class="project-notes-list__sub-tab"
+				:class="{ 'project-notes-list__sub-tab--active': chatSubTab === 'direct' }"
+				@click="switchChatSubTab('direct')">
+				<Account :size="14" />
+				<span>Direct Chats</span>
+				<span v-if="eligibleDirectMembers.length" class="project-notes-list__tab-badge">
+					{{ eligibleDirectMembers.length }}
+				</span>
+			</button>
+		</div>
 
 		<div v-if="loading" class="project-notes-list__loading">
 			<NcLoadingIcon :size="48" />
@@ -159,7 +181,8 @@
 			</div>
 		</div>
 
-		<div v-else-if="mainTab === 'chat' && chatMessages.length === 0 && !loading" class="project-notes-list__empty">
+		<!-- Team Chat empty state -->
+		<div v-else-if="mainTab === 'chat' && chatSubTab === 'team' && chatMessages.length === 0 && !loading" class="project-notes-list__empty">
 			<div class="project-notes-list__empty-icon-wrapper">
 				<ChatOutline :size="64" />
 			</div>
@@ -171,7 +194,8 @@
 			</p>
 		</div>
 
-		<div v-else-if="mainTab === 'chat'" class="project-notes-list__chat-list">
+		<!-- Team Chat message list -->
+		<div v-else-if="mainTab === 'chat' && chatSubTab === 'team'" class="project-notes-list__chat-list">
 			<div
 				v-for="msg in chatMessages"
 				:key="msg.id"
@@ -199,6 +223,149 @@
 					</template>
 					Load older messages
 				</NcButton>
+			</div>
+		</div>
+
+		<!-- Direct Chat: No Member Selected (Picker) -->
+		<div v-else-if="mainTab === 'chat' && chatSubTab === 'direct' && !selectedDirectMemberId" class="project-notes-list__direct-select-container">
+			<div v-if="eligibleDirectMembers.length === 0" class="project-notes-list__empty">
+				<div class="project-notes-list__empty-icon-wrapper">
+					<AccountMultiple :size="64" />
+				</div>
+				<p class="project-notes-list__empty-title">
+					No other project members
+				</p>
+				<p class="project-notes-list__empty-subtitle">
+					Add more members to this project to start a 1:1 direct chat.
+				</p>
+			</div>
+			<div v-else class="project-notes-list__direct-members-grid">
+				<div
+					v-for="member in eligibleDirectMembers"
+					:key="member.id"
+					class="project-notes-list__direct-member-card"
+					@click="selectDirectMember(member)">
+					<div class="project-notes-list__direct-avatar">
+						{{ (member.displayName || member.id).charAt(0).toUpperCase() }}
+					</div>
+					<div class="project-notes-list__direct-info">
+						<span class="project-notes-list__direct-name">{{ member.displayName || member.id }}</span>
+						<span class="project-notes-list__direct-meta">@{{ member.id }}</span>
+						<span v-if="member.email" class="project-notes-list__direct-email">{{ member.email }}</span>
+					</div>
+					<NcButton
+						type="secondary"
+						class="project-notes-list__direct-chat-btn"
+						@click.stop="selectDirectMember(member)">
+						<template #icon>
+							<Chat :size="16" />
+						</template>
+						Chat
+					</NcButton>
+				</div>
+			</div>
+		</div>
+
+		<!-- Direct Chat: Member Selected -->
+		<div v-else-if="mainTab === 'chat' && chatSubTab === 'direct' && selectedDirectMemberId" class="project-notes-list__direct-chat-wrapper">
+			<div class="project-notes-list__direct-active-header">
+				<button
+					type="button"
+					class="project-notes-list__back-btn"
+					title="Back to member list"
+					@click="clearSelectedDirectMember">
+					<ChevronLeft :size="20" />
+					<span>All Members</span>
+				</button>
+				<div v-if="selectedDirectMember" class="project-notes-list__direct-active-user">
+					<div class="project-notes-list__chat-avatar">
+						{{ (selectedDirectMember.displayName || selectedDirectMember.id).charAt(0).toUpperCase() }}
+					</div>
+					<div class="project-notes-list__direct-active-meta">
+						<span class="project-notes-list__direct-active-name">{{ selectedDirectMember.displayName || selectedDirectMember.id }}</span>
+						<span class="project-notes-list__direct-active-sub">Direct chat &bull; @{{ selectedDirectMember.id }}</span>
+					</div>
+				</div>
+				<div class="project-notes-list__direct-active-actions">
+					<NcButton
+						v-if="directChatTalkUrl"
+						type="tertiary"
+						@click="openTalkChat">
+						<template #icon>
+							<OpenInNew :size="18" />
+						</template>
+						Open in Talk
+					</NcButton>
+				</div>
+			</div>
+
+			<div v-if="directChatLoading && directChatMessages.length === 0" class="project-notes-list__loading">
+				<NcLoadingIcon :size="36" />
+				<span>Loading conversation...</span>
+			</div>
+
+			<div v-else-if="directChatError" class="project-notes-list__empty">
+				<p class="project-notes-list__empty-title">
+					Failed to load direct chat
+				</p>
+				<p class="project-notes-list__empty-subtitle">
+					{{ directChatError }}
+				</p>
+				<NcButton type="secondary" @click="selectDirectMember(selectedDirectMember)">
+					Retry
+				</NcButton>
+			</div>
+
+			<div v-else-if="directChatMessages.length === 0" class="project-notes-list__empty">
+				<div class="project-notes-list__empty-icon-wrapper">
+					<ChatOutline :size="64" />
+				</div>
+				<p class="project-notes-list__empty-title">
+					No messages yet with {{ selectedDirectMember ? (selectedDirectMember.displayName || selectedDirectMember.id) : 'this member' }}
+				</p>
+				<p class="project-notes-list__empty-subtitle">
+					Messages sent in Talk for this project will appear here. Click "Open in Talk" to start messaging!
+				</p>
+				<NcButton
+					v-if="directChatTalkUrl"
+					type="primary"
+					@click="openTalkChat">
+					<template #icon>
+						<OpenInNew :size="20" />
+					</template>
+					Open in Talk
+				</NcButton>
+			</div>
+
+			<div v-else class="project-notes-list__chat-list">
+				<div
+					v-for="msg in directChatMessages"
+					:key="msg.id"
+					class="project-notes-list__chat-message">
+					<div class="project-notes-list__chat-avatar">
+						{{ msg.actorDisplayName ? msg.actorDisplayName.charAt(0).toUpperCase() : '?' }}
+					</div>
+					<div class="project-notes-list__chat-content">
+						<div class="project-notes-list__chat-header">
+							<span class="project-notes-list__chat-author">{{ msg.actorDisplayName }}</span>
+							<span class="project-notes-list__chat-time">{{ formatDate(msg.timestamp * 1000) }}</span>
+						</div>
+						<p class="project-notes-list__chat-text">
+							{{ msg.message }}
+						</p>
+					</div>
+				</div>
+				<div v-if="directChatHasMore" class="project-notes-list__chat-load-more">
+					<NcButton
+						type="secondary"
+						:disabled="directChatLoading"
+						@click="loadMoreDirectChatMessages">
+						<template #icon>
+							<ChevronDown :size="20" />
+						</template>
+						Load older messages
+					</NcButton>
+				</div>
 			</div>
 		</div>
 
@@ -319,6 +486,9 @@
 <script>
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import Account from 'vue-material-design-icons/Account.vue'
+import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
+import Chat from 'vue-material-design-icons/Chat.vue'
 import Earth from 'vue-material-design-icons/Earth.vue'
 import Lock from 'vue-material-design-icons/Lock.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
@@ -342,6 +512,9 @@ const projectsService = ProjectsService.getInstance()
 export default {
 	name: 'ProjectNotesList',
 	components: {
+		Account,
+		AccountMultiple,
+		Chat,
 		NcButton,
 		NcLoadingIcon,
 		Earth,
@@ -373,6 +546,18 @@ export default {
 			type: String,
 			default: '',
 		},
+		members: {
+			type: Array,
+			default: () => [],
+		},
+		currentUserId: {
+			type: String,
+			default: '',
+		},
+		targetDirectUser: {
+			type: Object,
+			default: null,
+		},
 	},
 	data() {
 		return {
@@ -381,6 +566,15 @@ export default {
 			subTab: 'public',
 			noteTypeFilter: '',
 			cardSubTab: 'notes',
+			chatSubTab: 'team',
+			selectedDirectMemberId: '',
+			directChatMessages: [],
+			directChatHasMore: false,
+			directChatOffset: 0,
+			directChatTalkUrl: '',
+			directChatLoading: false,
+			directChatError: '',
+			directChatSummary: null,
 			notes: [],
 			comments: [],
 			chatMessages: [],
@@ -437,6 +631,30 @@ export default {
 			}
 			return 'Create your first note to start documenting this project'
 		},
+		eligibleDirectMembers() {
+			const myId = String(this.currentUserId || '').trim().toLowerCase()
+			if (!Array.isArray(this.members)) return []
+			return this.members.filter(m => {
+				const mId = String(m?.id || '').trim().toLowerCase()
+				return mId !== '' && mId !== myId
+			})
+		},
+		selectedDirectMember() {
+			if (!this.selectedDirectMemberId) return null
+			const found = this.eligibleDirectMembers.find(m => String(m.id).toLowerCase() === String(this.selectedDirectMemberId).toLowerCase())
+			if (found) return found
+			if (this.targetDirectUser && String(this.targetDirectUser.id).toLowerCase() === String(this.selectedDirectMemberId).toLowerCase()) {
+				return this.targetDirectUser
+			}
+			return { id: this.selectedDirectMemberId, displayName: this.selectedDirectMemberId }
+		},
+		currentTalkUrl() {
+			if (this.mainTab !== 'chat') return ''
+			if (this.chatSubTab === 'direct') {
+				return this.directChatTalkUrl || ''
+			}
+			return this.talkUrl || ''
+		},
 	},
 	watch: {
 		projectId: {
@@ -446,13 +664,34 @@ export default {
 					this.chatOffset = 0
 					this.chatMessages = []
 					this.chatHasMore = false
+					this.directChatMessages = []
+					this.directChatOffset = 0
+					this.directChatHasMore = false
+					this.directChatTalkUrl = ''
+					this.directChatSummary = null
+					this.directChatError = ''
+					this.selectedDirectMemberId = ''
 					this.loadNotes(1)
+				}
+			},
+		},
+		targetDirectUser: {
+			immediate: true,
+			handler(user) {
+				if (user && user.id) {
+					this.mainTab = 'chat'
+					this.chatSubTab = 'direct'
+					this.selectDirectMember(user)
 				}
 			},
 		},
 		mainTab() {
 			if (this.mainTab === 'chat') {
-				this.loadChatMessages()
+				if (this.chatSubTab === 'team') {
+					this.loadChatMessages()
+				} else {
+					this.loading = false
+				}
 			} else {
 				this.loadNotes(1)
 			}
@@ -518,10 +757,14 @@ export default {
 		},
 		refreshNotes() {
 			if (this.mainTab === 'chat') {
-				this.chatOffset = 0
-				this.chatMessages = []
-				this.chatHasMore = false
-				this.loadChatMessages()
+				if (this.chatSubTab === 'direct' && this.selectedDirectMemberId) {
+					this.selectDirectMember(this.selectedDirectMember)
+				} else {
+					this.chatOffset = 0
+					this.chatMessages = []
+					this.chatHasMore = false
+					this.loadChatMessages()
+				}
 			} else {
 				this.loadNotes(this.currentPage)
 			}
@@ -529,6 +772,9 @@ export default {
 		switchMainTab(tab) {
 			if (this.mainTab !== tab) {
 				this.mainTab = tab
+				if (tab === 'chat' && !this.talkConversationToken) {
+					this.chatSubTab = 'direct'
+				}
 			}
 		},
 		switchSubTab(tab) {
@@ -539,6 +785,74 @@ export default {
 		switchCardSubTab(tab) {
 			if (this.cardSubTab !== tab) {
 				this.cardSubTab = tab
+			}
+		},
+		switchChatSubTab(tab) {
+			if (this.chatSubTab !== tab) {
+				this.chatSubTab = tab
+				if (tab === 'team' && this.chatMessages.length === 0) {
+					this.loadChatMessages()
+				}
+			}
+		},
+		async selectDirectMember(member) {
+			if (!member || !member.id) return
+			this.selectedDirectMemberId = member.id
+			this.directChatLoading = true
+			this.directChatError = ''
+			this.directChatMessages = []
+			this.directChatOffset = 0
+			this.directChatHasMore = false
+
+			try {
+				const chat = await projectsService.getOrCreateDirectChat(this.projectId, member.id)
+				if (chat) {
+					this.directChatSummary = chat
+					this.directChatTalkUrl = chat.talkUrl || ''
+				}
+				const result = await projectsService.getDirectChatMessages(this.projectId, member.id, {
+					limit: this.perPage,
+					offset: 0,
+				})
+				if (result) {
+					this.directChatMessages = result.messages || []
+					this.directChatHasMore = result.hasMore || false
+					this.directChatOffset = Number(result.nextOffset) || 0
+				}
+			} catch (err) {
+				console.error('Failed to load direct chat:', err)
+				this.directChatError = err?.response?.data?.message || err?.message || 'Could not open direct chat'
+			} finally {
+				this.directChatLoading = false
+			}
+		},
+		clearSelectedDirectMember() {
+			this.selectedDirectMemberId = ''
+			this.directChatMessages = []
+			this.directChatOffset = 0
+			this.directChatHasMore = false
+			this.directChatTalkUrl = ''
+			this.directChatSummary = null
+			this.directChatError = ''
+			this.$emit('clear-target-direct-user')
+		},
+		async loadMoreDirectChatMessages() {
+			if (this.directChatLoading || !this.selectedDirectMemberId) return
+			this.directChatLoading = true
+			try {
+				const result = await projectsService.getDirectChatMessages(this.projectId, this.selectedDirectMemberId, {
+					limit: this.perPage,
+					offset: this.directChatOffset,
+				})
+				if (result) {
+					this.directChatMessages = [...this.directChatMessages, ...(result.messages || [])]
+					this.directChatHasMore = result.hasMore || false
+					this.directChatOffset = Number(result.nextOffset) || this.directChatOffset
+				}
+			} catch (err) {
+				console.error('Failed to load more direct chat messages:', err)
+			} finally {
+				this.directChatLoading = false
 			}
 		},
 		async loadChatMessages() {
@@ -579,8 +893,9 @@ export default {
 			}
 		},
 		openTalkChat() {
-			if (this.talkUrl) {
-				window.open(this.talkUrl, '_blank', 'noopener')
+			const url = this.currentTalkUrl || this.talkUrl
+			if (url) {
+				window.open(url, '_blank', 'noopener')
 			}
 		},
 		previousPage() {
@@ -1262,6 +1577,160 @@ export default {
 	display: flex;
 	justify-content: center;
 	padding: 12px 0 4px;
+}
+
+.project-notes-list__direct-select-container {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.project-notes-list__direct-members-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 12px;
+}
+
+.project-notes-list__direct-member-card {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 16px;
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.project-notes-list__direct-member-card:hover {
+	border-color: var(--color-primary-element);
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+	transform: translateY(-1px);
+}
+
+.project-notes-list__direct-avatar {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: var(--color-primary-element-light);
+	color: var(--color-primary-element);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: 700;
+	font-size: 16px;
+	flex-shrink: 0;
+}
+
+.project-notes-list__direct-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	flex: 1;
+}
+
+.project-notes-list__direct-name {
+	font-weight: 600;
+	font-size: 13.5px;
+	color: var(--color-main-text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-notes-list__direct-meta {
+	font-size: 11.5px;
+	color: var(--color-text-maxcontrast);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-notes-list__direct-email {
+	font-size: 11px;
+	color: var(--color-text-lighter);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-notes-list__direct-chat-btn {
+	flex-shrink: 0;
+}
+
+.project-notes-list__direct-chat-wrapper {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.project-notes-list__direct-active-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 14px;
+	background: var(--color-background-dark);
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+}
+
+.project-notes-list__back-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 10px;
+	border: none;
+	background: transparent;
+	color: var(--color-text-lighter);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	border-radius: 8px;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.project-notes-list__back-btn:hover {
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
+}
+
+.project-notes-list__direct-active-user {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex: 1;
+	min-width: 0;
+}
+
+.project-notes-list__direct-active-meta {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.project-notes-list__direct-active-name {
+	font-weight: 700;
+	font-size: 13.5px;
+	color: var(--color-main-text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-notes-list__direct-active-sub {
+	font-size: 11.5px;
+	color: var(--color-text-maxcontrast);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-notes-list__direct-active-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 @media (max-width: 1000px) {

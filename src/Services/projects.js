@@ -716,6 +716,76 @@ export class ProjectsService {
 	}
 
 	/**
+	 * List all project direct chats for the current user.
+	 *
+	 * @param {number} projectId
+	 * @returns {Promise<any[]>}
+	 */
+	async listDirectChats(projectId) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/direct-chats`)
+			const response = await axios.get(url, {
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? []
+		} catch (e) {
+			console.error('Failed to list direct chats:', e)
+			return []
+		}
+	}
+
+	/**
+	 * Get or lazily create a direct chat with a project member.
+	 *
+	 * @param {number} projectId
+	 * @param {string} targetUserId
+	 * @returns {Promise<object|null>}
+	 */
+	async getOrCreateDirectChat(projectId, targetUserId) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/direct-chats/${encodeURIComponent(targetUserId)}`)
+			const response = await axios.post(url, {}, {
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to get or create direct chat:', e)
+			throw e
+		}
+	}
+
+	/**
+	 * Fetch messages for a project direct chat.
+	 *
+	 * @param {number} projectId
+	 * @param {string} targetUserId
+	 * @param {{limit?: number, offset?: number}} [options]
+	 * @returns {Promise<{messages: array, hasMore: boolean, nextOffset: number}|null>}
+	 */
+	async getDirectChatMessages(projectId, targetUserId, { limit = 50, offset = 0 } = {}) {
+		try {
+			const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/direct-chats/${encodeURIComponent(targetUserId)}/messages`)
+			const response = await axios.get(url, {
+				params: { limit, offset },
+				headers: {
+					'OCS-APIRequest': 'true',
+					'Content-Type': 'application/json',
+				},
+			})
+			return response.data ?? null
+		} catch (e) {
+			console.error('Failed to fetch direct chat messages:', e)
+			return null
+		}
+	}
+
+	/**
 	 * Get a single note.
 	 *
 	 * @param {number} projectId

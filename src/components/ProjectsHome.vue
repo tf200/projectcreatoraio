@@ -221,47 +221,112 @@
 							Back to projects
 						</NcButton>
 					</div>
+
 					<div class="projects-home__hero-main">
 						<div class="projects-home__hero-info">
+							<!-- Identity / Metadata Trail -->
+							<div class="projects-home__hero-meta-trail">
+								<span class="projects-home__meta-pill projects-home__meta-pill--number">
+									#{{ selectedProject.number || 'N/A' }}
+								</span>
+								<span class="projects-home__meta-pill projects-home__meta-pill--type">
+									{{ typeLabel(selectedProject.type) }}
+								</span>
+								<span v-if="selectedProject.client_name" class="projects-home__meta-pill projects-home__meta-pill--client">
+									<Account :size="13" />
+									{{ selectedProject.client_name }}
+								</span>
+								<span v-if="selectedProject.loc_city" class="projects-home__meta-pill projects-home__meta-pill--location">
+									<MapMarker :size="13" />
+									{{ selectedProject.loc_city }}
+								</span>
+							</div>
+
+							<!-- Title & Inline Status Row -->
 							<div class="projects-home__hero-title-row">
 								<h2 class="projects-home__details-title">
 									{{ selectedProject.name || 'Unnamed project' }}
 								</h2>
 								<NcButton
 									v-if="canEditProjectTitle"
-									type="tertiary"
+									type="tertiary-no-background"
 									class="projects-home__title-edit-btn"
 									aria-label="Edit project title"
+									:title="'Edit title & description'"
 									@click="startProjectProfileEdit('project')">
 									<template #icon>
-										<Pencil :size="15" />
+										<Pencil :size="16" />
 									</template>
 								</NcButton>
-								<div class="projects-home__hero-badges">
-									<span class="projects-home__badge" :class="statusBadgeClass(selectedProject.status)">
-										{{ statusLabel(selectedProject.status) }}
-									</span>
-									<span class="projects-home__badge projects-home__badge--secondary">
-										{{ typeLabel(selectedProject.type) }}
-									</span>
-									<span class="projects-home__badge projects-home__badge--muted">
-										#{{ selectedProject.number || 'N/A' }}
-									</span>
+
+								<!-- Interactive Status Dropdown Pill -->
+								<div ref="statusDropdownRef" class="projects-home__status-dropdown-wrapper">
+									<button
+										v-if="canEditProjectStatus"
+										type="button"
+										class="projects-home__status-pill-btn"
+										:class="[
+											statusPillClass(selectedProject.status),
+											{ 'projects-home__status-pill-btn--open': isStatusDropdownOpen }
+										]"
+										:disabled="statusUpdating"
+										aria-label="Change project status"
+										:aria-expanded="isStatusDropdownOpen"
+										@click.stop="toggleStatusDropdown">
+										<span class="projects-home__status-indicator" :class="'projects-home__status-indicator--' + getStatusFilterKey(selectedProject.status)" />
+										<span class="projects-home__status-label">{{ statusLabel(selectedProject.status) }}</span>
+										<NcLoadingIcon v-if="statusUpdating" :size="14" />
+										<ChevronDown v-else :size="14" class="projects-home__status-chevron" />
+									</button>
+									<div
+										v-else
+										class="projects-home__status-pill-btn projects-home__status-pill-btn--static"
+										:class="statusPillClass(selectedProject.status)">
+										<span class="projects-home__status-indicator" :class="'projects-home__status-indicator--' + getStatusFilterKey(selectedProject.status)" />
+										<span class="projects-home__status-label">{{ statusLabel(selectedProject.status) }}</span>
+									</div>
+
+									<!-- Floating Dropdown Menu -->
+									<ul
+										v-if="isStatusDropdownOpen"
+										class="projects-home__status-menu"
+										role="listbox"
+										aria-label="Select project status">
+										<li
+											v-for="option in projectStatusOptions"
+											:key="option.value"
+											role="option"
+											:aria-selected="selectedProjectStatusValue === option.value"
+											class="projects-home__status-menu-item"
+											:class="{ 'projects-home__status-menu-item--active': selectedProjectStatusValue === option.value }"
+											@click="selectStatusOption(option.value)">
+											<span class="projects-home__status-indicator" :class="'projects-home__status-indicator--' + option.filterValue" />
+											<span class="projects-home__status-menu-text">{{ option.label }}</span>
+											<Check v-if="selectedProjectStatusValue === option.value" :size="16" class="projects-home__status-menu-check" />
+										</li>
+									</ul>
 								</div>
 							</div>
-							<p class="projects-home__details-subtitle">
+
+							<!-- Subtitle / Description -->
+							<p
+								class="projects-home__details-subtitle"
+								:class="{ 'projects-home__details-subtitle--empty': !selectedProject.description }">
 								{{ selectedProject.description || 'No description provided' }}
 							</p>
 						</div>
+
+						<!-- Action Buttons & Overflow Menu -->
 						<div class="projects-home__hero-actions">
 							<NcButton
 								v-if="selectedProject.talk_url"
 								type="secondary"
-								aria-label="Open chat"
+								aria-label="Open Talk chat"
 								@click="openChat(selectedProject)">
 								<template #icon>
 									<Chat :size="16" />
 								</template>
+								Chat
 							</NcButton>
 							<NcButton
 								type="secondary"
@@ -271,45 +336,53 @@
 								<template #icon>
 									<Download :size="16" />
 								</template>
-								{{ exportRequesting ? 'Preparing...' : 'Download' }}
+								{{ exportRequesting ? 'Preparing...' : 'Export' }}
 							</NcButton>
-							<label v-if="canEditProjectStatus" class="projects-home__status-editor" for="projects-status-editor">
-								<span class="projects-home__status-editor-label">Status</span>
-								<select
-									id="projects-status-editor"
-									class="projects-home__filter-select projects-home__status-select"
-									:value="String(selectedProjectStatusValue)"
-									:disabled="statusUpdating"
-									@change="updateSelectedProjectStatus($event.target.value)">
-									<option
-										v-for="option in projectStatusOptions"
-										:key="option.value"
-										:value="option.value">
-										{{ option.label }}
-									</option>
-								</select>
-							</label>
-							<NcButton
-								v-if="canDeleteSelectedProject"
-								type="tertiary"
-								:disabled="projectDeleting"
-								aria-label="Delete project"
-								class="projects-home__delete-button"
-								@click="deleteSelectedProject">
-								<template #icon>
-									<Delete :size="16" />
-								</template>
-							</NcButton>
+
+							<!-- More Actions Menu -->
+							<NcActions :primary="false" menu-name="More actions">
+								<NcActionButton @click="startProjectProfileEdit('project')">
+									<template #icon>
+										<Pencil :size="20" />
+									</template>
+									Edit project details
+								</NcActionButton>
+								<NcActionButton @click="startProjectProfileEdit('location')">
+									<template #icon>
+										<MapMarker :size="20" />
+									</template>
+									Edit address & client
+								</NcActionButton>
+								<NcActionButton v-if="selectedProject.talk_url" @click="openChat(selectedProject)">
+									<template #icon>
+										<Chat :size="20" />
+									</template>
+									Open Talk room
+								</NcActionButton>
+								<NcActionSeparator v-if="canDeleteSelectedProject" />
+								<NcActionButton
+									v-if="canDeleteSelectedProject"
+									class="projects-home__action-delete"
+									@click="deleteSelectedProject">
+									<template #icon>
+										<Delete :size="20" />
+									</template>
+									Delete project
+								</NcActionButton>
+							</NcActions>
 						</div>
 					</div>
+
 					<p v-if="canEditProjectStatus && statusUpdateError" class="projects-home__inline-error">
-						{{ statusUpdateError }}
+						<AlertCircle :size="16" />
+						<span>{{ statusUpdateError }}</span>
 					</p>
 					<p v-if="projectDeleteError" class="projects-home__inline-error">
-						{{ projectDeleteError }}
+						<AlertCircle :size="16" />
+						<span>{{ projectDeleteError }}</span>
 					</p>
 					<p v-if="exportQueuedMessage" class="projects-home__inline-success">
-						{{ exportQueuedMessage }}
+						<span>{{ exportQueuedMessage }}</span>
 					</p>
 				</header>
 
@@ -500,7 +573,11 @@
 								<ProjectNotesList
 									:project-id="selectedProject.id"
 									:talk-conversation-token="selectedProject.talk_conversation_token"
-									:talk-url="selectedProject.talk_url" />
+									:talk-url="selectedProject.talk_url"
+									:members="projectMembers"
+									:current-user-id="currentUserId"
+									:target-direct-user="activeDirectChatUser"
+									@clear-target-direct-user="activeDirectChatUser = null" />
 							</section>
 
 							<!-- Timeline & Deck Section -->
@@ -734,6 +811,19 @@
 											<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
 											<span v-if="member.email" class="projects-home__member-badge projects-home__member-badge--muted">{{ member.email }}</span>
 										</div>
+										<div v-if="member.id !== currentUserId" class="projects-home__member-actions">
+											<NcButton
+												type="tertiary"
+												:aria-label="t('projectcreatoraio', 'Chat with {name}', { name: member.displayName || member.id })"
+												title="Direct Chat"
+												class="projects-home__member-chat-btn"
+												@click="startDirectChat(member)">
+												<template #icon>
+													<Chat :size="16" />
+												</template>
+												Chat
+											</NcButton>
+										</div>
 									</li>
 								</ul>
 							</section>
@@ -773,7 +863,11 @@
 						<ProjectNotesList
 							:project-id="selectedProject.id"
 							:talk-conversation-token="selectedProject.talk_conversation_token"
-							:talk-url="selectedProject.talk_url" />
+							:talk-url="selectedProject.talk_url"
+							:members="projectMembers"
+							:current-user-id="currentUserId"
+							:target-direct-user="activeDirectChatUser"
+							@clear-target-direct-user="activeDirectChatUser = null" />
 					</div>
 
 					<!-- Timeline Tab -->
@@ -1009,6 +1103,19 @@
 									<span v-if="member.isOwner" class="projects-home__member-badge projects-home__member-badge--owner">Owner</span>
 									<span v-if="member.email" class="projects-home__member-badge projects-home__member-badge--muted">{{ member.email }}</span>
 								</div>
+								<div v-if="member.id !== currentUserId" class="projects-home__member-actions">
+									<NcButton
+										type="tertiary"
+										:aria-label="t('projectcreatoraio', 'Chat with {name}', { name: member.displayName || member.id })"
+										title="Direct Chat"
+										class="projects-home__member-chat-btn"
+										@click="startDirectChat(member)">
+										<template #icon>
+											<Chat :size="16" />
+										</template>
+										Chat
+									</NcButton>
+								</div>
 							</li>
 						</ul>
 					</div>
@@ -1212,6 +1319,9 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActionSeparator from '@nextcloud/vue/components/NcActionSeparator'
 
 import Account from 'vue-material-design-icons/Account.vue'
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
@@ -1219,6 +1329,8 @@ import AccountOff from 'vue-material-design-icons/AccountOff.vue'
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 import ChartGantt from 'vue-material-design-icons/ChartGantt.vue'
 import Chat from 'vue-material-design-icons/Chat.vue'
+import Check from 'vue-material-design-icons/Check.vue'
+import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import Draw from 'vue-material-design-icons/Draw.vue'
 import Download from 'vue-material-design-icons/Download.vue'
@@ -1255,6 +1367,7 @@ import {
 	PROJECT_STATUS_OPTIONS,
 	getProjectStatusBadgeClass,
 	getProjectStatusLabel,
+	getProjectStatusOption,
 	getProjectStatusPillClass,
 	getProjectStatusShortLabel,
 	matchesProjectStatusFilter,
@@ -1289,6 +1402,8 @@ export default {
 		AlertCircle,
 		ChartGantt,
 		Chat,
+		Check,
+		ChevronDown,
 		ChevronLeft,
 		DeckAnalytics,
 		DeckBoard,
@@ -1304,6 +1419,9 @@ export default {
 		MapMarker,
 		MenuClose,
 		MenuOpen,
+		NcActions,
+		NcActionButton,
+		NcActionSeparator,
 		NcButton,
 		NcEmptyContent,
 		NcTextField,
@@ -1336,6 +1454,7 @@ export default {
 			filesLoading: false,
 			statusUpdating: false,
 			statusUpdateError: '',
+			isStatusDropdownOpen: false,
 			projectDeleting: false,
 			projectDeleteError: '',
 			showCreateModal: false,
@@ -1400,9 +1519,13 @@ export default {
 			projectProfileSaving: false,
 			projectProfileError: '',
 			projectProfileMessage: '',
+			activeDirectChatUser: null,
 		}
 	},
 	computed: {
+		currentUserId() {
+			return String(this.context?.userId || '').trim()
+		},
 		selectedProfileClientRoles: {
 			get() {
 				return getClientRoleOptions(this.projectProfileDraft.client_role)
@@ -1523,6 +1646,7 @@ export default {
 		this.updateNarrowState()
 		window.addEventListener('resize', this.updateNarrowState)
 		window.addEventListener('popstate', this.handlePopState)
+		document.addEventListener('click', this.handleDocumentClick)
 
 		await this.loadContext()
 		if (!this.hasProjectAccess) {
@@ -1539,6 +1663,7 @@ export default {
 	beforeDestroy() {
 		window.removeEventListener('resize', this.updateNarrowState)
 		window.removeEventListener('popstate', this.handlePopState)
+		document.removeEventListener('click', this.handleDocumentClick)
 	},
 	methods: {
 		formatClientRoles,
@@ -1548,6 +1673,25 @@ export default {
 		// Sidebar collapse toggle
 		toggleSidebar() {
 			this.isSidebarCollapsed = !this.isSidebarCollapsed
+		},
+		// Status dropdown handlers
+		getStatusFilterKey(status) {
+			return getProjectStatusOption(status).filterValue
+		},
+		toggleStatusDropdown() {
+			this.isStatusDropdownOpen = !this.isStatusDropdownOpen
+		},
+		closeStatusDropdown() {
+			this.isStatusDropdownOpen = false
+		},
+		selectStatusOption(value) {
+			this.closeStatusDropdown()
+			this.updateSelectedProjectStatus(value)
+		},
+		handleDocumentClick(e) {
+			if (this.isStatusDropdownOpen && this.$refs.statusDropdownRef && !this.$refs.statusDropdownRef.contains(e.target)) {
+				this.closeStatusDropdown()
+			}
 		},
 		// Get project initials for collapsed sidebar
 		projectInitials(project) {
@@ -1738,6 +1882,13 @@ export default {
 		statusPillClass(status) {
 			return getProjectStatusPillClass(status)
 		},
+		async startDirectChat(member) {
+			this.activeDirectChatUser = member
+			this.setActiveTab('notes')
+			if (this.selectedProjectId) {
+				await this.ensureMembersLoaded(Number(this.selectedProjectId))
+			}
+		},
 		setActiveTab(tab) {
 			const normalized = this.normalizeTab(tab)
 			this.activeTab = normalized
@@ -1858,6 +2009,7 @@ export default {
 			const updateUrl = options.updateUrl !== false
 			const fetched = await projectsService.get(project.id)
 			this.activeTab = tab
+			this.isStatusDropdownOpen = false
 			this.statusUpdateError = ''
 			this.projectDeleteError = ''
 			this.exportQueuedMessage = ''
@@ -1866,6 +2018,7 @@ export default {
 			this.resetProjectProfileEditor()
 			this.resetMembersState()
 			this.resetFilesState()
+			this.activeDirectChatUser = null
 			this.selectedProjectId = fetched.id
 			this.selectedProject = fetched
 			this.projectProfileDraft = this.getProjectProfileDraftFromSelected()
@@ -1916,7 +2069,7 @@ export default {
 			return PROJECT_TABS.includes(tab) ? tab : 'overview'
 		},
 		applyTabSideEffects(projectId, tab) {
-			if (tab === 'members' || tab === 'overview') {
+			if (tab === 'members' || tab === 'overview' || tab === 'notes') {
 				this.ensureMembersLoaded(projectId)
 			}
 			if (tab === 'files' || tab === 'overview') {
@@ -1927,6 +2080,7 @@ export default {
 			this.resetProjectProfileEditor()
 			this.resetMembersState()
 			this.resetFilesState()
+			this.activeDirectChatUser = null
 			this.exportQueuedMessage = ''
 			this.selectedProject = null
 			this.selectedProjectId = null
@@ -2602,22 +2756,24 @@ export default {
 	opacity: 0.5;
 }
 
-/* Hero Section */
+/* ==========================================================================
+   Hero Section (Pattern 1: Nextcloud-Native Streamlined Header)
+   ========================================================================== */
 .projects-home__hero {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 20px;
-	border-radius: 12px;
-	background:
-		radial-gradient(circle at 0% 0%, rgba(36, 153, 255, 0.12), transparent 50%),
-		radial-gradient(circle at 100% 20%, rgba(255, 166, 0, 0.15), transparent 35%),
-		var(--color-main-background);
-	border: 1px solid var(--color-border-dark);
+	gap: 14px;
+	padding: 20px 24px;
+	border-radius: var(--border-radius-large, 12px);
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+	position: relative;
 }
 
 .projects-home__hero-mobile {
 	display: flex;
+	margin-bottom: 2px;
 }
 
 .projects-home__back {
@@ -2628,107 +2784,241 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	align-items: flex-start;
-	gap: 16px;
+	gap: 20px;
 }
 
 .projects-home__hero-info {
 	flex: 1;
 	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
 }
 
+/* Metadata Trail Row (Number, Type, Client, Location) */
+.projects-home__hero-meta-trail {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.projects-home__meta-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: 6px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.4;
+	background: var(--color-background-dark);
+	color: var(--color-text-maxcontrast);
+	border: 1px solid var(--color-border);
+}
+
+.projects-home__meta-pill--number {
+	font-family: monospace;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: var(--color-main-text);
+}
+
+.projects-home__meta-pill--type {
+	background: rgba(36, 153, 255, 0.1);
+	border-color: rgba(36, 153, 255, 0.25);
+	color: var(--color-primary-element);
+}
+
+.projects-home__meta-pill--client,
+.projects-home__meta-pill--location {
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
+}
+
+/* Title & Status Row */
 .projects-home__hero-title-row {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: 10px;
 	flex-wrap: wrap;
-	margin-bottom: 6px;
 }
 
 .projects-home__details-title {
 	margin: 0;
 	font-size: 22px;
 	font-weight: 700;
-	line-height: 1.3;
+	line-height: 1.25;
+	color: var(--color-main-text);
+	letter-spacing: -0.01em;
 }
 
 .projects-home__title-edit-btn {
-	--button-size: 30px;
-	min-width: 30px;
+	--button-size: 28px;
+	min-width: 28px;
+	opacity: 0.6;
+	transition: opacity 0.15s ease;
 }
 
+.projects-home__title-edit-btn:hover {
+	opacity: 1;
+}
+
+/* Subtitle / Description */
 .projects-home__details-subtitle {
 	margin: 0;
 	color: var(--color-text-maxcontrast);
-	font-size: 14px;
+	font-size: 13.5px;
 	line-height: 1.5;
 }
 
-.projects-home__hero-badges {
+.projects-home__details-subtitle--empty {
+	font-style: italic;
+	opacity: 0.6;
+}
+
+/* ==========================================================================
+   Interactive Status Dropdown Pill
+   ========================================================================== */
+.projects-home__status-dropdown-wrapper {
+	position: relative;
+	display: inline-flex;
+}
+
+.projects-home__status-pill-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding: 4px 10px;
+	border-radius: 999px;
+	border: 1px solid var(--color-border);
+	background: var(--color-main-background);
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	color: var(--color-main-text);
+	transition: all 0.15s ease;
+	line-height: 1.3;
+}
+
+.projects-home__status-pill-btn:hover:not(:disabled) {
+	border-color: var(--color-border-dark);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.projects-home__status-pill-btn--open {
+	border-color: var(--color-primary-element);
+	box-shadow: 0 0 0 2px rgba(36, 153, 255, 0.2);
+}
+
+.projects-home__status-pill-btn--static {
+	cursor: default;
+}
+
+.projects-home__status-chevron {
+	opacity: 0.6;
+	transition: transform 0.15s ease;
+}
+
+.projects-home__status-pill-btn--open .projects-home__status-chevron {
+	transform: rotate(180deg);
+}
+
+.projects-home__status-indicator {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: var(--color-text-maxcontrast);
+}
+
+.projects-home__status-indicator--active {
+	background: #1e7f2d;
+	box-shadow: 0 0 0 2px rgba(30, 127, 45, 0.2);
+}
+
+.projects-home__status-indicator--waiting {
+	background: #b56a00;
+	box-shadow: 0 0 0 2px rgba(181, 106, 0, 0.2);
+}
+
+.projects-home__status-indicator--hold {
+	background: #64748b;
+	box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.2);
+}
+
+.projects-home__status-indicator--done {
+	background: #0c6b4a;
+	box-shadow: 0 0 0 2px rgba(12, 107, 74, 0.2);
+}
+
+.projects-home__status-indicator--archived {
+	background: #94a3b8;
+}
+
+/* Floating Status Dropdown Menu */
+.projects-home__status-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 0;
+	z-index: 100;
+	min-width: 170px;
+	margin: 0;
+	padding: 4px;
+	list-style: none;
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.projects-home__status-menu-item {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	flex-wrap: wrap;
+	padding: 8px 10px;
+	border-radius: 6px;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	color: var(--color-main-text);
+	transition: background 0.12s ease;
 }
 
-.projects-home__hero-actions {
-	display: flex;
-	align-items: flex-end;
-	gap: 10px;
+.projects-home__status-menu-item:hover {
+	background: var(--color-background-hover);
+}
+
+.projects-home__status-menu-item--active {
+	font-weight: 600;
+	background: var(--color-background-dark);
+}
+
+.projects-home__status-menu-text {
+	flex: 1;
+}
+
+.projects-home__status-menu-check {
+	color: var(--color-primary-element);
 	flex-shrink: 0;
 }
 
-.projects-home__status-editor {
+/* ==========================================================================
+   Hero Actions Strip
+   ========================================================================== */
+.projects-home__hero-actions {
 	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	min-width: 180px;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
 }
 
-.projects-home__status-editor-label {
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--color-text-maxcontrast);
+.projects-home__action-delete {
+	color: var(--color-error, #e11919) !important;
 }
 
-.projects-home__status-select {
-	min-width: 180px;
-}
-
-.projects-home__delete-button {
-	--button-size: 36px;
-	--button-border-radius: 10px;
-	align-self: flex-end;
-	min-height: 36px;
-	padding: 0 12px;
-	border: 1px solid #e11919;
-	background: #e11919;
-	color: #fff;
-	font-size: 12px;
-	font-weight: 700;
-	line-height: 1;
-	box-shadow: 0 1px 2px rgba(148, 23, 23, 0.18);
-}
-
-.projects-home__delete-button:hover,
-.projects-home__delete-button:focus-visible {
-	border-color: #c91515;
-	background: #c91515;
-	color: #fff;
-}
-
-.projects-home__delete-button:active {
-	border-color: #b51212;
-	background: #b51212;
-}
-
-.projects-home__delete-button:disabled {
-	border-color: rgba(225, 25, 25, 0.45);
-	background: rgba(225, 25, 25, 0.45);
-	color: rgba(255, 255, 255, 0.9);
-	box-shadow: none;
-}
-
-/* Badges */
+/* Badges (Legacy/Fallback) */
 .projects-home__badge {
 	padding: 4px 10px;
 	border-radius: 999px;
@@ -2761,14 +3051,17 @@ export default {
 	color: var(--color-text-maxcontrast);
 }
 
-/* Tabs */
+/* ==========================================================================
+   Navigation Tabs
+   ========================================================================== */
 .projects-home__tabs {
 	display: flex;
-	gap: 4px;
+	gap: 6px;
 	flex-wrap: wrap;
-	padding: 4px;
+	padding: 4px 6px;
 	background: var(--color-background-dark);
 	border-radius: 10px;
+	border: 1px solid var(--color-border);
 }
 
 .projects-home__tab {
@@ -2784,13 +3077,14 @@ export default {
 	cursor: pointer;
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: 7px;
 	transition: all 0.15s ease;
 	position: relative;
 }
 
 .projects-home__tab:hover {
 	background: var(--color-background-hover);
+	color: var(--color-main-text);
 }
 
 .projects-home__tab:focus-visible {
@@ -2800,8 +3094,10 @@ export default {
 
 .projects-home__tab--active {
 	background: var(--color-main-background);
-	border-color: var(--color-border-dark);
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	border-color: var(--color-border);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+	font-weight: 600;
+	color: var(--color-primary-element);
 }
 
 .projects-home__tab-icon {
@@ -2811,14 +3107,15 @@ export default {
 
 .projects-home__tab--active .projects-home__tab-icon {
 	opacity: 1;
+	color: var(--color-primary-element);
 }
 
 .projects-home__tab-badge {
-	padding: 1px 6px;
+	padding: 1px 7px;
 	border-radius: 999px;
 	background: var(--color-primary-element);
-	color: var(--color-primary-element-text);
-	font-size: 10px;
+	color: var(--color-primary-element-text, #fff);
+	font-size: 10.5px;
 	font-weight: 700;
 	margin-left: 2px;
 }
@@ -3155,6 +3452,17 @@ export default {
 
 .projects-home__member-functional-role-select {
 	min-width: 200px;
+}
+
+.projects-home__member-actions {
+	display: flex;
+	align-items: center;
+	margin-left: auto;
+}
+
+.projects-home__member-chat-btn {
+	--button-size: 30px;
+	gap: 4px;
 }
 
 /* States */
