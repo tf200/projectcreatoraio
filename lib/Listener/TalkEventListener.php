@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Listener;
 
+use OCA\ProjectCreatorAIO\Db\Project;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\Talk\Events\AttendeeRemovedEvent;
@@ -25,6 +28,7 @@ class TalkEventListener implements IEventListener {
 		private readonly ProjectMapper $projectMapper,
 		private readonly ProjectActivityService $projectActivityService,
 		private readonly IUserManager $userManager,
+		private readonly ?ProjectDirectChatMapper $directChatMapper = null,
 	) {
 	}
 
@@ -43,6 +47,33 @@ class TalkEventListener implements IEventListener {
 		};
 	}
 
+	/**
+	 * @return array{0: ?Project, 1: ?ProjectDirectChat}
+	 */
+	private function resolveProjectAndDirectChat(string $token): array {
+		$token = trim($token);
+		if ($token === '') {
+			return [null, null];
+		}
+
+		$project = $this->projectMapper->findByTalkConversationToken($token);
+		if ($project !== null) {
+			return [$project, null];
+		}
+
+		if ($this->directChatMapper !== null) {
+			$directChat = $this->directChatMapper->findByTalkConversationToken($token);
+			if ($directChat !== null) {
+				$project = $this->projectMapper->find((int) $directChat->getProjectId());
+				if ($project !== null) {
+					return [$project, $directChat];
+				}
+			}
+		}
+
+		return [null, null];
+	}
+
 	private function resolveActor(string $uid): array {
 		$user = $this->userManager->get($uid);
 		if ($user !== null) {
@@ -55,7 +86,7 @@ class TalkEventListener implements IEventListener {
 		$room = $event->getRoom();
 		$token = $room->getToken();
 
-		$project = $this->projectMapper->findByTalkConversationToken($token);
+		[$project, $directChat] = $this->resolveProjectAndDirectChat($token);
 		if ($project === null) {
 			return;
 		}
@@ -69,17 +100,29 @@ class TalkEventListener implements IEventListener {
 
 		[$actorUid, $actorDisplayName] = $this->resolveActor($comment->getActorId());
 
-		$this->projectActivityService->recordWithActorInfo($project, ProjectActivityService::EVENT_TALK_MESSAGE_SENT, ProjectActivityService::SOURCE_TALK, $actorUid, $actorDisplayName, [
+		$eventType = $directChat !== null
+			? ProjectActivityService::EVENT_TALK_DIRECT_MESSAGE_SENT
+			: ProjectActivityService::EVENT_TALK_MESSAGE_SENT;
+
+		$payload = [
 			'messagePreview' => $preview,
 			'messageLength' => mb_strlen($message),
-		]);
+		];
+
+		if ($directChat !== null) {
+			$payload['isDirectChat'] = true;
+			$payload['directChatId'] = $directChat->getId();
+			$payload['otherUserId'] = $directChat->getOtherUserId($actorUid);
+		}
+
+		$this->projectActivityService->recordWithActorInfo($project, $eventType, ProjectActivityService::SOURCE_TALK, $actorUid, $actorDisplayName, $payload);
 	}
 
 	private function handleAttendeesAdded(AttendeesAddedEvent $event): void {
 		$room = $event->getRoom();
 		$token = $room->getToken();
 
-		$project = $this->projectMapper->findByTalkConversationToken($token);
+		[$project] = $this->resolveProjectAndDirectChat($token);
 		if ($project === null) {
 			return;
 		}
@@ -100,7 +143,7 @@ class TalkEventListener implements IEventListener {
 		$room = $event->getRoom();
 		$token = $room->getToken();
 
-		$project = $this->projectMapper->findByTalkConversationToken($token);
+		[$project] = $this->resolveProjectAndDirectChat($token);
 		if ($project === null) {
 			return;
 		}
@@ -121,12 +164,10 @@ class TalkEventListener implements IEventListener {
 		$room = $event->getRoom();
 		$token = $room->getToken();
 
-		$project = $this->projectMapper->findByTalkConversationToken($token);
+		[$project] = $this->resolveProjectAndDirectChat($token);
 		if ($project === null) {
 			return;
 		}
-
-		$callFlag = $event->getCallFlag();
 
 		$callFlag = $event->getCallFlag();
 
@@ -146,7 +187,7 @@ class TalkEventListener implements IEventListener {
 		$room = $event->getRoom();
 		$token = $room->getToken();
 
-		$project = $this->projectMapper->findByTalkConversationToken($token);
+		[$project] = $this->resolveProjectAndDirectChat($token);
 		if ($project === null) {
 			return;
 		}
@@ -162,7 +203,7 @@ class TalkEventListener implements IEventListener {
 	}
 
 	private function handleReactionAdded(ReactionAddedEvent $event): void {
-		$project = $this->projectMapper->findByTalkConversationToken($event->getRoom()->getToken());
+		[$project] = $this->resolveProjectAndDirectChat($event->getRoom()->getToken());
 		if ($project === null) {
 			return;
 		}
@@ -174,7 +215,7 @@ class TalkEventListener implements IEventListener {
 	}
 
 	private function handleReactionRemoved(ReactionRemovedEvent $event): void {
-		$project = $this->projectMapper->findByTalkConversationToken($event->getRoom()->getToken());
+		[$project] = $this->resolveProjectAndDirectChat($event->getRoom()->getToken());
 		if ($project === null) {
 			return;
 		}
@@ -186,7 +227,7 @@ class TalkEventListener implements IEventListener {
 	}
 
 	private function handleUserJoined(UserJoinedRoomEvent $event): void {
-		$project = $this->projectMapper->findByTalkConversationToken($event->getRoom()->getToken());
+		[$project] = $this->resolveProjectAndDirectChat($event->getRoom()->getToken());
 		if ($project === null) {
 			return;
 		}
@@ -199,7 +240,7 @@ class TalkEventListener implements IEventListener {
 		$room = $event->getRoom();
 		$token = $room->getToken();
 
-		$project = $this->projectMapper->findByTalkConversationToken($token);
+		[$project] = $this->resolveProjectAndDirectChat($token);
 		if ($project === null) {
 			return;
 		}

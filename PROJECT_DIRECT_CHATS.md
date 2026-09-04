@@ -151,9 +151,9 @@ projectcreatoraio/
 ---
 
 ### Phase 5: Activity Logging & Lifecycle Retention
-- [ ] **5.1 Talk Event Listener:** Update `lib/Listener/TalkEventListener.php` to look up `proj_direct_chats` if the conversation token does not match a main project group token.
-- [ ] **5.2 Activity Recording:** Record direct chat activity (e.g. `direct_chat_message_sent`) in `project_activity_events` attributed to the project.
-- [ ] **5.3 Project Retention:** Update `lib/Service/ProjectRetentionService.php` to purge `proj_direct_chats` and delete corresponding Talk rooms on project deletion.
+- [x] **5.1 Talk Event Listener:** Update `lib/Listener/TalkEventListener.php` to look up `proj_direct_chats` if the conversation token does not match a main project group token.
+- [x] **5.2 Activity Recording:** Record direct chat activity (e.g. `direct_chat_message_sent`) in `project_activity_events` attributed to the project.
+- [x] **5.3 Project Retention:** Update `lib/Service/ProjectRetentionService.php` to purge `proj_direct_chats` and delete corresponding Talk rooms on project deletion.
 
 ---
 
@@ -189,3 +189,4 @@ projectcreatoraio/
 | **2026-09-04** | Phase 2: Talk Integration Service Expansion | Implemented `createProjectDirectConversation`, `deleteConversations`, `trySetRoomDescription`, and comprehensive unit tests. | Completed |
 | **2026-09-04** | Phase 3: Project Service & Business Logic | Added `isProjectMember`, `getOrCreateDirectChat`, `listUserDirectChats`, `getDirectChatMessages` in `ProjectService`, dependency injection in `Application.php`, and 10 new unit tests in `ProjectServiceTest.php`. | Completed |
 | **2026-09-04** | Phase 4: API & Routing Layer | Registered API routes in `appinfo/routes.php`, implemented `listDirectChats`, `getOrCreateDirectChat`, `createDirectChat`, and `getDirectChatMessages` in `ProjectApiController.php`, fixed `OCSForbiddenException` namespace import, and added 10 unit tests in `ProjectApiControllerDirectChatTest.php`. | Completed |
+| **2026-09-04** | Phase 5: Activity Logging & Lifecycle Retention | Updated `TalkEventListener` to associate direct chat events with project activities, added `EVENT_TALK_DIRECT_MESSAGE_SENT` in `ProjectActivityService`, updated `ProjectRetentionService` to purge direct chats and delete Talk rooms, and added unit tests in `ProjectRetentionServiceTest` and `TalkEventListenerTest`. | Completed |

@@ -12,10 +12,13 @@ use OCA\ProjectCreatorAIO\Db\PrivateFolderLinkMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
 use OCA\GroupFolders\Folder\FolderManager;
 use OCA\GroupFolders\Mount\FolderStorageManager;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -35,14 +38,16 @@ class ProjectRetentionService
 		private readonly PrivateFolderLinkMapper $privateFolderLinkMapper,
 		private readonly ProjectActivityEventMapper $projectActivityEventMapper,
 		private readonly ProjectDigestCursorMapper $projectDigestCursorMapper,
-		private readonly ProjectMemberRoleMapper $memberRoleMapper,
-		private readonly ?object $boardMapper,
-		private readonly ?object $folderManager,
-		private readonly ?object $folderStorageManager,
-		private readonly IRootFolder $rootFolder,
-		private readonly IGroupManager $groupManager,
-		private readonly IDBConnection $db,
-		private readonly LoggerInterface $logger,
+		private readonly ?ProjectMemberRoleMapper $memberRoleMapper = null,
+		private readonly ?object $boardMapper = null,
+		private readonly ?object $folderManager = null,
+		private readonly ?object $folderStorageManager = null,
+		private readonly ?IRootFolder $rootFolder = null,
+		private readonly ?IGroupManager $groupManager = null,
+		private readonly ?IDBConnection $db = null,
+		private readonly ?LoggerInterface $logger = null,
+		private readonly ?ProjectDirectChatMapper $directChatMapper = null,
+		private readonly ?ProjectTalkIntegrationService $talkIntegrationService = null,
 	) {
 	}
 
@@ -107,24 +112,32 @@ class ProjectRetentionService
 		$this->deleteSharedFolder($project);
 		$this->deletePrivateFolders($privateLinks);
 		$this->deleteProjectGroup($project);
+		$this->deleteTalkConversations($project);
 
-		$this->db->beginTransaction();
+		if ($this->db !== null) {
+			$this->db->beginTransaction();
+		}
 		try {
 			$this->projectNoteMapper->deleteByProject($projectId);
 			$this->timelineItemMapper->deleteByProject($projectId);
 			$this->projectActivityEventMapper->deleteByProject($projectId);
 			$this->projectDigestCursorMapper->deleteByProject($projectId);
-			$this->memberRoleMapper->deleteByProject($projectId);
+			$this->memberRoleMapper?->deleteByProject($projectId);
 			$this->deleteDeckDoneSyncRows($projectId);
 			$this->privateFolderLinkMapper->deleteByProject($projectId);
+			$this->directChatMapper?->deleteByProject($projectId);
 			$this->projectMapper->deleteProject($project);
-			$this->db->commit();
+			if ($this->db !== null) {
+				$this->db->commit();
+			}
 		} catch (\Throwable $e) {
-			$this->db->rollBack();
+			if ($this->db !== null) {
+				$this->db->rollBack();
+			}
 			throw $e;
 		}
 
-		$this->logger->info('Purged archived project', [
+		$this->logger?->info('Purged archived project', [
 			'projectId' => $projectId,
 			'projectName' => $project->getName(),
 		]);
@@ -269,9 +282,55 @@ class ProjectRetentionService
 		}
 	}
 
+	private function deleteTalkConversations(Project $project): void
+	{
+		$tokens = [];
+		$mainToken = trim((string) ($project->getTalkConversationToken() ?? ''));
+		if ($mainToken !== '') {
+			$tokens[] = $mainToken;
+		}
+
+		$projectId = (int) ($project->getId() ?? 0);
+		if ($projectId > 0 && $this->directChatMapper !== null) {
+			try {
+				$directChats = $this->directChatMapper->findByProject($projectId);
+				foreach ($directChats as $chat) {
+					$token = trim((string) $chat->getTalkConversationToken());
+					if ($token !== '') {
+						$tokens[] = $token;
+					}
+				}
+			} catch (\Throwable $e) {
+				$this->logger?->warning('Failed to find direct chats for Talk cleanup', [
+					'projectId' => $projectId,
+					'exception' => $e,
+				]);
+			}
+		}
+
+		if (!empty($tokens) && $this->talkIntegrationService !== null) {
+			try {
+				$this->talkIntegrationService->deleteConversations($tokens);
+			} catch (\Throwable $e) {
+				$this->logger?->warning('Failed to delete Talk conversations during project purge', [
+					'projectId' => $projectId,
+					'exception' => $e,
+				]);
+			}
+		}
+	}
+
 	private function deleteDeckDoneSyncRows(int $projectId): void
 	{
+		if ($this->db === null) {
+			return;
+		}
+
 		$qb = $this->db->getQueryBuilder();
+		if ($qb === null) {
+			return;
+		}
+
 		$qb->delete('project_deck_done_sync')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
 			->executeStatement();

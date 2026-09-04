@@ -484,6 +484,8 @@ class Application extends App implements IBootstrap {
 				$c->get(IGroupManager::class),
 				$c->get(IDBConnection::class),
 				$c->get(LoggerInterface::class),
+				$c->get(ProjectDirectChatMapper::class),
+				$c->get(ProjectTalkIntegrationService::class),
 			);
 		});
 

@@ -59,6 +59,8 @@ class ProjectActivityService {
 
 	// Talk events
 	public const EVENT_TALK_MESSAGE_SENT = 'talk_message_sent';
+	public const EVENT_TALK_DIRECT_MESSAGE_SENT = 'talk_direct_message_sent';
+	public const EVENT_TALK_DIRECT_CHAT_CREATED = 'talk_direct_chat_created';
 	public const EVENT_TALK_PARTICIPANT_ADDED = 'talk_participant_added';
 	public const EVENT_TALK_PARTICIPANT_REMOVED = 'talk_participant_removed';
 	public const EVENT_TALK_CALL_STARTED = 'talk_call_started';
