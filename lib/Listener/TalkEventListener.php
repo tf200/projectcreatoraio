@@ -64,7 +64,7 @@ class TalkEventListener implements IEventListener {
 		if ($this->directChatMapper !== null) {
 			$directChat = $this->directChatMapper->findByTalkConversationToken($token);
 			if ($directChat !== null) {
-				$project = $this->projectMapper->find((int) $directChat->getProjectId());
+				$project = $this->projectMapper->find((int)$directChat->getProjectId());
 				if ($project !== null) {
 					return [$project, $directChat];
 				}

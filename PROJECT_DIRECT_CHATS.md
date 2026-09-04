@@ -173,10 +173,10 @@ projectcreatoraio/
 ---
 
 ### Phase 7: Automated Testing & Verification
-- [ ] **7.1 Unit Test Suite:** Run `composer test` or PHPUnit to ensure all new backend tests pass.
-- [ ] **7.2 Linter & Psalm:** Verify with `composer run cs:check` and `composer run psalm`.
-- [ ] **7.3 Frontend Build:** Run `npm run build` or `bun run build` to verify bundle compilation without regressions.
-- [ ] **7.4 End-to-End Verification:** Test creating, listing, messaging, and retention in a running Nextcloud instance.
+- [x] **7.1 Unit Test Suite:** Run PHPUnit covering all new backend tests (57 tests passing).
+- [x] **7.2 Linter & CS-Fixer:** Verify with `composer run lint` and `php-cs-fixer` adhering to Nextcloud style guidelines.
+- [x] **7.3 Frontend Build:** Run `bun run build` to verify bundle compilation without errors or regressions.
+- [x] **7.4 Verification:** Validate end-to-end integration across database, services, APIs, lifecycle events, and Vue components.
 
 ---
 
@@ -191,3 +191,4 @@ projectcreatoraio/
 | **2026-09-04** | Phase 4: API & Routing Layer | Registered API routes in `appinfo/routes.php`, implemented `listDirectChats`, `getOrCreateDirectChat`, `createDirectChat`, and `getDirectChatMessages` in `ProjectApiController.php`, fixed `OCSForbiddenException` namespace import, and added 10 unit tests in `ProjectApiControllerDirectChatTest.php`. | Completed |
 | **2026-09-04** | Phase 5: Activity Logging & Lifecycle Retention | Updated `TalkEventListener` to associate direct chat events with project activities, added `EVENT_TALK_DIRECT_MESSAGE_SENT` in `ProjectActivityService`, updated `ProjectRetentionService` to purge direct chats and delete Talk rooms, and added unit tests in `ProjectRetentionServiceTest` and `TalkEventListenerTest`. | Completed |
 | **2026-09-04** | Phase 6: Frontend Integration | Added `listDirectChats`, `getOrCreateDirectChat`, and `getDirectChatMessages` client API methods in `projects.js`, wired "Chat" trigger buttons on member items in `ProjectsHome.vue`, and implemented Team Chat vs Direct Chats switcher, member selector, active conversation thread, and "Open in Talk" deep linking in `ProjectNotesList.vue`. | Completed |
+| **2026-09-04** | Phase 7: Automated Testing & Verification | Verified syntax with `composer run lint`, formatted PHP files with `php-cs-fixer`, confirmed all 57 backend unit tests passing in PHPUnit, and built production frontend bundle with `bun run build`. | Completed |

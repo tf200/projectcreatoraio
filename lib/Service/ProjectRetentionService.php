@@ -6,29 +6,23 @@ namespace OCA\ProjectCreatorAIO\Service;
 
 use DateInterval;
 use DateTime;
-use OCA\Deck\Db\BoardMapper;
 use OCA\ProjectCreatorAIO\Db\PrivateFolderLink;
 use OCA\ProjectCreatorAIO\Db\PrivateFolderLinkMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
-use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
 use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
-use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
-use OCA\GroupFolders\Folder\FolderManager;
-use OCA\GroupFolders\Mount\FolderStorageManager;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Files\IRootFolder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use Psr\Log\LoggerInterface;
 
-class ProjectRetentionService
-{
+class ProjectRetentionService {
 	private const RETENTION_INTERVAL = 'P2Y';
 
 	public function __construct(
@@ -54,14 +48,13 @@ class ProjectRetentionService
 	/**
 	 * @return array{processed: int, purged: int, dryRun: bool}
 	 */
-	public function purgeArchivedProjects(bool $dryRun = false, int $limit = 25): array
-	{
+	public function purgeArchivedProjects(bool $dryRun = false, int $limit = 25): array {
 		$cutoff = (new DateTime())->sub(new DateInterval(self::RETENTION_INTERVAL));
 		$projects = $this->projectMapper->findArchivedBefore($cutoff, $limit);
 		$purged = 0;
 
 		foreach ($projects as $project) {
-			$projectId = (int) ($project->getId() ?? 0);
+			$projectId = (int)($project->getId() ?? 0);
 			if ($projectId <= 0) {
 				continue;
 			}
@@ -94,14 +87,12 @@ class ProjectRetentionService
 		];
 	}
 
-	public function deleteProject(Project $project): void
-	{
+	public function deleteProject(Project $project): void {
 		$this->purgeProject($project);
 	}
 
-	private function purgeProject(Project $project): void
-	{
-		$projectId = (int) ($project->getId() ?? 0);
+	private function purgeProject(Project $project): void {
+		$projectId = (int)($project->getId() ?? 0);
 		if ($projectId <= 0) {
 			return;
 		}
@@ -143,19 +134,18 @@ class ProjectRetentionService
 		]);
 	}
 
-	private function deleteBoard(Project $project): void
-	{
+	private function deleteBoard(Project $project): void {
 		if ($this->boardMapper === null) {
 			return;
 		}
 
-		$boardId = trim((string) ($project->getBoardId() ?? ''));
+		$boardId = trim((string)($project->getBoardId() ?? ''));
 		if ($boardId === '' || !ctype_digit($boardId)) {
 			return;
 		}
 
 		try {
-			$board = $this->boardMapper->find((int) $boardId, allowDeleted: true);
+			$board = $this->boardMapper->find((int)$boardId, allowDeleted: true);
 			$this->boardMapper->delete($board);
 		} catch (\Throwable $e) {
 			$this->logger->warning('Board cleanup skipped during project purge', [
@@ -166,10 +156,9 @@ class ProjectRetentionService
 		}
 	}
 
-	private function deleteSharedFolder(Project $project): void
-	{
-		$rootNodeId = (int) ($project->getFolderId() ?? 0);
-		$groupFolderId = (int) ($project->getGroupFolderId() ?? 0);
+	private function deleteSharedFolder(Project $project): void {
+		$rootNodeId = (int)($project->getFolderId() ?? 0);
+		$groupFolderId = (int)($project->getGroupFolderId() ?? 0);
 		if ($rootNodeId <= 0 && $groupFolderId <= 0) {
 			return;
 		}
@@ -195,8 +184,7 @@ class ProjectRetentionService
 		}
 	}
 
-	private function deleteStandardFolderFallback(Project $project, int $folderId): void
-	{
+	private function deleteStandardFolderFallback(Project $project, int $folderId): void {
 		try {
 			$ownerFolder = $this->rootFolder->getUserFolder($project->getOwnerId());
 			$nodes = $ownerFolder->getById($folderId);
@@ -216,10 +204,9 @@ class ProjectRetentionService
 	/**
 	 * @param PrivateFolderLink[] $privateLinks
 	 */
-	private function deletePrivateFolders(array $privateLinks): void
-	{
+	private function deletePrivateFolders(array $privateLinks): void {
 		foreach ($privateLinks as $link) {
-			$folderId = (int) ($link->getFolderId() ?? 0);
+			$folderId = (int)($link->getFolderId() ?? 0);
 			if ($folderId > 0) {
 				try {
 					$nodes = $this->rootFolder->getById($folderId);
@@ -238,8 +225,8 @@ class ProjectRetentionService
 				}
 			}
 
-			$userId = trim((string) ($link->getUserId() ?? ''));
-			$folderPath = trim((string) ($link->getFolderPath() ?? ''));
+			$userId = trim((string)($link->getUserId() ?? ''));
+			$folderPath = trim((string)($link->getFolderPath() ?? ''));
 			if ($userId === '' || $folderPath === '') {
 				continue;
 			}
@@ -261,9 +248,8 @@ class ProjectRetentionService
 		}
 	}
 
-	private function deleteProjectGroup(Project $project): void
-	{
-		$groupId = trim((string) ($project->getProjectGroupGid() ?? ''));
+	private function deleteProjectGroup(Project $project): void {
+		$groupId = trim((string)($project->getProjectGroupGid() ?? ''));
 		if ($groupId === '') {
 			return;
 		}
@@ -282,20 +268,19 @@ class ProjectRetentionService
 		}
 	}
 
-	private function deleteTalkConversations(Project $project): void
-	{
+	private function deleteTalkConversations(Project $project): void {
 		$tokens = [];
-		$mainToken = trim((string) ($project->getTalkConversationToken() ?? ''));
+		$mainToken = trim((string)($project->getTalkConversationToken() ?? ''));
 		if ($mainToken !== '') {
 			$tokens[] = $mainToken;
 		}
 
-		$projectId = (int) ($project->getId() ?? 0);
+		$projectId = (int)($project->getId() ?? 0);
 		if ($projectId > 0 && $this->directChatMapper !== null) {
 			try {
 				$directChats = $this->directChatMapper->findByProject($projectId);
 				foreach ($directChats as $chat) {
-					$token = trim((string) $chat->getTalkConversationToken());
+					$token = trim((string)$chat->getTalkConversationToken());
 					if ($token !== '') {
 						$tokens[] = $token;
 					}
@@ -320,8 +305,7 @@ class ProjectRetentionService
 		}
 	}
 
-	private function deleteDeckDoneSyncRows(int $projectId): void
-	{
+	private function deleteDeckDoneSyncRows(int $projectId): void {
 		if ($this->db === null) {
 			return;
 		}
