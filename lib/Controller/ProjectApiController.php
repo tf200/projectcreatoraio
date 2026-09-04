@@ -1187,12 +1187,6 @@ class ProjectApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
-	public function createDirectChat(int $projectId, string $targetUserId = ''): DataResponse {
-		return $this->getOrCreateDirectChat($projectId, $targetUserId);
-	}
-
-	#[NoCSRFRequired]
-	#[NoAdminRequired]
 	public function getDirectChatMessages(int $projectId, string $targetUserId, int $limit = 50, int $offset = 0): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {

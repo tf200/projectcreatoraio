@@ -141,27 +141,6 @@ class ProjectTalkIntegrationService {
 		try {
 			$room = $this->getTalkManager()->getRoomByToken($token);
 
-			$participants = [
-				[
-					'actorType' => self::TALK_ACTOR_USERS,
-					'actorId' => $user1->getUID(),
-					'displayName' => $user1->getDisplayName(),
-					'participantType' => self::TALK_PARTICIPANT_USER,
-				],
-				[
-					'actorType' => self::TALK_ACTOR_USERS,
-					'actorId' => $user2->getUID(),
-					'displayName' => $user2->getDisplayName(),
-					'participantType' => self::TALK_PARTICIPANT_USER,
-				],
-			];
-
-			try {
-				$this->getParticipantService()->addUsers($room, $participants, $user1);
-			} catch (Throwable) {
-				// Participants may already be seeded by createConversation
-			}
-
 			if ($projectId > 0) {
 				$this->trySetRoomDescription($room, sprintf(
 					'Direct project chat for %s between %s and %s.',

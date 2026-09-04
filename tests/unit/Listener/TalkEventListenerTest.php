@@ -106,6 +106,10 @@ final class TalkEventListenerTest extends TestCase {
 		$this->projectMapper->method('find')
 			->with(42)
 			->willReturn($project);
+		$this->directChatMapper->expects($this->once())
+			->method('touch')
+			->with($directChat)
+			->willReturn($directChat);
 
 		$room = $this->createMock(Room::class);
 		$room->method('getToken')->willReturn('direct-token');

@@ -183,6 +183,22 @@ class ProjectActivityService {
 
 	public static function prepareEventForUser(ProjectActivityEvent $event, string $userId): ProjectActivityEvent {
 		$payload = $event->getPayloadArray();
+		$isDirectChatEvent = in_array($event->getEventType(), [
+			self::EVENT_TALK_DIRECT_CHAT_CREATED,
+			self::EVENT_TALK_DIRECT_MESSAGE_SENT,
+		], true);
+		$otherUserId = (string)($payload['targetUserId'] ?? $payload['otherUserId'] ?? '');
+
+		if ($isDirectChatEvent && $event->getActorUid() !== $userId && $otherUserId !== $userId) {
+			$redacted = clone $event;
+			$redacted->setPayloadArray([
+				'redacted' => true,
+				'isDirectChat' => true,
+				'projectName' => $payload['projectName'] ?? '',
+			]);
+			return $redacted;
+		}
+
 		$isPrivateNote = in_array($event->getEventType(), [
 			self::EVENT_NOTE_CREATED,
 			self::EVENT_NOTE_UPDATED,

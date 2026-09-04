@@ -13,6 +13,7 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
 use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
@@ -2552,21 +2553,7 @@ class ProjectService {
 
 		$directChat = $this->directChatMapper->findPair($projectId, $currentUserId, $targetUserId);
 		if ($directChat !== null) {
-			$token = trim((string)$directChat->getTalkConversationToken());
-			return [
-				'id' => $directChat->getId(),
-				'projectId' => $projectId,
-				'user1Id' => (string)$directChat->getUser1Id(),
-				'user2Id' => (string)$directChat->getUser2Id(),
-				'otherUser' => [
-					'id' => $targetUser->getUID(),
-					'displayName' => $targetUser->getDisplayName(),
-				],
-				'talkConversationToken' => $token,
-				'talkUrl' => $this->projectTalkIntegrationService->buildConversationUrl($token),
-				'createdAt' => $directChat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-				'updatedAt' => $directChat->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
-			];
+			return $this->buildDirectChatPayload($directChat, $targetUser);
 		}
 
 		$conversation = $this->projectTalkIntegrationService->createProjectDirectConversation(
@@ -2576,12 +2563,24 @@ class ProjectService {
 			$targetUser,
 		);
 
-		$directChat = $this->directChatMapper->createChat(
-			$projectId,
-			$currentUserId,
-			$targetUserId,
-			$conversation['token'],
-		);
+		try {
+			$directChat = $this->directChatMapper->createChat(
+				$projectId,
+				$currentUserId,
+				$targetUserId,
+				$conversation['token'],
+			);
+		} catch (\Throwable $e) {
+			try {
+				$this->projectTalkIntegrationService->deleteConversation($conversation['token']);
+			} catch (\Throwable) {
+			}
+			$concurrentChat = $this->directChatMapper->findPair($projectId, $currentUserId, $targetUserId);
+			if ($concurrentChat !== null) {
+				return $this->buildDirectChatPayload($concurrentChat, $targetUser);
+			}
+			throw $e;
+		}
 
 		$this->projectActivityService->recordWithActorInfo(
 			$project,
@@ -2596,20 +2595,27 @@ class ProjectService {
 			]
 		);
 
-		$token = (string)$directChat->getTalkConversationToken();
+		return $this->buildDirectChatPayload($directChat, $targetUser, $conversation['url'] ?? null);
+	}
+
+	/**
+	 * @return array{id: int|null, projectId: int, user1Id: string, user2Id: string, otherUser: array{id: string, displayName: string}, talkConversationToken: string, talkUrl: ?string, createdAt: ?string, updatedAt: ?string}
+	 */
+	private function buildDirectChatPayload(ProjectDirectChat $chat, IUser $otherUser, ?string $talkUrl = null): array {
+		$token = trim((string)$chat->getTalkConversationToken());
 		return [
-			'id' => $directChat->getId(),
-			'projectId' => $projectId,
-			'user1Id' => (string)$directChat->getUser1Id(),
-			'user2Id' => (string)$directChat->getUser2Id(),
+			'id' => $chat->getId(),
+			'projectId' => (int)$chat->getProjectId(),
+			'user1Id' => (string)$chat->getUser1Id(),
+			'user2Id' => (string)$chat->getUser2Id(),
 			'otherUser' => [
-				'id' => $targetUser->getUID(),
-				'displayName' => $targetUser->getDisplayName(),
+				'id' => $otherUser->getUID(),
+				'displayName' => $otherUser->getDisplayName(),
 			],
 			'talkConversationToken' => $token,
-			'talkUrl' => $conversation['url'] ?? $this->projectTalkIntegrationService->buildConversationUrl($token),
-			'createdAt' => $directChat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-			'updatedAt' => $directChat->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+			'talkUrl' => $talkUrl ?? $this->projectTalkIntegrationService->buildConversationUrl($token),
+			'createdAt' => $chat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+			'updatedAt' => $chat->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
 		];
 	}
 

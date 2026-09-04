@@ -75,4 +75,37 @@ final class ProjectActivityServiceTest extends TestCase {
 		], $memberEvent->getPayloadArray());
 		$this->assertNotSame($event, $memberEvent);
 	}
+
+	public function testDirectMessagePayloadIsOnlyVisibleToParticipants(): void {
+		$event = new ProjectActivityEvent();
+		$event->setActorUid('alice');
+		$event->setEventType(ProjectActivityService::EVENT_TALK_DIRECT_MESSAGE_SENT);
+		$event->setPayloadArray([
+			'messagePreview' => 'Confidential message',
+			'isDirectChat' => true,
+			'otherUserId' => 'bob',
+			'projectName' => 'Alpha',
+		]);
+
+		$this->assertSame('Confidential message', ProjectActivityService::prepareEventForUser($event, 'alice')->getPayloadArray()['messagePreview']);
+		$this->assertSame('Confidential message', ProjectActivityService::prepareEventForUser($event, 'bob')->getPayloadArray()['messagePreview']);
+		$this->assertSame([
+			'redacted' => true,
+			'isDirectChat' => true,
+			'projectName' => 'Alpha',
+		], ProjectActivityService::prepareEventForUser($event, 'charlie')->getPayloadArray());
+	}
+
+	public function testDirectChatCreationPayloadIsOnlyVisibleToParticipants(): void {
+		$event = new ProjectActivityEvent();
+		$event->setActorUid('alice');
+		$event->setEventType(ProjectActivityService::EVENT_TALK_DIRECT_CHAT_CREATED);
+		$event->setPayloadArray([
+			'targetUserId' => 'bob',
+			'conversationToken' => 'private-token',
+		]);
+
+		$this->assertSame('private-token', ProjectActivityService::prepareEventForUser($event, 'bob')->getPayloadArray()['conversationToken']);
+		$this->assertArrayNotHasKey('conversationToken', ProjectActivityService::prepareEventForUser($event, 'charlie')->getPayloadArray());
+	}
 }

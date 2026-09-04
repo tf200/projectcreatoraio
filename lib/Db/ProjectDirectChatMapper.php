@@ -113,6 +113,11 @@ class ProjectDirectChatMapper extends QBMapper {
 		return $this->insert($entity);
 	}
 
+	public function touch(ProjectDirectChat $chat): ProjectDirectChat {
+		$chat->setUpdatedAt(new DateTime());
+		return $this->update($chat);
+	}
+
 	/**
 	 * Delete all direct chats for a project.
 	 */

@@ -123,8 +123,8 @@
 				@click="switchChatSubTab('direct')">
 				<Account :size="14" />
 				<span>Direct Chats</span>
-				<span v-if="eligibleDirectMembers.length" class="project-notes-list__tab-badge">
-					{{ eligibleDirectMembers.length }}
+				<span v-if="existingDirectChatCount" class="project-notes-list__tab-badge">
+					{{ existingDirectChatCount }}
 				</span>
 			</button>
 		</div>
@@ -568,6 +568,8 @@ export default {
 			cardSubTab: 'notes',
 			chatSubTab: 'team',
 			selectedDirectMemberId: '',
+			existingDirectChats: [],
+			directChatRequestId: 0,
 			directChatMessages: [],
 			directChatHasMore: false,
 			directChatOffset: 0,
@@ -634,10 +636,19 @@ export default {
 		eligibleDirectMembers() {
 			const myId = String(this.currentUserId || '').trim().toLowerCase()
 			if (!Array.isArray(this.members)) return []
-			return this.members.filter(m => {
+			const existingIds = new Set(this.existingDirectChats.map(chat => String(chat?.otherUser?.id || '').toLowerCase()))
+			const members = this.members.filter(m => {
 				const mId = String(m?.id || '').trim().toLowerCase()
 				return mId !== '' && mId !== myId
 			})
+			return members.sort((a, b) => {
+				const aHasChat = existingIds.has(String(a.id).toLowerCase())
+				const bHasChat = existingIds.has(String(b.id).toLowerCase())
+				return Number(bHasChat) - Number(aHasChat)
+			})
+		},
+		existingDirectChatCount() {
+			return this.existingDirectChats.length
 		},
 		selectedDirectMember() {
 			if (!this.selectedDirectMemberId) return null
@@ -661,6 +672,7 @@ export default {
 			immediate: true,
 			handler(newId) {
 				if (newId) {
+					this.directChatRequestId++
 					this.chatOffset = 0
 					this.chatMessages = []
 					this.chatHasMore = false
@@ -671,7 +683,9 @@ export default {
 					this.directChatSummary = null
 					this.directChatError = ''
 					this.selectedDirectMemberId = ''
+					this.existingDirectChats = []
 					this.loadNotes(1)
+					this.loadDirectChats()
 				}
 			},
 		},
@@ -797,36 +811,60 @@ export default {
 		},
 		async selectDirectMember(member) {
 			if (!member || !member.id) return
-			this.selectedDirectMemberId = member.id
+			const projectId = this.projectId
+			const memberId = String(member.id)
+			const requestId = ++this.directChatRequestId
+			this.selectedDirectMemberId = memberId
 			this.directChatLoading = true
 			this.directChatError = ''
 			this.directChatMessages = []
 			this.directChatOffset = 0
 			this.directChatHasMore = false
+			this.directChatTalkUrl = ''
+			this.directChatSummary = null
 
 			try {
-				const chat = await projectsService.getOrCreateDirectChat(this.projectId, member.id)
+				const chat = await projectsService.getOrCreateDirectChat(projectId, memberId)
+				if (!this.isCurrentDirectChatRequest(requestId, projectId, memberId)) return
 				if (chat) {
 					this.directChatSummary = chat
 					this.directChatTalkUrl = chat.talkUrl || ''
+					this.loadDirectChats()
 				}
-				const result = await projectsService.getDirectChatMessages(this.projectId, member.id, {
+				const result = await projectsService.getDirectChatMessages(projectId, memberId, {
 					limit: this.perPage,
 					offset: 0,
 				})
+				if (!this.isCurrentDirectChatRequest(requestId, projectId, memberId)) return
 				if (result) {
 					this.directChatMessages = result.messages || []
 					this.directChatHasMore = result.hasMore || false
 					this.directChatOffset = Number(result.nextOffset) || 0
 				}
 			} catch (err) {
+				if (!this.isCurrentDirectChatRequest(requestId, projectId, memberId)) return
 				console.error('Failed to load direct chat:', err)
 				this.directChatError = err?.response?.data?.message || err?.message || 'Could not open direct chat'
 			} finally {
-				this.directChatLoading = false
+				if (this.isCurrentDirectChatRequest(requestId, projectId, memberId)) {
+					this.directChatLoading = false
+				}
+			}
+		},
+		isCurrentDirectChatRequest(requestId, projectId, memberId) {
+			return requestId === this.directChatRequestId
+				&& projectId === this.projectId
+				&& memberId.toLowerCase() === String(this.selectedDirectMemberId).toLowerCase()
+		},
+		async loadDirectChats() {
+			const projectId = this.projectId
+			const chats = await projectsService.listDirectChats(projectId)
+			if (projectId === this.projectId) {
+				this.existingDirectChats = chats
 			}
 		},
 		clearSelectedDirectMember() {
+			this.directChatRequestId++
 			this.selectedDirectMemberId = ''
 			this.directChatMessages = []
 			this.directChatOffset = 0
@@ -838,21 +876,29 @@ export default {
 		},
 		async loadMoreDirectChatMessages() {
 			if (this.directChatLoading || !this.selectedDirectMemberId) return
+			const requestId = this.directChatRequestId
+			const projectId = this.projectId
+			const memberId = String(this.selectedDirectMemberId)
 			this.directChatLoading = true
 			try {
-				const result = await projectsService.getDirectChatMessages(this.projectId, this.selectedDirectMemberId, {
+				const result = await projectsService.getDirectChatMessages(projectId, memberId, {
 					limit: this.perPage,
 					offset: this.directChatOffset,
 				})
+				if (!this.isCurrentDirectChatRequest(requestId, projectId, memberId)) return
 				if (result) {
 					this.directChatMessages = [...this.directChatMessages, ...(result.messages || [])]
 					this.directChatHasMore = result.hasMore || false
 					this.directChatOffset = Number(result.nextOffset) || this.directChatOffset
 				}
 			} catch (err) {
-				console.error('Failed to load more direct chat messages:', err)
+				if (this.isCurrentDirectChatRequest(requestId, projectId, memberId)) {
+					console.error('Failed to load more direct chat messages:', err)
+				}
 			} finally {
-				this.directChatLoading = false
+				if (this.isCurrentDirectChatRequest(requestId, projectId, memberId)) {
+					this.directChatLoading = false
+				}
 			}
 		},
 		async loadChatMessages() {

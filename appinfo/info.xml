@@ -5,7 +5,7 @@
 	<name>Projects</name>
 	<summary>Projects creator</summary>
 	<description>App to create projects easily</description>
-	<version>1.0.48</version>
+	<version>1.0.49</version>
 	<licence>agpl</licence>
 	<author mail="mmed172017@gmail.com">med172017</author>
 	<namespace>ProjectCreatorAIO</namespace>

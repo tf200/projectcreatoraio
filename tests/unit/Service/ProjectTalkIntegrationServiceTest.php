@@ -278,23 +278,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         $this->assertSame('direct-token-123', $result['token']);
         $this->assertSame('https://cloud.example.test/call/direct-token-123', $result['url']);
 
-        $this->assertCount(1, $participantService->calls);
-        $this->assertSame($room, $participantService->calls[0]['room']);
-        $this->assertSame($user1, $participantService->calls[0]['addedBy']);
-        $this->assertSame([
-            [
-                'actorType' => 'users',
-                'actorId' => 'alice',
-                'displayName' => 'Alice Doe',
-                'participantType' => 3,
-            ],
-            [
-                'actorType' => 'users',
-                'actorId' => 'bob',
-                'displayName' => 'Bob Smith',
-                'participantType' => 3,
-            ],
-        ], $participantService->calls[0]['participants']);
+		$this->assertCount(0, $participantService->calls);
 
         $this->assertCount(1, $roomService->descriptions);
         $this->assertSame('Direct project chat for Phoenix Project between Alice Doe and Bob Smith.', $roomService->descriptions[0]['description']);

@@ -110,6 +110,7 @@ class TalkEventListener implements IEventListener {
 		];
 
 		if ($directChat !== null) {
+			$this->directChatMapper?->touch($directChat);
 			$payload['isDirectChat'] = true;
 			$payload['directChatId'] = $directChat->getId();
 			$payload['otherUserId'] = $directChat->getOtherUserId($actorUid);

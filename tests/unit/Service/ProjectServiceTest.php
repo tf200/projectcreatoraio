@@ -613,6 +613,73 @@ final class ProjectServiceTest extends TestCase {
 		$this->assertSame('bob', $result['otherUser']['id']);
 	}
 
+	public function testGetOrCreateDirectChatCleansUpRoomLostToConcurrentRequest(): void {
+		$project = $this->project(42, 'alice', null);
+		$project->setName('Project Alpha');
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('get')->willReturnMap([
+			['alice', $alice],
+			['bob', $bob],
+		]);
+
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$alice, $bob]);
+
+		$concurrentChat = new ProjectDirectChat();
+		$concurrentChat->setId(16);
+		$concurrentChat->setProjectId(42);
+		$concurrentChat->setUser1Id('alice');
+		$concurrentChat->setUser2Id('bob');
+		$concurrentChat->setTalkConversationToken('winning-token');
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->expects($this->exactly(2))
+			->method('findPair')
+			->with(42, 'alice', 'bob')
+			->willReturnOnConsecutiveCalls(null, $concurrentChat);
+		$chatMapper->expects($this->once())
+			->method('createChat')
+			->willThrowException(new \RuntimeException('Duplicate pair'));
+
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->method('isAvailable')->willReturn(true);
+		$talkService->expects($this->once())
+			->method('createProjectDirectConversation')
+			->willReturn(['token' => 'losing-token', 'url' => 'https://example.test/call/losing-token']);
+		$talkService->expects($this->once())
+			->method('deleteConversation')
+			->with('losing-token');
+		$talkService->method('buildConversationUrl')
+			->with('winning-token')
+			->willReturn('https://example.test/call/winning-token');
+
+		$activityService = $this->createMock(ProjectActivityService::class);
+		$activityService->expects($this->never())->method('recordWithActorInfo');
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$userManager,
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+			projectMemberResolver: $resolver,
+			projectActivityService: $activityService,
+		);
+
+		$result = $service->getOrCreateDirectChat(42, 'alice', 'bob');
+
+		$this->assertSame(16, $result['id']);
+		$this->assertSame('winning-token', $result['talkConversationToken']);
+	}
+
 	public function testListUserDirectChats(): void {
 		$project = $this->project(42, 'alice', null);
 		$projectMapper = $this->createMock(ProjectMapper::class);

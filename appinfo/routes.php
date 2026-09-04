@@ -130,11 +130,6 @@ return [
             "verb" => "GET",
         ],
         [
-            "name" => "project_api#createDirectChat",
-            "url" => "/api/v1/projects/{projectId}/direct-chats",
-            "verb" => "POST",
-        ],
-        [
             "name" => "project_api#getOrCreateDirectChat",
             "url" => "/api/v1/projects/{projectId}/direct-chats/{targetUserId}",
             "verb" => "POST",

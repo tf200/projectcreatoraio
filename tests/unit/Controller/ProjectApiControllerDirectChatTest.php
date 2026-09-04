@@ -208,38 +208,6 @@ final class ProjectApiControllerDirectChatTest extends TestCase {
 		$this->assertSame($expectedResult, $response->getData());
 	}
 
-	public function testCreateDirectChatUsesRequestParamWhenUrlParamEmpty(): void {
-		$this->mockAuthenticatedUser('alice', true);
-
-		$project = new Project();
-		$project->setId(42);
-		$this->projectMapper->method('find')->with(42)->willReturn($project);
-
-		$this->request->method('getParam')
-			->with('targetUserId', '')
-			->willReturn('charlie');
-
-		$expectedChat = [
-			'id' => 11,
-			'projectId' => 42,
-			'user1Id' => 'alice',
-			'user2Id' => 'charlie',
-			'otherUser' => ['id' => 'charlie', 'displayName' => 'Charlie'],
-			'talkConversationToken' => 'token-xyz',
-			'talkUrl' => 'https://example.test/call/token-xyz',
-		];
-
-		$this->projectService->expects($this->once())
-			->method('getOrCreateDirectChat')
-			->with(42, 'alice', 'charlie')
-			->willReturn($expectedChat);
-
-		$response = $this->controller->createDirectChat(42, '');
-
-		$this->assertInstanceOf(DataResponse::class, $response);
-		$this->assertSame($expectedChat, $response->getData());
-	}
-
 	public function testNonMemberCannotAccessProjectDirectChats(): void {
 		// Non-admin user
 		$this->mockAuthenticatedUser('eve', false);
