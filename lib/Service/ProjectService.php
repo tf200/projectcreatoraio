@@ -12,6 +12,9 @@ use OCA\ProjectCreatorAIO\Db\BoardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectMemberResolver;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\Files\IRootFolder;
@@ -102,7 +105,9 @@ class ProjectService
         private readonly BoardPolicyMembershipMapper $policyMembershipMapper,
         private readonly CardPolicyService $cardPolicyService,
         private readonly OrganizationPdfService $organizationPdfService,
-        private readonly ProjectAdministratorAccessService $administratorAccessService,
+        private readonly ?ProjectAdministratorAccessService $administratorAccessService = null,
+        private readonly ?ProjectDirectChatMapper $directChatMapper = null,
+        private readonly ?ProjectMemberResolver $projectMemberResolver = null,
     ) {
     }
 
@@ -244,7 +249,7 @@ class ProjectService
                 $locZip,
             );
             $createdProject = $project;
-            $this->administratorAccessService->syncProject($project);
+            $this->administratorAccessService?->syncProject($project);
             $this->memberRoleMapper->replaceRoles((int)$project->getId(), $owner->getUID(), ['accountable']);
 
             $seededCards = [];
@@ -1074,7 +1079,7 @@ class ProjectService
                 (int) $privateFolder->getId(),
                 $privateFolder->getPath(),
             );
-            $this->administratorAccessService->syncProject($project);
+            $this->administratorAccessService?->syncProject($project);
             return ['created' => true, 'folder' => $privateFolder];
         } catch (Throwable $e) {
             $this->logger->error('Failed to ensure private folder for member', [
@@ -2519,5 +2524,249 @@ class ProjectService
             'files'
         );
         $storage->getScanner()->scan('');
+    }
+
+    /**
+     * Check if a user is a member of the project (owner or group member).
+     */
+    public function isProjectMember(Project $project, string $userId): bool
+    {
+        $userId = trim($userId);
+        if ($userId === '') {
+            return false;
+        }
+
+        $ownerId = trim((string) ($project->getOwnerId() ?? ''));
+        if ($userId === $ownerId) {
+            return true;
+        }
+
+        $groupGid = trim((string) ($project->getProjectGroupGid() ?? ''));
+        if ($groupGid !== '' && $this->groupManager->isInGroup($userId, $groupGid)) {
+            return true;
+        }
+
+        if ($this->projectMemberResolver !== null) {
+            $members = $this->projectMemberResolver->getProjectMembers($project);
+            foreach ($members as $member) {
+                if ($member->getUID() === $userId) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get or create a 1-to-1 project direct chat between current user and target user.
+     *
+     * @return array{id: int|null, projectId: int, user1Id: string, user2Id: string, otherUser: array{id: string, displayName: string}, talkConversationToken: string, talkUrl: ?string, createdAt: ?string, updatedAt: ?string}
+     */
+    public function getOrCreateDirectChat(int $projectId, string $currentUserId, string $targetUserId): array
+    {
+        $currentUserId = trim($currentUserId);
+        $targetUserId = trim($targetUserId);
+
+        if ($currentUserId === '' || $targetUserId === '') {
+            throw new OCSException('User IDs must be provided.', 400);
+        }
+
+        if ($currentUserId === $targetUserId) {
+            throw new OCSException('Cannot create a direct chat with yourself.', 400);
+        }
+
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        $currentUser = $this->userManager->get($currentUserId);
+        if ($currentUser === null) {
+            throw new OCSException(sprintf('User "%s" does not exist.', $currentUserId), 404);
+        }
+
+        $targetUser = $this->userManager->get($targetUserId);
+        if ($targetUser === null) {
+            throw new OCSException(sprintf('User "%s" does not exist.', $targetUserId), 404);
+        }
+
+        if (!$this->isProjectMember($project, $currentUserId)) {
+            throw new OCSException('Current user is not a member of this project.', 403);
+        }
+
+        if (!$this->isProjectMember($project, $targetUserId)) {
+            throw new OCSException('Target user is not a member of this project.', 403);
+        }
+
+        if (!$this->projectTalkIntegrationService->isAvailable()) {
+            throw new OCSException('Talk service is not available.', 503);
+        }
+
+        if ($this->directChatMapper === null) {
+            throw new OCSException('Direct chat persistence is unavailable.', 500);
+        }
+
+        $directChat = $this->directChatMapper->findPair($projectId, $currentUserId, $targetUserId);
+        if ($directChat !== null) {
+            $token = trim((string) $directChat->getTalkConversationToken());
+            return [
+                'id' => $directChat->getId(),
+                'projectId' => $projectId,
+                'user1Id' => (string) $directChat->getUser1Id(),
+                'user2Id' => (string) $directChat->getUser2Id(),
+                'otherUser' => [
+                    'id' => $targetUser->getUID(),
+                    'displayName' => $targetUser->getDisplayName(),
+                ],
+                'talkConversationToken' => $token,
+                'talkUrl' => $this->projectTalkIntegrationService->buildConversationUrl($token),
+                'createdAt' => $directChat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+                'updatedAt' => $directChat->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+            ];
+        }
+
+        $conversation = $this->projectTalkIntegrationService->createProjectDirectConversation(
+            (string) $project->getName(),
+            $projectId,
+            $currentUser,
+            $targetUser,
+        );
+
+        $directChat = $this->directChatMapper->createChat(
+            $projectId,
+            $currentUserId,
+            $targetUserId,
+            $conversation['token'],
+        );
+
+        $this->projectActivityService->recordWithActorInfo(
+            $project,
+            'talk_direct_chat_created',
+            'talk',
+            $currentUser->getUID(),
+            $currentUser->getDisplayName(),
+            [
+                'targetUserId' => $targetUser->getUID(),
+                'targetDisplayName' => $targetUser->getDisplayName(),
+                'conversationToken' => $conversation['token'],
+            ]
+        );
+
+        $token = (string) $directChat->getTalkConversationToken();
+        return [
+            'id' => $directChat->getId(),
+            'projectId' => $projectId,
+            'user1Id' => (string) $directChat->getUser1Id(),
+            'user2Id' => (string) $directChat->getUser2Id(),
+            'otherUser' => [
+                'id' => $targetUser->getUID(),
+                'displayName' => $targetUser->getDisplayName(),
+            ],
+            'talkConversationToken' => $token,
+            'talkUrl' => $conversation['url'] ?? $this->projectTalkIntegrationService->buildConversationUrl($token),
+            'createdAt' => $directChat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+            'updatedAt' => $directChat->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
+    /**
+     * List all direct chats for a user within a project.
+     *
+     * @return array<int, array{id: int|null, projectId: int, user1Id: string, user2Id: string, otherUser: array{id: string, displayName: string}, talkConversationToken: string, talkUrl: ?string, createdAt: ?string, updatedAt: ?string}>
+     */
+    public function listUserDirectChats(int $projectId, string $currentUserId): array
+    {
+        $currentUserId = trim($currentUserId);
+        if ($currentUserId === '') {
+            throw new OCSException('User ID must be provided.', 400);
+        }
+
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        if (!$this->isProjectMember($project, $currentUserId)) {
+            throw new OCSException('Current user is not a member of this project.', 403);
+        }
+
+        if ($this->directChatMapper === null) {
+            return [];
+        }
+
+        $chats = $this->directChatMapper->findByProjectAndUser($projectId, $currentUserId);
+        $result = [];
+
+        foreach ($chats as $chat) {
+            $otherUid = $chat->getOtherUserId($currentUserId);
+            if ($otherUid === null) {
+                continue;
+            }
+
+            $otherUser = $this->userManager->get($otherUid);
+            $token = trim((string) $chat->getTalkConversationToken());
+
+            $result[] = [
+                'id' => $chat->getId(),
+                'projectId' => (int) $chat->getProjectId(),
+                'user1Id' => (string) $chat->getUser1Id(),
+                'user2Id' => (string) $chat->getUser2Id(),
+                'otherUser' => [
+                    'id' => $otherUid,
+                    'displayName' => $otherUser?->getDisplayName() ?? $otherUid,
+                ],
+                'talkConversationToken' => $token,
+                'talkUrl' => $this->projectTalkIntegrationService->buildConversationUrl($token),
+                'createdAt' => $chat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+                'updatedAt' => $chat->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fetch messages for a direct chat between two members of a project.
+     *
+     * @return array{messages: list<array{id: int, actorDisplayName: string, message: string, timestamp: int, messageType: string}>, hasMore: bool, nextOffset: int}
+     */
+    public function getDirectChatMessages(int $projectId, string $currentUserId, string $targetUserId, int $limit = 50, int $offset = 0): array
+    {
+        $currentUserId = trim($currentUserId);
+        $targetUserId = trim($targetUserId);
+
+        if ($currentUserId === '' || $targetUserId === '') {
+            throw new OCSException('User IDs must be provided.', 400);
+        }
+
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSException("Project with ID $projectId not found", 404);
+        }
+
+        if (!$this->isProjectMember($project, $currentUserId)) {
+            throw new OCSException('Current user is not a member of this project.', 403);
+        }
+
+        if (!$this->isProjectMember($project, $targetUserId)) {
+            throw new OCSException('Target user is not a member of this project.', 403);
+        }
+
+        if ($this->directChatMapper === null) {
+            return ['messages' => [], 'hasMore' => false, 'nextOffset' => 0];
+        }
+
+        $directChat = $this->directChatMapper->findPair($projectId, $currentUserId, $targetUserId);
+        if ($directChat === null) {
+            return ['messages' => [], 'hasMore' => false, 'nextOffset' => 0];
+        }
+
+        $token = trim((string) $directChat->getTalkConversationToken());
+        if ($token === '') {
+            return ['messages' => [], 'hasMore' => false, 'nextOffset' => 0];
+        }
+
+        return $this->projectTalkIntegrationService->getConversationMessages($token, $limit, $offset);
     }
 }

@@ -133,10 +133,10 @@ projectcreatoraio/
 ---
 
 ### Phase 3: Project Service & Business Logic
-- [ ] **3.1 Membership Validation:** Ensure both participants are verified members of the project via `ProjectMemberResolver`.
-- [ ] **3.2 Get-or-Create Logic:** Implement `getOrCreateDirectChat(int $projectId, string $currentUserId, string $targetUserId)` in `ProjectService`.
-- [ ] **3.3 Listing Logic:** Implement `listUserDirectChats(int $projectId, string $currentUserId)` formatting members' display info, avatar, token, and Talk link.
-- [ ] **3.4 Unit Tests:** Add test cases in `tests/unit/Service/ProjectServiceTest.php`.
+- [x] **3.1 Membership Validation:** Ensure both participants are verified members of the project via `ProjectMemberResolver`.
+- [x] **3.2 Get-or-Create Logic:** Implement `getOrCreateDirectChat(int $projectId, string $currentUserId, string $targetUserId)` in `ProjectService`.
+- [x] **3.3 Listing Logic:** Implement `listUserDirectChats(int $projectId, string $currentUserId)` formatting members' display info, avatar, token, and Talk link.
+- [x] **3.4 Unit Tests:** Add test cases in `tests/unit/Service/ProjectServiceTest.php`.
 
 ---
 
@@ -187,3 +187,4 @@ projectcreatoraio/
 | **2026-09-04** | Architecture Specification | Documented motivation, Talk constraint analysis, schema, and phased execution plan. | Completed |
 | **2026-09-04** | Phase 1: Database & Persistence Layer | Implemented `proj_direct_chats` migration, `ProjectDirectChat` entity, `ProjectDirectChatMapper`, and unit tests (all passing). | Completed |
 | **2026-09-04** | Phase 2: Talk Integration Service Expansion | Implemented `createProjectDirectConversation`, `deleteConversations`, `trySetRoomDescription`, and comprehensive unit tests. | Completed |
+| **2026-09-04** | Phase 3: Project Service & Business Logic | Added `isProjectMember`, `getOrCreateDirectChat`, `listUserDirectChats`, `getDirectChatMessages` in `ProjectService`, dependency injection in `Application.php`, and 10 new unit tests in `ProjectServiceTest.php`. | Completed |

@@ -91,6 +91,8 @@ use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectMemberResolver;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
@@ -241,6 +243,8 @@ class Application extends App implements IBootstrap {
 				$c->get(CardPolicyService::class),
 				$c->get(OrganizationPdfService::class),
 				$c->get(ProjectAdministratorAccessService::class),
+				$c->get(ProjectDirectChatMapper::class),
+				$c->get(ProjectMemberResolver::class),
 			);
 		});
 

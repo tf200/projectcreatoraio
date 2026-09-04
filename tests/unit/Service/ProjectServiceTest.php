@@ -13,11 +13,15 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
+use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
 use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectAdministratorAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectMemberResolver;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
@@ -368,6 +372,389 @@ final class ProjectServiceTest extends TestCase {
 		$this->assertSame(['comments' => [], 'total' => 0], $service->getCardCommentsList(42, 'alice'));
 	}
 
+	public function testIsProjectMemberReturnsTrueForOwner(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+		);
+
+		$this->assertTrue($service->isProjectMember($project, 'alice'));
+	}
+
+	public function testIsProjectMemberUsesMemberResolver(): void {
+		$project = $this->project(42, 'alice', null);
+		$alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice']);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob']);
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->expects($this->exactly(2))
+			->method('getProjectMembers')
+			->with($project)
+			->willReturn([$alice, $bob]);
+
+		$service = $this->service(
+			$this->createMock(ProjectMapper::class),
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectMemberResolver: $resolver,
+		);
+
+		$this->assertTrue($service->isProjectMember($project, 'bob'));
+		$this->assertFalse($service->isProjectMember($project, 'charlie'));
+	}
+
+	public function testGetOrCreateDirectChatValidation(): void {
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+		);
+
+		// Same user ID
+		$this->expectException(OCSException::class);
+		$this->expectExceptionCode(400);
+		$service->getOrCreateDirectChat(42, 'alice', 'alice');
+	}
+
+	public function testGetOrCreateDirectChatThrowsWhenProjectNotFound(): void {
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn(null);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+		);
+
+		$this->expectException(OCSException::class);
+		$this->expectExceptionCode(404);
+		$service->getOrCreateDirectChat(42, 'alice', 'bob');
+	}
+
+	public function testGetOrCreateDirectChatThrowsWhenNotProjectMember(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('get')->willReturnMap([
+			['alice', $alice],
+			['bob', $bob],
+		]);
+
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$alice]); // bob not a member
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$userManager,
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectMemberResolver: $resolver,
+		);
+
+		$this->expectException(OCSException::class);
+		$this->expectExceptionCode(403);
+		$service->getOrCreateDirectChat(42, 'alice', 'bob');
+	}
+
+	public function testGetOrCreateDirectChatReturnsExistingChat(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('get')->willReturnMap([
+			['alice', $alice],
+			['bob', $bob],
+		]);
+
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$alice, $bob]);
+
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->method('isAvailable')->willReturn(true);
+		$talkService->method('buildConversationUrl')->with('existing-token')->willReturn('https://example.test/call/existing-token');
+		// createProjectDirectConversation should NOT be called
+		$talkService->expects($this->never())->method('createProjectDirectConversation');
+
+		$existingChat = new ProjectDirectChat();
+		$existingChat->setId(10);
+		$existingChat->setProjectId(42);
+		$existingChat->setUser1Id('alice');
+		$existingChat->setUser2Id('bob');
+		$existingChat->setTalkConversationToken('existing-token');
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->expects($this->once())
+			->method('findPair')
+			->with(42, 'alice', 'bob')
+			->willReturn($existingChat);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$userManager,
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+			projectMemberResolver: $resolver,
+		);
+
+		$result = $service->getOrCreateDirectChat(42, 'alice', 'bob');
+
+		$this->assertSame(10, $result['id']);
+		$this->assertSame(42, $result['projectId']);
+		$this->assertSame('existing-token', $result['talkConversationToken']);
+		$this->assertSame('https://example.test/call/existing-token', $result['talkUrl']);
+		$this->assertSame('bob', $result['otherUser']['id']);
+		$this->assertSame('Bob', $result['otherUser']['displayName']);
+	}
+
+	public function testGetOrCreateDirectChatCreatesNewChat(): void {
+		$project = $this->project(42, 'alice', null);
+		$project->setName('Project Alpha');
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('get')->willReturnMap([
+			['alice', $alice],
+			['bob', $bob],
+		]);
+
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$alice, $bob]);
+
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->method('isAvailable')->willReturn(true);
+		$talkService->expects($this->once())
+			->method('createProjectDirectConversation')
+			->with('Project Alpha', 42, $alice, $bob)
+			->willReturn(['token' => 'new-token', 'url' => 'https://example.test/call/new-token']);
+
+		$createdChat = new ProjectDirectChat();
+		$createdChat->setId(15);
+		$createdChat->setProjectId(42);
+		$createdChat->setUser1Id('alice');
+		$createdChat->setUser2Id('bob');
+		$createdChat->setTalkConversationToken('new-token');
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->expects($this->once())
+			->method('findPair')
+			->with(42, 'alice', 'bob')
+			->willReturn(null);
+		$chatMapper->expects($this->once())
+			->method('createChat')
+			->with(42, 'alice', 'bob', 'new-token')
+			->willReturn($createdChat);
+
+		$activityService = $this->createMock(ProjectActivityService::class);
+		$activityService->expects($this->once())
+			->method('recordWithActorInfo')
+			->with(
+				$project,
+				'talk_direct_chat_created',
+				'talk',
+				'alice',
+				'Alice',
+				[
+					'targetUserId' => 'bob',
+					'targetDisplayName' => 'Bob',
+					'conversationToken' => 'new-token',
+				]
+			);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$userManager,
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+			projectMemberResolver: $resolver,
+			projectActivityService: $activityService,
+		);
+
+		$result = $service->getOrCreateDirectChat(42, 'alice', 'bob');
+
+		$this->assertSame(15, $result['id']);
+		$this->assertSame(42, $result['projectId']);
+		$this->assertSame('new-token', $result['talkConversationToken']);
+		$this->assertSame('https://example.test/call/new-token', $result['talkUrl']);
+		$this->assertSame('bob', $result['otherUser']['id']);
+	}
+
+	public function testListUserDirectChats(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob Builder']);
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('get')->with('bob')->willReturn($bob);
+
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$bob]);
+
+		$chat = new ProjectDirectChat();
+		$chat->setId(20);
+		$chat->setProjectId(42);
+		$chat->setUser1Id('alice');
+		$chat->setUser2Id('bob');
+		$chat->setTalkConversationToken('tok-bob');
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->expects($this->once())
+			->method('findByProjectAndUser')
+			->with(42, 'alice')
+			->willReturn([$chat]);
+
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->method('buildConversationUrl')->with('tok-bob')->willReturn('https://example.test/call/tok-bob');
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$userManager,
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+			projectMemberResolver: $resolver,
+		);
+
+		$chats = $service->listUserDirectChats(42, 'alice');
+
+		$this->assertCount(1, $chats);
+		$this->assertSame(20, $chats[0]['id']);
+		$this->assertSame('bob', $chats[0]['otherUser']['id']);
+		$this->assertSame('Bob Builder', $chats[0]['otherUser']['displayName']);
+		$this->assertSame('tok-bob', $chats[0]['talkConversationToken']);
+		$this->assertSame('https://example.test/call/tok-bob', $chats[0]['talkUrl']);
+	}
+
+	public function testGetDirectChatMessages(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob']);
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$bob]);
+
+		$chat = new ProjectDirectChat();
+		$chat->setId(20);
+		$chat->setProjectId(42);
+		$chat->setUser1Id('alice');
+		$chat->setUser2Id('bob');
+		$chat->setTalkConversationToken('token-123');
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->expects($this->once())
+			->method('findPair')
+			->with(42, 'alice', 'bob')
+			->willReturn($chat);
+
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->expects($this->once())
+			->method('getConversationMessages')
+			->with('token-123', 50, 0)
+			->willReturn([
+				'messages' => [
+					[
+						'id' => 1,
+						'actorDisplayName' => 'Alice',
+						'message' => 'Hello Bob',
+						'timestamp' => 1700000000,
+						'messageType' => 'comment',
+					],
+				],
+				'hasMore' => false,
+				'nextOffset' => 1,
+			]);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+			projectMemberResolver: $resolver,
+		);
+
+		$result = $service->getDirectChatMessages(42, 'alice', 'bob', 50, 0);
+
+		$this->assertCount(1, $result['messages']);
+		$this->assertSame('Hello Bob', $result['messages'][0]['message']);
+		$this->assertFalse($result['hasMore']);
+	}
+
+	public function testGetDirectChatMessagesReturnsEmptyWhenNoChat(): void {
+		$project = $this->project(42, 'alice', null);
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob']);
+		$resolver = $this->createMock(ProjectMemberResolver::class);
+		$resolver->method('getProjectMembers')->willReturn([$bob]);
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->expects($this->once())
+			->method('findPair')
+			->with(42, 'alice', 'bob')
+			->willReturn(null);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			directChatMapper: $chatMapper,
+			projectMemberResolver: $resolver,
+		);
+
+		$result = $service->getDirectChatMessages(42, 'alice', 'bob');
+
+		$this->assertSame([], $result['messages']);
+		$this->assertFalse($result['hasMore']);
+		$this->assertSame(0, $result['nextOffset']);
+	}
+
 	private function role(int $id, string $key): BoardPolicyRole {
 		$role = new BoardPolicyRole();
 		$role->setId($id);
@@ -421,6 +808,10 @@ final class ProjectServiceTest extends TestCase {
 		?array $members = null,
 		array $functionalRoles = [],
 		?ProjectNoteMapper $noteMapper = null,
+		?ProjectTalkIntegrationService $projectTalkIntegrationService = null,
+		?ProjectDirectChatMapper $directChatMapper = null,
+		?ProjectMemberResolver $projectMemberResolver = null,
+		?ProjectActivityService $projectActivityService = null,
 	): ProjectService {
 		$service = new TestableProjectService(
 			userSession: $this->createMock(IUserSession::class),
@@ -442,9 +833,9 @@ final class ProjectServiceTest extends TestCase {
 			folderStorageManager: null,
 			changeHelper: null,
 			projectNotificationService: $this->createMock(ProjectNotificationService::class),
-			projectActivityService: $this->createMock(ProjectActivityService::class),
+			projectActivityService: $projectActivityService ?? $this->createMock(ProjectActivityService::class),
 			projectDeckActivityService: $this->createMock(ProjectDeckActivityService::class),
-			projectTalkIntegrationService: $this->createMock(ProjectTalkIntegrationService::class),
+			projectTalkIntegrationService: $projectTalkIntegrationService ?? $this->createMock(ProjectTalkIntegrationService::class),
 			cardMapper: $cardMapper,
 			stackService: null,
 			deckPermissionService: $deckPermissionService,
@@ -454,6 +845,9 @@ final class ProjectServiceTest extends TestCase {
 			policyMembershipMapper: $policyMembershipMapper,
 			cardPolicyService: $cardPolicyService ?? $this->createMock(CardPolicyService::class),
 			organizationPdfService: $this->createMock(OrganizationPdfService::class),
+			administratorAccessService: null,
+			directChatMapper: $directChatMapper,
+			projectMemberResolver: $projectMemberResolver,
 		);
 		$service->members = $members;
 		$service->functionalRoles = $functionalRoles;
