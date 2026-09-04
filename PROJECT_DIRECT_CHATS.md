@@ -141,12 +141,12 @@ projectcreatoraio/
 ---
 
 ### Phase 4: API & Routing Layer
-- [ ] **4.1 Route Registration:** Add routes in `appinfo/routes.php` for direct chats listing, creation, and message fetching.
-- [ ] **4.2 Controller Endpoints:** Implement methods in `lib/Controller/ProjectApiController.php`:
+- [x] **4.1 Route Registration:** Add routes in `appinfo/routes.php` for direct chats listing, creation, and message fetching.
+- [x] **4.2 Controller Endpoints:** Implement methods in `lib/Controller/ProjectApiController.php`:
   - `listDirectChats(int $projectId): DataResponse`
   - `getOrCreateDirectChat(int $projectId, string $targetUserId): DataResponse`
   - `getDirectChatMessages(int $projectId, string $targetUserId, int $limit, int $offset): DataResponse`
-- [ ] **4.3 API Permission Enforcement:** Verify non-members cannot query or create chats for projects they do not belong to.
+- [x] **4.3 API Permission Enforcement:** Verify non-members cannot query or create chats for projects they do not belong to.
 
 ---
 
@@ -188,3 +188,4 @@ projectcreatoraio/
 | **2026-09-04** | Phase 1: Database & Persistence Layer | Implemented `proj_direct_chats` migration, `ProjectDirectChat` entity, `ProjectDirectChatMapper`, and unit tests (all passing). | Completed |
 | **2026-09-04** | Phase 2: Talk Integration Service Expansion | Implemented `createProjectDirectConversation`, `deleteConversations`, `trySetRoomDescription`, and comprehensive unit tests. | Completed |
 | **2026-09-04** | Phase 3: Project Service & Business Logic | Added `isProjectMember`, `getOrCreateDirectChat`, `listUserDirectChats`, `getDirectChatMessages` in `ProjectService`, dependency injection in `Application.php`, and 10 new unit tests in `ProjectServiceTest.php`. | Completed |
+| **2026-09-04** | Phase 4: API & Routing Layer | Registered API routes in `appinfo/routes.php`, implemented `listDirectChats`, `getOrCreateDirectChat`, `createDirectChat`, and `getDirectChatMessages` in `ProjectApiController.php`, fixed `OCSForbiddenException` namespace import, and added 10 unit tests in `ProjectApiControllerDirectChatTest.php`. | Completed |

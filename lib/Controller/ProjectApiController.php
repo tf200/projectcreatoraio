@@ -23,7 +23,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\AppFramework\OCS\OCSBadRequestException;
-use OCP\AppFramework\Http\OCS\OCSForbiddenException;
+use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\BackgroundJob\IJobList;
 use OCP\IGroupManager;
 use OCP\IUserSession;
@@ -1152,6 +1152,97 @@ class ProjectApiController extends Controller
 
         $result = $this->talkIntegrationService->getConversationMessages($token, $limit, $offset);
         return new DataResponse($result);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function listDirectChats(int $projectId): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
+        $chats = $this->projectService->listUserDirectChats($projectId, $currentUser->getUID());
+        return new DataResponse($chats);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function getOrCreateDirectChat(int $projectId, string $targetUserId = ''): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
+        $targetUserId = trim($targetUserId);
+        if ($targetUserId === '') {
+            $targetUserId = trim((string) ($this->request->getParam('targetUserId', '')));
+        }
+
+        if ($targetUserId === '') {
+            throw new OCSBadRequestException('Target user ID is required');
+        }
+
+        if ($targetUserId === $currentUser->getUID()) {
+            throw new OCSBadRequestException('Cannot create a direct chat with yourself');
+        }
+
+        $chat = $this->projectService->getOrCreateDirectChat($projectId, $currentUser->getUID(), $targetUserId);
+        return new DataResponse($chat);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function createDirectChat(int $projectId, string $targetUserId = ''): DataResponse
+    {
+        return $this->getOrCreateDirectChat($projectId, $targetUserId);
+    }
+
+    #[NoCSRFRequired]
+    #[NoAdminRequired]
+    public function getDirectChatMessages(int $projectId, string $targetUserId, int $limit = 50, int $offset = 0): DataResponse
+    {
+        $project = $this->projectMapper->find($projectId);
+        if ($project === null) {
+            throw new OCSNotFoundException("Project with ID $projectId not found");
+        }
+
+        $this->assertCanAccessProject($project);
+
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser === null) {
+            throw new OCSForbiddenException('Authentication required');
+        }
+
+        $targetUserId = trim($targetUserId);
+        if ($targetUserId === '') {
+            throw new OCSBadRequestException('Target user ID is required');
+        }
+
+        $messages = $this->projectService->getDirectChatMessages(
+            $projectId,
+            $currentUser->getUID(),
+            $targetUserId,
+            $limit,
+            $offset
+        );
+        return new DataResponse($messages);
     }
 
     #[NoCSRFRequired]

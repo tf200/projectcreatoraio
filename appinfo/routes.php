@@ -125,6 +125,26 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "project_api#listDirectChats",
+            "url" => "/api/v1/projects/{projectId}/direct-chats",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "project_api#createDirectChat",
+            "url" => "/api/v1/projects/{projectId}/direct-chats",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "project_api#getOrCreateDirectChat",
+            "url" => "/api/v1/projects/{projectId}/direct-chats/{targetUserId}",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "project_api#getDirectChatMessages",
+            "url" => "/api/v1/projects/{projectId}/direct-chats/{targetUserId}/messages",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#getProjectFiles",
             "url" => "/api/v1/projects/{projectId}/files",
             "verb" => "GET",
