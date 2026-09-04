@@ -32,6 +32,19 @@ namespace OCA\Talk\Service {
             ];
         }
     }
+
+    class RoomService
+    {
+        public array $descriptions = [];
+
+        public function setDescription(object $room, string $description): void
+        {
+            $this->descriptions[] = [
+                'room' => $room,
+                'description' => $description,
+            ];
+        }
+    }
 }
 
 namespace OCA\Talk\Chat {
@@ -91,6 +104,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
 use OCA\Talk\Manager;
 use OCA\Talk\Chat\MessageParser;
 use OCA\Talk\Service\ParticipantService;
+use OCA\Talk\Service\RoomService;
 use OCP\Comments\ICommentsManager;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -205,6 +219,211 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             'displayName' => 'Member One',
             'participantType' => 3,
         ]], $participantService->calls[0]['participants']);
+    }
+
+    public function testCreateProjectDirectConversationCreatesPrivateRoomAndSeedsParticipants(): void
+    {
+        $user1 = $this->createConfiguredMock(IUser::class, [
+            'getUID' => 'alice',
+            'getDisplayName' => 'Alice Doe',
+        ]);
+        $user2 = $this->createConfiguredMock(IUser::class, [
+            'getUID' => 'bob',
+            'getDisplayName' => 'Bob Smith',
+        ]);
+        $conversation = $this->createConfiguredMock(IConversation::class, [
+            'getId' => 'direct-token-123',
+            'getAbsoluteUrl' => 'https://cloud.example.test/call/direct-token-123',
+        ]);
+        $options = $this->createMock(IConversationOptions::class);
+        $options->expects($this->never())->method('setPublic');
+
+        $room = new \stdClass();
+        $participantService = new ParticipantService();
+        $roomService = new RoomService();
+        $manager = new Manager($room);
+
+        $this->talkBroker->expects($this->once())
+            ->method('newConversationOptions')
+            ->willReturn($options);
+        $this->talkBroker->expects($this->once())
+            ->method('createConversation')
+            ->with('Phoenix Project - Alice Doe & Bob Smith', [$user1, $user2], $options)
+            ->willReturn($conversation);
+
+        $this->serverContainer->method('get')
+            ->willReturnCallback(static function (string $serviceClass) use ($manager, $participantService, $roomService): object {
+                return match ($serviceClass) {
+                    'OCA\\Talk\\Manager' => $manager,
+                    'OCA\\Talk\\Service\\ParticipantService' => $participantService,
+                    'OCA\\Talk\\Service\\RoomService' => $roomService,
+                    default => throw new \RuntimeException("Unexpected service lookup: $serviceClass"),
+                };
+            });
+
+        $service = new ProjectTalkIntegrationService(
+            $this->talkBroker,
+            $this->serverContainer,
+            $this->userManager,
+            $this->urlGenerator,
+            $this->rootFolder,
+            $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
+            $this->logger,
+        );
+
+        $result = $service->createProjectDirectConversation('Phoenix Project', 42, $user1, $user2);
+
+        $this->assertSame('direct-token-123', $result['token']);
+        $this->assertSame('https://cloud.example.test/call/direct-token-123', $result['url']);
+
+        $this->assertCount(1, $participantService->calls);
+        $this->assertSame($room, $participantService->calls[0]['room']);
+        $this->assertSame($user1, $participantService->calls[0]['addedBy']);
+        $this->assertSame([
+            [
+                'actorType' => 'users',
+                'actorId' => 'alice',
+                'displayName' => 'Alice Doe',
+                'participantType' => 3,
+            ],
+            [
+                'actorType' => 'users',
+                'actorId' => 'bob',
+                'displayName' => 'Bob Smith',
+                'participantType' => 3,
+            ],
+        ], $participantService->calls[0]['participants']);
+
+        $this->assertCount(1, $roomService->descriptions);
+        $this->assertSame('Direct project chat for Phoenix Project between Alice Doe and Bob Smith.', $roomService->descriptions[0]['description']);
+    }
+
+    public function testCreateProjectDirectConversationTruncatesLongRoomName(): void
+    {
+        $user1 = $this->createConfiguredMock(IUser::class, [
+            'getUID' => 'u1',
+            'getDisplayName' => str_repeat('A', 150),
+        ]);
+        $user2 = $this->createConfiguredMock(IUser::class, [
+            'getUID' => 'u2',
+            'getDisplayName' => str_repeat('B', 150),
+        ]);
+        $conversation = $this->createConfiguredMock(IConversation::class, [
+            'getId' => 'token-long',
+            'getAbsoluteUrl' => 'https://cloud.example.test/call/token-long',
+        ]);
+        $options = $this->createMock(IConversationOptions::class);
+
+        $room = new \stdClass();
+        $participantService = new ParticipantService();
+        $manager = new Manager($room);
+
+        $this->talkBroker->expects($this->once())
+            ->method('newConversationOptions')
+            ->willReturn($options);
+        $this->talkBroker->expects($this->once())
+            ->method('createConversation')
+            ->with($this->callback(static function (string $name): bool {
+                return mb_strlen($name) === 255 && str_ends_with($name, '...');
+            }), [$user1, $user2], $options)
+            ->willReturn($conversation);
+
+        $this->serverContainer->method('get')
+            ->willReturnCallback(static function (string $serviceClass) use ($manager, $participantService): object {
+                return match ($serviceClass) {
+                    'OCA\\Talk\\Manager' => $manager,
+                    'OCA\\Talk\\Service\\ParticipantService' => $participantService,
+                    default => throw new \RuntimeException("Unexpected: $serviceClass"),
+                };
+            });
+
+        $service = new ProjectTalkIntegrationService(
+            $this->talkBroker,
+            $this->serverContainer,
+            $this->userManager,
+            $this->urlGenerator,
+            $this->rootFolder,
+            $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
+            $this->logger,
+        );
+
+        $result = $service->createProjectDirectConversation('Very Long Project Name', 1, $user1, $user2);
+        $this->assertSame('token-long', $result['token']);
+    }
+
+    public function testCreateProjectDirectConversationDeletesRoomOnError(): void
+    {
+        $user1 = $this->createConfiguredMock(IUser::class, [
+            'getUID' => 'u1',
+            'getDisplayName' => 'User One',
+        ]);
+        $user2 = $this->createConfiguredMock(IUser::class, [
+            'getUID' => 'u2',
+            'getDisplayName' => 'User Two',
+        ]);
+        $conversation = $this->createConfiguredMock(IConversation::class, [
+            'getId' => 'fail-token',
+            'getAbsoluteUrl' => 'https://cloud.example.test/call/fail-token',
+        ]);
+        $options = $this->createMock(IConversationOptions::class);
+
+        $this->talkBroker->expects($this->once())
+            ->method('newConversationOptions')
+            ->willReturn($options);
+        $this->talkBroker->expects($this->once())
+            ->method('createConversation')
+            ->willReturn($conversation);
+
+        // Talk Manager fails to look up room
+        $this->serverContainer->method('get')
+            ->willThrowException(new \RuntimeException('Talk DB failure'));
+
+        $this->talkBroker->expects($this->once())
+            ->method('deleteConversation')
+            ->with('fail-token');
+
+        $service = new ProjectTalkIntegrationService(
+            $this->talkBroker,
+            $this->serverContainer,
+            $this->userManager,
+            $this->urlGenerator,
+            $this->rootFolder,
+            $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
+            $this->logger,
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Talk DB failure');
+        $service->createProjectDirectConversation('Test Project', 1, $user1, $user2);
+    }
+
+    public function testDeleteConversationsDeletesAllTokens(): void
+    {
+        $this->talkBroker->expects($this->exactly(2))
+            ->method('deleteConversation')
+            ->willReturnCallback(function (string $token) {
+                $this->assertContains($token, ['tok-1', 'tok-2']);
+            });
+
+        $service = new ProjectTalkIntegrationService(
+            $this->talkBroker,
+            $this->serverContainer,
+            $this->userManager,
+            $this->urlGenerator,
+            $this->rootFolder,
+            $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
+            $this->logger,
+        );
+
+        $service->deleteConversations(['tok-1', 'tok-2', '']);
     }
 
     public function testBuildConversationUrlReturnsNullWithoutToken(): void

@@ -27,6 +27,7 @@ class ProjectTalkIntegrationService
 {
     private const SPREED_MANAGER_CLASS = 'OCA\\Talk\\Manager';
     private const SPREED_PARTICIPANT_SERVICE_CLASS = 'OCA\\Talk\\Service\\ParticipantService';
+    private const SPREED_ROOM_SERVICE_CLASS = 'OCA\\Talk\\Service\\RoomService';
     private const TALK_ACTOR_USERS = 'users';
     private const TALK_PARTICIPANT_USER = 3;
     private const TALK_HUMAN_MESSAGE_VERBS = ['comment', 'object_shared'];
@@ -113,6 +114,86 @@ class ProjectTalkIntegrationService
         ];
     }
 
+    /**
+     * Create a private 1-to-1 conversation between two project members for a specific project.
+     *
+     * @return array{token: string, url: string}
+     */
+    public function createProjectDirectConversation(
+        string $projectName,
+        int $projectId,
+        IUser $user1,
+        IUser $user2,
+    ): array {
+        $roomName = sprintf('%s - %s & %s', trim($projectName), $user1->getDisplayName(), $user2->getDisplayName());
+        if (mb_strlen($roomName) > 255) {
+            $roomName = mb_substr($roomName, 0, 252) . '...';
+        }
+
+        try {
+            $conversation = $this->talkBroker->createConversation(
+                $roomName,
+                [$user1, $user2],
+                $this->talkBroker->newConversationOptions(),
+            );
+        } catch (NoBackendException $e) {
+            throw new RuntimeException('Talk is not available.', 0, $e);
+        }
+
+        $token = $conversation->getId();
+
+        try {
+            $room = $this->getTalkManager()->getRoomByToken($token);
+
+            $participants = [
+                [
+                    'actorType' => self::TALK_ACTOR_USERS,
+                    'actorId' => $user1->getUID(),
+                    'displayName' => $user1->getDisplayName(),
+                    'participantType' => self::TALK_PARTICIPANT_USER,
+                ],
+                [
+                    'actorType' => self::TALK_ACTOR_USERS,
+                    'actorId' => $user2->getUID(),
+                    'displayName' => $user2->getDisplayName(),
+                    'participantType' => self::TALK_PARTICIPANT_USER,
+                ],
+            ];
+
+            try {
+                $this->getParticipantService()->addUsers($room, $participants, $user1);
+            } catch (Throwable) {
+                // Participants may already be seeded by createConversation
+            }
+
+            if ($projectId > 0) {
+                $this->trySetRoomDescription($room, sprintf(
+                    'Direct project chat for %s between %s and %s.',
+                    trim($projectName),
+                    $user1->getDisplayName(),
+                    $user2->getDisplayName(),
+                ));
+            }
+        } catch (Throwable $e) {
+            try {
+                $this->talkBroker->deleteConversation($token);
+            } catch (Throwable) {
+            }
+
+            throw $e;
+        }
+
+        $url = $conversation->getAbsoluteUrl();
+        if ($url === null || $url === '') {
+            $url = $this->buildConversationUrl($token) ?? '';
+        }
+
+        return [
+            'token' => $token,
+            'url' => $url,
+        ];
+    }
+
     public function addUserToConversation(string $conversationToken, IUser $user, ?IUser $addedBy = null): void
     {
         $conversationToken = trim($conversationToken);
@@ -182,6 +263,16 @@ class ProjectTalkIntegrationService
         try {
             $this->talkBroker->deleteConversation($conversationToken);
         } catch (NoBackendException) {
+        }
+    }
+
+    /**
+     * @param string[] $conversationTokens
+     */
+    public function deleteConversations(array $conversationTokens): void
+    {
+        foreach ($conversationTokens as $token) {
+            $this->deleteConversation((string) $token);
         }
     }
 
@@ -445,6 +536,20 @@ class ProjectTalkIntegrationService
         }
 
         return null;
+    }
+
+    private function trySetRoomDescription(object $room, string $description): void
+    {
+        try {
+            if (class_exists(self::SPREED_ROOM_SERVICE_CLASS)) {
+                $roomService = $this->resolveTalkService(self::SPREED_ROOM_SERVICE_CLASS);
+                if (method_exists($roomService, 'setDescription')) {
+                    $roomService->setDescription($room, $description);
+                }
+            }
+        } catch (Throwable) {
+            // Non-fatal metadata enhancement
+        }
     }
 
     private function resolveTalkService(string $serviceClass): object

@@ -122,13 +122,13 @@ projectcreatoraio/
 ---
 
 ### Phase 2: Talk Integration Service Expansion
-- [ ] **2.1 Private Room Provisioning:** Add `createProjectDirectConversation(...)` to `lib/Service/ProjectTalkIntegrationService.php`:
+- [x] **2.1 Private Room Provisioning:** Add `createProjectDirectConversation(...)` to `lib/Service/ProjectTalkIntegrationService.php`:
   - Create room with `Room::TYPE_GROUP`, `Room::LISTABLE_NONE`, name formatted as `[Project] User A & User B`.
   - Set description with Markdown project reference.
   - Add both users via `ParticipantService::addUsers(...)`.
   - Return `{token, url}`.
-- [ ] **2.2 Room Cleanup:** Add `deleteProjectDirectConversations(int $projectId)` to batch delete rooms when purging a project.
-- [ ] **2.3 Unit Tests:** Update `tests/unit/Service/ProjectTalkIntegrationServiceTest.php` to cover direct room creation, attendee assignment, and error fallbacks.
+- [x] **2.2 Room Cleanup:** Add `deleteConversations(...)` to batch delete rooms when purging a project or direct chat.
+- [x] **2.3 Unit Tests:** Update `tests/unit/Service/ProjectTalkIntegrationServiceTest.php` to cover direct room creation, attendee assignment, long name truncation, and error rollback.
 
 ---
 
@@ -186,3 +186,4 @@ projectcreatoraio/
 | :--- | :--- | :--- | :--- |
 | **2026-09-04** | Architecture Specification | Documented motivation, Talk constraint analysis, schema, and phased execution plan. | Completed |
 | **2026-09-04** | Phase 1: Database & Persistence Layer | Implemented `proj_direct_chats` migration, `ProjectDirectChat` entity, `ProjectDirectChatMapper`, and unit tests (all passing). | Completed |
+| **2026-09-04** | Phase 2: Talk Integration Service Expansion | Implemented `createProjectDirectConversation`, `deleteConversations`, `trySetRoomDescription`, and comprehensive unit tests. | Completed |
