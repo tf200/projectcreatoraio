@@ -276,6 +276,36 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "timeline_api#phases",
+            "url" => "/api/v1/projects/{projectId}/timeline/phases",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "timeline_api#delays",
+            "url" => "/api/v1/projects/{projectId}/timeline/delays",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "timeline_api#impact",
+            "url" => "/api/v1/projects/{projectId}/timeline/impact",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "timeline_api#simulate",
+            "url" => "/api/v1/projects/{projectId}/timeline/simulate",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "timeline_api#applyRecovery",
+            "url" => "/api/v1/projects/{projectId}/timeline/apply-recovery",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "timeline_api#updatePlanning",
+            "url" => "/api/v1/projects/{projectId}/timeline/planning",
+            "verb" => "PUT",
+        ],
+        [
             "name" => "timeline_api#create",
             "url" => "/api/v1/projects/{projectId}/timeline",
             "verb" => "POST",

@@ -43,6 +43,7 @@ class Project extends Entity implements JsonSerializable {
     protected DateTime|null $lastDeckMoveAt = null;
     protected DateTime|null $staleNotifiedAt = null;
     protected DateTime|null $archivedAt = null;
+    protected DateTime|null $desiredStartDate = null;
     protected int|null $requiredPreparationWeeks = null;
     protected int|null $cvObjectOwnership = null;
     protected int|null $cvTraceOwnership = null;
@@ -85,6 +86,7 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('lastDeckMoveAt', Types::DATETIME);
         $this->addType('staleNotifiedAt', Types::DATETIME);
         $this->addType('archivedAt', Types::DATETIME);
+        $this->addType('desiredStartDate', Types::DATE);
         $this->addType('requiredPreparationWeeks', Types::INTEGER);
         $this->addType('cvObjectOwnership', Types::SMALLINT);
         $this->addType('cvTraceOwnership', Types::SMALLINT);
@@ -162,6 +164,7 @@ class Project extends Entity implements JsonSerializable {
             'organization_id' => $this->organizationId,
             'white_board_id' => $this->whiteBoardId,
             'archived_at' => $this->archivedAt,
+            'desired_start_date' => $this->desiredStartDate instanceof DateTime ? $this->desiredStartDate->format('Y-m-d') : null,
             'required_preparation_weeks' => $this->requiredPreparationWeeks,
             'cv_object_ownership' => $this->cvObjectOwnership,
             'cv_trace_ownership' => $this->cvTraceOwnership,

@@ -8,6 +8,8 @@ use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
+use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -30,6 +32,8 @@ class TimelineApiController extends Controller
 		private IGroupManager $groupManager,
 		private ProjectActivityService $projectActivityService,
 		private TimelinePlanningService $planningService,
+		private TimelinePhaseService $phaseService,
+		private TimelineImpactService $impactService,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
@@ -57,6 +61,131 @@ class TimelineApiController extends Controller
         try {
             $project = $this->requireProject($projectId);
             $this->assertCanAccessProject($project);
+
+            $summary = $this->planningService->buildSummary($project);
+            $hierarchy = $this->phaseService->getProjectPhaseHierarchy($project);
+            $summary['phases'] = $hierarchy['phases'];
+            $summary['dependencies'] = $hierarchy['dependencies'];
+            $summary['delayAnalysis'] = $this->impactService->analyzeProjectDelays($project);
+
+            return new JSONResponse($summary);
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function phases(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            return new JSONResponse($this->phaseService->getProjectPhaseHierarchy($project));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function delays(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            return new JSONResponse($this->impactService->analyzeProjectDelays($project));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function impact(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            $params = $this->request->getParams();
+            $taskId = $params['taskId'] ?? $params['task_id'] ?? 'Permits';
+            $delayDays = (int)($params['delayDays'] ?? $params['delay_days'] ?? 28);
+            $newExpectedEndDate = isset($params['newExpectedEndDate']) ? (string)$params['newExpectedEndDate'] : null;
+
+            return new JSONResponse($this->impactService->calculateTaskImpact($project, $taskId, $delayDays, $newExpectedEndDate));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function simulate(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            $params = $this->request->getParams();
+            return new JSONResponse($this->impactService->simulateScenario($project, $params));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function applyRecovery(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanManageTimelineProject($project);
+
+            $params = $this->request->getParams();
+            $strategy = (string)($params['strategy'] ?? 'shift_everything');
+            $user = $this->userSession->getUser();
+
+            return new JSONResponse($this->impactService->applyRecoveryStrategy($project, $strategy, $params, $user));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function updatePlanning(int $projectId, ?string $desiredStartDate = null, ?int $requiredPreparationWeeks = null): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanManageTimelineProject($project);
+
+            $params = $this->request->getParams();
+            if (array_key_exists('desired_start_date', $params)) {
+                $desiredStartDate = (string) $params['desired_start_date'];
+            } elseif (array_key_exists('desiredStartDate', $params)) {
+                $desiredStartDate = (string) $params['desiredStartDate'];
+            }
+
+            if (array_key_exists('required_preparation_weeks', $params)) {
+                $requiredPreparationWeeks = (int) $params['required_preparation_weeks'];
+            } elseif (array_key_exists('requiredPreparationWeeks', $params)) {
+                $requiredPreparationWeeks = (int) $params['requiredPreparationWeeks'];
+            }
+
+            if ($desiredStartDate !== null) {
+                $trimmed = trim($desiredStartDate);
+                if ($trimmed === '' || strtolower($trimmed) === 'null') {
+                    $project->setDesiredStartDate(null);
+                } else {
+                    $dt = new DateTime($trimmed);
+                    $dt->setTime(0, 0, 0);
+                    $project->setDesiredStartDate($dt);
+                }
+            }
+
+            if ($requiredPreparationWeeks !== null) {
+                $project->setRequiredPreparationWeeks(max(0, $requiredPreparationWeeks));
+            }
+
+            $this->projectMapper->updateProjectDetails($project);
+            $this->syncSystemTimelineItems($project);
 
             return new JSONResponse($this->planningService->buildSummary($project));
         } catch (\Throwable $e) {

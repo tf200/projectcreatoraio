@@ -1,12 +1,38 @@
 <template>
 	<div class="timeline-v2">
+		<!-- KPI Metric Header Bar (Step 1) -->
+		<TimelineKpiBar
+			v-if="kpisData"
+			:kpis="kpisData"
+			:can-edit="isAdmin"
+			:saving="savingDesiredDate"
+			@save-desired-date="onSaveDesiredDate"
+			@save-prep-weeks="onSavePrepWeeks" />
+
+		<!-- What-If Simulation Banner (Step 3) -->
+		<TimelineSimulationBanner
+			v-if="isSimulationMode"
+			:scenario="simulationScenario"
+			:active-strategy="simulationScenario?.strategy || 'accelerate'"
+			:recovery-options="activeImpactAnalysis?.recoveryOptions"
+			:applying="applyingScenario"
+			@switch-strategy="switchSimulationStrategy"
+			@apply="applyWhatIfScenario"
+			@cancel="exitWhatIf" />
+
 		<header class="timeline-v2__header">
 			<div class="timeline-v2__title-group">
-				<h3 class="timeline-v2__title">
-					Project Timeline
-				</h3>
+				<div class="title-with-badge">
+					<h3 class="timeline-v2__title">
+						Project Timeline
+					</h3>
+					<span v-if="hasActiveDelays" class="delay-warning-badge" title="Schedule slippage detected">
+						<AlertCircle :size="14" />
+						Delays Detected
+					</span>
+				</div>
 				<p class="timeline-v2__subtitle">
-					Plan and track phases and milestones
+					Plan and track phases, deck card dependencies, and milestones
 				</p>
 			</div>
 
@@ -41,6 +67,32 @@
 					</NcButton>
 				</div>
 
+				<!-- Schedule Impact Advisor Button (Mockup) -->
+				<NcButton
+					type="secondary"
+					class="advisor-btn"
+					:class="{ 'advisor-btn--alert': hasActiveDelays }"
+					title="Schedule Impact & Recovery"
+					@click="openImpactDrawer()">
+					<template #icon>
+						<AlertCircleOutline :size="18" />
+					</template>
+					Impact Advisor
+				</NcButton>
+
+				<!-- What-If Mode Toggle Button (Mockup) -->
+				<NcButton
+					v-if="!isSimulationMode"
+					type="tertiary"
+					class="whatif-btn"
+					title="Test schedule scenarios without changing official plan"
+					@click="startWhatIf()">
+					<template #icon>
+						<FlaskOutline :size="18" />
+					</template>
+					What-If Mode
+				</NcButton>
+
 				<NcButton v-if="isAdmin" type="primary" @click="openAddModal">
 					<template #icon>
 						<Plus :size="18" />
@@ -56,7 +108,7 @@
 				<p>Syncing timeline data...</p>
 			</div>
 
-			<div v-else-if="items.length === 0" class="timeline-v2__empty">
+			<div v-else-if="!hasTimelineContent" class="timeline-v2__empty">
 				<ChartGantt :size="48" class="empty-icon" />
 				<h4>No timeline items defined</h4>
 				<p>Start by adding phases and milestones to visualize the timeline.</p>
@@ -65,35 +117,111 @@
 				</NcButton>
 			</div>
 
-			<div v-else class="gantt-v2" :class="{ 'gantt-v2--admin': isAdmin }">
-				<!-- Sidebar: Phase List (Draggable) -->
+			<div v-else class="gantt-v2" :class="{ 'gantt-v2--admin': isAdmin, 'gantt-v2--simulating': isSimulationMode }">
+				<!-- Column 1: Sidebar (WBS Hierarchy) -->
 				<div class="gantt-v2__sidebar">
 					<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
 						Timeline details
 					</div>
 
-					<draggable
-						v-model="draggableItems"
-						v-bind="dragOptions"
-						handle=".drag-handle"
-						class="gantt-v2__phase-list"
-						@end="onDragEnd">
-						<div v-for="item in draggableItems" :key="itemKey(item)" class="phase-row" :class="{ 'phase-row--system': isSystemItem(item) }">
-							<div v-if="isAdmin" class="drag-handle" title="Drag to reorder">
-								<DragVariant :size="18" />
+					<!-- Row 1: System Planning (Calculated) -->
+					<div v-if="systemPlanningData" class="phase-row phase-row--system-planning" title="System Planning (calculated)">
+						<div class="sp-sidebar-badge">1</div>
+						<div class="sp-sidebar-icon">
+							<Cog :size="16" />
+						</div>
+						<div class="phase-row__content">
+							<div class="phase-row__top">
+								<span class="phase-row__name">System Planning</span>
+								<span class="phase-row__duration">{{ systemPlanningDurationBadge }}</span>
+							</div>
+							<div class="phase-row__dates">{{ systemPlanningDatesText }}</div>
+						</div>
+					</div>
+
+					<!-- Visible Hierarchical Rows -->
+					<div
+						v-for="row in visibleRows"
+						:key="'sidebar-' + row.id"
+						class="phase-row"
+						:class="{
+							'phase-row--phase-header': row.type === 'phase',
+							'phase-row--task-child': row.type === 'task',
+							'phase-row--custom-item': row.type === 'item',
+						}"
+						:style="{ height: row.height + 'px', borderLeftColor: row.type === 'phase' ? row.phase.color : undefined }"
+						@click="row.type === 'phase' ? togglePhase(row.phase.category || row.phase.id) : null">
+						<!-- Phase Header Row -->
+						<template v-if="row.type === 'phase'">
+							<button
+								class="phase-toggle-btn"
+								:aria-label="row.isExpanded ? 'Collapse phase' : 'Expand phase'"
+								@click.stop="togglePhase(row.phase.category || row.phase.id)">
+								<ChevronDown v-if="row.isExpanded" :size="16" />
+								<ChevronRight v-else :size="16" />
+							</button>
+							<div class="phase-order-badge" :style="{ backgroundColor: row.phase.color }">
+								{{ row.phase.order }}
 							</div>
 							<div class="phase-row__content">
 								<div class="phase-row__top">
-									<span class="phase-row__name">{{ item.label }}</span>
-									<span class="phase-row__duration">{{ formatItemBadge(item) }}</span>
+									<span class="phase-row__name" :title="row.phase.name">{{ row.phase.name }}</span>
+									<span class="phase-row__duration">{{ formatPhaseDuration(row.phase) }}</span>
 								</div>
-								<div class="phase-row__dates">{{ formatItemDates(item) }}</div>
+								<div class="phase-row__dates">
+									{{ formatDate(row.phase.startDate) }} – {{ formatDate(row.phase.endDate) }}
+								</div>
 							</div>
-						</div>
-					</draggable>
+						</template>
+
+						<!-- Task Child Row -->
+						<template v-else-if="row.type === 'task'">
+							<div class="task-tree-indicator">
+								<div class="tree-line-v" />
+								<div class="tree-line-h" />
+							</div>
+							<div v-if="row.task.deckCardId" class="task-deck-icon" title="Deck Card">
+								<CardsVariant :size="14" />
+							</div>
+							<div class="phase-row__content">
+								<div class="phase-row__top">
+									<span
+										class="task-name"
+										:class="{
+											'task-name--done': row.task.isDone,
+											'task-name--delayed': row.task.isDelayed,
+										}"
+										:title="row.task.label">
+										{{ row.task.label }}
+									</span>
+									<span v-if="row.task.delayDays > 0" class="task-delay-tag">
+										+{{ formatDelayBadge(row.task.delayDays) }}
+									</span>
+									<span v-else class="phase-row__duration">{{ row.task.durationDays }}d</span>
+								</div>
+								<div class="phase-row__dates">
+									{{ formatDate(row.task.startDate) }} – {{ formatDate(row.task.endDate) }}
+								</div>
+							</div>
+						</template>
+
+						<!-- Custom User Item -->
+						<template v-else>
+							<div v-if="isAdmin" class="drag-handle" title="Custom timeline item">
+								<DragVariant :size="16" />
+							</div>
+							<div class="phase-row__content">
+								<div class="phase-row__top">
+									<span class="phase-row__name">{{ row.item.label }}</span>
+									<span class="phase-row__duration">{{ formatItemBadge(row.item) }}</span>
+								</div>
+								<div class="phase-row__dates">{{ formatItemDates(row.item) }}</div>
+							</div>
+						</template>
+					</div>
 				</div>
 
-				<!-- Timeline: Bars & Grid -->
+				<!-- Column 2: Timeline Canvas (Bars, Connectors & Grid) -->
 				<div
 					ref="scrollEl"
 					class="gantt-v2__main"
@@ -146,6 +274,51 @@
 									:style="{ width: month.width + 'px' }" />
 							</div>
 
+							<!-- SVG Dependency Connectors Layer -->
+							<svg
+								class="timeline-dependencies-svg"
+								:style="{ width: totalTimelineWidth + 'px', height: canvasRowsHeight + 'px' }">
+								<defs>
+									<marker
+										id="dep-arrow"
+										markerWidth="6"
+										markerHeight="6"
+										refX="5"
+										refY="3"
+										orient="auto">
+										<path d="M 0 0 L 6 3 L 0 6 z" fill="#94a3b8" />
+									</marker>
+									<marker
+										id="dep-arrow-active"
+										markerWidth="6"
+										markerHeight="6"
+										refX="5"
+										refY="3"
+										orient="auto">
+										<path d="M 0 0 L 6 3 L 0 6 z" fill="#3b82f6" />
+									</marker>
+									<marker
+										id="dep-arrow-delayed"
+										markerWidth="6"
+										markerHeight="6"
+										refX="5"
+										refY="3"
+										orient="auto">
+										<path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" />
+									</marker>
+								</defs>
+								<path
+									v-for="dep in visibleDependencyPaths"
+									:key="dep.key"
+									:d="dep.d"
+									class="dependency-line"
+									:class="{
+										'dependency-line--active': dep.isActive,
+										'dependency-line--delayed': dep.isDelayed,
+									}"
+									:marker-end="dep.isDelayed ? 'url(#dep-arrow-delayed)' : (dep.isActive ? 'url(#dep-arrow-active)' : 'url(#dep-arrow)')" />
+							</svg>
+
 							<!-- Today Marker -->
 							<div class="today-marker" :style="{ left: todayOffset + 'px' }">
 								<div class="today-line" />
@@ -154,85 +327,259 @@
 								</div>
 							</div>
 
-						<!-- Rows -->
-						<div v-for="item in items" :key="itemKey(item)" class="timeline-row">
+							<!-- Full-Height Guide Lines for System Planning -->
+							<template v-if="systemPlanningData">
+								<!-- Minimum Start Date Guide Line -->
+								<div
+									v-if="minStartOffset !== null"
+									class="timeline-guide-marker timeline-guide-marker--min-start"
+									:style="{ left: minStartOffset + 'px' }"
+									:title="`Minimum start: ${formatDate(systemPlanningData.minimumStart?.date)}`">
+									<div class="timeline-guide-line timeline-guide-line--min-start" />
+								</div>
+
+								<!-- Desired Start Date Guide Line -->
+								<div
+									v-if="desiredStartOffset !== null"
+									class="timeline-guide-marker timeline-guide-marker--desired-start"
+									:style="{ left: desiredStartOffset + 'px' }"
+									:title="`Desired start: ${formatDate(systemPlanningData.desiredStart?.date)}`">
+									<div class="timeline-guide-line timeline-guide-line--desired-start" />
+								</div>
+							</template>
+
+							<!-- Row 1: System Planning Row -->
+							<SystemPlanningRow
+								v-if="systemPlanningData"
+								:system-planning="systemPlanningData"
+								:timeline-start="timelineRange.start"
+								:day-width="dayWidth" />
+
+							<!-- Canvas Visible Rows -->
 							<div
-								v-if="isMilestone(item)"
-								class="timeline-milestone"
-								:style="getMilestoneStyle(item)"
-								:title="`${item.label}: ${formatDate(item.startDate)}`" />
-							<div
-								v-else
-								class="timeline-bar"
-								:class="{ 'timeline-bar--ongoing': isOngoing(item), 'timeline-bar--readonly': !canEditItem(item) }"
-								:style="getBarStyle(item)"
-								:title="barTitle(item)"
-								@click="isAdmin && canEditItem(item) ? openEditModal(item) : null">
-								<span v-if="getDurationDays(item) * dayWidth > 60" class="timeline-bar__label">
-									{{ item.label }}
-								</span>
+								v-for="row in visibleRows"
+								:key="'canvas-' + row.id"
+								class="timeline-row"
+								:class="{
+									'timeline-row--phase-header': row.type === 'phase',
+									'timeline-row--task-child': row.type === 'task',
+									'timeline-row--custom-item': row.type === 'item',
+								}"
+								:style="{ height: row.height + 'px' }">
+								<!-- Phase Row Canvas: Summary Bar & Milestone Diamond -->
+								<template v-if="row.type === 'phase'">
+									<div
+										class="phase-summary-bar"
+										:style="getPhaseBarStyle(row.phase)"
+										:title="`${row.phase.name}: ${formatDate(row.phase.startDate)} – ${formatDate(row.phase.endDate)}`">
+										<span v-if="getPhaseDurationDays(row.phase) * dayWidth > 90" class="phase-summary-bar__label">
+											{{ row.phase.name }}
+										</span>
+									</div>
+									<div
+										v-if="row.phase.milestone"
+										class="phase-milestone-marker"
+										:style="getPhaseMilestoneStyle(row.phase)"
+										:title="`Milestone: ${row.phase.milestone.label} (${formatDate(row.phase.milestone.date)})`">
+										<div class="phase-milestone-diamond" :style="{ backgroundColor: row.phase.color }" />
+										<span class="phase-milestone-label">{{ row.phase.milestone.label }}</span>
+									</div>
+								</template>
+
+								<!-- Task Child Row Canvas: Sequential Task Bar -->
+								<template v-else-if="row.type === 'task'">
+									<!-- Ghost Bar for Baseline if task has slipped -->
+									<div
+										v-if="hasGhostBar(row.task)"
+										class="timeline-bar timeline-bar--ghost"
+										:style="getTaskGhostBarStyle(row.task)"
+										title="Original baseline schedule" />
+
+									<div
+										class="timeline-bar timeline-bar--task"
+										:class="{
+											'timeline-bar--task-done': row.task.isDone,
+											'timeline-bar--task-at-risk': row.task.status === 'behind_at_risk' || row.task.isDelayed,
+											'timeline-bar--simulated': isSimulationMode,
+										}"
+										:style="getTaskBarStyle(row.task, row.phase)"
+										:title="getTaskBarTitle(row.task)"
+										@click="onTaskClick(row.task)">
+										<Check v-if="row.task.isDone" :size="14" class="task-done-icon" />
+										<span v-if="row.task.durationDays * dayWidth > 40" class="timeline-bar__label">
+											{{ row.task.label }}
+										</span>
+										<span v-if="row.task.delayDays > 0" class="task-delay-badge" title="Schedule slippage">
+											+{{ formatDelayBadge(row.task.delayDays) }}
+										</span>
+									</div>
+								</template>
+
+								<!-- Custom User Item Canvas -->
+								<template v-else>
+									<div
+										v-if="isMilestone(row.item)"
+										class="timeline-milestone"
+										:style="getMilestoneStyle(row.item)"
+										:title="`${row.item.label}: ${formatDate(row.item.startDate)}`" />
+									<div
+										v-else
+										class="timeline-bar"
+										:class="{ 'timeline-bar--ongoing': isOngoing(row.item), 'timeline-bar--readonly': !canEditItem(row.item) }"
+										:style="getBarStyle(row.item)"
+										:title="barTitle(row.item)"
+										@click="isAdmin && canEditItem(row.item) ? openEditModal(row.item) : null">
+										<span v-if="getDurationDays(row.item) * dayWidth > 60" class="timeline-bar__label">
+											{{ row.item.label }}
+										</span>
+									</div>
+								</template>
 							</div>
 						</div>
 					</div>
 				</div>
+
+				<!-- Column 3: STATUS Column (Right-Hand Traffic Light) -->
+				<div class="gantt-v2__status">
+					<div class="gantt-v2__header-cell gantt-v2__header-cell--center" :style="{ height: timelineHeaderHeight + 'px' }">
+						Status
+					</div>
+
+					<!-- System Planning Status Row -->
+					<div v-if="systemPlanningData" class="status-row status-row--system-planning">
+						<span class="status-pill" :class="getStatusClass(systemPlanningStatus)">
+							<span class="status-dot" />
+							<span class="status-text">{{ systemPlanningStatusLabel }}</span>
+						</span>
+					</div>
+
+					<!-- Visible Rows Status -->
+					<div
+						v-for="row in visibleRows"
+						:key="'status-' + row.id"
+						class="status-row"
+						:class="{
+							'status-row--phase-header': row.type === 'phase',
+							'status-row--task-child': row.type === 'task',
+							'status-row--custom-item': row.type === 'item',
+						}"
+						:style="{ height: row.height + 'px' }">
+						<span
+							v-if="row.type === 'phase'"
+							class="status-pill status-pill--phase"
+							:class="getStatusClass(row.phase.status)">
+							<span class="status-dot" />
+							<span class="status-text">{{ getStatusLabel(row.phase.status) }}</span>
+						</span>
+						<span
+							v-else-if="row.type === 'task'"
+							class="status-pill status-pill--task"
+							:class="getStatusClass(row.task.status, row.task.isDone)">
+							<span class="status-dot" />
+							<span class="status-text">{{ getTaskStatusLabel(row.task) }}</span>
+						</span>
+						<span
+							v-else
+							class="status-pill status-pill--item"
+							:class="getStatusClass(row.item.status || 'on_track')">
+							<span class="status-dot" />
+							<span class="status-text">{{ getStatusLabel(row.item.status || 'on_track') }}</span>
+						</span>
+					</div>
 				</div>
 
-				<!-- Actions Column (Admin only) -->
+				<!-- Column 4: Actions Column (Admin only) -->
 				<div v-if="isAdmin" class="gantt-v2__actions">
 					<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
 						Actions
 					</div>
-					<div v-for="item in items" :key="'actions-' + itemKey(item)" class="action-row">
-						<NcButton
-							v-if="canEditItem(item)"
-							type="tertiary"
-							title="Edit item"
-							@click="openEditModal(item)">
-							<template #icon>
-								<Pencil :size="16" />
-							</template>
-						</NcButton>
-						<NcButton
-							v-else
-							type="tertiary"
-							:disabled="true"
-							title="System item">
-							<template #icon>
-								<Lock :size="16" />
-							</template>
-						</NcButton>
-						<NcButton
-							v-if="!isSystemItem(item)"
-							type="error"
-							title="Delete item"
-							@click="confirmDelete(item)">
-							<template #icon>
-								<Delete :size="16" />
-							</template>
-						</NcButton>
+					<!-- System Planning Action Placeholder -->
+					<div v-if="systemPlanningData" class="action-row action-row--system-planning" title="System calculated planning row">
+						<span class="action-row__locked-hint">
+							<Lock :size="14" />
+						</span>
+					</div>
+					<div
+						v-for="row in visibleRows"
+						:key="'actions-' + row.id"
+						class="action-row"
+						:class="{
+							'action-row--phase-header': row.type === 'phase',
+							'action-row--task-child': row.type === 'task',
+							'action-row--custom-item': row.type === 'item',
+						}"
+						:style="{ height: row.height + 'px' }">
+						<template v-if="row.type === 'phase'">
+							<span class="action-row__locked-hint" title="System defined lifecycle phase">
+								<Lock :size="14" />
+							</span>
+						</template>
+						<template v-else-if="row.type === 'task'">
+							<span v-if="row.task.deckCardId" class="action-row__deck-hint" title="Nextcloud Deck Card">
+								<CardsVariant :size="14" />
+							</span>
+							<span v-else class="action-row__locked-hint" title="Phase Task">
+								<Lock :size="14" />
+							</span>
+						</template>
+						<template v-else>
+							<NcButton
+								v-if="canEditItem(row.item)"
+								type="tertiary"
+								title="Edit item"
+								@click="openEditModal(row.item)">
+								<template #icon>
+									<Pencil :size="16" />
+								</template>
+							</NcButton>
+							<NcButton
+								v-if="!isSystemItem(row.item)"
+								type="error"
+								title="Delete item"
+								@click="confirmDelete(row.item)">
+								<template #icon>
+									<Delete :size="16" />
+								</template>
+							</NcButton>
+						</template>
 					</div>
 				</div>
 			</div>
 
-			<footer v-if="items.length > 0" class="timeline-v2__footer">
+			<!-- Footer: Phase Jumper -->
+			<footer v-if="hasTimelineContent" class="timeline-v2__footer">
 				<div class="phase-jumper">
 					<span class="jumper-label">Focus on:</span>
 					<div class="jumper-chips">
 						<button
-							v-for="(item, index) in items"
-							:key="'chip-' + item.id"
+							v-if="systemPlanningData"
 							class="phase-chip"
-							:class="{ active: currentPhaseIndex === index }"
-							:style="{ '--phase-color': item.color }"
-							@click="navigateToPhase(index)">
-							{{ item.label }}
+							:style="{ '--phase-color': '#3b82f6' }"
+							@click="navigateToDate(systemPlanningData.deckTasks?.startDate || systemPlanningData.requestDate)">
+							System Planning
+						</button>
+						<button
+							v-for="phase in effectivePhases"
+							:key="'chip-' + phase.id"
+							class="phase-chip"
+							:style="{ '--phase-color': phase.color }"
+							@click="navigateToDate(phase.startDate)">
+							{{ phase.name }}
 						</button>
 					</div>
 				</div>
 			</footer>
 		</div>
 
-		<!-- Modal for Add/Edit -->
+		<!-- Schedule Impact & Recovery Drawer (Step 3) -->
+		<TimelineImpactDrawer
+			v-if="showImpactDrawer"
+			:analysis="activeImpactAnalysis"
+			@select-option="onOptionSelected"
+			@open-whatif="startWhatIf"
+			@close="closeImpactDrawer" />
+
+		<!-- Modal for Add/Edit Custom Item -->
 		<NcModal v-if="showModal" size="normal" @close="closeModal">
 			<div class="phase-form">
 				<header class="phase-form__header">
@@ -320,18 +667,29 @@
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import { NcButton, NcLoadingIcon, NcModal, NcTextField } from '@nextcloud/vue'
-import draggable from 'vuedraggable'
 
+import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
+import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
+import CardsVariant from 'vue-material-design-icons/CardsVariant.vue'
 import ChartGantt from 'vue-material-design-icons/ChartGantt.vue'
+import Check from 'vue-material-design-icons/Check.vue'
+import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
+import Cog from 'vue-material-design-icons/Cog.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
 import DragVariant from 'vue-material-design-icons/DragVariant.vue'
+import FlaskOutline from 'vue-material-design-icons/FlaskOutline.vue'
 import Lock from 'vue-material-design-icons/Lock.vue'
 import MagnifyMinusOutline from 'vue-material-design-icons/MagnifyMinusOutline.vue'
 import MagnifyPlusOutline from 'vue-material-design-icons/MagnifyPlusOutline.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
+
+import TimelineKpiBar from './header/TimelineKpiBar.vue'
+import TimelineSimulationBanner from './header/TimelineSimulationBanner.vue'
+import SystemPlanningRow from './rows/SystemPlanningRow.vue'
+import TimelineImpactDrawer from './drawer/TimelineImpactDrawer.vue'
 
 export default {
 	name: 'GanttChart',
@@ -340,17 +698,27 @@ export default {
 		NcLoadingIcon,
 		NcModal,
 		NcTextField,
-		draggable,
+		AlertCircle,
+		AlertCircleOutline,
+		CardsVariant,
 		ChartGantt,
+		Check,
+		ChevronDown,
 		ChevronLeft,
 		ChevronRight,
+		Cog,
 		Delete,
 		DragVariant,
+		FlaskOutline,
 		Lock,
 		MagnifyMinusOutline,
 		MagnifyPlusOutline,
 		Pencil,
 		Plus,
+		TimelineKpiBar,
+		TimelineSimulationBanner,
+		SystemPlanningRow,
+		TimelineImpactDrawer,
 	},
 	props: {
 		projectId: {
@@ -364,10 +732,11 @@ export default {
 	},
 	data() {
 		return {
-			showProcessCompletedItem: false, // Temporarily hidden from UI
 			loading: true,
 			saving: false,
 			allItems: [],
+			timelineSummary: null,
+			savingDesiredDate: false,
 			showModal: false,
 			editingItem: null,
 			form: {
@@ -384,41 +753,226 @@ export default {
 				'#27272a', '#71717a',
 			],
 			dayWidth: 4,
-			currentPhaseIndex: 0,
 			isDragging: false,
 			dragStartX: 0,
 			dragStartScrollLeft: 0,
+			expandedPhases: {
+				initiation: true,
+				preparation: true,
+				execution: true,
+				handover: true,
+			},
+			// Step 3 What-If Simulation & Impact State
+			isSimulationMode: false,
+			simulationScenario: null,
+			simulationApplication: null,
+			simulatedPhases: null,
+			applyingScenario: false,
+			showImpactDrawer: false,
+			activeImpactAnalysis: null,
 		}
 	},
 	computed: {
+		systemPlanningData() {
+			return this.timelineSummary?.systemPlanning || null
+		},
+		kpisData() {
+			if (!this.timelineSummary) {
+				return null
+			}
+			const kpis = this.timelineSummary.kpis || {}
+			const processCompleted = this.timelineSummary.processCompleted || kpis.processCompleted || {
+				status: 'incomplete',
+				date: null,
+				doneCount: 0,
+				totalRequired: 0,
+				missingTitles: [],
+			}
+			const coordinationPendingPeriod = this.timelineSummary.coordinationPendingPeriod || kpis.coordinationPendingPeriod || null
+			return {
+				...kpis,
+				processCompleted,
+				coordinationPendingPeriod,
+			}
+		},
+		phases() {
+			return this.timelineSummary?.phases || []
+		},
+		effectivePhases() {
+			if (this.isSimulationMode && this.simulatedPhases && this.simulatedPhases.length > 0) {
+				return this.simulatedPhases
+			}
+			return this.phases
+		},
+		hasActiveDelays() {
+			return !!(this.timelineSummary?.delayAnalysis?.hasActiveDelays)
+		},
+		activeDelayedTasks() {
+			return this.timelineSummary?.delayAnalysis?.delayedTasks || []
+		},
+		hasTimelineContent() {
+			return (this.effectivePhases && this.effectivePhases.length > 0) || this.items.length > 0 || !!this.systemPlanningData
+		},
 		items() {
 			return (this.allItems || [])
-				.filter((item) => this.showProcessCompletedItem || item.systemKey !== 'process_completed')
+				.filter((item) => {
+					if (item.itemType === 'schedule_override' || String(item.systemKey || '').startsWith('schedule_override:')) {
+						return false
+					}
+					if (this.systemPlanningData && this.isLegacySystemItem(item)) {
+						return false
+					}
+					return item.systemKey !== 'process_completed'
+				})
 				.slice()
 				.sort((a, b) => (Number(a.orderIndex) || 0) - (Number(b.orderIndex) || 0))
 		},
-		draggableItems: {
-			get() {
-				return this.items
-			},
-			set(value) {
-				// vuedraggable provides the array in the new UI order. Keep the UI stable by
-				// immediately updating `orderIndex` locally, otherwise `items` (which sorts
-				// by `orderIndex`) will snap back to the previous order.
-				const reordered = (value || []).slice()
-				reordered.forEach((item, index) => {
-					item.orderIndex = index
-				})
-				this.allItems = reordered
-			},
-		},
-		dragOptions() {
-			return {
-				animation: 200,
-				group: 'description',
-				disabled: !this.isAdmin,
-				ghostClass: 'phase-row--ghost',
+		nonPhaseItems() {
+			const phaseDeckCardIds = new Set()
+			for (const phase of (this.effectivePhases || [])) {
+				for (const task of (phase.tasks || [])) {
+					if (task.deckCardId) {
+						phaseDeckCardIds.add(Number(task.deckCardId))
+					}
+				}
 			}
+			return this.items.filter((item) => {
+				if (item.deckCardId && phaseDeckCardIds.has(Number(item.deckCardId))) {
+					return false
+				}
+				return true
+			})
+		},
+		visibleRows() {
+			const rows = []
+			if (this.effectivePhases && this.effectivePhases.length > 0) {
+				for (const phase of this.effectivePhases) {
+					const phaseKey = phase.category || String(phase.id)
+					const isExpanded = this.isPhaseExpanded(phaseKey)
+					rows.push({
+						type: 'phase',
+						id: `phase-${phase.id}`,
+						phase,
+						isExpanded,
+						height: 56,
+					})
+					if (isExpanded && phase.tasks && phase.tasks.length > 0) {
+						for (const task of phase.tasks) {
+							rows.push({
+								type: 'task',
+								id: `task-${task.id}`,
+								phase,
+								task,
+								height: 44,
+							})
+						}
+					}
+				}
+			}
+			// Custom user items (if any exist outside of phase deck cards)
+			for (const item of this.nonPhaseItems) {
+				rows.push({
+					type: 'item',
+					id: `item-${item.id}`,
+					item,
+					height: 52,
+				})
+			}
+			return rows
+		},
+		canvasRowsHeight() {
+			let total = this.systemPlanningData ? 76 : 0
+			for (const row of this.visibleRows) {
+				total += row.height
+			}
+			return Math.max(200, total)
+		},
+		visibleDependencyPaths() {
+			const deps = this.timelineSummary?.dependencies
+			if (!deps || deps.length === 0) {
+				return []
+			}
+			const { start } = this.timelineRange
+			if (!start) return []
+
+			const taskMap = {}
+			let currentY = this.systemPlanningData ? 76 : 0
+
+			for (const row of this.visibleRows) {
+				if (row.type === 'task' && row.task) {
+					const task = row.task
+					const taskStart = this.parseDateOnly(task.startDate)
+					const taskEnd = this.parseDateOnly(task.endDate)
+					const offsetDays = Math.floor((taskStart - start) / (1000 * 60 * 60 * 24))
+					const durationDays = Math.max(1, Math.floor((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1)
+					const xStart = offsetDays * this.dayWidth
+					const xEnd = xStart + durationDays * this.dayWidth
+					const yMid = currentY + (row.height / 2)
+
+					taskMap[String(task.id)] = {
+						xStart,
+						xEnd,
+						yMid,
+						task,
+					}
+					if (task.deckCardId) {
+						taskMap[String(task.deckCardId)] = taskMap[String(task.id)]
+					}
+				}
+				currentY += row.height
+			}
+
+			const paths = []
+			for (const dep of deps) {
+				const pred = taskMap[String(dep.predecessorId)]
+				const succ = taskMap[String(dep.successorId)]
+				if (!pred || !succ) {
+					continue
+				}
+
+				const x1 = pred.xEnd
+				const y1 = pred.yMid
+				const x2 = succ.xStart
+				const y2 = succ.yMid
+
+				let d = ''
+				if (x2 >= x1 + 10) {
+					const midX = x1 + Math.max(6, Math.min(16, (x2 - x1) / 2))
+					d = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`
+				} else {
+					const exitX = x1 + 10
+					const entryX = Math.max(0, x2 - 10)
+					const midY = (y1 + y2) / 2
+					d = `M ${x1} ${y1} L ${exitX} ${y1} L ${exitX} ${midY} L ${entryX} ${midY} L ${entryX} ${y2} L ${x2} ${y2}`
+				}
+
+				paths.push({
+					key: `dep-${dep.predecessorId}-${dep.successorId}`,
+					d,
+					isActive: !pred.task.isDone,
+					isDelayed: !!pred.task.isDelayed,
+				})
+			}
+			return paths
+		},
+		systemPlanningStatus() {
+			return this.systemPlanningData?.float?.status || 'on_track'
+		},
+		systemPlanningStatusLabel() {
+			return this.getStatusLabel(this.systemPlanningStatus)
+		},
+		systemPlanningDurationBadge() {
+			const d = this.systemPlanningData
+			if (!d) return ''
+			const totalWeeks = (Number(d.deckTasks?.weeks) || 0) + (Number(d.preparation?.weeks) || 0)
+			return `${totalWeeks}w`
+		},
+		systemPlanningDatesText() {
+			const d = this.systemPlanningData
+			if (!d) return 'Automatically calculated'
+			const start = this.formatDate(d.deckTasks?.startDate || d.requestDate)
+			const end = this.formatDate(d.desiredStart?.date || d.minimumStart?.date)
+			return `${start} – ${end}`
 		},
 		canSave() {
 			const labelOk = this.form.label.trim() !== ''
@@ -438,13 +992,10 @@ export default {
 			return !!(this.editingItem && this.editingItem.systemKey)
 		},
 		timelineRange() {
-			if (this.items.length === 0) {
-				const now = new Date()
-				return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 6, 0) }
-			}
 			let minDate = null
 			let maxDate = null
 			const today = this.toDateOnly(new Date())
+
 			for (const item of this.items) {
 				const start = this.parseDateOnly(item.startDate)
 				const end = this.isMilestone(item)
@@ -452,6 +1003,55 @@ export default {
 					: (item.endDate ? this.parseDateOnly(item.endDate) : (today < start ? start : today))
 				if (!minDate || start < minDate) minDate = start
 				if (!maxDate || end > maxDate) maxDate = end
+			}
+
+			if (this.systemPlanningData) {
+				const planningDates = [
+					this.systemPlanningData.requestDate,
+					this.systemPlanningData.deckTasks?.startDate,
+					this.systemPlanningData.deckTasks?.endDate,
+					this.systemPlanningData.minimumStart?.date,
+					this.systemPlanningData.desiredStart?.date,
+				].filter(Boolean)
+				for (const dateStr of planningDates) {
+					const d = this.parseDateOnly(dateStr)
+					if (!minDate || d < minDate) minDate = d
+					if (!maxDate || d > maxDate) maxDate = d
+				}
+			}
+
+			if (this.effectivePhases && this.effectivePhases.length > 0) {
+				for (const phase of this.effectivePhases) {
+					if (phase.startDate) {
+						const ps = this.parseDateOnly(phase.startDate)
+						if (!minDate || ps < minDate) minDate = ps
+					}
+					if (phase.endDate) {
+						const pe = this.parseDateOnly(phase.endDate)
+						if (!maxDate || pe > maxDate) maxDate = pe
+					}
+					if (phase.milestone?.date) {
+						const md = this.parseDateOnly(phase.milestone.date)
+						if (!maxDate || md > maxDate) maxDate = md
+					}
+					if (phase.tasks && phase.tasks.length > 0) {
+						for (const t of phase.tasks) {
+							if (t.startDate) {
+								const ts = this.parseDateOnly(t.startDate)
+								if (!minDate || ts < minDate) minDate = ts
+							}
+							if (t.endDate) {
+								const te = this.parseDateOnly(t.endDate)
+								if (!maxDate || te > maxDate) maxDate = te
+							}
+						}
+					}
+				}
+			}
+
+			if (!minDate || !maxDate) {
+				const now = new Date()
+				return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 6, 0) }
 			}
 			if (today < minDate) minDate = today
 			if (today > maxDate) maxDate = today
@@ -536,6 +1136,22 @@ export default {
 			const days = Math.floor((today - start) / (1000 * 60 * 60 * 24))
 			return days * this.dayWidth
 		},
+		minStartOffset() {
+			const dateStr = this.systemPlanningData?.minimumStart?.date
+			if (!dateStr) return null
+			const { start } = this.timelineRange
+			const d = this.parseDateOnly(dateStr)
+			const days = Math.floor((d - start) / (1000 * 60 * 60 * 24))
+			return days * this.dayWidth
+		},
+		desiredStartOffset() {
+			const dateStr = this.systemPlanningData?.desiredStart?.date
+			if (!dateStr) return null
+			const { start } = this.timelineRange
+			const d = this.parseDateOnly(dateStr)
+			const days = Math.floor((d - start) / (1000 * 60 * 60 * 24))
+			return days * this.dayWidth
+		},
 	},
 	watch: {
 		projectId: {
@@ -546,8 +1162,231 @@ export default {
 		},
 	},
 	methods: {
+		isPhaseExpanded(phaseKey) {
+			if (this.expandedPhases[phaseKey] !== undefined) {
+				return !!this.expandedPhases[phaseKey]
+			}
+			return true
+		},
+		togglePhase(phaseKey) {
+			const current = this.isPhaseExpanded(phaseKey)
+			this.expandedPhases = {
+				...this.expandedPhases,
+				[phaseKey]: !current,
+			}
+		},
+		hasGhostBar(task) {
+			if (!task?.plannedEndDate || !task?.endDate) return false
+			return task.plannedEndDate !== task.endDate
+		},
+		getTaskGhostBarStyle(task) {
+			const { start } = this.timelineRange
+			const tStart = this.parseDateOnly(task.startDate)
+			const tPlannedEnd = this.parseDateOnly(task.plannedEndDate)
+			const offsetDays = Math.floor((tStart - start) / (1000 * 60 * 60 * 24))
+			const durationDays = Math.max(1, Math.floor((tPlannedEnd - tStart) / (1000 * 60 * 60 * 24)) + 1)
+			const leftPx = offsetDays * this.dayWidth
+			const widthPx = durationDays * this.dayWidth
+			return {
+				left: `${leftPx}px`,
+				width: `${widthPx}px`,
+			}
+		},
+		formatDelayBadge(days) {
+			const w = Math.round(days / 7)
+			return w >= 1 ? `${w}w` : `${days}d`
+		},
+		async openImpactDrawer(task = null) {
+			const targetTaskId = task ? task.id : (this.activeDelayedTasks[0]?.id || 'Permits')
+			const delayDays = task ? (task.delayDays || 28) : 28
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/impact`)
+				const res = await axios.post(url, {
+					taskId: targetTaskId,
+					delayDays,
+				})
+				this.activeImpactAnalysis = res.data
+			} catch (e) {
+				console.error('Error fetching impact analysis:', e)
+				this.activeImpactAnalysis = this.timelineSummary?.delayAnalysis?.defaultAnalysis || null
+			}
+			this.showImpactDrawer = true
+		},
+		closeImpactDrawer() {
+			this.showImpactDrawer = false
+		},
+		onOptionSelected(option) {
+			// Triggered when an option is highlighted in drawer
+		},
+		async startWhatIf(option = null) {
+			this.showImpactDrawer = false
+			this.isSimulationMode = true
+			try {
+				const targetTaskId = this.activeImpactAnalysis?.task?.id || 'Permits'
+				const delayDays = this.activeImpactAnalysis?.task?.delayDays || 28
+				const strategy = option?.id || 'accelerate'
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/simulate`)
+				const res = await axios.post(url, {
+					rootTaskId: targetTaskId,
+					delayDays,
+					strategy,
+					accelerateDays: option?.shortenDays || 14,
+				})
+				this.simulationScenario = res.data.scenario
+				this.simulationApplication = res.data.application || null
+				this.simulatedPhases = res.data.simulatedPhases
+			} catch (e) {
+				console.error('Error starting what-if simulation:', e)
+			}
+		},
+		exitWhatIf() {
+			this.isSimulationMode = false
+			this.simulationScenario = null
+			this.simulationApplication = null
+			this.simulatedPhases = null
+		},
+		async switchSimulationStrategy(strategyId) {
+			const targetTaskId = this.simulationApplication?.rootTaskId || this.activeImpactAnalysis?.task?.id || 'Permits'
+			const delayDays = this.simulationApplication?.delayDays || this.activeImpactAnalysis?.task?.delayDays || 28
+			const opt = (this.activeImpactAnalysis?.recoveryOptions || []).find(o => o.id === strategyId)
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/simulate`)
+				const res = await axios.post(url, {
+					rootTaskId: targetTaskId,
+					delayDays,
+					strategy: strategyId,
+					accelerateDays: opt?.shortenDays || 14,
+				})
+				this.simulationScenario = res.data.scenario
+				this.simulationApplication = res.data.application || null
+				this.simulatedPhases = res.data.simulatedPhases
+			} catch (e) {
+				console.error('Error switching what-if strategy:', e)
+			}
+		},
+		async applyWhatIfScenario() {
+			this.applyingScenario = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/apply-recovery`)
+				const strategy = this.simulationScenario?.strategy || 'accelerate'
+				await axios.post(url, {
+					strategy,
+					rootTaskId: this.simulationApplication?.rootTaskId,
+					delayDays: this.simulationApplication?.delayDays,
+					accelerateDays: this.simulationApplication?.accelerateDays || 14,
+				})
+				this.exitWhatIf()
+				await this.loadItems()
+			} catch (e) {
+				console.error('Error applying recovery strategy:', e)
+			} finally {
+				this.applyingScenario = false
+			}
+		},
+		onTaskClick(task) {
+			if (task.isDelayed || this.isSimulationMode || !task.deckCardId) {
+				this.openImpactDrawer(task)
+			}
+		},
+		getStatusLabel(status) {
+			switch (status) {
+			case 'behind_at_risk':
+				return 'At risk'
+			case 'attention_needed':
+				return 'Attention'
+			case 'completed':
+				return 'Done'
+			case 'not_started':
+				return 'Not started'
+			case 'on_track':
+			default:
+				return 'On track'
+			}
+		},
+		getStatusClass(status, isDone = false) {
+			if (isDone) return 'status-pill--completed'
+			switch (status) {
+			case 'behind_at_risk':
+				return 'status-pill--at-risk'
+			case 'attention_needed':
+				return 'status-pill--attention'
+			case 'not_started':
+				return 'status-pill--not-started'
+			case 'on_track':
+			default:
+				return 'status-pill--on-track'
+			}
+		},
+		getTaskStatusLabel(task) {
+			if (task.isDone) return 'Done'
+			return this.getStatusLabel(task.status)
+		},
+		getPhaseDurationDays(phase) {
+			if (!phase?.startDate || !phase?.endDate) return 1
+			const s = this.parseDateOnly(phase.startDate)
+			const e = this.parseDateOnly(phase.endDate)
+			return Math.max(1, Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1)
+		},
+		formatPhaseDuration(phase) {
+			const days = this.getPhaseDurationDays(phase)
+			const weeks = days / 7
+			if (weeks < 1) return `${days}d`
+			const fixed = Math.abs(weeks - Math.round(weeks)) < 1e-9 ? String(Math.round(weeks)) : weeks.toFixed(1)
+			return `${fixed}w`
+		},
+		getPhaseBarStyle(phase) {
+			const { start } = this.timelineRange
+			const pStart = this.parseDateOnly(phase.startDate)
+			const pEnd = this.parseDateOnly(phase.endDate)
+			const offsetDays = Math.floor((pStart - start) / (1000 * 60 * 60 * 24))
+			const durationDays = Math.max(1, Math.floor((pEnd - pStart) / (1000 * 60 * 60 * 24)) + 1)
+			const leftPx = offsetDays * this.dayWidth
+			const widthPx = durationDays * this.dayWidth
+			const color = phase.color || '#3b82f6'
+			return {
+				left: `${leftPx}px`,
+				width: `${widthPx}px`,
+				borderColor: color,
+				backgroundColor: `${color}25`,
+			}
+		},
+		getPhaseMilestoneStyle(phase) {
+			const { start } = this.timelineRange
+			const dateStr = phase.milestone?.date || phase.endDate
+			const mDate = this.parseDateOnly(dateStr)
+			const offsetDays = Math.floor((mDate - start) / (1000 * 60 * 60 * 24))
+			const leftPx = offsetDays * this.dayWidth
+			return {
+				left: `${leftPx}px`,
+			}
+		},
+		getTaskBarStyle(task, phase) {
+			const { start } = this.timelineRange
+			const tStart = this.parseDateOnly(task.startDate)
+			const tEnd = this.parseDateOnly(task.endDate)
+			const offsetDays = Math.floor((tStart - start) / (1000 * 60 * 60 * 24))
+			const durationDays = Math.max(1, Math.floor((tEnd - tStart) / (1000 * 60 * 60 * 24)) + 1)
+			const leftPx = offsetDays * this.dayWidth
+			const widthPx = durationDays * this.dayWidth
+			const color = phase?.color || '#3b82f6'
+			return {
+				left: `${leftPx}px`,
+				width: `${widthPx}px`,
+				backgroundColor: color,
+				'--bar-color': color,
+			}
+		},
+		getTaskBarTitle(task) {
+			const status = this.getTaskStatusLabel(task)
+			const delay = task.delayDays > 0 ? ` • Delayed by +${this.formatDelayBadge(task.delayDays)}` : ''
+			return `${task.label}: ${this.formatDate(task.startDate)} – ${this.formatDate(task.endDate)} (${task.durationDays}d) • ${status}${delay}`
+		},
 		isSystemItem(item) {
 			return !!(item && item.systemKey)
+		},
+		isLegacySystemItem(item) {
+			const key = String(item?.systemKey || '').trim()
+			return ['request_date', 'process_completed', 'prep_time', 'deck_schedule'].includes(key)
 		},
 		itemKey(item) {
 			const sys = String(item?.systemKey || '').trim()
@@ -568,10 +1407,53 @@ export default {
 			this.loading = true
 			try {
 				const timelineUrl = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline`)
-				const response = await axios.get(timelineUrl)
-				this.allItems = response.data || []
+				const summaryUrl = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/summary`)
+				const [timelineRes, summaryRes] = await Promise.all([
+					axios.get(timelineUrl).catch(() => ({ data: [] })),
+					axios.get(summaryUrl).catch(() => ({ data: null })),
+				])
+				this.allItems = timelineRes.data || []
+				this.timelineSummary = summaryRes.data || null
+				this.activeImpactAnalysis = this.timelineSummary?.delayAnalysis?.defaultAnalysis || null
+			} catch (error) {
+				console.error('Error loading timeline data:', error)
 			} finally {
 				this.loading = false
+			}
+		},
+		async onSaveDesiredDate(dateStr) {
+			this.savingDesiredDate = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
+				const response = await axios.put(url, {
+					desired_start_date: dateStr || null,
+				})
+				if (response.data?.summary) {
+					this.timelineSummary = response.data.summary
+				} else {
+					await this.loadItems()
+				}
+			} catch (error) {
+				console.error('Error updating desired start date:', error)
+			} finally {
+				this.savingDesiredDate = false
+			}
+		},
+		async onSavePrepWeeks(weeks) {
+			this.savingDesiredDate = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
+				const response = await axios.put(url, {
+					required_preparation_weeks: weeks,
+				})
+				if (response.data?.summary) {
+					this.timelineSummary = response.data.summary
+				}
+				await this.loadItems()
+			} catch (error) {
+				console.error('Error updating preparation weeks:', error)
+			} finally {
+				this.savingDesiredDate = false
 			}
 		},
 		formatDate(dateStr) {
@@ -633,8 +1515,8 @@ export default {
 			utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day)
 			const isoYear = utcDate.getUTCFullYear()
 			const yearStart = new Date(Date.UTC(isoYear, 0, 1))
-			const isoWeek = Math.ceil(((utcDate - yearStart) / (1000 * 60 * 60 * 24) + 1) / 7)
-			return { isoWeek, isoYear }
+			const isoWeek = Math.ceil(((utcDate - yearStart) / (1000 * 60 * 60 * 24)) + 1) / 7
+			return { isoWeek: Math.ceil(isoWeek), isoYear }
 		},
 		getBarStyle(item) {
 			const { start } = this.timelineRange
@@ -760,24 +1642,6 @@ export default {
 				console.error('Error deleting timeline item:', error)
 			}
 		},
-		async onDragEnd() {
-			try {
-				// Ensure v-model update is applied before persisting
-				await this.$nextTick()
-				const baseUrl = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline`)
-				const visibleIds = this.items.map((item) => item.id)
-				const allProjectIds = (this.allItems || []).map((item) => item.id)
-				const reorderedIds = [
-					...visibleIds,
-					...allProjectIds.filter((id) => !visibleIds.includes(id)),
-				]
-				const response = await axios.put(`${baseUrl}/reorder`, { ids: reorderedIds })
-				this.allItems = response.data || []
-			} catch (error) {
-				console.error('Error updating order:', error)
-				await this.loadItems()
-			}
-		},
 		navigatePrev() {
 			const monthPx = 30 * this.dayWidth
 			this.scrollBy(-monthPx)
@@ -793,17 +1657,19 @@ export default {
 			const target = Math.max(0, this.todayOffset - containerWidth / 2)
 			el.scrollLeft = target
 		},
-		navigateToPhase(index) {
-			if (index < 0 || index >= this.items.length) return
-			this.currentPhaseIndex = index
-			const item = this.items[index]
+		navigateToDate(dateStr) {
+			if (!dateStr) return
 			const { start } = this.timelineRange
-			const itemStart = this.parseDateOnly(item.startDate)
-			const offsetDays = Math.floor((itemStart - start) / (1000 * 60 * 60 * 24))
+			const d = this.parseDateOnly(dateStr)
+			const offsetDays = Math.floor((d - start) / (1000 * 60 * 60 * 24))
 			const offsetPx = offsetDays * this.dayWidth
 			const el = this.$refs.scrollEl
 			if (!el) return
-			el.scrollLeft = Math.max(0, offsetPx - 50)
+			try {
+				el.scrollTo({ left: Math.max(0, offsetPx - 60), behavior: 'smooth' })
+			} catch (e) {
+				el.scrollLeft = Math.max(0, offsetPx - 60)
+			}
 		},
 		scrollBy(px) {
 			const el = this.$refs.scrollEl
@@ -881,10 +1747,29 @@ export default {
 	flex-wrap: wrap;
 }
 
+.title-with-badge {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
 .timeline-v2__title {
 	margin: 0;
 	font-size: 22px;
 	font-weight: 700;
+}
+
+.delay-warning-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	background: rgba(239, 68, 68, 0.12);
+	color: #dc2626;
+	border: 1px solid rgba(239, 68, 68, 0.3);
+	padding: 3px 10px;
+	border-radius: 99px;
+	font-size: 11px;
+	font-weight: 800;
 }
 
 .timeline-v2__subtitle {
@@ -896,7 +1781,22 @@ export default {
 .timeline-v2__controls {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.advisor-btn {
+	font-weight: 700;
+}
+
+.advisor-btn--alert {
+	border-color: #ef4444 !important;
+	color: #dc2626 !important;
+}
+
+.whatif-btn {
+	font-weight: 700;
+	color: #3b82f6 !important;
 }
 
 .control-group {
@@ -956,18 +1856,23 @@ export default {
 /* Gantt V2 Grid Layout */
 .gantt-v2 {
 	display: grid;
-	grid-template-columns: 240px 1fr;
+	grid-template-columns: 280px 1fr 110px;
 	border-bottom: 1px solid var(--color-border);
+	transition: background 0.2s ease;
 }
 
 .gantt-v2--admin {
-	grid-template-columns: 240px 1fr 100px;
+	grid-template-columns: 280px 1fr 110px 80px;
+}
+
+.gantt-v2--simulating {
+	background: rgba(59, 130, 246, 0.02);
 }
 
 .gantt-v2__header-cell {
 	display: flex;
 	align-items: center;
-	padding: 0 20px;
+	padding: 0 16px;
 	background: var(--color-background-dark);
 	border-bottom: 1px solid var(--color-border);
 	font-size: 12px;
@@ -977,38 +1882,180 @@ export default {
 	color: var(--color-text-maxcontrast);
 }
 
+.gantt-v2__header-cell--center {
+	justify-content: center;
+}
+
 /* Sidebar / Phase List */
 .gantt-v2__sidebar {
 	border-right: 1px solid var(--color-border);
+	background: var(--color-main-background);
 }
 
 .phase-row {
 	display: flex;
 	align-items: center;
-	min-height: 68px;
 	padding: 0 16px;
 	border-bottom: 1px solid var(--color-border);
 	background: var(--color-main-background);
-	transition: all 0.2s ease;
+	box-sizing: border-box;
+	transition: background 0.15s ease;
 }
 
 .phase-row:hover {
 	background: var(--color-background-hover);
-	padding-left: 20px;
 }
 
-.phase-row--system {
+/* System Planning Row */
+.phase-row--system-planning {
+	min-height: 76px;
+	height: 76px;
+	box-sizing: border-box;
+	background: rgba(59, 130, 246, 0.05);
+	border-left: 3px solid #3b82f6;
+	cursor: default;
+}
+
+.sp-sidebar-badge {
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: #3b82f6;
+	color: #ffffff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 800;
+	margin-right: 8px;
+	flex-shrink: 0;
+}
+
+.sp-sidebar-icon {
+	display: flex;
+	align-items: center;
+	color: #3b82f6;
+	margin-right: 8px;
+	flex-shrink: 0;
+}
+
+/* Phase Header Row in Sidebar */
+.phase-row--phase-header {
+	border-left: 4px solid #3b82f6;
+	background: var(--color-background-hover);
+	cursor: pointer;
+	user-select: none;
+}
+
+.phase-row--phase-header:hover {
 	background: var(--color-background-dark);
-	opacity: 0.95;
 }
 
-.phase-row--system:hover {
-	background: var(--color-background-dark);
+.phase-toggle-btn {
+	background: none;
+	border: none;
+	padding: 4px;
+	margin-right: 4px;
+	cursor: pointer;
+	color: var(--color-text-maxcontrast);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	transition: background 0.15s ease;
 }
 
-.phase-row--ghost {
-	opacity: 0.5;
-	background: var(--color-primary-element-light) !important;
+.phase-toggle-btn:hover {
+	background: rgba(0, 0, 0, 0.08);
+	color: var(--color-main-text);
+}
+
+.phase-order-badge {
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	color: #ffffff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 800;
+	margin-right: 8px;
+	flex-shrink: 0;
+}
+
+/* Task Child Row in Sidebar */
+.phase-row--task-child {
+	padding-left: 32px;
+	background: var(--color-main-background);
+}
+
+.phase-row--task-child:hover {
+	background: var(--color-background-hover);
+}
+
+.task-tree-indicator {
+	position: relative;
+	width: 20px;
+	height: 100%;
+	margin-right: 4px;
+	flex-shrink: 0;
+}
+
+.tree-line-v {
+	position: absolute;
+	left: 8px;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--color-border);
+}
+
+.tree-line-h {
+	position: absolute;
+	left: 8px;
+	top: 50%;
+	width: 10px;
+	height: 1px;
+	background: var(--color-border);
+}
+
+.task-deck-icon {
+	display: flex;
+	align-items: center;
+	color: var(--color-primary-element);
+	margin-right: 6px;
+	flex-shrink: 0;
+	opacity: 0.85;
+}
+
+.task-name {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--color-main-text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.task-name--done {
+	text-decoration: line-through;
+	opacity: 0.7;
+}
+
+.task-name--delayed {
+	color: #dc2626;
+	font-weight: 700;
+}
+
+.task-delay-tag {
+	font-size: 10px;
+	font-weight: 800;
+	background: #ef4444;
+	color: #ffffff;
+	padding: 1px 6px;
+	border-radius: 99px;
+	white-space: nowrap;
 }
 
 .drag-handle {
@@ -1018,21 +2065,6 @@ export default {
 	color: var(--color-text-lighter);
 	display: flex;
 	align-items: center;
-	transition: color 0.2s ease;
-}
-
-.phase-row:hover .drag-handle {
-	color: var(--color-primary-element);
-}
-
-.drag-handle--locked {
-	cursor: default;
-	color: var(--color-text-maxcontrast);
-	opacity: 0.6;
-}
-
-.drag-handle:active {
-	cursor: grabbing;
 }
 
 .phase-row__content {
@@ -1049,7 +2081,7 @@ export default {
 
 .phase-row__name {
 	font-weight: 700;
-	font-size: 14px;
+	font-size: 13px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1136,24 +2168,143 @@ export default {
 	height: 100%;
 }
 
+/* SVG Dependency Lines */
+.timeline-dependencies-svg {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	z-index: 4;
+}
+
+.dependency-line {
+	fill: none;
+	stroke: #94a3b8;
+	stroke-width: 1.5;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+	opacity: 0.8;
+	transition: stroke 0.2s ease;
+}
+
+.dependency-line--active {
+	stroke: #3b82f6;
+	stroke-width: 2;
+}
+
+.dependency-line--delayed {
+	stroke: #ef4444;
+	stroke-dasharray: 4 2;
+	stroke-width: 2;
+}
+
+/* Canvas Rows */
 .timeline-row {
-	height: 68px;
 	display: flex;
 	align-items: center;
 	border-bottom: 1px solid var(--color-border);
 	position: relative;
+	box-sizing: border-box;
 }
 
+.timeline-row--phase-header {
+	background: rgba(0, 0, 0, 0.015);
+}
+
+.timeline-row--task-child {
+	background: var(--color-main-background);
+}
+
+/* Phase Summary Bar & Milestone */
+.phase-summary-bar {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	height: 18px;
+	border-radius: 6px;
+	border: 2px solid #3b82f6;
+	display: flex;
+	align-items: center;
+	padding: 0 8px;
+	box-sizing: border-box;
+	z-index: 5;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.phase-summary-bar__label {
+	font-size: 10px;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--color-main-text);
+}
+
+.phase-milestone-marker {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	display: flex;
+	align-items: center;
+	z-index: 8;
+	pointer-events: auto;
+}
+
+.phase-milestone-diamond {
+	width: 14px;
+	height: 14px;
+	transform: rotate(45deg);
+	border-radius: 2px;
+	border: 2px solid #ffffff;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+	flex-shrink: 0;
+	transition: transform 0.2s ease;
+	cursor: pointer;
+}
+
+.phase-milestone-diamond:hover {
+	transform: rotate(45deg) scale(1.25);
+}
+
+.phase-milestone-label {
+	margin-left: 8px;
+	font-size: 11px;
+	font-weight: 700;
+	white-space: nowrap;
+	color: var(--color-main-text);
+	background: var(--color-main-background);
+	padding: 1px 6px;
+	border-radius: 4px;
+	border: 1px solid var(--color-border);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Ghost Bar for Original Baseline */
+.timeline-bar--ghost {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	height: 26px;
+	border-radius: 6px;
+	border: 1.5px dashed #94a3b8;
+	background: rgba(148, 163, 184, 0.12);
+	pointer-events: none;
+	z-index: 3;
+}
+
+/* Task Bar */
 .timeline-bar {
 	position: absolute;
 	top: 50%;
-	height: 32px;
-	border-radius: 8px;
+	height: 26px;
+	border-radius: 6px;
 	display: flex;
 	align-items: center;
-	padding: 0 12px;
-	box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-	border: 1px solid rgba(255, 255, 255, 0.15);
+	padding: 0 10px;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.2);
 	cursor: pointer;
 	transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 	z-index: 5;
@@ -1161,9 +2312,9 @@ export default {
 }
 
 .timeline-bar:hover {
-	filter: brightness(1.1);
-	transform: translateY(-50%) scale(1.02);
-	box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+	filter: brightness(1.08);
+	transform: translateY(-50%) scale(1.01);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 	z-index: 10;
 }
 
@@ -1174,28 +2325,51 @@ export default {
 .timeline-bar--readonly:hover {
 	filter: none;
 	transform: translateY(-50%);
-	box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-@keyframes progress-stripes {
-	from { background-position: 1rem 0; }
-	to { background-position: 0 0; }
+.timeline-bar--task {
+	gap: 6px;
 }
 
-.timeline-bar--ongoing {
-	background-image: linear-gradient(
-		45deg,
-		rgba(255, 255, 255, 0.2) 25%,
-		transparent 25%,
-		transparent 50%,
-		rgba(255, 255, 255, 0.2) 50%,
-		rgba(255, 255, 255, 0.2) 75%,
-		transparent 75%,
-		transparent
-	);
-	background-size: 1rem 1rem;
-	animation: progress-stripes 1s linear infinite;
-	border-right: 2px dashed rgba(255, 255, 255, 0.8);
+.timeline-bar--task-done {
+	opacity: 0.85;
+}
+
+.timeline-bar--task-at-risk {
+	border: 2px solid #ef4444;
+	box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.timeline-bar--simulated {
+	box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.6), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.task-delay-badge {
+	background: #ef4444;
+	color: #ffffff;
+	font-size: 9px;
+	font-weight: 800;
+	padding: 1px 5px;
+	border-radius: 99px;
+	margin-left: auto;
+	box-shadow: 0 1px 3px rgba(239, 68, 68, 0.4);
+	flex-shrink: 0;
+}
+
+.task-done-icon {
+	color: #ffffff;
+	flex-shrink: 0;
+}
+
+.timeline-bar__label {
+	font-size: 11px;
+	font-weight: 700;
+	color: #ffffff;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .timeline-milestone {
@@ -1206,26 +2380,10 @@ export default {
 	background: var(--marker-color, #0f172a);
 	transform: translate(-50%, -50%) rotate(45deg);
 	border-radius: 3px;
-	box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 	border: 2px solid #fff;
 	z-index: 8;
-	transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.timeline-milestone:hover {
-	transform: translate(-50%, -50%) rotate(45deg) scale(1.2);
-	box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-	z-index: 10;
-}
-
-.timeline-bar__label {
-	font-size: 12px;
-	font-weight: 700;
-	color: #fff;
-	text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	transition: transform 0.2s ease;
 }
 
 .today-marker {
@@ -1273,19 +2431,158 @@ export default {
 	box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
 }
 
-/* Actions Column */
+/* Guide Lines */
+.timeline-guide-marker {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 6;
+	pointer-events: none;
+}
+
+.timeline-guide-line {
+	width: 2px;
+	height: 100%;
+}
+
+.timeline-guide-line--min-start {
+	border-left: 2px dashed #7c3aed;
+	opacity: 0.7;
+}
+
+.timeline-guide-line--desired-start {
+	border-left: 2px dashed #4f46e5;
+	opacity: 0.7;
+}
+
+/* Column 3: Status Column */
+.gantt-v2__status {
+	border-left: 1px solid var(--color-border);
+	background: var(--color-main-background);
+}
+
+.status-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 10px;
+	border-bottom: 1px solid var(--color-border);
+	box-sizing: border-box;
+}
+
+.status-row--system-planning {
+	height: 76px;
+	background: rgba(59, 130, 246, 0.03);
+}
+
+.status-row--phase-header {
+	background: var(--color-background-hover);
+}
+
+.status-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 8px;
+	border-radius: 99px;
+	font-size: 11px;
+	font-weight: 700;
+	border: 1px solid transparent;
+	white-space: nowrap;
+}
+
+.status-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.status-pill--on-track {
+	background: rgba(16, 185, 129, 0.12);
+	color: #059669;
+	border-color: rgba(16, 185, 129, 0.25);
+}
+
+.status-pill--on-track .status-dot {
+	background: #10b981;
+}
+
+.status-pill--attention {
+	background: rgba(245, 158, 11, 0.12);
+	color: #d97706;
+	border-color: rgba(245, 158, 11, 0.25);
+}
+
+.status-pill--attention .status-dot {
+	background: #f59e0b;
+}
+
+.status-pill--at-risk {
+	background: rgba(239, 68, 68, 0.12);
+	color: #dc2626;
+	border-color: rgba(239, 68, 68, 0.25);
+}
+
+.status-pill--at-risk .status-dot {
+	background: #ef4444;
+}
+
+.status-pill--not-started {
+	background: rgba(148, 163, 184, 0.12);
+	color: #64748b;
+	border-color: rgba(148, 163, 184, 0.25);
+}
+
+.status-pill--not-started .status-dot {
+	background: #94a3b8;
+}
+
+.status-pill--completed {
+	background: rgba(5, 150, 105, 0.15);
+	color: #047857;
+	border-color: rgba(5, 150, 105, 0.3);
+}
+
+.status-pill--completed .status-dot {
+	background: #059669;
+}
+
+/* Column 4: Actions Column */
 .gantt-v2__actions {
 	border-left: 1px solid var(--color-border);
-	background: rgba(0,0,0,0.01);
+	background: rgba(0, 0, 0, 0.01);
 }
 
 .action-row {
-	height: 64px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 4px;
 	border-bottom: 1px solid var(--color-border);
+	box-sizing: border-box;
+}
+
+.action-row--system-planning {
+	height: 76px;
+	background: rgba(59, 130, 246, 0.03);
+}
+
+.action-row--phase-header {
+	background: var(--color-background-hover);
+}
+
+.action-row__locked-hint,
+.action-row__deck-hint {
+	color: var(--color-text-lighter);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.7;
+}
+
+.action-row__deck-hint {
+	color: var(--color-primary-element);
 }
 
 /* Footer / Phase Jumper */
@@ -1327,13 +2624,6 @@ export default {
 .phase-chip:hover {
 	border-color: var(--phase-color);
 	background: var(--color-background-hover);
-}
-
-.phase-chip.active {
-	background: var(--phase-color);
-	color: #fff;
-	border-color: var(--phase-color);
-	box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 /* Phase Form / Modal */
@@ -1442,8 +2732,8 @@ export default {
 	.gantt-v2, .gantt-v2--admin {
 		grid-template-columns: 1fr;
 	}
-
 	.gantt-v2__sidebar { border-right: none; }
+	.gantt-v2__status { border-left: none; }
 	.gantt-v2__actions { border-left: none; }
 }
 </style>

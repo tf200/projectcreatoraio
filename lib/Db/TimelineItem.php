@@ -30,6 +30,16 @@ use JsonSerializable;
  * @method void setUpdatedAt(DateTime $updatedAt)
  * @method string|null getSystemKey()
  * @method void setSystemKey(?string $systemKey)
+ * @method int|null getPhaseId()
+ * @method void setPhaseId(?int $phaseId)
+ * @method int|null getDeckCardId()
+ * @method void setDeckCardId(?int $deckCardId)
+ * @method int|null getDurationDays()
+ * @method void setDurationDays(?int $durationDays)
+ * @method string|null getStatus()
+ * @method void setStatus(?string $status)
+ * @method DateTime|null getPlannedEndDate()
+ * @method void setPlannedEndDate(?DateTime $plannedEndDate)
  */
 class TimelineItem extends Entity implements JsonSerializable
 {
@@ -41,6 +51,11 @@ class TimelineItem extends Entity implements JsonSerializable
     protected $itemType;
     protected $orderIndex;
     protected $systemKey;
+    protected $phaseId;
+    protected $deckCardId;
+    protected $durationDays;
+    protected $status;
+    protected $plannedEndDate;
     protected $createdAt;
     protected $updatedAt;
 
@@ -52,6 +67,11 @@ class TimelineItem extends Entity implements JsonSerializable
         $this->addType('endDate', Types::DATE);
         $this->addType('systemKey', Types::STRING);
         $this->addType('itemType', Types::STRING);
+        $this->addType('phaseId', Types::INTEGER);
+        $this->addType('deckCardId', Types::INTEGER);
+        $this->addType('durationDays', Types::INTEGER);
+        $this->addType('status', Types::STRING);
+        $this->addType('plannedEndDate', Types::DATE);
         $this->addType('createdAt', Types::DATETIME);
         $this->addType('updatedAt', Types::DATETIME);
     }
@@ -68,6 +88,8 @@ class TimelineItem extends Entity implements JsonSerializable
         return [
             'id' => $this->getId(),
             'projectId' => $this->getProjectId(),
+            'phaseId' => $this->getPhaseId() !== null ? (int)$this->getPhaseId() : null,
+            'deckCardId' => $this->getDeckCardId() !== null ? (int)$this->getDeckCardId() : null,
             'label' => $this->getLabel(),
             'startDate' => $this->startDate instanceof DateTime
                 ? $this->startDate->format('Y-m-d')
@@ -75,6 +97,11 @@ class TimelineItem extends Entity implements JsonSerializable
             'endDate' => $this->endDate instanceof DateTime
                 ? $this->endDate->format('Y-m-d')
                 : $this->endDate,
+            'plannedEndDate' => $this->plannedEndDate instanceof DateTime
+                ? $this->plannedEndDate->format('Y-m-d')
+                : $this->plannedEndDate,
+            'durationDays' => $this->getDurationDays() !== null ? (int)$this->getDurationDays() : null,
+            'status' => (string) ($this->getStatus() ?? 'not_started'),
             'color' => $this->getColor(),
             'itemType' => $itemType,
             'orderIndex' => $this->getOrderIndex(),

@@ -185,6 +185,7 @@ class Application extends App implements IBootstrap {
 				$c->get(StackService::class),
 				$c->get(BoardService::class),
 				$c->get(LoggerInterface::class),
+				$c->get(IDBConnection::class),
 			);
 		});
 

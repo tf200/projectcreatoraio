@@ -597,7 +597,6 @@
 											</h3>
 										</div>
 										<div class="projects-home__panel-content">
-											<TimelineSummary :project-id="selectedProject.id" :can-edit="canEditPreparationWeeks" />
 											<GanttChart :project-id="selectedProject.id" :is-admin="canManageTimelineItems" />
 										</div>
 									</div>
@@ -880,7 +879,6 @@
 						</div>
 						<div class="projects-home__split-panel projects-home__split-panel--timeline">
 							<div class="projects-home__panel-content">
-								<TimelineSummary :project-id="selectedProject.id" :can-edit="canEditPreparationWeeks" />
 								<GanttChart :project-id="selectedProject.id" :is-admin="canManageTimelineItems" />
 							</div>
 						</div>
@@ -1378,7 +1376,6 @@ import { ProjectsService } from '../Services/projects.js'
 import DeckAnalytics from './ProjectDeck/DeckAnalytics.vue'
 import DeckBoard from './ProjectDeck/DeckBoard.vue'
 import GanttChart from './ProjectTimeline/GanttChart.vue'
-import TimelineSummary from './ProjectTimeline/TimelineSummary.vue'
 import ProjectFilesBrowser from './ProjectFiles/ProjectFilesBrowser.vue'
 import WhiteboardBoard from './ProjectWhiteboard/WhiteboardBoard.vue'
 import ProjectCreator from './ProjectCreator.vue'
@@ -1414,7 +1411,6 @@ export default {
 		FolderOpen,
 		FolderOutline,
 		GanttChart,
-		TimelineSummary,
 		Magnify,
 		MapMarker,
 		MenuClose,

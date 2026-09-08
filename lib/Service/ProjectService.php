@@ -2236,6 +2236,7 @@ class ProjectService {
 		?string $external_ref = null,
 		?int $status = null,
 		?int $required_preparation_weeks = null,
+		?string $desired_start_date = null,
 	) {
 		// 1. Fetch the existing project
 		$project = $this->projectMapper->find($id);
@@ -2317,6 +2318,21 @@ class ProjectService {
 
 		if ($required_preparation_weeks !== null) {
 			$project->setRequiredPreparationWeeks(max(0, (int)$required_preparation_weeks));
+		}
+
+		if ($desired_start_date !== null) {
+			$trimmed = trim($desired_start_date);
+			if ($trimmed === '' || strtolower($trimmed) === 'null') {
+				$project->setDesiredStartDate(null);
+			} else {
+				try {
+					$dt = new DateTime($trimmed);
+					$dt->setTime(0, 0, 0);
+					$project->setDesiredStartDate($dt);
+				} catch (\Throwable) {
+					// ignore invalid format
+				}
+			}
 		}
 
 		// 3. Save via Mapper
