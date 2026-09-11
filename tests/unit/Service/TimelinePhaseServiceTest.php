@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
 
 final class TimelinePhaseServiceTest extends TestCase
 {
-	public function testGetProjectPhaseHierarchyReturnsFourLifecyclePhases(): void
+	public function testGetProjectPhaseHierarchyReturnsFourEmptyLifecyclePhasesWithoutDeckCards(): void
 	{
 		$db = $this->createMock(IDBConnection::class);
 		$phaseMapper = $this->createMock(TimelinePhaseMapper::class);
@@ -70,42 +70,46 @@ final class TimelinePhaseServiceTest extends TestCase
 		$phases = $hierarchy['phases'];
 		$this->assertSame('initiation', $phases[0]['category']);
 		$this->assertSame(2, $phases[0]['order']);
-		$this->assertSame('Initiation ready', $phases[0]['milestone']['label']);
 		$this->assertSame('preparation', $phases[1]['category']);
 		$this->assertSame(3, $phases[1]['order']);
-		$this->assertSame('Start construction', $phases[1]['milestone']['label']);
 		$this->assertSame('execution', $phases[2]['category']);
 		$this->assertSame(4, $phases[2]['order']);
-		$this->assertSame('End construction', $phases[2]['milestone']['label']);
 		$this->assertSame('handover', $phases[3]['category']);
 		$this->assertSame(5, $phases[3]['order']);
-		$this->assertSame('Project complete', $phases[3]['milestone']['label']);
-		$this->assertSame(14, $phases[2]['tasks'][0]['durationDays']);
-
-		$this->assertNotEmpty($hierarchy['dependencies']);
-		$this->assertSame('FS', $hierarchy['dependencies'][0]['type']);
+		foreach ($phases as $phase) {
+			$this->assertSame([], $phase['tasks']);
+			$this->assertNull($phase['startDate']);
+			$this->assertNull($phase['endDate']);
+			$this->assertNull($phase['milestone']);
+			$this->assertSame('not_started', $phase['status']);
+		}
+		$this->assertSame([], $hierarchy['dependencies']);
 	}
 
 	public function testDefaultCardDependenciesMappingAlignsWithCustomerFlow(): void
 	{
 		$phases = \OCA\ProjectCreatorAIO\Service\CombiPhaseDefaults::getPhases();
 		$initiationCards = $phases['initiation']['cards'];
-		$preparationCards = $phases['preparation']['cards'];
+		$defaultCards = array_merge(
+			\OCA\ProjectCreatorAIO\Service\ProjectTypeDeckDefaults::getNextPriorityCards(0),
+			\OCA\ProjectCreatorAIO\Service\ProjectTypeDeckDefaults::getProcessStepCards(0),
+		);
+		$defaultTitles = array_column($defaultCards, 'title');
 
-		$this->assertContains('Intakeformulier', $initiationCards);
-		$this->assertContains('Piekvermogensformulier', $initiationCards);
-		$this->assertContains('Quickscan', $initiationCards);
-		$this->assertContains('Situatie tekening', $initiationCards);
-
-		$this->assertContains('AVP', $preparationCards);
-		$this->assertContains('VO', $preparationCards);
-		$this->assertContains('Intake inplannen & hosten', $preparationCards);
-		$this->assertContains('Intakeverslag', $preparationCards);
-		$this->assertContains('DO', $preparationCards);
-		$this->assertContains('Huisnummerbesluit', $preparationCards);
-		$this->assertContains('Garantie overeenkomst', $preparationCards);
+		$this->assertEqualsCanonicalizing($defaultTitles, $initiationCards);
+		$this->assertSame('Intakeformulier', $initiationCards[0]);
+		$this->assertSame([], $phases['preparation']['cards']);
+		$this->assertSame([], $phases['execution']['cards']);
+		$this->assertSame([], $phases['execution']['customTasks']);
+		$this->assertSame([], $phases['handover']['cards']);
+		$this->assertSame([], $phases['handover']['customTasks']);
+		foreach ($defaultTitles as $title) {
+			$this->assertSame('initiation', \OCA\ProjectCreatorAIO\Service\CombiPhaseDefaults::findPhaseKeyForCardTitle($title));
+		}
 
 		$deps = \OCA\ProjectCreatorAIO\Service\CombiPhaseDefaults::getDefaultCardDependencies();
+		$dependencyKeys = \OCA\ProjectCreatorAIO\Service\ProjectTypeDeckDefaults::getDefaultDependencyKeys(0);
+		$this->assertSame(['combi.intake_form'], $dependencyKeys['combi.peak_power_form']);
 		$this->assertSame(['Intakeformulier'], $deps['Piekvermogensformulier']);
 		$this->assertSame(['Intakeformulier'], $deps['Quickscan']);
 		$this->assertSame(['Quickscan'], $deps['Situatie tekening']);

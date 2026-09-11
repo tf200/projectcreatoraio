@@ -3,10 +3,12 @@
 namespace OCA\ProjectCreatorAIO\Controller;
 
 use DateTime;
+use OCA\Deck\NoPermissionException;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
+use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
@@ -34,6 +36,7 @@ class TimelineApiController extends Controller
 		private TimelinePlanningService $planningService,
 		private TimelinePhaseService $phaseService,
 		private TimelineImpactService $impactService,
+		private DeckCardScheduleService $deckCardScheduleService,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
@@ -192,6 +195,44 @@ class TimelineApiController extends Controller
             return $this->errorResponse($e);
         }
     }
+
+	#[NoAdminRequired]
+	public function updateCardSchedule(int $projectId, int $cardId, string $startDate, string $endDate): JSONResponse
+	{
+		try {
+			$project = $this->requireProject($projectId);
+			$this->assertCanManageTimelineProject($project);
+
+			$start = new DateTime($startDate);
+			$end = new DateTime($endDate);
+			$start->setTime(0, 0);
+			$end->setTime(0, 0);
+			if ($end < $start) {
+				throw new \InvalidArgumentException('End date cannot be before start date');
+			}
+			$this->deckCardScheduleService->assertCardCanBeRescheduled($project, $cardId);
+			$baseline = $this->phaseService->getProjectPhaseHierarchy($project);
+			$durationDays = (int)$start->diff($end)->days + 1;
+			$target = $this->phaseService->getProjectPhaseHierarchy($project, [
+				'taskOverrides' => [
+					(string)$cardId => [
+						'startDate' => $start->format('Y-m-d'),
+						'durationDays' => $durationDays,
+					],
+				],
+			]);
+			$updatedCards = $this->deckCardScheduleService->syncChangedSchedules($project, $baseline['phases'], $target['phases']);
+
+			return new JSONResponse([
+				'id' => $cardId,
+				'startDate' => $start->format('Y-m-d'),
+				'endDate' => $end->format('Y-m-d'),
+				'updatedCards' => $updatedCards,
+			]);
+		} catch (\Throwable $e) {
+			return $this->errorResponse($e);
+		}
+	}
 
 	#[NoAdminRequired]
 	public function create(
@@ -594,13 +635,17 @@ class TimelineApiController extends Controller
 
     private function errorResponse(\Throwable $e): JSONResponse
     {
-        if ($e instanceof OCSForbiddenException) {
+        if ($e instanceof OCSForbiddenException || $e instanceof NoPermissionException) {
             return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
         }
 
         if ($e instanceof OCSNotFoundException) {
             return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
         }
+
+		if ($e instanceof \InvalidArgumentException) {
+			return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
 
         return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
     }

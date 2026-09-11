@@ -64,8 +64,8 @@ class TimelinePhaseService
 	 *         name: string,
 	 *         category: string,
 	 *         color: string,
-	 *         startDate: string,
-	 *         endDate: string,
+	 *         startDate: string|null,
+	 *         endDate: string|null,
 	 *         status: string,
 	 *         milestone: array{label: string, date: string, status: string}|null,
 	 *         tasks: array<int, array{
@@ -242,8 +242,12 @@ class TimelinePhaseService
 					$cardId = (int) $card['id'];
 					$cardTitle = trim((string) $card['title']);
 					$cardTitleLower = strtolower($cardTitle);
+					$persistedCardOverride = $persistedOverrides[(string)$cardId] ?? [];
+					if ($card['startdate'] instanceof DateTime || $card['duedate'] instanceof DateTime) {
+						unset($persistedCardOverride['startDate'], $persistedCardOverride['durationDays'], $persistedCardOverride['plannedEndDate']);
+					}
 					$override = array_merge(
-						$persistedOverrides[(string) $cardId] ?? [],
+						$persistedCardOverride,
 						$taskOverrides[$cardId] ?? $taskOverrides[(string)$cardId] ?? $taskOverrides[$cardTitle] ?? [],
 					);
 
@@ -258,7 +262,9 @@ class TimelinePhaseService
 								foreach ($predTitles as $pTitle) {
 									$pLower = trim(strtolower($pTitle));
 									if (isset($cardIdByTitle[$pLower])) {
-										$predecessors[] = $cardIdByTitle[$pLower];
+										$predecessorId = $cardIdByTitle[$pLower];
+										$predecessors[] = $predecessorId;
+										$this->persistDeckDependency($cardId, $predecessorId);
 									}
 								}
 								break;
@@ -283,6 +289,14 @@ class TimelinePhaseService
 					if ($cardStart === null) {
 						$cardStart = clone $previousPhaseLastEnd;
 					}
+					if ($card['startdate'] instanceof DateTime) {
+						$cardStart = clone $card['startdate'];
+						$cardStart->setTime(0, 0);
+					} elseif ($card['duedate'] instanceof DateTime) {
+						$cardStart = clone $card['duedate'];
+						$cardStart->setTime(0, 0);
+						$cardStart->modify('-13 days');
+					}
 					if (!empty($override['startDate'])) {
 						$cardStart = new DateTime((string) $override['startDate']);
 					}
@@ -292,10 +306,12 @@ class TimelinePhaseService
 						$cardStart->modify('-' . $overlap . ' days');
 					}
 					
-					// Default 2 weeks duration if not set
+					// Deck dates are inclusive; a Monday-to-Sunday schedule lasts seven days.
 					$baseDuration = 14;
 					if ($card['startdate'] instanceof DateTime && $card['duedate'] instanceof DateTime && $card['duedate'] >= $card['startdate']) {
-						$baseDuration = max(1, (int) $card['startdate']->diff($card['duedate'])->days);
+						$baseDuration = max(1, (int)$card['startdate']->diff($card['duedate'])->days + 1);
+					} elseif ($card['duedate'] instanceof DateTime && $card['duedate'] >= $cardStart) {
+						$baseDuration = max(1, (int)$cardStart->diff($card['duedate'])->days + 1);
 					}
 					$durationDays = $baseDuration;
 					if ($override && isset($override['durationDays'])) {
@@ -379,10 +395,10 @@ class TimelinePhaseService
 				$lastTaskIdOfPrevPhase = $tasks[count($tasks) - 1]['id'];
 			}
 
-			// Phase Date Rollup
+			// Phase date rollup. Empty future phases remain unscheduled placeholders.
 			$minStart = null;
 			$maxEnd = null;
-			$phaseStatus = 'on_track';
+			$phaseStatus = empty($tasks) ? 'not_started' : 'on_track';
 
 			foreach ($tasks as $t) {
 				$s = new DateTime($t['startDate']);
@@ -396,17 +412,13 @@ class TimelinePhaseService
 				}
 			}
 
-			if ($minStart === null) $minStart = clone $previousPhaseLastEnd;
-			if ($maxEnd === null) {
-				$maxEnd = clone $minStart;
-				$maxEnd->modify('+30 days');
+			if ($maxEnd !== null) {
+				$previousPhaseLastEnd = clone $maxEnd;
+				$previousPhaseLastEnd->modify('+1 day');
 			}
 
-			$previousPhaseLastEnd = clone $maxEnd;
-			$previousPhaseLastEnd->modify('+1 day');
-
 			$milestone = null;
-			if (!empty($phaseConfig['milestone'])) {
+			if ($maxEnd !== null && !empty($phaseConfig['milestone'])) {
 				$milestone = [
 					'label' => $phaseConfig['milestone'],
 					'date' => $maxEnd->format('Y-m-d'),
@@ -420,8 +432,8 @@ class TimelinePhaseService
 				'name' => $phaseConfig['name'],
 				'category' => $phaseConfig['category'],
 				'color' => $phaseConfig['color'],
-				'startDate' => $minStart->format('Y-m-d'),
-				'endDate' => $maxEnd->format('Y-m-d'),
+				'startDate' => $minStart?->format('Y-m-d'),
+				'endDate' => $maxEnd?->format('Y-m-d'),
 				'status' => $phaseStatus,
 				'milestone' => $milestone,
 				'tasks' => $tasks,
@@ -487,6 +499,21 @@ class TimelinePhaseService
 		$res->closeCursor();
 
 		return $deps;
+	}
+
+	private function persistDeckDependency(int $cardId, int $dependentCardId): void
+	{
+		try {
+			$qb = $this->db->getQueryBuilder();
+			$qb->insert('deck_dependent_cards')
+				->values([
+					'card_id' => $qb->createNamedParameter($cardId, IQueryBuilder::PARAM_INT),
+					'dependent_card_id' => $qb->createNamedParameter($dependentCardId, IQueryBuilder::PARAM_INT),
+				]);
+			$qb->executeStatement();
+		} catch (\Throwable) {
+			// Timeline rendering must continue if the native dependency already exists or cannot be stored.
+		}
 	}
 
 	private function calculateRequestDate(Project $project): DateTime

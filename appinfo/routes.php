@@ -305,6 +305,11 @@ return [
             "url" => "/api/v1/projects/{projectId}/timeline/planning",
             "verb" => "PUT",
         ],
+		[
+			"name" => "timeline_api#updateCardSchedule",
+			"url" => "/api/v1/projects/{projectId}/timeline/cards/{cardId}",
+			"verb" => "PUT",
+		],
         [
             "name" => "timeline_api#create",
             "url" => "/api/v1/projects/{projectId}/timeline",

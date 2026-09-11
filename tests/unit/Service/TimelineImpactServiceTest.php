@@ -7,8 +7,7 @@ namespace OCA\ProjectCreatorAIO\Tests\Unit\Service;
 use DateTime;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
-use OCA\ProjectCreatorAIO\Db\TimelinePhase;
-use OCA\ProjectCreatorAIO\Db\TimelinePhaseMapper;
+use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
@@ -36,40 +35,66 @@ final class TimelineImpactServiceTest extends TestCase
 		?ProjectActivityService $activityService = null
 	): array {
 		$db ??= $this->createMock(IDBConnection::class);
-		$phaseMapper = $this->createMock(TimelinePhaseMapper::class);
 		$itemMapper ??= $this->createMock(TimelineItemMapper::class);
 		$activityService ??= $this->createMock(ProjectActivityService::class);
 		$userSession = $this->createMock(IUserSession::class);
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+		$deckCardScheduleService = $this->createMock(DeckCardScheduleService::class);
 
-		$p1 = new TimelinePhase();
-		$p1->setId(1);
-		$p1->setCategory('initiation');
-		$p1->setName('Initiation Phase');
-		$p1->setOrderIndex(2);
-
-		$p2 = new TimelinePhase();
-		$p2->setId(2);
-		$p2->setCategory('preparation');
-		$p2->setName('Preparation Phase');
-		$p2->setOrderIndex(3);
-
-		$p3 = new TimelinePhase();
-		$p3->setId(3);
-		$p3->setCategory('execution');
-		$p3->setName('Execution / Construction');
-		$p3->setOrderIndex(4);
-
-		$p4 = new TimelinePhase();
-		$p4->setId(4);
-		$p4->setCategory('handover');
-		$p4->setName('Handover Phase');
-		$p4->setOrderIndex(5);
-
-		$phaseMapper->method('findByProject')->willReturn([$p1, $p2, $p3, $p4]);
 		$itemMapper->method('findByProject')->willReturn([]);
 
-		$phaseService = new TimelinePhaseService($db, $phaseMapper, $itemMapper);
+		$phaseService = $this->getMockBuilder(TimelinePhaseService::class)
+			->disableOriginalConstructor()
+			->onlyMethods(['getProjectPhaseHierarchy'])
+			->getMock();
+		$phaseService->method('getProjectPhaseHierarchy')->willReturn([
+			'phases' => [
+				[
+					'id' => 1,
+					'order' => 2,
+					'name' => 'Initiation Phase',
+					'category' => 'initiation',
+					'color' => '#10b981',
+					'startDate' => '2026-09-07',
+					'endDate' => '2026-10-18',
+					'status' => 'on_track',
+					'milestone' => ['label' => 'Initiation ready', 'date' => '2026-10-18', 'status' => 'on_track'],
+					'tasks' => [
+						[
+							'id' => 10,
+							'deckCardId' => 10,
+							'label' => 'Permits',
+							'startDate' => '2026-09-07',
+							'endDate' => '2026-09-20',
+							'plannedEndDate' => '2026-09-20',
+							'durationDays' => 14,
+							'delayDays' => 0,
+							'isDelayed' => false,
+							'status' => 'on_track',
+							'isDone' => false,
+							'predecessorIds' => [],
+							'successorIds' => [11],
+						],
+						[
+							'id' => 11,
+							'deckCardId' => 11,
+							'label' => 'VO',
+							'startDate' => '2026-09-21',
+							'endDate' => '2026-10-18',
+							'plannedEndDate' => '2026-10-18',
+							'durationDays' => 28,
+							'delayDays' => 0,
+							'isDelayed' => false,
+							'status' => 'on_track',
+							'isDone' => false,
+							'predecessorIds' => [10],
+							'successorIds' => [],
+						],
+					],
+				],
+			],
+			'dependencies' => [['predecessorId' => 10, 'successorId' => 11, 'type' => 'FS']],
+		]);
 		$planningService = new TimelinePlanningService($db, $logger);
 
 		$impactService = new TimelineImpactService(
@@ -79,6 +104,7 @@ final class TimelineImpactServiceTest extends TestCase
 			$activityService,
 			$userSession,
 			$db,
+			$deckCardScheduleService,
 		);
 
 		return [$impactService, $db, $itemMapper, $activityService];
@@ -241,7 +267,7 @@ final class TimelineImpactServiceTest extends TestCase
 
 		$itemMapper = $this->createMock(TimelineItemMapper::class);
 		$itemMapper->method('findByProjectAndSystemKey')->willReturn(null);
-		$itemMapper->expects($this->atLeastOnce())->method('createItem');
+		$itemMapper->expects($this->never())->method('createItem');
 
 		$activityService = $this->createMock(ProjectActivityService::class);
 		$activityService->expects($this->once())->method('record');

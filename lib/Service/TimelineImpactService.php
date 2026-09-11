@@ -20,6 +20,7 @@ class TimelineImpactService
 		private readonly ProjectActivityService $activityService,
 		private readonly IUserSession $userSession,
 		private readonly IDBConnection $db,
+		private readonly DeckCardScheduleService $deckCardScheduleService,
 	) {
 	}
 
@@ -53,33 +54,17 @@ class TimelineImpactService
 		if (!empty($delayedTasks)) {
 			$candidateTask = $delayedTasks[0];
 		} else {
-			// Find "Permits" or first task in Preparation Phase matching the mockup
+			// Use the first task in the first populated lifecycle phase.
 			foreach ($hierarchy['phases'] as $phase) {
-				if ($phase['category'] === 'preparation' && !empty($phase['tasks'])) {
-					foreach ($phase['tasks'] as $t) {
-						if (stripos($t['label'], 'permit') !== false) {
-							$candidateTask = array_merge($t, [
-								'phaseCategory' => $phase['category'],
-								'phaseName' => $phase['name'],
-							]);
-							break 2;
-						}
-					}
-					$candidateTask = array_merge($phase['tasks'][0], [
-						'phaseCategory' => $phase['category'],
-						'phaseName' => $phase['name'],
-					]);
-					break;
+				if (empty($phase['tasks'])) {
+					continue;
 				}
+				$candidateTask = array_merge($phase['tasks'][0], [
+					'phaseCategory' => $phase['category'],
+					'phaseName' => $phase['name'],
+				]);
+				break;
 			}
-		}
-
-		// Default fallback if no preparation task exists
-		if ($candidateTask === null && !empty($hierarchy['phases'][0]['tasks'])) {
-			$candidateTask = array_merge($hierarchy['phases'][0]['tasks'][0], [
-				'phaseCategory' => $hierarchy['phases'][0]['category'],
-				'phaseName' => $hierarchy['phases'][0]['name'],
-			]);
 		}
 
 		$delayDays = !empty($candidateTask['delayDays']) ? (int)$candidateTask['delayDays'] : 28; // Default 4 weeks example matching mockup
@@ -136,8 +121,8 @@ class TimelineImpactService
 				'endDate' => (new DateTime('+14 days'))->format('Y-m-d'),
 				'plannedEndDate' => (new DateTime('+14 days'))->format('Y-m-d'),
 				'durationDays' => 14,
-				'phaseCategory' => 'preparation',
-				'phaseName' => 'Preparation Phase',
+				'phaseCategory' => 'initiation',
+				'phaseName' => 'Initiation Phase',
 			];
 			$taskId = $targetTask['id'];
 		}
@@ -493,14 +478,22 @@ class TimelineImpactService
 			throw new \InvalidArgumentException('Unknown recovery strategy');
 		}
 
+		$baselinePhases = $this->phaseService->getProjectPhaseHierarchy($project)['phases'];
 		$simulation = $this->simulateScenario($project, array_merge($params, ['strategy' => $strategy]));
 		$overrides = $simulation['application']['overrides'] ?? [];
 		if ($overrides === []) {
 			throw new \InvalidArgumentException('The recovery strategy has no applicable timeline tasks');
 		}
+		$simulatedTasks = $this->indexTasks($simulation['simulatedPhases'] ?? []);
+		$this->deckCardScheduleService->syncChangedSchedules($project, $baselinePhases, $simulation['simulatedPhases'] ?? []);
+
 		$this->db->beginTransaction();
 		try {
 			foreach ($overrides as $taskId => $override) {
+				if (!empty($simulatedTasks[(string)$taskId]['deckCardId'])) {
+					$this->clearDeckDateOverride($projectId, (string)$taskId, $override['status'] ?? null);
+					continue;
+				}
 				$this->persistScheduleOverride($projectId, (string)$taskId, $override);
 			}
 			$this->db->commit();
@@ -613,6 +606,29 @@ class TimelineImpactService
 		if (isset($override['status'])) {
 			$item->setStatus((string)$override['status']);
 		}
+		$this->itemMapper->updateItem($item);
+	}
+
+	private function clearDeckDateOverride(int $projectId, string $taskId, ?string $status): void
+	{
+		$systemKey = 'schedule_override:' . sha1($taskId);
+		$item = $this->itemMapper->findByProjectAndSystemKey($projectId, $systemKey);
+		if ($item === null) {
+			if ($status !== null && $status !== '') {
+				$this->persistScheduleOverride($projectId, $taskId, ['status' => $status]);
+			}
+			return;
+		}
+
+		if ($status === null || $status === '') {
+			$this->itemMapper->delete($item);
+			return;
+		}
+
+		$item->setStartDate(null);
+		$item->setDurationDays(null);
+		$item->setPlannedEndDate(null);
+		$item->setStatus($status);
 		$this->itemMapper->updateItem($item);
 	}
 }

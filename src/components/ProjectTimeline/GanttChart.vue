@@ -166,10 +166,13 @@
 							<div class="phase-row__content">
 								<div class="phase-row__top">
 									<span class="phase-row__name" :title="row.phase.name">{{ row.phase.name }}</span>
-									<span class="phase-row__duration">{{ formatPhaseDuration(row.phase) }}</span>
+									<span v-if="hasPhaseSchedule(row.phase)" class="phase-row__duration">{{ formatPhaseDuration(row.phase) }}</span>
 								</div>
-								<div class="phase-row__dates">
+								<div v-if="hasPhaseSchedule(row.phase)" class="phase-row__dates">
 									{{ formatDate(row.phase.startDate) }} – {{ formatDate(row.phase.endDate) }}
+								</div>
+								<div v-else class="phase-row__dates">
+									No tasks scheduled
 								</div>
 							</div>
 						</template>
@@ -369,6 +372,7 @@
 								<!-- Phase Row Canvas: Summary Bar & Milestone Diamond -->
 								<template v-if="row.type === 'phase'">
 									<div
+										v-if="hasPhaseSchedule(row.phase)"
 										class="phase-summary-bar"
 										:style="getPhaseBarStyle(row.phase)"
 										:title="`${row.phase.name}: ${formatDate(row.phase.startDate)} – ${formatDate(row.phase.endDate)}`">
@@ -515,8 +519,17 @@
 							</span>
 						</template>
 						<template v-else-if="row.type === 'task'">
-							<span v-if="row.task.deckCardId" class="action-row__deck-hint" title="Nextcloud Deck Card">
-								<CardsVariant :size="14" />
+							<NcButton
+								v-if="row.task.deckCardId && !row.task.isDone"
+								type="tertiary"
+								title="Edit Deck card schedule"
+								@click="openDeckTaskModal(row.task)">
+								<template #icon>
+									<Pencil :size="16" />
+								</template>
+							</NcButton>
+							<span v-else-if="row.task.deckCardId" class="action-row__locked-hint" title="Completed Deck card">
+								<Lock :size="14" />
 							</span>
 							<span v-else class="action-row__locked-hint" title="Phase Task">
 								<Lock :size="14" />
@@ -579,12 +592,12 @@
 			@open-whatif="startWhatIf"
 			@close="closeImpactDrawer" />
 
-		<!-- Modal for Add/Edit Custom Item -->
+		<!-- Modal for Add/Edit Timeline Item -->
 		<NcModal v-if="showModal" size="normal" @close="closeModal">
 			<div class="phase-form">
 				<header class="phase-form__header">
-					<h3>{{ editingItem ? 'Edit Item' : 'Add New Item' }}</h3>
-					<p>{{ editingItem ? 'Update the details for this timeline item.' : 'Add a phase or milestone to your project timeline.' }}</p>
+					<h3>{{ modalTitle }}</h3>
+					<p>{{ modalDescription }}</p>
 				</header>
 
 				<div class="phase-form__content">
@@ -593,11 +606,11 @@
 							v-model="form.label"
 							label="Label"
 							:show-label="true"
-							:disabled="isEditingSystemItem"
+							:disabled="isEditingSystemItem || isEditingDeckTask"
 							placeholder="e.g., Design, Approval" />
 					</div>
 
-					<div class="form-row">
+					<div v-if="!isEditingDeckTask" class="form-row">
 						<div class="form-field form-field--inline">
 							<label class="form-label" :for="`timeline-type-${projectId}`">Type</label>
 							<select
@@ -632,7 +645,7 @@
 							:show-label="true" />
 					</div>
 
-					<div class="form-field">
+					<div v-if="!isEditingDeckTask" class="form-field">
 						<label class="form-label">Color</label>
 						<div class="color-grid">
 							<button
@@ -991,6 +1004,19 @@ export default {
 		isEditingSystemItem() {
 			return !!(this.editingItem && this.editingItem.systemKey)
 		},
+		isEditingDeckTask() {
+			return !!this.editingItem?.deckCardId
+		},
+		modalTitle() {
+			if (this.isEditingDeckTask) return 'Edit Deck Card Schedule'
+			return this.editingItem ? 'Edit Item' : 'Add New Item'
+		},
+		modalDescription() {
+			if (this.isEditingDeckTask) return 'Update the card dates in both Deck and the timeline.'
+			return this.editingItem
+				? 'Update the details for this timeline item.'
+				: 'Add a phase or milestone to your project timeline.'
+		},
 		timelineRange() {
 			let minDate = null
 			let maxDate = null
@@ -1321,8 +1347,11 @@ export default {
 			if (task.isDone) return 'Done'
 			return this.getStatusLabel(task.status)
 		},
+		hasPhaseSchedule(phase) {
+			return Boolean(phase?.startDate && phase?.endDate)
+		},
 		getPhaseDurationDays(phase) {
-			if (!phase?.startDate || !phase?.endDate) return 1
+			if (!this.hasPhaseSchedule(phase)) return 0
 			const s = this.parseDateOnly(phase.startDate)
 			const e = this.parseDateOnly(phase.endDate)
 			return Math.max(1, Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1)
@@ -1599,6 +1628,21 @@ export default {
 			}
 			this.showModal = true
 		},
+		openDeckTaskModal(task) {
+			if (!task?.deckCardId || task.isDone) {
+				return
+			}
+			this.editingItem = task
+			this.form = {
+				label: task.label,
+				itemType: 'phase',
+				startDate: task.startDate,
+				endDate: task.endDate,
+				isOngoing: false,
+				color: '#3b82f6',
+			}
+			this.showModal = true
+		},
 		closeModal() {
 			this.showModal = false
 			this.editingItem = null
@@ -1618,7 +1662,12 @@ export default {
 					endDate: this.form.itemType === 'milestone' ? this.form.startDate : (this.form.isOngoing ? '' : this.form.endDate),
 					color: this.form.color,
 				}
-				if (this.editingItem) {
+				if (this.isEditingDeckTask) {
+					await axios.put(`${baseUrl}/cards/${this.editingItem.deckCardId}`, {
+						startDate: this.form.startDate,
+						endDate: this.form.endDate,
+					})
+				} else if (this.editingItem) {
 					await axios.put(`${baseUrl}/${this.editingItem.id}`, payload)
 				} else {
 					await axios.post(baseUrl, payload)

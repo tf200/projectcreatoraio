@@ -11,7 +11,7 @@ use OCA\Deck\Service\BoardService;
 use OCA\Deck\Service\CardService;
 use OCA\Deck\Service\LabelService;
 use OCA\Deck\Service\StackService;
-use OCP\DB\IQueryBuilder;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IUser;
 use Psr\Log\LoggerInterface;
@@ -83,7 +83,7 @@ class DeckDefaultCardsService
 				$importantLabelId,
 			);
 
-			$this->seedDefaultCardDependencies($seededCards);
+			$this->syncCardDependencies($seededCards, $projectType);
 
 			return $seededCards;
 		} catch (Throwable $e) {
@@ -236,33 +236,13 @@ class DeckDefaultCardsService
 	/**
 	 * @param array<string, \OCA\Deck\Db\Card> $seededCards
 	 */
-	private function seedDefaultCardDependencies(array $seededCards): void
+	private function syncCardDependencies(array $seededCards, int $projectType): void
 	{
 		if ($this->db === null) {
 			return;
 		}
 
-		$dependencyKeyMap = [
-			'combi.peak_power_form' => ['combi.intake_form'],
-			'combi.quickscan' => ['combi.intake_form'],
-			'combi.situation_drawing' => ['combi.quickscan'],
-			'combi.avp' => ['combi.peak_power_form'],
-			'combi.vo' => ['combi.situation_drawing', 'combi.avp'],
-			'combi.schedule_intake' => ['combi.vo'],
-			'combi.intake_report' => ['combi.schedule_intake'],
-			'combi.do' => ['combi.vo', 'combi.intake_report'],
-			// Conditional Set 1 (Hoogbouw) chain
-			'combi.vo_internal_drawings' => ['combi.schedule_high_rise_consultation'],
-			'combi.internal_consultation_report' => ['combi.vo_internal_drawings'],
-			'combi.do_internal_drawings' => ['combi.internal_consultation_report'],
-			'combi.block_diagram' => ['combi.do_internal_drawings'],
-			// Conditional Set 2 (Bodem) chain
-			'combi.soil_report' => ['combi.private_land_application'],
-			'combi.remediation_evaluation_report' => ['combi.soil_report'],
-			'combi.property_right' => ['combi.remediation_evaluation_report'],
-		];
-
-		foreach ($dependencyKeyMap as $successorKey => $predecessorKeys) {
+		foreach (ProjectTypeDeckDefaults::getDefaultDependencyKeys($projectType) as $successorKey => $predecessorKeys) {
 			$successorCard = $seededCards[$successorKey] ?? null;
 			if ($successorCard === null) {
 				continue;
@@ -276,18 +256,37 @@ class DeckDefaultCardsService
 				}
 				$predId = (int) $predCard->getId();
 
-				try {
-					$qb = $this->db->getQueryBuilder();
-					$qb->insert('deck_dependent_cards')
-						->values([
-							'card_id' => $qb->createNamedParameter($cardId, IQueryBuilder::PARAM_INT),
-							'dependent_card_id' => $qb->createNamedParameter($predId, IQueryBuilder::PARAM_INT),
-						]);
-					$qb->executeStatement();
-				} catch (Throwable $e) {
-					// Ignore duplicate or existing dependency
-				}
+				$this->persistDependency($cardId, $predId);
 			}
+		}
+	}
+
+	private function persistDependency(int $cardId, int $dependentCardId): void
+	{
+		try {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('id')
+				->from('deck_dependent_cards')
+				->where($qb->expr()->eq('card_id', $qb->createNamedParameter($cardId, IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->eq('dependent_card_id', $qb->createNamedParameter($dependentCardId, IQueryBuilder::PARAM_INT)))
+				->setMaxResults(1);
+			if ($qb->executeQuery()->fetchOne() !== false) {
+				return;
+			}
+
+			$qb = $this->db->getQueryBuilder();
+			$qb->insert('deck_dependent_cards')
+				->values([
+					'card_id' => $qb->createNamedParameter($cardId, IQueryBuilder::PARAM_INT),
+					'dependent_card_id' => $qb->createNamedParameter($dependentCardId, IQueryBuilder::PARAM_INT),
+				]);
+			$qb->executeStatement();
+		} catch (Throwable $e) {
+			$this->logger->error('Unable to persist default Deck card dependency', [
+				'cardId' => $cardId,
+				'dependentCardId' => $dependentCardId,
+				'exception' => $e,
+			]);
 		}
 	}
 }

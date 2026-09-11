@@ -83,6 +83,63 @@ class ProjectTypeDeckDefaults
 		];
 	}
 
+	/** @return array<string, string[]> */
+	public static function getDefaultDependencyKeys(int $projectType): array
+	{
+		if ($projectType !== self::TYPE_COMBI) {
+			return [];
+		}
+
+		return [
+			'combi.peak_power_form' => ['combi.intake_form'],
+			'combi.quickscan' => ['combi.intake_form'],
+			'combi.situation_drawing' => ['combi.quickscan'],
+			'combi.avp' => ['combi.peak_power_form'],
+			'combi.vo' => ['combi.situation_drawing', 'combi.avp'],
+			'combi.schedule_intake' => ['combi.vo'],
+			'combi.intake_report' => ['combi.schedule_intake'],
+			'combi.do' => ['combi.vo', 'combi.intake_report'],
+			'combi.vo_internal_drawings' => ['combi.schedule_high_rise_consultation'],
+			'combi.internal_consultation_report' => ['combi.vo_internal_drawings'],
+			'combi.do_internal_drawings' => ['combi.internal_consultation_report'],
+			'combi.block_diagram' => ['combi.do_internal_drawings'],
+			'combi.soil_report' => ['combi.private_land_application'],
+			'combi.remediation_evaluation_report' => ['combi.soil_report'],
+			'combi.property_right' => ['combi.remediation_evaluation_report'],
+		];
+	}
+
+	/** @return string[] */
+	public static function getDefaultCardKeysInTimelineOrder(int $projectType): array
+	{
+		if ($projectType !== self::TYPE_COMBI) {
+			return [];
+		}
+
+		return [
+			'combi.intake_form',
+			'combi.peak_power_form',
+			'combi.quickscan',
+			'combi.situation_drawing',
+			'combi.avp',
+			'combi.vo',
+			'combi.schedule_intake',
+			'combi.intake_report',
+			'combi.do',
+			'combi.schedule_high_rise_consultation',
+			'combi.vo_internal_drawings',
+			'combi.internal_consultation_report',
+			'combi.do_internal_drawings',
+			'combi.block_diagram',
+			'combi.private_land_application',
+			'combi.soil_report',
+			'combi.remediation_evaluation_report',
+			'combi.property_right',
+			'combi.house_number_decision',
+			'combi.guarantee_agreement',
+		];
+	}
+
 	/** @return string[] */
 	public static function getRequiredNextPriorityTitles(int $projectType): array
 	{

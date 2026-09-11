@@ -22,6 +22,18 @@ class CombiPhaseDefaults
 	 */
 	public static function getPhases(): array
 	{
+		$cardsByKey = [];
+		foreach (array_merge(
+			ProjectTypeDeckDefaults::getNextPriorityCards(ProjectTypeDeckDefaults::TYPE_COMBI),
+			ProjectTypeDeckDefaults::getProcessStepCards(ProjectTypeDeckDefaults::TYPE_COMBI),
+		) as $card) {
+			$cardsByKey[$card['key']] = $card;
+		}
+		$currentCardTitles = array_map(
+			static fn (string $key): string => $cardsByKey[$key]['title'],
+			ProjectTypeDeckDefaults::getDefaultCardKeysInTimelineOrder(ProjectTypeDeckDefaults::TYPE_COMBI),
+		);
+
 		return [
 			'initiation' => [
 				'order' => 2,
@@ -29,12 +41,7 @@ class CombiPhaseDefaults
 				'category' => 'initiation',
 				'color' => '#10b981',
 				'milestone' => 'Initiation ready',
-				'cards' => [
-					'Intakeformulier',
-					'Piekvermogensformulier',
-					'Quickscan',
-					'Situatie tekening',
-				],
+				'cards' => $currentCardTitles,
 				'customTasks' => [],
 			],
 			'preparation' => [
@@ -43,27 +50,7 @@ class CombiPhaseDefaults
 				'category' => 'preparation',
 				'color' => '#f59e0b',
 				'milestone' => 'Start construction',
-				'cards' => [
-					'AVP',
-					'VO',
-					'Intake inplannen & hosten',
-					'Intakeverslag',
-					'DO',
-					// Conditional Set 1 (Hoogbouw)
-					'Hoogbouwoverleg inplannen',
-					'VO inpandige tekeningen',
-					'Verslag inpandig overleg',
-					'DO inpandige tekeningen',
-					'Blokkenschema',
-					// Conditional Set 2 (Bodem / Grond)
-					'Aanvraag particuliere grond',
-					'Bodemrapport',
-					'Saneringsevaluatierapport',
-					'Zakelijkrecht',
-					// Standalone tracks
-					'Huisnummerbesluit',
-					'Garantie overeenkomst',
-				],
+				'cards' => [],
 				'customTasks' => [],
 			],
 			'execution' => [
@@ -73,11 +60,7 @@ class CombiPhaseDefaults
 				'color' => '#3b82f6',
 				'milestone' => 'End construction',
 				'cards' => [],
-				'customTasks' => [
-					['name' => 'Earthworks', 'durationDays' => 28],
-					['name' => 'Cable installation', 'durationDays' => 42],
-					['name' => 'Reinstatement works', 'durationDays' => 21],
-				],
+				'customTasks' => [],
 			],
 			'handover' => [
 				'order' => 5,
@@ -86,9 +69,7 @@ class CombiPhaseDefaults
 				'color' => '#8b5cf6',
 				'milestone' => 'Project complete',
 				'cards' => [],
-				'customTasks' => [
-					['name' => 'Administrative handover', 'durationDays' => 14],
-				],
+				'customTasks' => [],
 			],
 		];
 	}
@@ -102,25 +83,24 @@ class CombiPhaseDefaults
 	 */
 	public static function getDefaultCardDependencies(): array
 	{
-		return [
-			'Piekvermogensformulier' => ['Intakeformulier'],
-			'Quickscan' => ['Intakeformulier'],
-			'Situatie tekening' => ['Quickscan'],
-			'AVP' => ['Piekvermogensformulier'],
-			'VO' => ['Situatie tekening', 'AVP'],
-			'Intake inplannen & hosten' => ['VO'],
-			'Intakeverslag' => ['Intake inplannen & hosten'],
-			'DO' => ['VO', 'Intakeverslag'],
-			// Conditional Set 1 (Hoogbouw) chain
-			'VO inpandige tekeningen' => ['Hoogbouwoverleg inplannen'],
-			'Verslag inpandig overleg' => ['VO inpandige tekeningen'],
-			'DO inpandige tekeningen' => ['Verslag inpandig overleg'],
-			'Blokkenschema' => ['DO inpandige tekeningen'],
-			// Conditional Set 2 (Bodem) chain
-			'Bodemrapport' => ['Aanvraag particuliere grond'],
-			'Saneringsevaluatierapport' => ['Bodemrapport'],
-			'Zakelijkrecht' => ['Saneringsevaluatierapport'],
-		];
+		$templates = array_merge(
+			ProjectTypeDeckDefaults::getNextPriorityCards(ProjectTypeDeckDefaults::TYPE_COMBI),
+			ProjectTypeDeckDefaults::getProcessStepCards(ProjectTypeDeckDefaults::TYPE_COMBI),
+		);
+		$titlesByKey = [];
+		foreach ($templates as $template) {
+			$titlesByKey[$template['key']] = $template['title'];
+		}
+
+		$dependencies = [];
+		foreach (ProjectTypeDeckDefaults::getDefaultDependencyKeys(ProjectTypeDeckDefaults::TYPE_COMBI) as $successorKey => $predecessorKeys) {
+			$dependencies[$titlesByKey[$successorKey]] = array_map(
+				static fn (string $key): string => $titlesByKey[$key],
+				$predecessorKeys,
+			);
+		}
+
+		return $dependencies;
 	}
 
 	public static function findPhaseKeyForCardTitle(string $title): ?string

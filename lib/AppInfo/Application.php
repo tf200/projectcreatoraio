@@ -36,6 +36,7 @@ use OCA\ProjectCreatorAIO\Listener\TalkEventListener;
 use OCA\ProjectCreatorAIO\Listener\WhiteboardWrittenListener;
 use OCA\ProjectCreatorAIO\Notification\Notifier;
 use OCA\ProjectCreatorAIO\Service\DeckDefaultCardsService;
+use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
 use OCA\ProjectCreatorAIO\Service\FileProcessingPipelineService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDigestService;
@@ -186,6 +187,15 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardService::class),
 				$c->get(LoggerInterface::class),
 				$c->get(IDBConnection::class),
+			);
+		});
+
+		$context->registerService(DeckCardScheduleService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(CardService::class);
+			return new DeckCardScheduleService(
+				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$deckEnabled ? $c->get(CardService::class) : null,
 			);
 		});
 
