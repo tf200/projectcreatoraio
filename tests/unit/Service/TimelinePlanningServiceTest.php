@@ -76,6 +76,29 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertSame('behind_at_risk', $summary['systemPlanning']['float']['status']);
 	}
 
+	public function testMinimumStartUsesInitiationPhaseBoundsAndPreparationTime(): void {
+		$db = $this->createMock(IDBConnection::class);
+		$logger = $this->createMock(LoggerInterface::class);
+		$service = new TimelinePlanningService($db, $logger);
+
+		$project = new Project();
+		$project->setId(45);
+		$project->setType(0);
+		$project->setCreatedAt(new DateTime('2026-01-01 10:00:00'));
+		$project->setRequiredPreparationWeeks(2);
+
+		$summary = $service->buildSummary($project, [[
+			'category' => 'initiation',
+			'startDate' => '2026-01-05',
+			'endDate' => '2026-04-20',
+		]]);
+
+		$this->assertSame('2026-01-05', $summary['systemPlanning']['deckTasks']['startDate']);
+		$this->assertSame('2026-04-20', $summary['systemPlanning']['deckTasks']['endDate']);
+		$this->assertSame('2026-05-04', $summary['minimumStartDate']);
+		$this->assertSame('2026-05-04', $summary['kpis']['minimumStartDate']);
+	}
+
 	public function testFloatStatusOnTrackWhenDesiredStartIsLaterThanMinimumStart(): void {
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);

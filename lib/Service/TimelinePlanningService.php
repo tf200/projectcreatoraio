@@ -14,10 +14,12 @@ class TimelinePlanningService
 	public function __construct(
 		private readonly IDBConnection $db,
 		private readonly LoggerInterface $logger,
+		private readonly ?TimelinePhaseService $phaseService = null,
 	) {
 	}
 
-	public function buildSummary(Project $project): array
+	/** @param null|array<int, array<string, mixed>> $phases */
+	public function buildSummary(Project $project, ?array $phases = null): array
 	{
 		$createdAt = $project->getCreatedAt();
 		$createdAt = $createdAt instanceof DateTime ? clone $createdAt : new DateTime('now');
@@ -26,6 +28,7 @@ class TimelinePlanningService
 		$requestDate = $requestDateDate->format('Y-m-d');
 
 		$projectType = (int) ($project->getType() ?? -1);
+		$initiationBounds = $this->getInitiationBounds($project, $phases);
 
 		$prepWeeks = $project->getRequiredPreparationWeeks();
 		if ($prepWeeks === null) {
@@ -47,6 +50,7 @@ class TimelinePlanningService
 				0,
 				0,
 				false,
+				$initiationBounds,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -76,6 +80,7 @@ class TimelinePlanningService
 				0,
 				count($requiredTitles),
 				false,
+				$initiationBounds,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -105,6 +110,7 @@ class TimelinePlanningService
 				0,
 				count($requiredTitles),
 				false,
+				$initiationBounds,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -174,6 +180,7 @@ class TimelinePlanningService
 				$doneCount,
 				count($requiredTitles),
 				$isAllDone,
+				$initiationBounds,
 			);
 
 			if ($missing !== []) {
@@ -244,6 +251,7 @@ class TimelinePlanningService
 				0,
 				count($requiredTitles),
 				false,
+				$initiationBounds,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -413,14 +421,21 @@ class TimelinePlanningService
 		int $doneCount,
 		int $totalRequired,
 		bool $isAllDone,
+		?array $initiationBounds = null,
 	): array {
+		if (($initiationBounds['end'] ?? null) instanceof DateTime) {
+			$deckTasksEndDate = clone $initiationBounds['end'];
+		}
+		$deckTasksStartDate = ($initiationBounds['start'] ?? null) instanceof DateTime
+			? clone $initiationBounds['start']
+			: clone $requestDateDate;
 		$requestDate = $requestDateDate->format('Y-m-d');
 		$minimumStartDate = clone $deckTasksEndDate;
 		if ($prepWeeks > 0) {
 			$minimumStartDate->modify('+' . (7 * $prepWeeks) . ' days');
 		}
 
-		$deckDays = max(1, (int) $requestDateDate->diff($deckTasksEndDate)->days);
+		$deckDays = max(1, (int) $deckTasksStartDate->diff($deckTasksEndDate)->days);
 		$deckWeeks = max(1, (int) round($deckDays / 7));
 		$minimumDurationWeeks = $deckWeeks + $prepWeeks;
 
@@ -452,8 +467,8 @@ class TimelinePlanningService
 		$systemPlanning = [
 			'requestDate' => $requestDate,
 			'deckTasks' => [
-				'label' => 'Deck tasks',
-				'startDate' => $requestDate,
+				'label' => 'Initiation phase',
+				'startDate' => $deckTasksStartDate->format('Y-m-d'),
 				'endDate' => $deckTasksEndDate->format('Y-m-d'),
 				'weeks' => $deckWeeks,
 				'isDone' => $isAllDone,
@@ -487,7 +502,7 @@ class TimelinePlanningService
 		$kpis = [
 			'requestDate' => $requestDate,
 			'minimumDurationWeeks' => $minimumDurationWeeks,
-			'minimumDurationRange' => $requestDateDate->format('d/m/Y') . ' - ' . $minimumStartDate->format('d/m/Y'),
+			'minimumDurationRange' => $deckTasksStartDate->format('d/m/Y') . ' - ' . $minimumStartDate->format('d/m/Y'),
 			'minimumStartDate' => $minimumStartDate->format('Y-m-d'),
 			'desiredStartDate' => $desiredStartDateStr,
 			'deckTasksWeeks' => $deckWeeks,
@@ -508,6 +523,37 @@ class TimelinePlanningService
 			'systemPlanning' => $systemPlanning,
 			'kpis' => $kpis,
 		];
+	}
+
+	/**
+	 * @param null|array<int, array<string, mixed>> $phases
+	 * @return null|array{start: DateTime, end: DateTime}
+	 */
+	private function getInitiationBounds(Project $project, ?array $phases): ?array
+	{
+		try {
+			if ($phases === null && $this->phaseService !== null) {
+				$hierarchy = $this->phaseService->getProjectPhaseHierarchy($project);
+				$phases = $hierarchy['phases'];
+			}
+			$phases ??= [];
+			foreach ($phases as $phase) {
+				if (($phase['category'] ?? null) !== 'initiation' || empty($phase['startDate']) || empty($phase['endDate'])) {
+					continue;
+				}
+				return [
+					'start' => new DateTime((string)$phase['startDate']),
+					'end' => new DateTime((string)$phase['endDate']),
+				];
+			}
+		} catch (Throwable $e) {
+			$this->logger->warning('Failed to use Initiation phase bounds for timeline planning', [
+				'exception' => $e,
+				'projectId' => $project->getId(),
+			]);
+		}
+
+		return null;
 	}
 
 	private function parseDoneDate(array $row): ?DateTime

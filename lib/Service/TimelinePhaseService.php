@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Service;
 
+use DateInterval;
 use DateTime;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\TimelineItem;
@@ -15,6 +16,8 @@ use OCP\IDBConnection;
 
 class TimelinePhaseService
 {
+	private const DECK_CARD_DURATION = 'P3M';
+
 	public function __construct(
 		private readonly IDBConnection $db,
 		private readonly TimelinePhaseMapper $phaseMapper,
@@ -130,12 +133,29 @@ class TimelinePhaseService
 			$cardIdByTitle[trim(strtolower((string)$c['title']))] = (int)$c['id'];
 		}
 		$defaultCardDependencies = CombiPhaseDefaults::getDefaultCardDependencies();
-		$taskEndDates = []; // (int|string) => DateTime
-
+		foreach ($deckCards as $cardId => $card) {
+			if (!empty($deckDeps[$cardId])) {
+				continue;
+			}
+			$cardTitleLower = trim(strtolower((string)$card['title']));
+			foreach ($defaultCardDependencies as $successorTitle => $predecessorTitles) {
+				if (trim(strtolower($successorTitle)) !== $cardTitleLower) {
+					continue;
+				}
+				foreach ($predecessorTitles as $predecessorTitle) {
+					$predecessorId = $cardIdByTitle[trim(strtolower($predecessorTitle))] ?? null;
+					if ($predecessorId !== null) {
+						$deckDeps[$cardId][] = $predecessorId;
+						$this->persistDeckDependency($cardId, $predecessorId);
+					}
+				}
+				break;
+			}
+		}
+		$deckSchedules = $this->calculateDeckCardSchedules($deckCards, $deckDeps, $requestDate, $persistedOverrides, $taskOverrides);
 		$resultPhases = [];
 		$allDependencies = [];
 		$previousPhaseLastEnd = clone $requestDate;
-		$lastTaskIdOfPrevPhase = null;
 
 		$combiDefaults = CombiPhaseDefaults::getPhases();
 
@@ -204,8 +224,6 @@ class TimelinePhaseService
 						$status = (string) $override['status'];
 					}
 
-					$taskEndDates[$taskId] = clone $taskEnd;
-
 					$tasks[] = [
 						'id' => $taskId,
 						'deckCardId' => null,
@@ -236,12 +254,9 @@ class TimelinePhaseService
 				}
 			} elseif (!empty($phaseCards)) {
 				// We have deck cards for this phase
-				$prevCardId = null;
-
 				foreach ($phaseCards as $card) {
 					$cardId = (int) $card['id'];
 					$cardTitle = trim((string) $card['title']);
-					$cardTitleLower = strtolower($cardTitle);
 					$persistedCardOverride = $persistedOverrides[(string)$cardId] ?? [];
 					if ($card['startdate'] instanceof DateTime || $card['duedate'] instanceof DateTime) {
 						unset($persistedCardOverride['startDate'], $persistedCardOverride['durationDays'], $persistedCardOverride['plannedEndDate']);
@@ -251,105 +266,21 @@ class TimelinePhaseService
 						$taskOverrides[$cardId] ?? $taskOverrides[(string)$cardId] ?? $taskOverrides[$cardTitle] ?? [],
 					);
 
-					$isDone = $card['done'] instanceof DateTime;
-
-					// Check dependencies from deck_dependent_cards or defaults
-					$predecessors = $deckDeps[$cardId] ?? [];
-					if (empty($predecessors)) {
-						// Look up fallback from defaultCardDependencies
-						foreach ($defaultCardDependencies as $succTitle => $predTitles) {
-							if (trim(strtolower($succTitle)) === $cardTitleLower) {
-								foreach ($predTitles as $pTitle) {
-									$pLower = trim(strtolower($pTitle));
-									if (isset($cardIdByTitle[$pLower])) {
-										$predecessorId = $cardIdByTitle[$pLower];
-										$predecessors[] = $predecessorId;
-										$this->persistDeckDependency($cardId, $predecessorId);
-									}
-								}
-								break;
-							}
-						}
-					}
-
-					// Compute card start date based on predecessors
-					$cardStart = null;
-					if (!empty($predecessors)) {
-						foreach ($predecessors as $predId) {
-							if (isset($taskEndDates[$predId])) {
-								$predEnd = clone $taskEndDates[$predId];
-								$predEnd->modify('+1 day');
-								if ($cardStart === null || $predEnd > $cardStart) {
-									$cardStart = $predEnd;
-								}
-							}
-						}
-					}
-
-					if ($cardStart === null) {
-						$cardStart = clone $previousPhaseLastEnd;
-					}
-					if ($card['startdate'] instanceof DateTime) {
-						$cardStart = clone $card['startdate'];
-						$cardStart->setTime(0, 0);
-					} elseif ($card['duedate'] instanceof DateTime) {
-						$cardStart = clone $card['duedate'];
-						$cardStart->setTime(0, 0);
-						$cardStart->modify('-13 days');
-					}
-					if (!empty($override['startDate'])) {
-						$cardStart = new DateTime((string) $override['startDate']);
-					}
-
-					if ($override && isset($override['overlapDays']) && !empty($predecessors)) {
-						$overlap = max(0, (int) $override['overlapDays']);
-						$cardStart->modify('-' . $overlap . ' days');
-					}
-					
-					// Deck dates are inclusive; a Monday-to-Sunday schedule lasts seven days.
-					$baseDuration = 14;
-					if ($card['startdate'] instanceof DateTime && $card['duedate'] instanceof DateTime && $card['duedate'] >= $card['startdate']) {
-						$baseDuration = max(1, (int)$card['startdate']->diff($card['duedate'])->days + 1);
-					} elseif ($card['duedate'] instanceof DateTime && $card['duedate'] >= $cardStart) {
-						$baseDuration = max(1, (int)$cardStart->diff($card['duedate'])->days + 1);
-					}
-					$durationDays = $baseDuration;
-					if ($override && isset($override['durationDays'])) {
-						$durationDays = max(1, (int) $override['durationDays']);
-					}
-					if ($override && isset($override['delayDays'])) {
-						$durationDays += (int) $override['delayDays'];
-					}
-
-					if ($isDone) {
-						$cardEnd = clone $card['done'];
-						$cardEnd->setTime(0, 0, 0);
-						$status = 'on_track';
-						$plannedEnd = clone $cardEnd;
-						$delayDays = 0;
-					} else {
-						$cardEnd = clone $cardStart;
-						$cardEnd->modify('+' . ($durationDays - 1) . ' days');
-						$plannedEnd = clone $cardStart;
-						$plannedEnd->modify('+' . ($baseDuration - 1) . ' days');
-						if (!empty($override['plannedEndDate'])) {
-							$plannedEnd = new DateTime((string) $override['plannedEndDate']);
-						}
-						$delayDays = ($cardEnd > $plannedEnd) ? (int) $cardEnd->diff($plannedEnd)->days : 0;
-
-						if ($delayDays > 0 || ($card['duedate'] instanceof DateTime && $card['duedate'] < $today)) {
-							$status = 'behind_at_risk';
-						} elseif ($cardStart > $today) {
-							$status = 'not_started';
-						} else {
-							$status = 'on_track';
-						}
+					$schedule = $deckSchedules[$cardId];
+					$predecessors = $schedule['predecessors'];
+					$cardStart = $schedule['start'];
+					$cardEnd = $schedule['end'];
+					$plannedEnd = $schedule['plannedEnd'];
+					$durationDays = $schedule['durationDays'];
+					$delayDays = $schedule['delayDays'];
+					$isDone = $schedule['isDone'];
+					$status = $isDone ? 'on_track' : ($cardStart > $today ? 'not_started' : 'on_track');
+					if ($delayDays > 0 || (!$isDone && $cardEnd < $today)) {
+						$status = 'behind_at_risk';
 					}
 					if (!empty($override['status'])) {
 						$status = (string) $override['status'];
 					}
-
-					$taskEndDates[$cardId] = clone $cardEnd;
 
 					$tasks[] = [
 						'id' => $cardId,
@@ -377,22 +308,7 @@ class TimelinePhaseService
 						}
 					}
 
-					$prevCardId = $cardId;
 				}
-			}
-
-			if ($lastTaskIdOfPrevPhase !== null && !empty($tasks) && empty($tasks[0]['predecessorIds'])) {
-				$firstTaskId = $tasks[0]['id'];
-				$allDependencies[] = [
-					'predecessorId' => $lastTaskIdOfPrevPhase,
-					'successorId' => $firstTaskId,
-					'type' => 'FS',
-				];
-				$tasks[0]['predecessorIds'][] = $lastTaskIdOfPrevPhase;
-			}
-
-			if (!empty($tasks)) {
-				$lastTaskIdOfPrevPhase = $tasks[count($tasks) - 1]['id'];
 			}
 
 			// Phase date rollup. Empty future phases remain unscheduled placeholders.
@@ -444,6 +360,125 @@ class TimelinePhaseService
 			'phases' => $resultPhases,
 			'dependencies' => $allDependencies,
 		];
+	}
+
+	/**
+	 * @param array<int, array{id: int, title: string, startdate: ?DateTime, duedate: ?DateTime, done: ?DateTime}> $cards
+	 * @param array<int, int[]> $dependencies
+	 * @param array<string, array<string, mixed>> $persistedOverrides
+	 * @param array<int|string, array<string, mixed>> $taskOverrides
+	 * @return array<int, array{start: DateTime, end: DateTime, plannedEnd: DateTime, durationDays: int, delayDays: int, isDone: bool, predecessors: int[]}>
+	 */
+	public function calculateDeckCardSchedules(
+		array $cards,
+		array $dependencies,
+		DateTime $requestDate,
+		array $persistedOverrides,
+		array $taskOverrides,
+	): array {
+		$schedules = [];
+		$visiting = [];
+
+		$schedule = function (int $cardId) use (&$schedule, &$schedules, &$visiting, $cards, $dependencies, $requestDate, $persistedOverrides, $taskOverrides): array {
+			if (isset($schedules[$cardId])) {
+				return $schedules[$cardId];
+			}
+			if (isset($visiting[$cardId])) {
+				throw new \RuntimeException('Deck card dependencies contain a cycle');
+			}
+
+			$card = $cards[$cardId];
+			$visiting[$cardId] = true;
+			$predecessors = array_values(array_filter(
+				array_unique($dependencies[$cardId] ?? []),
+				static fn (int $predecessorId): bool => isset($cards[$predecessorId]),
+			));
+			$earliestStart = clone $requestDate;
+			foreach ($predecessors as $predecessorId) {
+				$predecessorEnd = clone $schedule($predecessorId)['end'];
+				$predecessorEnd->modify('+1 day');
+				if ($predecessorEnd > $earliestStart) {
+					$earliestStart = $predecessorEnd;
+				}
+			}
+
+			$persistedOverride = $persistedOverrides[(string)$cardId] ?? [];
+			if ($card['startdate'] instanceof DateTime || $card['duedate'] instanceof DateTime) {
+				unset($persistedOverride['startDate'], $persistedOverride['durationDays'], $persistedOverride['plannedEndDate']);
+			}
+			$taskOverride = $taskOverrides[$cardId] ?? $taskOverrides[(string)$cardId] ?? $taskOverrides[$card['title']] ?? [];
+			$override = array_merge(
+				$persistedOverride,
+				$taskOverride,
+			);
+
+			$isDone = $card['done'] instanceof DateTime;
+			$cardStart = clone $earliestStart;
+			$requestedStart = !empty($override['startDate'])
+				? new DateTime((string)$override['startDate'])
+				: $card['startdate'];
+			if ($isDone && $requestedStart instanceof DateTime) {
+				$cardStart = clone $requestedStart;
+				$cardStart->setTime(0, 0);
+			} elseif ($predecessors === [] && $requestedStart instanceof DateTime && $requestedStart > $cardStart) {
+				$cardStart = clone $requestedStart;
+				$cardStart->setTime(0, 0);
+			}
+
+			if ($isDone) {
+				$cardEnd = clone $card['done'];
+				$cardEnd->setTime(0, 0);
+				if ($cardStart > $cardEnd) {
+					$cardStart = clone $cardEnd;
+				}
+				$durationDays = max(1, (int)$cardStart->diff($cardEnd)->days + 1);
+				$plannedEnd = clone $cardEnd;
+				$delayDays = 0;
+			} else {
+				if (isset($override['durationDays'])) {
+					$durationDays = max(1, (int)$override['durationDays']);
+				} elseif (
+					$card['startdate'] instanceof DateTime
+					&& $card['duedate'] instanceof DateTime
+					&& $card['duedate'] >= $card['startdate']
+				) {
+					$durationDays = (int)$card['startdate']->diff($card['duedate'])->days + 1;
+				} else {
+					$defaultEnd = (clone $cardStart)->add(new DateInterval(self::DECK_CARD_DURATION));
+					$durationDays = (int)$cardStart->diff($defaultEnd)->days + 1;
+				}
+				$cardEnd = (clone $cardStart)->modify('+' . ($durationDays - 1) . ' days');
+				$plannedEnd = clone $cardEnd;
+				if (isset($override['delayDays'])) {
+					$delayDays = max(0, (int)$override['delayDays']);
+					$cardEnd->modify('+' . $delayDays . ' days');
+					$durationDays += $delayDays;
+				} else {
+					$delayDays = max(0, (int)$plannedEnd->diff($cardEnd)->days);
+				}
+				if (!empty($override['plannedEndDate'])) {
+					$plannedEnd = new DateTime((string)$override['plannedEndDate']);
+					$delayDays = $cardEnd > $plannedEnd ? (int)$plannedEnd->diff($cardEnd)->days : 0;
+				}
+			}
+
+			unset($visiting[$cardId]);
+			return $schedules[$cardId] = [
+				'start' => $cardStart,
+				'end' => $cardEnd,
+				'plannedEnd' => $plannedEnd,
+				'durationDays' => $durationDays,
+				'delayDays' => $delayDays,
+				'isDone' => $isDone,
+				'predecessors' => $predecessors,
+			];
+		};
+
+		foreach (array_keys($cards) as $cardId) {
+			$schedule($cardId);
+		}
+
+		return $schedules;
 	}
 
 	/**

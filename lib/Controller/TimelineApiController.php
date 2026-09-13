@@ -65,8 +65,9 @@ class TimelineApiController extends Controller
             $project = $this->requireProject($projectId);
             $this->assertCanAccessProject($project);
 
-            $summary = $this->planningService->buildSummary($project);
-            $hierarchy = $this->phaseService->getProjectPhaseHierarchy($project);
+			$hierarchy = $this->phaseService->getProjectPhaseHierarchy($project);
+			$this->deckCardScheduleService->syncCalculatedSchedules($project, $hierarchy['phases']);
+			$summary = $this->planningService->buildSummary($project, $hierarchy['phases']);
             $summary['phases'] = $hierarchy['phases'];
             $summary['dependencies'] = $hierarchy['dependencies'];
             $summary['delayAnalysis'] = $this->impactService->analyzeProjectDelays($project);
@@ -84,7 +85,9 @@ class TimelineApiController extends Controller
             $project = $this->requireProject($projectId);
             $this->assertCanAccessProject($project);
 
-            return new JSONResponse($this->phaseService->getProjectPhaseHierarchy($project));
+			$hierarchy = $this->phaseService->getProjectPhaseHierarchy($project);
+			$this->deckCardScheduleService->syncCalculatedSchedules($project, $hierarchy['phases']);
+			return new JSONResponse($hierarchy);
         } catch (\Throwable $e) {
             return $this->errorResponse($e);
         }
@@ -210,9 +213,8 @@ class TimelineApiController extends Controller
 			if ($end < $start) {
 				throw new \InvalidArgumentException('End date cannot be before start date');
 			}
-			$this->deckCardScheduleService->assertCardCanBeRescheduled($project, $cardId);
-			$baseline = $this->phaseService->getProjectPhaseHierarchy($project);
 			$durationDays = (int)$start->diff($end)->days + 1;
+			$this->deckCardScheduleService->assertCardCanBeRescheduled($project, $cardId);
 			$target = $this->phaseService->getProjectPhaseHierarchy($project, [
 				'taskOverrides' => [
 					(string)$cardId => [
@@ -221,17 +223,32 @@ class TimelineApiController extends Controller
 					],
 				],
 			]);
-			$updatedCards = $this->deckCardScheduleService->syncChangedSchedules($project, $baseline['phases'], $target['phases']);
+			$updatedCards = $this->deckCardScheduleService->syncCalculatedSchedules($project, $target['phases']);
+			$targetTask = $this->findDeckTask($target['phases'], $cardId);
 
 			return new JSONResponse([
 				'id' => $cardId,
-				'startDate' => $start->format('Y-m-d'),
-				'endDate' => $end->format('Y-m-d'),
+				'startDate' => $targetTask['startDate'],
+				'endDate' => $targetTask['endDate'],
+				'adjusted' => $targetTask['startDate'] !== $start->format('Y-m-d') || $targetTask['endDate'] !== $end->format('Y-m-d'),
 				'updatedCards' => $updatedCards,
 			]);
 		} catch (\Throwable $e) {
 			return $this->errorResponse($e);
 		}
+	}
+
+	/** @param array<int, array<string, mixed>> $phases */
+	private function findDeckTask(array $phases, int $cardId): array
+	{
+		foreach ($phases as $phase) {
+			foreach ($phase['tasks'] ?? [] as $task) {
+				if ((int)($task['deckCardId'] ?? 0) === $cardId) {
+					return $task;
+				}
+			}
+		}
+		throw new \InvalidArgumentException('Deck card is not part of this timeline');
 	}
 
 	#[NoAdminRequired]

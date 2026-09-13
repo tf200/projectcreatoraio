@@ -112,6 +112,39 @@ final class DeckCardScheduleServiceTest extends TestCase
 		$this->assertSame(2, $service->syncChangedSchedules($this->createProject(42), $baseline, $target));
 	}
 
+	public function testSyncCalculatedSchedulesUpdatesOnlyDatesThatDifferFromDeck(): void
+	{
+		$current = $this->createCard();
+		$current->setStartdate(new DateTime('2026-01-01'));
+		$current->setDuedate(new DateTime('2026-04-01'));
+		$changed = clone $current;
+		$changed->setId(8);
+
+		$service = $this->getMockBuilder(DeckCardScheduleService::class)
+			->setConstructorArgs([null, null])
+			->onlyMethods(['assertCardCanBeRescheduled', 'updateCardSchedule'])
+			->getMock();
+		$service->method('assertCardCanBeRescheduled')
+			->willReturnCallback(static fn (Project $project, int $cardId): Card => $cardId === 7 ? $current : $changed);
+		$service->expects($this->once())
+			->method('updateCardSchedule')
+			->with(
+				$this->isInstanceOf(Project::class),
+				8,
+				$this->callback(static fn (DateTime $date): bool => $date->format('Y-m-d') === '2026-04-02'),
+				$this->callback(static fn (DateTime $date): bool => $date->format('Y-m-d') === '2026-07-02'),
+			);
+
+		$phases = [[
+			'tasks' => [
+				['id' => 7, 'deckCardId' => 7, 'startDate' => '2026-01-01', 'endDate' => '2026-04-01', 'isDone' => false],
+				['id' => 8, 'deckCardId' => 8, 'startDate' => '2026-04-02', 'endDate' => '2026-07-02', 'isDone' => false],
+			],
+		]];
+
+		$this->assertSame(1, $service->syncCalculatedSchedules($this->createProject(42), $phases));
+	}
+
 	private function createProject(int $boardId): Project
 	{
 		$project = new Project();

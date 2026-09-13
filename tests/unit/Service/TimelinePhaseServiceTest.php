@@ -120,6 +120,126 @@ final class TimelinePhaseServiceTest extends TestCase
 		$this->assertSame(['VO', 'Intakeverslag'], $deps['DO']);
 	}
 
+	public function testDependencyScheduleRunsRootsInParallelAndUsesLatestPredecessor(): void
+	{
+		$service = new TimelinePhaseService(
+			$this->createMock(IDBConnection::class),
+			$this->createMock(TimelinePhaseMapper::class),
+			$this->createMock(TimelineItemMapper::class),
+		);
+		$cards = [
+			4 => $this->card(4, 'Last'),
+			3 => $this->card(3, 'Dependent'),
+			1 => $this->card(1, 'Root A'),
+			2 => $this->card(2, 'Root B', '2026-01-15'),
+		];
+
+		$schedules = $service->calculateDeckCardSchedules(
+			$cards,
+			[3 => [1, 2], 4 => [3]],
+			new DateTime('2026-01-01'),
+			[],
+			[3 => ['startDate' => '2026-02-01']],
+		);
+
+		$this->assertSame('2026-01-01', $schedules[1]['start']->format('Y-m-d'));
+		$this->assertSame('2026-04-01', $schedules[1]['end']->format('Y-m-d'));
+		$this->assertSame('2026-01-15', $schedules[2]['start']->format('Y-m-d'));
+		$this->assertSame('2026-04-15', $schedules[2]['end']->format('Y-m-d'));
+		$this->assertSame('2026-04-16', $schedules[3]['start']->format('Y-m-d'));
+		$this->assertSame('2026-07-16', $schedules[3]['end']->format('Y-m-d'));
+		$this->assertSame('2026-07-17', $schedules[4]['start']->format('Y-m-d'));
+	}
+
+	public function testDependencyScheduleUsesActualCompletionAndRejectsCycles(): void
+	{
+		$service = new TimelinePhaseService(
+			$this->createMock(IDBConnection::class),
+			$this->createMock(TimelinePhaseMapper::class),
+			$this->createMock(TimelineItemMapper::class),
+		);
+		$cards = [
+			1 => $this->card(1, 'Completed', '2026-01-01', '2026-04-01', '2026-02-10'),
+			2 => $this->card(2, 'Successor'),
+		];
+
+		$schedules = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], []);
+		$this->assertSame('2026-02-10', $schedules[1]['end']->format('Y-m-d'));
+		$this->assertSame('2026-02-11', $schedules[2]['start']->format('Y-m-d'));
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('dependencies contain a cycle');
+		$service->calculateDeckCardSchedules($cards, [1 => [2], 2 => [1]], new DateTime('2026-01-01'), [], []);
+	}
+
+	public function testDependencyScheduleUsesDeckDueDateAndMovesSuccessor(): void
+	{
+		$service = new TimelinePhaseService(
+			$this->createMock(IDBConnection::class),
+			$this->createMock(TimelinePhaseMapper::class),
+			$this->createMock(TimelineItemMapper::class),
+		);
+		$cards = [
+			1 => $this->card(1, 'Root', '2026-01-01', '2026-05-20'),
+			2 => $this->card(2, 'Successor'),
+		];
+
+		$schedules = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], []);
+
+		$this->assertSame('2026-05-20', $schedules[1]['end']->format('Y-m-d'));
+		$this->assertSame('2026-05-21', $schedules[2]['start']->format('Y-m-d'));
+	}
+
+	public function testTimelineDurationOverrideSetsEditableEndDate(): void
+	{
+		$service = new TimelinePhaseService(
+			$this->createMock(IDBConnection::class),
+			$this->createMock(TimelinePhaseMapper::class),
+			$this->createMock(TimelineItemMapper::class),
+		);
+		$cards = [1 => $this->card(1, 'Card', '2026-01-01', '2026-04-01')];
+
+		$schedules = $service->calculateDeckCardSchedules(
+			$cards,
+			[],
+			new DateTime('2026-01-01'),
+			[],
+			[1 => ['startDate' => '2026-01-10', 'durationDays' => 22]],
+		);
+
+		$this->assertSame('2026-01-10', $schedules[1]['start']->format('Y-m-d'));
+		$this->assertSame('2026-01-31', $schedules[1]['end']->format('Y-m-d'));
+	}
+
+	public function testShortenedPredecessorPullsSuccessorsBackUnlessAnotherPredecessorBlocksThem(): void
+	{
+		$service = new TimelinePhaseService(
+			$this->createMock(IDBConnection::class),
+			$this->createMock(TimelinePhaseMapper::class),
+			$this->createMock(TimelineItemMapper::class),
+		);
+		$cards = [
+			1 => $this->card(1, 'Shortened root', '2026-01-01', '2026-03-01'),
+			2 => $this->card(2, 'Blocking root', '2026-01-01', '2026-04-15'),
+			3 => $this->card(3, 'Moves back', '2026-04-02', '2026-07-02'),
+			4 => $this->card(4, 'Blocked', '2026-04-16', '2026-07-16'),
+			5 => $this->card(5, 'Moves recursively', '2026-07-03', '2026-10-03'),
+		];
+
+		$schedules = $service->calculateDeckCardSchedules(
+			$cards,
+			[3 => [1], 4 => [1, 2], 5 => [3]],
+			new DateTime('2026-01-01'),
+			[],
+			[],
+		);
+
+		$this->assertSame('2026-03-02', $schedules[3]['start']->format('Y-m-d'));
+		$this->assertSame('2026-06-01', $schedules[3]['end']->format('Y-m-d'));
+		$this->assertSame('2026-04-16', $schedules[4]['start']->format('Y-m-d'));
+		$this->assertSame('2026-06-02', $schedules[5]['start']->format('Y-m-d'));
+	}
+
 	public function testNonCombiProjectDoesNotCreateOrReturnCombiPhases(): void
 	{
 		$db = $this->createMock(IDBConnection::class);
@@ -133,5 +253,17 @@ final class TimelinePhaseServiceTest extends TestCase
 
 		$service = new TimelinePhaseService($db, $phaseMapper, $itemMapper);
 		$this->assertSame(['phases' => [], 'dependencies' => []], $service->getProjectPhaseHierarchy($project));
+	}
+
+	/** @return array{id: int, title: string, startdate: ?DateTime, duedate: ?DateTime, done: ?DateTime} */
+	private function card(int $id, string $title, ?string $start = null, ?string $end = null, ?string $done = null): array
+	{
+		return [
+			'id' => $id,
+			'title' => $title,
+			'startdate' => $start !== null ? new DateTime($start) : null,
+			'duedate' => $end !== null ? new DateTime($end) : null,
+			'done' => $done !== null ? new DateTime($done) : null,
+		];
 	}
 }

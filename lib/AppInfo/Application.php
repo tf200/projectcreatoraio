@@ -46,6 +46,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectQuotaService;
 use OCA\ProjectCreatorAIO\Service\ProjectAdministratorAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
+use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
 use OCA\Talk\Events\AttendeeRemovedEvent;
 use OCA\Talk\Events\AttendeesAddedEvent;
 use OCA\Talk\Events\CallEndedEvent;
@@ -340,6 +341,7 @@ class Application extends App implements IBootstrap {
 			return new TimelinePlanningService(
 				$c->get(IDBConnection::class),
 				$c->get(LoggerInterface::class),
+				$c->get(TimelinePhaseService::class),
 			);
 		});
 

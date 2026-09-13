@@ -67,8 +67,8 @@
 					</div>
 
 					<div class="kpi-card__subtext process-subtext" :title="processSubtextTitle">
-						<template v-if="processStatus === 'complete' && processCompletedDate">
-							Completed on {{ formatDisplayDate(processCompletedDate) }}
+						<template v-if="processStatus === 'complete'">
+							All steps complete
 						</template>
 						<template v-else-if="coordinationDurationText">
 							{{ coordinationDurationText }} pending
@@ -85,9 +85,27 @@
 
 			<div class="kpi-connector" :class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
 
-			<!-- 3. Preparation Time & Calculated Duration -->
-			<div class="kpi-card kpi-card--prep">
+			<!-- 3. Process Completion Date -->
+			<div class="kpi-card kpi-card--completion" :class="{ 'kpi-card--complete': processStatus === 'complete' }">
 				<div class="kpi-card__step">3</div>
+				<div class="kpi-card__icon" :class="processStatus === 'complete' ? 'kpi-card__icon--success' : 'kpi-card__icon--calendar'">
+					<CheckboxMarkedCircleOutline v-if="processStatus === 'complete'" :size="18" />
+					<Calendar v-else :size="18" />
+				</div>
+				<div class="kpi-card__content">
+					<div class="kpi-card__label">PROCESS COMPLETION DATE</div>
+					<div class="kpi-card__value">{{ formatDisplayDate(processCompletedDate) || 'Pending' }}</div>
+					<div class="kpi-card__subtext">
+						{{ processStatus === 'complete' ? 'All required steps done' : 'Awaiting completion' }}
+					</div>
+				</div>
+			</div>
+
+			<div class="kpi-connector" :class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
+
+			<!-- 4. Preparation Time & Calculated Duration -->
+			<div class="kpi-card kpi-card--prep">
+				<div class="kpi-card__step">4</div>
 				<div class="kpi-card__icon kpi-card__icon--clock">
 					<CalendarEdit :size="18" />
 				</div>
@@ -124,16 +142,16 @@
 					</div>
 
 					<div class="kpi-card__subtext kpi-card__subtext--breakdown">
-						Min. Duration: <strong>{{ kpis.minimumDurationWeeks ?? 0 }}w</strong> (Deck: {{ kpis.deckTasksWeeks ?? 0 }}w + Prep: {{ kpis.preparationWeeks ?? 0 }}w)
+						Min. Duration: <strong>{{ kpis.minimumDurationWeeks ?? 0 }}w</strong> (Initiation: {{ kpis.deckTasksWeeks ?? 0 }}w + Prep: {{ kpis.preparationWeeks ?? 0 }}w)
 					</div>
 				</div>
 			</div>
 
 			<div class="kpi-connector"></div>
 
-			<!-- 4. Minimum Start Date -->
+			<!-- 5. Minimum Start Date -->
 			<div class="kpi-card">
-				<div class="kpi-card__step">4</div>
+				<div class="kpi-card__step">5</div>
 				<div class="kpi-card__icon kpi-card__icon--diamond">
 					<RhombusMedium :size="18" />
 				</div>
@@ -146,9 +164,9 @@
 
 			<div class="kpi-connector kpi-connector--dashed"></div>
 
-			<!-- 5. Desired Start Date (Interactive Edit Card) -->
+			<!-- 6. Desired Start Date (Interactive Edit Card) -->
 			<div class="kpi-card kpi-card--desired" :class="{ 'kpi-card--editing': isEditingDesiredDate }">
-				<div class="kpi-card__step">5</div>
+				<div class="kpi-card__step">6</div>
 				<div class="kpi-card__icon kpi-card__icon--play">
 					<Play :size="18" />
 				</div>
@@ -381,14 +399,14 @@ export default {
 		coordinationDurationText() {
 			const period = this.kpis?.coordinationPendingPeriod
 			if (!period) return ''
-			let weeks = Number(period.weeks)
+			const weeks = Number(period.weeks)
 			if (!Number.isFinite(weeks) || weeks <= 0) return ''
 			const rounded = Math.round(weeks * 10) / 10
 			return `${rounded} ${rounded === 1 ? 'week' : 'weeks'}`
 		},
 		processSubtextTitle() {
-			if (this.processStatus === 'complete' && this.processCompletedDate) {
-				return `All required process steps completed on ${this.formatDisplayDate(this.processCompletedDate)}`
+			if (this.processStatus === 'complete') {
+				return 'All required process steps completed'
 			}
 			if (this.hasMissingTitles) {
 				return 'Missing required cards:\n• ' + this.missingTitlesList.join('\n• ')
@@ -713,6 +731,10 @@ export default {
 }
 
 .kpi-card--process.kpi-card--complete {
+	border-color: rgba(16, 185, 129, 0.35);
+}
+
+.kpi-card--completion.kpi-card--complete {
 	border-color: rgba(16, 185, 129, 0.35);
 }
 

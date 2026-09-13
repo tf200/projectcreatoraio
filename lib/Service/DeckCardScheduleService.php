@@ -102,6 +102,40 @@ class DeckCardScheduleService
 	}
 
 	/** @param array<int, array<string, mixed>> $phases */
+	public function syncCalculatedSchedules(Project $project, array $phases): int
+	{
+		$changedTasks = [];
+		foreach ($this->indexTasks($phases) as $task) {
+			if (empty($task['deckCardId']) || !empty($task['isDone'])) {
+				continue;
+			}
+			$card = $this->assertCardCanBeRescheduled($project, (int)$task['deckCardId']);
+			$currentStart = $card->getStartdate();
+			$currentEnd = $card->getDuedate();
+			if (
+				$currentStart instanceof DateTime
+				&& $currentEnd instanceof DateTime
+				&& $currentStart->format('Y-m-d') === $task['startDate']
+				&& $currentEnd->format('Y-m-d') === $task['endDate']
+			) {
+				continue;
+			}
+			$changedTasks[] = $task;
+		}
+
+		foreach ($changedTasks as $task) {
+			$this->updateCardSchedule(
+				$project,
+				(int)$task['deckCardId'],
+				new DateTime((string)$task['startDate']),
+				new DateTime((string)$task['endDate']),
+			);
+		}
+
+		return count($changedTasks);
+	}
+
+	/** @param array<int, array<string, mixed>> $phases */
 	private function indexTasks(array $phases): array
 	{
 		$tasks = [];

@@ -1012,7 +1012,7 @@ export default {
 			return this.editingItem ? 'Edit Item' : 'Add New Item'
 		},
 		modalDescription() {
-			if (this.isEditingDeckTask) return 'Update the card dates in both Deck and the timeline.'
+			if (this.isEditingDeckTask) return 'Update the card schedule. Starts before a predecessor finishes are moved to the first valid day, and dependent cards are updated in Deck.'
 			return this.editingItem
 				? 'Update the details for this timeline item.'
 				: 'Add a phase or milestone to your project timeline.'
