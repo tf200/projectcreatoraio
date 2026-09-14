@@ -14,7 +14,7 @@
    <div v-else-if="error" class="pc-state" role="alert"><p>{{ error }}</p><button class="pc-button" @click="$emit('retry')">{{ t('projectcreatoraio', 'Try again') }}</button></div>
    <template v-else>
     <div v-if="!visible.length" class="pc-state"><h2>{{ t('projectcreatoraio', 'No projects found') }}</h2><p>{{ t('projectcreatoraio', 'Adjust the filters or create a new project.') }}</p></div>
-    <div v-else class="pc-table-scroll"><table class="pc-project-table"><thead><tr><th>{{ t('projectcreatoraio', 'Project') }}</th><th>{{ t('projectcreatoraio', 'Client') }}</th><th>{{ t('projectcreatoraio', 'Location') }}</th><th>{{ t('projectcreatoraio', 'Status') }}</th><th><span class="hidden-visually">{{ t('projectcreatoraio', 'Open') }}</span></th></tr></thead><tbody><tr v-for="p in visible" :key="p.id"><td><a :href="projectUrl(p.id)" @click.prevent="$emit('open', Number(p.id))">{{ p.name }}</a><small>#{{ p.number }}</small></td><td>{{ p.client_name || '—' }}</td><td>{{ p.loc_city || '—' }}</td><td><span class="pc-badge" :class="{ 'pc-positive': Number(p.status) === 1 }">{{ statusLabel(p.status) }}</span></td><td><a :href="projectUrl(p.id)" :aria-label="t('projectcreatoraio', 'Open {name}', { name: p.name })" @click.prevent="$emit('open', Number(p.id))">→</a></td></tr></tbody></table></div>
+    <div v-else class="pc-table-scroll"><table class="pc-project-table"><thead><tr><th>{{ t('projectcreatoraio', 'Project') }}</th><th>{{ t('projectcreatoraio', 'Client') }}</th><th>{{ t('projectcreatoraio', 'Location') }}</th><th>{{ t('projectcreatoraio', 'Type') }}</th><th>{{ t('projectcreatoraio', 'Status') }}</th><th><span class="hidden-visually">{{ t('projectcreatoraio', 'Open') }}</span></th></tr></thead><tbody><tr v-for="p in visible" :key="p.id"><td><a :href="projectUrl(p.id)" @click.prevent="$emit('open', Number(p.id))">{{ p.name }}</a><small>#{{ p.number }}</small></td><td>{{ p.client_name || '—' }}</td><td>{{ p.loc_city || '—' }}</td><td>{{ typeLabel(p.type) }}</td><td><span class="pc-badge" :class="{ 'pc-positive': Number(p.status) === 1 }">{{ statusLabel(p.status) }}</span></td><td><a :href="projectUrl(p.id)" :aria-label="t('projectcreatoraio', 'Open {name}', { name: p.name })" @click.prevent="$emit('open', Number(p.id))">→</a></td></tr></tbody></table></div>
     <footer class="pc-list-footer" aria-live="polite">{{ t('projectcreatoraio', '{count} projects', { count: visible.length }) }}</footer>
    </template>
   </div>
@@ -22,6 +22,7 @@
 </template>
 <script>
 import { PROJECT_STATUS_OPTIONS, getProjectStatusLabel } from '../constants/project-statuses.js'
+import { PROJECT_TYPES } from '../macros/project-types.js'
 import { filterProjects, interfaceUrl } from './navigation.js'
 export default {
  props: { projects: { type: Array, required: true }, loading: Boolean, error: { type: String, default: '' }, filters: { type: Object, required: true }, base: { type: String, required: true }, isGlobalAdmin: Boolean, isOrganizationAdmin: Boolean, myProjectIds: { type: Array, default: () => [] } },
@@ -30,6 +31,6 @@ export default {
   organizations() { return [...new Set(this.projects.map(p => p.organization_id).filter(Boolean))] },
   visible() { return filterProjects(this.projects, this.filters).filter(p => !this.isOrganizationAdmin || this.filters.scope !== 'my' || this.myProjectIds.includes(Number(p.id))).filter(p => !this.isGlobalAdmin || this.filters.organization === 'all' || String(p.organization_id) === this.filters.organization) },
  },
- methods: { filter(key, value) { this.$emit('filter', { key, value }) }, statusLabel: getProjectStatusLabel, projectUrl(id) { return interfaceUrl(this.base, { projectId: id }) } },
+ methods: { typeLabel(value) { return value == null ? '—' : PROJECT_TYPES.find(type => type.id === Number(value))?.label.trim() || '—' }, filter(key, value) { this.$emit('filter', { key, value }) }, statusLabel: getProjectStatusLabel, projectUrl(id) { return interfaceUrl(this.base, { projectId: id }) } },
 }
 </script>
