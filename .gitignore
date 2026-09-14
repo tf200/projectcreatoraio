@@ -13,3 +13,8 @@
 /dist/
 /.vscode/
 .env
+
+# Local mockups and Codex workspace files
+*mockup*/
+.codex
+codex/
