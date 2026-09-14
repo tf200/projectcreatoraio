@@ -2,22 +2,22 @@
 	<section class="project-module">
 		<div v-if="unavailable" class="project-module__state" role="status">
 			<p>{{ unavailable }}</p>
-			<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open de huidige interface') }}</a>
+			<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 		</div>
 		<template v-else>
 			<div v-if="tab === 'members'" class="project-module__members">
-				<p>{{ t('projectcreatoraio', 'Bekijk de projectleden en hun rollen. Beheer leden in de huidige interface.') }}</p>
-				<a :href="legacyUrl">{{ t('projectcreatoraio', 'Leden beheren') }}</a>
+				<p>{{ t('projectcreatoraio', 'View project members and their roles. Manage members in the current interface.') }}</p>
+				<a :href="legacyUrl">{{ t('projectcreatoraio', 'Manage members') }}</a>
 			</div>
 			<div v-if="needsMembers && membersLoading" class="project-module__state" role="status">
-				{{ t('projectcreatoraio', 'Leden laden…') }}
+				{{ t('projectcreatoraio', 'Loading members…') }}
 			</div>
 			<div v-else-if="needsMembers && membersError" class="project-module__state" role="alert">
 				<p>{{ membersError }}</p>
-				<button type="button" @click="loadMembers">{{ t('projectcreatoraio', 'Opnieuw proberen') }}</button>
+				<button type="button" @click="loadMembers">{{ t('projectcreatoraio', 'Try again') }}</button>
 			</div>
 			<template v-else-if="tab === 'members'">
-				<p v-if="!members.length" role="status">{{ t('projectcreatoraio', 'Geen projectleden gevonden.') }}</p>
+				<p v-if="!members.length" role="status">{{ t('projectcreatoraio', 'No project members found.') }}</p>
 				<ul v-else class="project-module__member-list">
 					<li v-for="member in members" :key="member.id">
 						<strong>{{ member.displayName || member.id }}</strong>
@@ -26,14 +26,14 @@
 				</ul>
 			</template>
 			<template v-else>
-				<p v-if="moduleLoading" class="project-module__state" role="status">{{ t('projectcreatoraio', 'Onderdeel laden…') }}</p>
+				<p v-if="moduleLoading" class="project-module__state" role="status">{{ t('projectcreatoraio', 'Loading section…') }}</p>
 				<div v-else-if="moduleError" class="project-module__state" role="alert">
 					<p>{{ moduleError }}</p>
-					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Opnieuw proberen') }}</button>
-					<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open de huidige interface') }}</a>
+					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Try again') }}</button>
+					<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 				</div>
 				<component :is="moduleComponent" v-else-if="moduleComponent" :key="scopeKey" v-bind="moduleProps" @refresh="loadFiles" />
-				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Documenten opnieuw laden') }}</button>
+				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
 			</template>
 		</template>
 	</section>
@@ -87,11 +87,11 @@ export default {
 		currentUserId() { return String(this.context.userId || '').trim() },
 		needsMembers() { return this.tab === 'members' || this.tab === 'notes' },
 		unavailable() {
-			if (!Number.isSafeInteger(this.projectId) || this.projectId <= 0) return t('projectcreatoraio', 'Dit project is niet beschikbaar.')
+			if (!Number.isSafeInteger(this.projectId) || this.projectId <= 0) return t('projectcreatoraio', 'This project is unavailable.')
 			const feature = { tasks: 'deck', intake: 'deck', agenda: 'calendar', whiteboard: 'whiteboard' }[this.tab]
-			if (feature && this.context.features?.[feature] === false) return t('projectcreatoraio', 'Dit onderdeel is niet ingeschakeld.')
-			if (this.tab === 'intake' && Number(this.project.type) !== 0) return t('projectcreatoraio', 'Het intakeformulier is alleen beschikbaar voor Combi-projecten.')
-			if (this.tab !== 'members' && !loaders[this.tab]) return t('projectcreatoraio', 'Dit onderdeel is beschikbaar in de huidige interface.')
+			if (feature && this.context.features?.[feature] === false) return t('projectcreatoraio', 'This section is not enabled.')
+			if (this.tab === 'intake' && Number(this.project.type) !== 0) return t('projectcreatoraio', 'The intake form is only available for Combi projects.')
+			if (this.tab !== 'members' && !loaders[this.tab]) return t('projectcreatoraio', 'This section is available in the current interface.')
 			return ''
 		},
 		scopeKey() { return `${this.projectId}:${this.tab}:${this.unavailable}` },
@@ -155,7 +155,7 @@ export default {
 				const module = await loaders[tab]()
 				if (current()) this.moduleComponent = module.default
 			} catch (error) {
-				if (current()) this.moduleError = t('projectcreatoraio', 'Het onderdeel kon niet worden geladen.')
+				if (current()) this.moduleError = t('projectcreatoraio', 'The section could not be loaded.')
 			} finally {
 				if (current()) this.moduleLoading = false
 			}
@@ -175,7 +175,7 @@ export default {
 			} catch (error) {
 				if (current()) {
 					this.files = { shared: [], private: [] }
-					this.filesError = t('projectcreatoraio', 'Documenten konden niet worden geladen. Controleer je toegang of probeer het opnieuw.')
+					this.filesError = t('projectcreatoraio', 'Documents could not be loaded. Check your access or try again.')
 				}
 			} finally {
 				if (current()) this.filesLoading = false
@@ -199,7 +199,7 @@ export default {
 				if (current()) {
 					this.members = []
 					this.functionalRoles = []
-					this.membersError = t('projectcreatoraio', 'Projectleden konden niet worden geladen. Controleer je toegang of probeer het opnieuw.')
+					this.membersError = t('projectcreatoraio', 'Project members could not be loaded. Check your access or try again.')
 				}
 			} finally {
 				if (current()) this.membersLoading = false
@@ -208,7 +208,7 @@ export default {
 		memberRoles(member) {
 			const roles = member.drascivsRoles || member.drasciRoles || (member.drasciRole ? [member.drasciRole] : [])
 			const functional = (member.functionalRoleKeys || []).map(key => this.functionalRoles.find(role => role.key === key)?.name || key)
-			return [...roles, ...functional].join(' · ') || t('projectcreatoraio', 'Geen rollen toegewezen')
+			return [...roles, ...functional].join(' · ') || t('projectcreatoraio', 'No roles assigned')
 		},
 	},
 }

@@ -13,7 +13,7 @@ export const api = {
  project: id => get(`projects/${id}`),
 }
 export function errorMessage(error) {
- if (error?.response?.status === 403) return 'Je hebt geen toegang tot deze gegevens.'
- if (error?.response?.status === 404) return 'Dit project is niet beschikbaar of je hebt geen toegang.'
- return 'De gegevens konden niet worden geladen. Probeer het opnieuw.'
+ if (error?.response?.status === 403) return 'You do not have access to this data.'
+ if (error?.response?.status === 404) return 'This project is unavailable or you do not have access.'
+ return 'The data could not be loaded. Please try again.'
 }

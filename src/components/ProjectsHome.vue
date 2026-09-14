@@ -61,7 +61,7 @@
 			</header>
 
 			<div v-if="!isSidebarCollapsed || isNarrow" class="projects-home__controls">
-                <a :href="newInterfaceUrl" class="projects-home__new-interface-link">{{ t('projectcreatoraio', 'Probeer de nieuwe interface') }} →</a>
+                <a :href="newInterfaceUrl" class="projects-home__new-interface-link">{{ t('projectcreatoraio', 'Try the new interface') }} →</a>
 				<div v-if="isOrganizationAdmin" class="projects-home__control-row">
 					<label class="projects-home__control-label" for="projects-scope">View</label>
 					<select

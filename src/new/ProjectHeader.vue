@@ -1,9 +1,9 @@
 <template>
  <header class="pc-project-header">
-  <a class="pc-back" :href="base + '/new'" @click.prevent="$emit('back')">← {{ t('projectcreatoraio', 'Alle projecten') }}</a>
-  <div class="pc-header-main"><div><h1>{{ project.name }}</h1><div class="pc-project-meta"><span>#{{ project.number }}</span><span>{{ projectType }}</span><a v-if="project.loc_city" :href="locationUrl" target="_blank" rel="noopener noreferrer">{{ project.loc_city }}</a><span>{{ project.client_name }}</span></div></div><a class="pc-secondary" :href="legacyUrl">{{ t('projectcreatoraio', 'Bewerken in huidige interface') }}</a></div>
+  <a class="pc-back" :href="base + '/new'" @click.prevent="$emit('back')">← {{ t('projectcreatoraio', 'All projects') }}</a>
+  <div class="pc-header-main"><div><h1>{{ project.name }}</h1><div class="pc-project-meta"><span>#{{ project.number }}</span><span>{{ projectType }}</span><a v-if="project.loc_city" :href="locationUrl" target="_blank" rel="noopener noreferrer">{{ project.loc_city }}</a><span>{{ project.client_name }}</span></div></div><a class="pc-secondary" :href="legacyUrl">{{ t('projectcreatoraio', 'Edit in current interface') }}</a></div>
   <div class="pc-badges"><span class="pc-badge" :class="{ 'pc-positive': Number(project.status) === 1 }">{{ statusLabel }}</span></div>
-  <nav class="pc-tabs" :aria-label="t('projectcreatoraio', 'Projectonderdelen')"><a v-for="item in availableTabs" :key="item.id" :href="tabUrl(item.id)" :aria-current="tab === item.id ? 'page' : null" @click.prevent="$emit('navigate', item.id)"><component :is="item.icon" :size="18" />{{ item.label }}</a></nav>
+  <nav class="pc-tabs" :aria-label="t('projectcreatoraio', 'Project sections')"><a v-for="item in availableTabs" :key="item.id" :href="tabUrl(item.id)" :aria-current="tab === item.id ? 'page' : null" @click.prevent="$emit('navigate', item.id)"><component :is="item.icon" :size="18" />{{ item.label }}</a></nav>
  </header>
 </template>
 <script>
@@ -27,16 +27,16 @@ export default {
   locationUrl() { return 'https://www.openstreetmap.org/search?query=' + encodeURIComponent([this.project.loc_street, this.project.loc_zip, this.project.loc_city].filter(Boolean).join(' ')) },
   availableTabs() {
    return [
-    { id: 'overview', label: t('projectcreatoraio', 'Overzicht'), icon: ViewDashboardOutline },
-    { id: 'tasks', label: t('projectcreatoraio', 'Taken'), icon: ClipboardCheckOutline },
-    { id: 'notes', label: t('projectcreatoraio', 'Notities'), icon: NoteTextOutline },
+    { id: 'overview', label: t('projectcreatoraio', 'Overview'), icon: ViewDashboardOutline },
+    { id: 'tasks', label: t('projectcreatoraio', 'Tasks'), icon: ClipboardCheckOutline },
+    { id: 'notes', label: t('projectcreatoraio', 'Notes'), icon: NoteTextOutline },
     { id: 'planning', label: t('projectcreatoraio', 'Planning'), icon: CalendarMonthOutline },
-    { id: 'documents', label: t('projectcreatoraio', 'Documenten'), icon: FolderOutline },
-    ...(Number(this.project.type) === 0 ? [{ id: 'intake', label: t('projectcreatoraio', 'Intake formulier'), icon: ClipboardCheckOutline }] : []),
+    { id: 'documents', label: t('projectcreatoraio', 'Documents'), icon: FolderOutline },
+    ...(Number(this.project.type) === 0 ? [{ id: 'intake', label: t('projectcreatoraio', 'Intake form'), icon: ClipboardCheckOutline }] : []),
     { id: 'whiteboard', label: t('projectcreatoraio', 'Whiteboard'), icon: Draw },
-    { id: 'members', label: t('projectcreatoraio', 'Leden'), icon: AccountGroupOutline },
-    { id: 'activity', label: t('projectcreatoraio', 'Activiteit'), icon: History },
-    { id: 'agenda', label: t('projectcreatoraio', 'Agenda'), icon: CalendarMonthOutline },
+    { id: 'members', label: t('projectcreatoraio', 'Members'), icon: AccountGroupOutline },
+    { id: 'activity', label: t('projectcreatoraio', 'Activity'), icon: History },
+    { id: 'agenda', label: t('projectcreatoraio', 'Calendar'), icon: CalendarMonthOutline },
    ]
   },
  },

@@ -3,30 +3,30 @@
   <NcAppContent :allow-swipe-navigation="false">
    <main class="pc-new">
     <div class="pc-interface-bar">
-     <span>{{ t('projectcreatoraio', 'Nieuwe interface') }}</span>
-     <a :href="legacyUrl">{{ t('projectcreatoraio', 'Terug naar de huidige interface') }}</a>
+     <span>{{ t('projectcreatoraio', 'New interface') }}</span>
+     <a :href="legacyUrl">{{ t('projectcreatoraio', 'Back to current interface') }}</a>
     </div>
-    <section v-if="contextLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Projectomgeving laden…') }}</section>
+    <section v-if="contextLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project workspace…') }}</section>
     <section v-else-if="contextError" class="pc-state" role="alert">
-     <h1>{{ t('projectcreatoraio', 'Projectomgeving niet beschikbaar') }}</h1><p>{{ contextError }}</p>
-     <button class="pc-button" @click="initialize">{{ t('projectcreatoraio', 'Opnieuw proberen') }}</button>
+     <h1>{{ t('projectcreatoraio', 'Project workspace unavailable') }}</h1><p>{{ contextError }}</p>
+     <button class="pc-button" @click="initialize">{{ t('projectcreatoraio', 'Try again') }}</button>
     </section>
     <section v-else-if="!hasAccess" class="pc-state">
-     <h1>{{ t('projectcreatoraio', 'Geen organisatie toegewezen') }}</h1>
-     <p>{{ t('projectcreatoraio', 'Vraag je beheerder om toegang tot een organisatie.') }}</p>
+     <h1>{{ t('projectcreatoraio', 'No organization assigned') }}</h1>
+     <p>{{ t('projectcreatoraio', 'Ask your administrator for access to an organization.') }}</p>
     </section>
     <template v-else-if="route.projectId">
-     <section v-if="projectLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Project laden…') }}</section>
+     <section v-if="projectLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project…') }}</section>
      <section v-else-if="projectError" class="pc-state" role="alert">
-      <h1>{{ t('projectcreatoraio', 'Project niet beschikbaar') }}</h1><p>{{ projectError }}</p>
-      <button class="pc-button" @click="loadProject">{{ t('projectcreatoraio', 'Opnieuw proberen') }}</button>
-      <a :href="listUrl" @click.prevent="navigate(null)">{{ t('projectcreatoraio', 'Alle projecten') }}</a>
+      <h1>{{ t('projectcreatoraio', 'Project unavailable') }}</h1><p>{{ projectError }}</p>
+      <button class="pc-button" @click="loadProject">{{ t('projectcreatoraio', 'Try again') }}</button>
+      <a :href="listUrl" @click.prevent="navigate(null)">{{ t('projectcreatoraio', 'All projects') }}</a>
      </section>
      <template v-else-if="project">
       <ProjectHeader :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" @back="navigate(null)" />
       <NewOverview v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :aria-label="tabLabel" :aria-busy="projectLoading">
-       <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Onderdeel niet beschikbaar') }}</h2><p>{{ t('projectcreatoraio', 'Open dit onderdeel in de huidige interface om verder te werken.') }}</p><a :href="legacyUrl" class="pc-button">{{ t('projectcreatoraio', 'Open huidige interface') }}</a></div>
+       <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'Open this section in the current interface to continue.') }}</p><a :href="legacyUrl" class="pc-button">{{ t('projectcreatoraio', 'Open current interface') }}</a></div>
        <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :legacy-url="legacyUrl" />
       </section>
      </template>
