@@ -23,8 +23,8 @@
       <a :href="listUrl" @click.prevent="navigate(null)">{{ t('projectcreatoraio', 'All projects') }}</a>
      </section>
      <template v-else-if="project">
-      <ProjectHeader :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" @back="navigate(null)" />
-      <NewOverview v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
+      <ProjectHeader :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" @back="navigate(null)" />
+      <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :aria-label="tabLabel" :aria-busy="projectLoading">
        <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'Open this section in the current interface to continue.') }}</p><a :href="legacyUrl" class="pc-button">{{ t('projectcreatoraio', 'Open current interface') }}</a></div>
        <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :legacy-url="legacyUrl" />
@@ -37,6 +37,8 @@
  </NcContent>
 </template>
 <script>
+import overviewState from './overview-state.js'
+
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import { generateUrl } from '@nextcloud/router'
@@ -48,6 +50,7 @@ import NewOverview from './NewOverview.vue'
 import ProjectModule from './ProjectModule.vue'
 
 export default {
+ mixins: [overviewState],
  name: 'NewProjectApp',
  components: { NcContent, NcAppContent, ProjectList, ProjectHeader, NewOverview, ProjectModule },
  data() {
@@ -96,6 +99,7 @@ export default {
     if (version !== this.requestVersion) return
     if (!project || Number(project.id) !== id) throw new Error('Unexpected project response')
     this.project = project
+    this.loadOverview()
    } catch (error) { if (version === this.requestVersion) this.projectError = errorMessage(error) }
    finally { if (version === this.requestVersion) this.projectLoading = false }
   },
@@ -111,6 +115,7 @@ export default {
    this.moduleError = false
    history.pushState(null, '', interfaceUrl(this.base, this.route, true))
    if (!sameProject) await this.loadRoute()
+   else if (this.route.tab === 'overview') this.loadOverview()
    await this.$nextTick()
    this.scrollContainer().scrollTop = projectId ? 0 : this.listScroll
   },

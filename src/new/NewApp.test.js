@@ -5,10 +5,10 @@ import vm from 'node:vm'
 import { readRoute, interfaceUrl, normalizeTab } from './navigation.js'
 const script = readFileSync(new URL('./NewApp.vue', import.meta.url), 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '').replace('export default', 'globalThis.component =')
 function app(api) {
- const env = { api, readRoute, interfaceUrl, normalizeTab, generateUrl: x => x, location: { pathname: '/apps/projectcreatoraio/new', search: '' }, NcContent: {}, NcAppContent: {}, ProjectList: {}, ProjectHeader: {}, NewOverview: {}, ProjectModule: {}, errorMessage: () => 'error' }
+ const env = { history: { pushState() {} }, overviewState: {}, api, readRoute, interfaceUrl, normalizeTab, generateUrl: x => x, location: { pathname: '/apps/projectcreatoraio/new', search: '' }, NcContent: {}, NcAppContent: {}, ProjectList: {}, ProjectHeader: {}, NewOverview: {}, ProjectModule: {}, errorMessage: () => 'error' }
  vm.runInNewContext(script, env)
  const component = env.component
- const instance = { ...component.data(), context: { userId: 'alice', organizationId: 1 } }
+ const instance = { loadOverview() {}, ...component.data(), context: { userId: 'alice', organizationId: 1 } }
  for (const [key, method] of Object.entries(component.methods)) instance[key] = method.bind(instance)
  for (const [key, getter] of Object.entries(component.computed)) Object.defineProperty(instance,key,{get:getter.bind(instance)})
  return instance
@@ -37,4 +37,13 @@ test('organization-admin scope retains only membership IDs separately from acces
  const instance=app({list:async()=>[{id:1},{id:2}],myProjects:async()=>[{id:2},{id:99}]})
  instance.context.organizationRole='admin';await instance.loadList()
  assert.deepEqual(Array.from(instance.projects,x=>x.id),[1,2]);assert.deepEqual(Array.from(instance.myProjectIds),[2,99])
+})
+
+test('returning to overview refreshes summaries after using a module', async () => {
+ const instance = app({})
+ instance.project = { id: 21 }; instance.route = { projectId: 21, tab: 'notes' }
+ instance.$nextTick = async () => {}; instance.scrollContainer = () => ({ scrollTop: 0 })
+ let refreshed = 0; instance.loadOverview = () => { refreshed++ }
+ await instance.navigate(21, 'overview')
+ assert.equal(refreshed, 1)
 })
