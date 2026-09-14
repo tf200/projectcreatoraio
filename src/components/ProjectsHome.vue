@@ -61,6 +61,7 @@
 			</header>
 
 			<div v-if="!isSidebarCollapsed || isNarrow" class="projects-home__controls">
+                <a :href="newInterfaceUrl" class="projects-home__new-interface-link">{{ t('projectcreatoraio', 'Try the new interface') }} →</a>
 				<div v-if="isOrganizationAdmin" class="projects-home__control-row">
 					<label class="projects-home__control-label" for="projects-scope">View</label>
 					<select
@@ -1311,6 +1312,7 @@
 </template>
 
 <script>
+import { interfaceUrl } from '../new/navigation.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
@@ -1519,6 +1521,9 @@ export default {
 		}
 	},
 	computed: {
+        newInterfaceUrl() {
+            return interfaceUrl(generateUrl('/apps/projectcreatoraio'), { projectId: this.selectedProject?.id, tab: this.activeTab }, true)
+        },
 		currentUserId() {
 			return String(this.context?.userId || '').trim()
 		},
@@ -1655,6 +1660,9 @@ export default {
 		await this.loadProjects()
 
 		await this.handleUrlNavigation()
+        if (new URLSearchParams(window.location.search).get('create') === '1') {
+            this.startCreateProject()
+        }
 	},
 	beforeDestroy() {
 		window.removeEventListener('resize', this.updateNarrowState)
@@ -3853,4 +3861,8 @@ export default {
 		flex-shrink: 0;
 	}
 }
+</style>
+
+<style scoped>
+.projects-home__new-interface-link { display: block; padding: 10px 4px; color: var(--color-primary-element); font-size: 12px; }
 </style>

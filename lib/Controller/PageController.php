@@ -37,6 +37,22 @@ class PageController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function index(): TemplateResponse|NotFoundResponse {
+		return $this->renderPage('index');
+	}
+
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function newIndex(): TemplateResponse|NotFoundResponse {
+		return $this->renderPage('new');
+	}
+
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function newProject(): TemplateResponse|NotFoundResponse {
+		return $this->renderPage('new');
+	}
+
+	private function renderPage(string $template): TemplateResponse|NotFoundResponse {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
 			return new NotFoundResponse();
@@ -50,7 +66,7 @@ class PageController extends Controller {
 
 		$response = new TemplateResponse(
 			Application::APP_ID,
-			'index',
+			$template,
 		);
 
 		// Allow embedding same-origin pages (Files/Viewer) in an iframe.
