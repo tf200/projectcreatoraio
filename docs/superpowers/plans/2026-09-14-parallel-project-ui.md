@@ -47,7 +47,7 @@ File: `src/new/ProjectModule.vue`.
 - [x] Run navigation and component lifecycle tests; PHP lint; production build of both entries.
 - [x] Browser-check list, direct routes, Back, switch mappings, unauthorized/error responses, mobile layout and modules using intercepted read-only API fixtures where authentication is unavailable.
 - [x] Request independent review of the diff against this plan; fix substantive findings.
-- [ ] Commit feature work; apply the reviewed commit to the local checkout without changing migration34's history, build assets, verify route and asset responses, report remaining feature scope accurately.
+- [x] Commit feature work; apply the reviewed commit to the local checkout without changing migration34's history, build assets, verify route and asset responses, report remaining feature scope accurately.
 
 ## Verification notes
 
@@ -56,3 +56,7 @@ File: `src/new/ProjectModule.vue`.
 - Independent review completed; strict list validation and organization-admin membership filtering were corrected and covered by tests.
 - Browser harness and screenshots are stored outside the app at `/home/payboy/src/projectcreatoraio-ui-check`. It loads the production bundle with read-only API fixtures from the real mockup snapshot. This validates shell navigation and module mounting, not authenticated integration writes.
 - Project creation and member editing remain in the legacy interface. The richer overview summaries are intentionally deferred.
+
+## Local delivery
+
+Installed on local branch `preview/parallel-project-ui`; development worktree retained on `feature/parallel-project-ui`. The original `migration34` branch is unchanged. Production build passed in the installed checkout. Legacy and modern JavaScript/CSS respond with HTTP 200, and both new page routes return the expected unauthenticated HTTP 401 after refreshing Apache workers. Nextcloud reports `maintenance: false` and `needsDbUpgrade: false`. Previous generated assets are backed up at `/home/payboy/src/inzicht-stack-backups/parallel-ui-first-slice/assets-before.tar.gz`. No remote push was performed.
