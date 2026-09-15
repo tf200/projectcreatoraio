@@ -25,6 +25,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "portfolio_api#capacity",
+            "url" => "/api/v1/portfolio/capacity",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#listMine",
             "url" => "/api/v1/projects/mine",
             "verb" => "GET",

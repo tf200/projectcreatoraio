@@ -47,6 +47,25 @@ final class PortfolioApiControllerTest extends TestCase {
 		$this->controller($userSession, $userMapper, $this->createMock(ProjectPortfolioService::class))->completion();
 	}
 
+	public function testCapacityUsesQueryParametersAndOrganizationAdmin(): void {
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('org-admin');
+		$userSession = $this->createMock(IUserSession::class);
+		$userSession->method('getUser')->willReturn($user);
+		$userMapper = $this->createMock(OrganizationUserMapper::class);
+		$userMapper->method('getOrganizationMembership')->willReturn(['organization_id' => 42, 'role' => 'admin']);
+		$request = $this->createMock(IRequest::class);
+		$request->method('getParam')->willReturnMap([
+			['teamId', null, '9'],
+			['weekStart', null, '2026-09-16'],
+		]);
+		$service = $this->createMock(ProjectPortfolioService::class);
+		$service->expects($this->once())->method('getCapacity')->with(42, 9, '2026-09-16')->willReturn(['weeks' => []]);
+
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service);
+		self::assertSame(['weeks' => []], $controller->capacity()->getData());
+	}
+
 	private function controller(
 		IUserSession $userSession,
 		OrganizationUserMapper $userMapper,

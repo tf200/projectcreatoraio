@@ -115,6 +115,7 @@ class ProjectRetentionService {
 			$this->projectDigestCursorMapper->deleteByProject($projectId);
 			$this->memberRoleMapper?->deleteByProject($projectId);
 			$this->deleteDeckDoneSyncRows($projectId);
+			$this->deleteProjectTeamAssignment($projectId);
 			$this->privateFolderLinkMapper->deleteByProject($projectId);
 			$this->directChatMapper?->deleteByProject($projectId);
 			$this->projectMapper->deleteProject($project);
@@ -316,6 +317,21 @@ class ProjectRetentionService {
 		}
 
 		$qb->delete('project_deck_done_sync')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
+			->executeStatement();
+	}
+
+	private function deleteProjectTeamAssignment(int $projectId): void {
+		if ($this->db === null) {
+			return;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		if ($qb === null) {
+			return;
+		}
+
+		$qb->delete('organization_project_teams')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
 			->executeStatement();
 	}

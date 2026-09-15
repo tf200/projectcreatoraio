@@ -62,6 +62,109 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame(100, $result['projects'][1]['completionPct']);
 	}
 
+	public function testCapacityUsesInclusiveBoundariesAndRoundsCapacity(): void {
+		$result = $this->service->summarizeCapacity(
+			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],
+			'2026-09-16',
+			[
+				['id' => 1, 'name' => 'Starts Monday', 'status' => 1, 'start' => '2026-09-14', 'end' => '2026-09-20', 'actualEnd' => null],
+				['id' => 2, 'name' => 'Continues', 'status' => 1, 'start' => '2026-09-01', 'end' => null, 'actualEnd' => null],
+			],
+		);
+
+		self::assertSame('2026-09-14', $result['period']['weekStart']);
+		self::assertCount(6, $result['weeks']);
+		self::assertSame(1, $result['weeks'][0]['starting']);
+		self::assertSame(1, $result['weeks'][0]['ending']);
+		self::assertSame(2, $result['weeks'][0]['totalActive']);
+		self::assertSame(3.5, $result['team']['capacity']);
+	}
+
+	public function testCapacityNormalizesRequestedDateToItsIsoMonday(): void {
+		$result = $this->service->summarizeCapacity(
+			$this->team(1, 1),
+			'2026-09-20',
+			[],
+		);
+
+		self::assertSame('2026-09-14', $result['period']['weekStart']);
+		self::assertSame('2026-10-25', $result['period']['weekEnd']);
+	}
+
+	public function testCapacityKeepsOpenEndedProjectsActiveInAllLaterWeeks(): void {
+		$result = $this->service->summarizeCapacity(
+			$this->team(1, 1),
+			'2026-09-16',
+			[$this->capacityProject(1, '2026-09-14', null)],
+		);
+
+		self::assertSame([1, 1, 1, 1, 1, 1], array_column($result['weeks'], 'totalActive'));
+		self::assertSame([1, 0, 0, 0, 0, 0], array_column($result['weeks'], 'starting'));
+		self::assertSame([0, 0, 0, 0, 0, 0], array_column($result['weeks'], 'ending'));
+		self::assertSame([0, 1, 1, 1, 1, 1], array_column($result['weeks'], 'continuing'));
+	}
+
+	public function testCapacityCountsSameWeekStartAndEndButNotContinuing(): void {
+		$result = $this->service->summarizeCapacity(
+			$this->team(2, 1),
+			'2026-09-14',
+			[$this->capacityProject(1, '2026-09-15', '2026-09-17')],
+		);
+
+		self::assertSame(1, $result['weeks'][0]['starting']);
+		self::assertSame(1, $result['weeks'][0]['ending']);
+		self::assertSame(0, $result['weeks'][0]['continuing']);
+		self::assertSame(1, $result['weeks'][0]['totalActive']);
+	}
+
+	public function testCapacityFormatsIsoYearRolloverAndOverCapacity(): void {
+		$result = $this->service->summarizeCapacity(
+			$this->team(1, 1),
+			'2026-12-30',
+			[
+				$this->capacityProject(1, '2026-12-28', null),
+				$this->capacityProject(2, '2026-12-28', null),
+			],
+		);
+
+		self::assertSame('2026-W53', $result['weeks'][0]['label']);
+		self::assertSame('2027-W01', $result['weeks'][1]['label']);
+		self::assertTrue($result['weeks'][0]['overCapacity']);
+		self::assertSame(-1.0, $result['weeks'][0]['remaining']);
+	}
+
+	public function testCapacityTurnsAnEndBeforeStartIntoAPlanningGap(): void {
+		$result = $this->service->summarizeCapacity(
+			$this->team(4, 1),
+			'2026-09-14',
+			[$this->capacityProject(7, '2026-09-20', '2026-09-19')],
+		);
+
+		self::assertCount(1, $result['planningGaps']);
+		self::assertSame([1, 1, 1, 1, 1, 1], array_column($result['weeks'], 'totalActive'));
+	}
+
+	private function team(float $fte, float $projectsPerFte): array {
+		return [
+			'id' => 7,
+			'organizationId' => 42,
+			'name' => 'Design',
+			'fte' => $fte,
+			'projectsPerFte' => $projectsPerFte,
+		];
+	}
+
+	private function capacityProject(int $id, string $start, ?string $end): array {
+		return [
+			'id' => $id,
+			'name' => 'Project ' . $id,
+			'status' => 1,
+			'start' => $start,
+			'end' => $end,
+			'actualEnd' => $end,
+		];
+	}
+
 	private function project(int $id, int $done, int $total): array {
 		return [
 			'id' => $id,

@@ -27,6 +27,14 @@ use Psr\Log\LoggerInterface;
 
 final class ProjectRetentionServiceTest extends TestCase
 {
+	public function testTeamAssignmentCleanupMethodIsPrivateAndOnRetentionService(): void
+	{
+		$method = new \ReflectionMethod(ProjectRetentionService::class, 'deleteProjectTeamAssignment');
+
+		self::assertTrue($method->isPrivate());
+		self::assertSame(ProjectRetentionService::class, $method->getDeclaringClass()->getName());
+	}
+
 	public function testPurgeArchivedProjectsDryRunDoesNotDelete(): void
 	{
 		$project = new Project();
