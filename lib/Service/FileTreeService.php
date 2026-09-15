@@ -16,6 +16,7 @@ class FileTreeService {
             'type'     => ($node instanceof Folder) ? 'folder' : 'file',
             'mimetype' => $node->getMimeType(),
             'size'     => $node->getSize(),
+            'mtime'    => $node->getMTime(),
             'path'     => $node->getPath(),
         ];
         

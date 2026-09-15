@@ -2,6 +2,8 @@
 
 return [
     "routes" => [
+        ['name' => 'page#newIndex', 'url' => '/new', 'verb' => 'GET'],
+        ['name' => 'page#newProject', 'url' => '/new/projects/{projectId}', 'verb' => 'GET', 'requirements' => ['projectId' => '\\d+']],
         [
             "name" => "project_api#create",
             "url" => "/api/v1/projects",
