@@ -70,6 +70,11 @@ return [
             "verb" => "POST",
         ],
         [
+            "name" => "project_api#addMembersBulk",
+            "url" => "/api/v1/projects/{projectId}/members/bulk",
+            "verb" => "POST",
+        ],
+        [
             "name" => "project_api#updateMemberRole",
             "url" => "/api/v1/projects/{projectId}/members/{userId}/role",
             "verb" => "PUT",

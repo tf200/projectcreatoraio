@@ -169,34 +169,51 @@ class ProjectTalkIntegrationService {
 		];
 	}
 
-	public function addUserToConversation(string $conversationToken, IUser $user, ?IUser $addedBy = null): void {
-		$conversationToken = trim($conversationToken);
-		if ($conversationToken === '') {
-			return;
-		}
+    public function addUserToConversation(string $conversationToken, IUser $user, ?IUser $addedBy = null): void {
+        $this->addUsersToConversation($conversationToken, [$user], $addedBy);
+    }
+
+    /**
+     * @param IUser[] $users
+     */
+    public function addUsersToConversation(string $conversationToken, array $users, ?IUser $addedBy = null): void {
+        $conversationToken = trim($conversationToken);
+        if ($conversationToken === '' || $users === []) {
+            return;
+        }
 
 		if (!$this->isAvailable()) {
-			$this->logger->warning('Talk is not available; skipping adding user to conversation', [
+			$this->logger->warning('Talk is not available; skipping adding users to conversation', [
 				'token' => $conversationToken,
-				'userId' => $user->getUID(),
+				'count' => count($users),
 			]);
 			return;
 		}
 
 		try {
 			$room = $this->getTalkManager()->getRoomByToken($conversationToken);
-			$participants = [[
-				'actorType' => self::TALK_ACTOR_USERS,
-				'actorId' => $user->getUID(),
-				'displayName' => $user->getDisplayName(),
-				'participantType' => self::TALK_PARTICIPANT_USER,
-			]];
+			$participants = [];
+			foreach ($users as $user) {
+				if (!$user instanceof IUser) {
+					continue;
+				}
+				$participants[] = [
+					'actorType' => self::TALK_ACTOR_USERS,
+					'actorId' => $user->getUID(),
+					'displayName' => $user->getDisplayName(),
+					'participantType' => self::TALK_PARTICIPANT_USER,
+				];
+			}
+
+			if ($participants === []) {
+				return;
+			}
 
 			$this->getParticipantService()->addUsers($room, $participants, $addedBy);
 		} catch (Throwable $e) {
-			$this->logger->warning('Failed to add user to project Talk conversation', [
+			$this->logger->warning('Failed to add users to project Talk conversation', [
 				'token' => $conversationToken,
-				'userId' => $user->getUID(),
+				'count' => count($users),
 				'exception' => $e,
 			]);
 		}

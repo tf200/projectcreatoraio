@@ -73,6 +73,42 @@ class ProjectMemberRoleMapper extends QBMapper {
     }
 
     /**
+     * @param string[] $userIds
+     */
+    public function deleteByProjectAndUsers(int $projectId, array $userIds): void {
+        $userIds = array_values(array_unique(array_filter(array_map('trim', $userIds))));
+        if ($userIds === []) {
+            return;
+        }
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete($this->getTableName())
+            ->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
+            ->andWhere($qb->expr()->in('user_id', $qb->createNamedParameter($userIds, IQueryBuilder::PARAM_STR_ARRAY)))
+            ->executeStatement();
+    }
+
+    /**
+     * @param array<int, array{userId: string, role: string}> $rows
+     */
+    public function insertBulk(int $projectId, array $rows): void {
+        if ($rows === []) {
+            return;
+        }
+
+        $now = new \DateTime();
+        foreach ($rows as $row) {
+            $entity = new ProjectMemberRole();
+            $entity->setProjectId($projectId);
+            $entity->setUserId((string)($row['userId'] ?? ''));
+            $entity->setDrasciRole((string)($row['role'] ?? ''));
+            $entity->setCreatedAt($now);
+            $entity->setUpdatedAt($now);
+            $this->insert($entity);
+        }
+    }
+
+    /**
      * Delete all role records for a project.
      */
     public function deleteByProject(int $projectId): void {

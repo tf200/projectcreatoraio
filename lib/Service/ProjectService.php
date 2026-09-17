@@ -762,6 +762,310 @@ class ProjectService {
 	}
 
 	/**
+	 * Batch version of addMemberToProject for zero-click team assignment.
+	 *
+	 * Single project load, single role normalization, single IN-query for
+	 * organization memberships and single IN-query for existing group members.
+	 * Only missing users touch group/roles/Talk/notify. Already-members are
+	 * returned untouched (roles preserved). Additive only, never removes.
+	 *
+	 * @param string[] $userIds
+	 * @param string[] $drasciRoles
+	 * @return array{added: string[], alreadyMembers: string[], rejected: array<int, array{userId: string, reason: string}>, teamId: ?int}
+	 */
+	public function addMembersToProjectBulk(
+		int $projectId,
+		array $userIds,
+		array $drasciRoles = [],
+		?array $functionalRoleKeys = null,
+		?int $teamId = null,
+	): array {
+		if ($drasciRoles === []) {
+			$drasciRoles = ['informed'];
+		}
+		$drasciRoles = $this->normalizeDrasciRoles($drasciRoles);
+
+		$project = $this->projectMapper->find($projectId);
+		if ($project === null) {
+			throw new OCSException("Project with ID $projectId not found", 404);
+		}
+
+		$functionalRoles = $functionalRoleKeys === null
+			? null
+			: $this->resolveFunctionalRoles($project, $functionalRoleKeys, true);
+
+		$groupGid = trim((string)($project->getProjectGroupGid() ?? ''));
+		if ($groupGid === '') {
+			throw new OCSException('This project cannot accept members because the member group is not configured.', 500);
+		}
+
+		$organizationId = (int)$project->getOrganizationId();
+		$candidates = array_values(array_unique(array_filter(
+			array_map(static fn ($uid): string => trim((string)$uid), $userIds),
+			static fn (string $uid): bool => $uid !== '',
+		)));
+
+		$resolvedTeamId = null;
+		if ($teamId !== null && $teamId > 0) {
+			$teamUserIds = $this->resolveTeamUserIds($teamId, $organizationId);
+			$resolvedTeamId = $teamId;
+			$candidates = array_values(array_unique(array_merge($candidates, $teamUserIds)));
+		}
+
+		$candidates = array_slice($candidates, 0, 100);
+		if ($candidates === []) {
+			return ['added' => [], 'alreadyMembers' => [], 'rejected' => [], 'teamId' => $resolvedTeamId];
+		}
+
+		$memberships = $this->getOrganizationMembershipsBulk($candidates);
+		$validCandidates = [];
+		$rejected = [];
+		foreach ($candidates as $uid) {
+			$membership = $memberships[$uid] ?? null;
+			if ($membership === null || (int)$membership['organization_id'] !== $organizationId) {
+				$rejected[] = ['userId' => $uid, 'reason' => 'User does not belong to this organization.'];
+				continue;
+			}
+			$validCandidates[] = $uid;
+		}
+
+		if ($validCandidates === []) {
+			return ['added' => [], 'alreadyMembers' => [], 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+		}
+
+		$existingMembers = $this->getExistingGroupMembers($groupGid, $validCandidates);
+		$existingSet = array_fill_keys($existingMembers, true);
+		$alreadyMembers = array_values(array_filter($validCandidates, static fn (string $uid): bool => isset($existingSet[$uid])));
+		$toAdd = array_values(array_filter($validCandidates, static fn (string $uid): bool => !isset($existingSet[$uid])));
+
+		if ($toAdd === []) {
+			return ['added' => [], 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+		}
+
+		$group = $this->groupManager->get($groupGid);
+		if ($group === null) {
+			throw new OCSException('Project member group not found.', 404);
+		}
+
+		$usersById = [];
+		foreach ($toAdd as $uid) {
+			$user = $this->userManager->get($uid);
+			if ($user === null) {
+				$rejected[] = ['userId' => $uid, 'reason' => sprintf('User "%s" does not exist.', $uid)];
+				continue;
+			}
+			$usersById[$uid] = $user;
+		}
+
+		if ($usersById === []) {
+			return ['added' => [], 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+		}
+
+		$addedUids = [];
+		foreach ($usersById as $uid => $user) {
+			try {
+				$group->addUser($user);
+				$addedUids[] = $uid;
+			} catch (Throwable $e) {
+				$this->logger->warning('Bulk member add: group add failed', [
+					'projectId' => $projectId,
+					'userId' => $uid,
+					'exception' => $e,
+				]);
+				$rejected[] = ['userId' => $uid, 'reason' => 'Could not add user to project group.'];
+			}
+		}
+
+		if ($addedUids === []) {
+			return ['added' => [], 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+		}
+
+		$provisionedUids = [];
+		foreach ($addedUids as $uid) {
+			try {
+				$this->ensurePrivateFolderForMember($project, $uid);
+				$provisionedUids[] = $uid;
+			} catch (Throwable $e) {
+				try {
+					$failedUser = $usersById[$uid] ?? null;
+					if ($failedUser !== null) {
+						$group->removeUser($failedUser);
+					}
+				} catch (Throwable) {
+				}
+				$rejected[] = ['userId' => $uid, 'reason' => 'Could not provision private files.'];
+			}
+		}
+
+		if ($provisionedUids === []) {
+			return ['added' => [], 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+		}
+
+		$this->db->beginTransaction();
+		try {
+			$this->memberRoleMapper->deleteByProjectAndUsers($projectId, $provisionedUids);
+			$rows = [];
+			foreach ($provisionedUids as $uid) {
+				foreach ($drasciRoles as $role) {
+					$rows[] = ['userId' => $uid, 'role' => $role];
+				}
+			}
+			$this->memberRoleMapper->insertBulk($projectId, $rows);
+			foreach ($provisionedUids as $uid) {
+				if ($functionalRoles !== null) {
+					$this->replaceFunctionalRoleMemberships($project, $uid, $functionalRoles);
+				} else {
+					$this->cardPolicyService->syncLegacyProjectMemberRole((int)($project->getBoardId() ?? 0), $uid, $drasciRoles);
+				}
+			}
+			$this->db->commit();
+		} catch (Throwable $e) {
+			$this->db->rollBack();
+			foreach ($provisionedUids as $uid) {
+				try {
+					$addedUser = $usersById[$uid] ?? null;
+					if ($addedUser !== null) {
+						$group->removeUser($addedUser);
+					}
+				} catch (Throwable) {
+				}
+			}
+			throw $e;
+		}
+
+		$actor = $this->userSession->getUser();
+		$conversationToken = trim((string)($project->getTalkConversationToken() ?? ''));
+		if ($conversationToken !== '') {
+			$talkUsers = array_values(array_filter(
+				array_map(static fn (string $uid) => $usersById[$uid] ?? null, $provisionedUids),
+			));
+			$this->projectTalkIntegrationService->addUsersToConversation($conversationToken, $talkUsers, $actor);
+		}
+
+		foreach ($provisionedUids as $uid) {
+			$user = $usersById[$uid] ?? null;
+			if ($user === null) {
+				continue;
+			}
+			try {
+				$this->projectNotificationService->notifyMemberAdded($project, $user, $actor);
+			} catch (Throwable) {
+			}
+			try {
+				$this->projectActivityService->recordMemberAdded($project, $user, $actor);
+			} catch (Throwable) {
+			}
+		}
+
+		return ['added' => $provisionedUids, 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+	}
+
+	/**
+	 * @return string[]
+	 */
+	private function resolveTeamUserIds(int $teamId, int $organizationId): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('organization_id')
+			->from('organization_teams')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
+			->setMaxResults(1);
+		$result = $qb->executeQuery();
+		$row = $result->fetch();
+		$result->closeCursor();
+		if ($row === false || (int)($row['organization_id'] ?? 0) !== $organizationId) {
+			throw new OCSException('Team does not belong to this organization.', 400);
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('user_uid')
+			->from('organization_team_members')
+			->where($qb->expr()->eq('team_id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)));
+		$result = $qb->executeQuery();
+		$rows = $result->fetchAll();
+		$result->closeCursor();
+
+		$uids = [];
+		foreach ($rows as $teamRow) {
+			$uid = trim((string)($teamRow['user_uid'] ?? ''));
+			if ($uid !== '') {
+				$uids[] = $uid;
+			}
+		}
+
+		return array_values(array_unique($uids));
+	}
+
+	/**
+	 * @param string[] $userIds
+	 * @return array<string, array{organization_id: int, role: string}>
+	 */
+	private function getOrganizationMembershipsBulk(array $userIds): array {
+		if ($this->organizationUserMapper !== null && method_exists($this->organizationUserMapper, 'getOrganizationMemberships')) {
+			return $this->organizationUserMapper->getOrganizationMemberships($userIds);
+		}
+
+		$userIds = array_values(array_unique(array_filter(array_map('trim', $userIds))));
+		if ($userIds === []) {
+			return [];
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('user_uid', 'organization_id', 'role')
+			->from('organization_members')
+			->where($qb->expr()->in('user_uid', $qb->createNamedParameter($userIds, IQueryBuilder::PARAM_STR_ARRAY)));
+		$result = $qb->executeQuery();
+		$rows = $result->fetchAll();
+		$result->closeCursor();
+
+		$memberships = [];
+		foreach ($rows as $row) {
+			$uid = (string)($row['user_uid'] ?? '');
+			if ($uid === '') {
+				continue;
+			}
+			$memberships[$uid] = [
+				'organization_id' => (int)($row['organization_id'] ?? 0),
+				'role' => (string)($row['role'] ?? ''),
+			];
+		}
+
+		return $memberships;
+	}
+
+	/**
+	 * Single IN-query for existing group members, avoids per-user isInGroup.
+	 *
+	 * @param string[] $userIds
+	 * @return string[]
+	 */
+	private function getExistingGroupMembers(string $groupGid, array $userIds): array {
+		$userIds = array_values(array_unique(array_filter(array_map('trim', $userIds))));
+		if ($groupGid === '' || $userIds === []) {
+			return [];
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('uid')
+			->from('group_user')
+			->where($qb->expr()->eq('gid', $qb->createNamedParameter($groupGid)))
+			->andWhere($qb->expr()->in('uid', $qb->createNamedParameter($userIds, IQueryBuilder::PARAM_STR_ARRAY)));
+		$result = $qb->executeQuery();
+		$rows = $result->fetchAll();
+		$result->closeCursor();
+
+		$found = [];
+		foreach ($rows as $row) {
+			$uid = (string)($row['uid'] ?? '');
+			if ($uid !== '') {
+				$found[$uid] = true;
+			}
+		}
+
+		return array_keys($found);
+	}
+
+	/**
 	 * Manually assign or update DRASCIVS roles for an existing project member.
 	 *
 	 * @param ?string[] $drasciRoles
