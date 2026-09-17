@@ -66,6 +66,26 @@ final class PortfolioApiControllerTest extends TestCase {
 		self::assertSame(['weeks' => []], $controller->capacity()->getData());
 	}
 
+	public function testTableUsesQueryParametersAndOrganizationAdmin(): void {
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('org-admin');
+		$userSession = $this->createMock(IUserSession::class);
+		$userSession->method('getUser')->willReturn($user);
+		$userMapper = $this->createMock(OrganizationUserMapper::class);
+		$userMapper->method('getOrganizationMembership')->willReturn(['organization_id' => 42, 'role' => 'admin']);
+		$request = $this->createMock(IRequest::class);
+		$request->method('getParam')->willReturnMap([
+			['scope', null, 'team'],
+			['teamId', null, '9'],
+			['weekStart', null, '2026-09-14'],
+		]);
+		$service = $this->createMock(ProjectPortfolioService::class);
+		$service->expects($this->once())->method('getTableOverview')->with(42, '2026-09-14', 9, 'team', null)->willReturn(['projects' => []]);
+
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service);
+		self::assertSame(['projects' => []], $controller->table()->getData());
+	}
+
 	private function controller(
 		IUserSession $userSession,
 		OrganizationUserMapper $userMapper,

@@ -28,11 +28,26 @@ class ProjectPortfolioService {
 	) {
 	}
 
-	public function getCompletion(int $organizationId): array {
+	public function getCompletion(int $organizationId, ?string $memberUid = null): array {
 		$projects = array_values(array_filter(
 			$this->projectMapper->findByOrganizationId($organizationId),
 			static fn (Project $project): bool => $project->getStatus() !== ProjectStatus::ARCHIVED,
 		));
+		if ($memberUid !== null) {
+			$gids = [];
+			foreach ($projects as $project) {
+				$gids[] = $project->getProjectGroupGid();
+			}
+			$memberGids = $this->loadMemberProjectGids($memberUid, $gids);
+			$projects = array_values(array_filter(
+				$projects,
+				fn (Project $project): bool => $this->isMemberProject(
+					['ownerId' => $project->getOwnerId(), 'projectGroupGid' => $project->getProjectGroupGid()],
+					$memberUid,
+					$memberGids,
+				),
+			));
+		}
 
 		$boardIds = [];
 		foreach ($projects as $project) {
@@ -100,19 +115,299 @@ class ProjectPortfolioService {
 	 * weeks are reported separately so one team's overload cannot hide
 	 * behind another team's slack.
 	 */
-	public function getCapacityForAll(int $organizationId, ?string $weekStart = null): array {
+	public function getCapacityForAll(int $organizationId, ?string $weekStart = null, ?string $memberUid = null): array {
 		$requestedMonday = $this->normalizeMonday($weekStart);
 		$weekStartDate = $requestedMonday->format('Y-m-d');
-		$teamRows = $this->loadTeams($organizationId);
-		$projects = $this->loadAllCapacityProjects($organizationId);
+		$projects = $this->applyMemberFilter($this->loadAllCapacityProjects($organizationId), $memberUid);
 		[$eligible, $planningGaps] = $this->deriveEligibleCapacityProjects($projects, $requestedMonday);
 		$planningGaps = $this->dedupeCapacityGaps($planningGaps);
+		if ($memberUid !== null) {
+			$teamRows = $this->loadInvolvedTeams($organizationId, $projects);
+			$allRow = $this->buildAllTeamsRow($teamRows, $organizationId, 'My teams');
+		} else {
+			$teamRows = $this->loadTeams($organizationId);
+			$allRow = $this->buildAllTeamsRow($teamRows, $organizationId);
+		}
 
-		$unassigned = $this->loadUnassignedProjects($organizationId);
-		$result = $this->summarizeCapacity($this->buildAllTeamsRow($teamRows, $organizationId), $weekStartDate, $eligible, $planningGaps, $unassigned);
+		$unassigned = $this->applyMemberFilter($this->loadUnassignedProjects($organizationId), $memberUid);
+		$result = $this->summarizeCapacity($allRow, $weekStartDate, $eligible, $planningGaps, $unassigned);
 		$result['teams'] = $this->summarizeTeams($teamRows);
 		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $requestedMonday, $weekStartDate));
 		return $result;
+	}
+
+	/**
+	 * Table overview ("Planningsoverzicht – Initiatiefase") providing detailed
+	 * metrics for all initiation-phase projects in the requested scope,
+	 * along with the 6-week capacity load strip and status counts.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getTableOverview(
+		int $organizationId,
+		?string $weekStart = null,
+		?int $teamId = null,
+		string $scope = 'all',
+		?string $memberUid = null,
+	): array {
+		$requestedMonday = $this->normalizeMonday($weekStart);
+		$currentMonday = $this->normalizeMonday(null);
+
+		if ($scope === 'team' && $teamId !== null) {
+			$team = $this->loadTeam($organizationId, $teamId);
+			if ($team === null) {
+				throw new \InvalidArgumentException('Team does not belong to organization');
+			}
+			$capacitySummary = $this->getCapacity($organizationId, $teamId, $requestedMonday->format('Y-m-d'));
+			$rawProjects = $this->loadTableProjects($organizationId, $teamId);
+		} elseif ($scope === 'mine') {
+			$capacitySummary = $this->getCapacityForAll($organizationId, $requestedMonday->format('Y-m-d'), $memberUid);
+			$rawProjects = $this->applyMemberFilter($this->loadAllTableProjects($organizationId), $memberUid);
+		} else {
+			$capacitySummary = $this->getCapacityForAll($organizationId, $requestedMonday->format('Y-m-d'));
+			$rawProjects = $this->loadAllTableProjects($organizationId);
+		}
+
+		$boardIds = [];
+		foreach ($rawProjects as $project) {
+			$boardId = $this->normalizeBoardId($project['boardId']);
+			if ($boardId !== null) {
+				$boardIds[$boardId] = $boardId;
+			}
+		}
+		$cardsByBoard = $this->loadCapacityCards(array_values($boardIds));
+
+		return $this->buildTableOverview($rawProjects, $cardsByBoard, $capacitySummary, $currentMonday, $requestedMonday);
+	}
+
+	/**
+	 * Pure presentation mapping for the Planningsoverzicht table.
+	 *
+	 * @param array<int, array<string, mixed>> $rawProjects
+	 * @param array<int, array<int, array<string, mixed>>> $cardsByBoard
+	 * @param array<string, mixed> $capacitySummary
+	 * @return array<string, mixed>
+	 */
+	public function buildTableOverview(
+		array $rawProjects,
+		array $cardsByBoard,
+		array $capacitySummary,
+		?DateTimeImmutable $currentMonday = null,
+		?DateTimeImmutable $requestedMonday = null,
+	): array {
+		$currentMonday ??= $this->normalizeMonday(null);
+		$requestedMonday ??= $this->normalizeMonday(null);
+
+		$bucketCounters = [
+			'0-24' => 0,
+			'25-49' => 0,
+			'50-74' => 0,
+			'75-99' => 0,
+			'100' => 0,
+		];
+		$planningGapCount = 0;
+		$projectRows = [];
+
+		foreach ($rawProjects as $project) {
+			$boardId = $this->normalizeBoardId($project['boardId'] ?? null);
+			$cards = $boardId !== null ? ($cardsByBoard[$boardId] ?? []) : [];
+			$totalCards = count($cards);
+
+			$doneStackId = $this->resolveCapacityDoneStackId($cards);
+			$doneCards = 0;
+			foreach ($cards as $card) {
+				$hasDoneFlag = isset($card['done']) && trim((string)$card['done']) !== '';
+				$inDoneStack = $doneStackId !== null && (int)($card['stack_id'] ?? -1) === $doneStackId;
+				if ($hasDoneFlag || $inDoneStack) {
+					$doneCards++;
+				}
+			}
+			$openCards = max(0, $totalCards - $doneCards);
+			$completionPct = $totalCards === 0 ? 0 : (int)round(($doneCards / $totalCards) * 100);
+			$bucketIndex = min(4, intdiv($completionPct, 25));
+			$bucketKey = self::BUCKETS[$bucketIndex]['key'];
+			$bucketCounters[$bucketKey]++;
+
+			$bucketLabels = [
+				'0-24' => '0–24%',
+				'25-49' => '25–49%',
+				'50-74' => '50–74%',
+				'75-99' => '75–99% / Upcoming',
+				'100' => '100% ready for Handover 1',
+			];
+			$bucketLabel = $bucketLabels[$bucketKey] ?? self::BUCKETS[$bucketIndex]['label'];
+
+			$dates = $this->deriveCapacityDates($project, $cards);
+			$actualEnd = $dates['actualEnd'];
+			$plannedEnd = $dates['end'];
+			$isCompleted = ($totalCards > 0 && $doneCards === $totalCards && $actualEnd !== null);
+
+			if ($isCompleted) {
+				$actualEndMonday = $this->normalizeMonday($actualEnd);
+				$actualWeek = 'W' . (int)$actualEndMonday->format('W');
+				$expectedOrAchievedLabel = '100% reached ' . $actualWeek;
+			} elseif ($plannedEnd !== null) {
+				$plannedMonday = $this->normalizeMonday($plannedEnd);
+				$plannedWeek = 'W' . (int)$plannedMonday->format('W');
+				$expectedOrAchievedLabel = $plannedWeek;
+			} else {
+				$expectedOrAchievedLabel = '—';
+			}
+
+			$endForPrep = $actualEnd ?? $plannedEnd;
+			if ($endForPrep !== null && !$dates['invalidEnd']) {
+				$startPrepDate = $this->firstMondayOnOrAfter($endForPrep)->format('Y-m-d');
+				$startPrepMonday = $this->normalizeMonday($startPrepDate);
+				$startPrepWeek = 'W' . (int)$startPrepMonday->format('W');
+
+				if ($isCompleted) {
+					$startPrepCountdown = '—';
+					$startPrepCountdownWeeks = null;
+				} else {
+					$diffDays = (int)$currentMonday->diff($startPrepMonday)->format('%r%a');
+					$diffWeeks = (int)round($diffDays / 7);
+					$startPrepCountdownWeeks = $diffWeeks;
+					if ($diffWeeks > 0) {
+						$startPrepCountdown = $diffWeeks . ' ' . ($diffWeeks === 1 ? 'week' : 'weeks');
+					} elseif ($diffWeeks === 0) {
+						$startPrepCountdown = 'this week';
+					} else {
+						$startPrepCountdown = abs($diffWeeks) . ' ' . (abs($diffWeeks) === 1 ? 'week ago' : 'weeks ago');
+					}
+				}
+			} else {
+				$startPrepDate = null;
+				$startPrepMonday = null;
+				$startPrepWeek = '—';
+				$startPrepCountdown = '—';
+				$startPrepCountdownWeeks = null;
+			}
+
+			$prepWeeks = max(0, (int)($project['requiredPreparationWeeks'] ?? 0));
+			if ($startPrepMonday !== null) {
+				$minExecMonday = $startPrepMonday->modify('+' . ($prepWeeks * 7) . ' days');
+				$minExecutionStartDate = $minExecMonday->format('Y-m-d');
+				$minExecutionStartWeek = 'W' . (int)$minExecMonday->format('W');
+			} else {
+				$minExecMonday = null;
+				$minExecutionStartDate = null;
+				$minExecutionStartWeek = '—';
+			}
+
+			$desiredStartDate = $project['desiredStartDate'] ?? null;
+			if ($desiredStartDate !== null) {
+				$desiredMonday = $this->normalizeMonday($desiredStartDate);
+				$desiredStartWeek = 'W' . (int)$desiredMonday->format('W');
+				$diffDesiredDays = (int)$currentMonday->diff($desiredMonday)->format('%r%a');
+				$diffDesiredWeeks = (int)round($diffDesiredDays / 7);
+				$desiredCountdownWeeks = $diffDesiredWeeks;
+				if ($diffDesiredWeeks > 0) {
+					$desiredCountdown = $diffDesiredWeeks . ' ' . ($diffDesiredWeeks === 1 ? 'week' : 'weeks');
+				} elseif ($diffDesiredWeeks === 0) {
+					$desiredCountdown = 'this week';
+				} else {
+					$desiredCountdown = abs($diffDesiredWeeks) . ' ' . (abs($diffDesiredWeeks) === 1 ? 'week ago' : 'weeks ago');
+				}
+			} else {
+				$desiredMonday = null;
+				$desiredStartWeek = '—';
+				$desiredCountdown = '—';
+				$desiredCountdownWeeks = null;
+			}
+			$isLeadingDesiredWeek = ($isCompleted && $desiredStartDate !== null);
+
+			if ($dates['invalidEnd'] || $endForPrep === null) {
+				$hasGap = true;
+				$planningGapDisplay = 'No end date';
+				$gapWeeks = 0;
+				$gapSpan = null;
+			} elseif ($minExecMonday !== null && $desiredMonday !== null && $minExecMonday > $desiredMonday) {
+				$hasGap = true;
+				$diffGapDays = (int)$desiredMonday->diff($minExecMonday)->format('%r%a');
+				$gapWeeks = max(1, (int)round($diffGapDays / 7) + 1);
+				$desWeek = (int)$desiredMonday->format('W');
+				$minWeek = (int)$minExecMonday->format('W');
+				$gapSpan = ($desWeek === $minWeek) ? "W{$desWeek}" : "W{$desWeek}-W{$minWeek}";
+				$planningGapDisplay = "{$gapWeeks} " . ($gapWeeks === 1 ? 'week' : 'weeks') . " · {$gapSpan}";
+			} else {
+				$hasGap = false;
+				$planningGapDisplay = 'None';
+				$gapWeeks = 0;
+				$gapSpan = null;
+			}
+
+			if ($hasGap) {
+				$planningGapCount++;
+			}
+
+			$projectRows[] = [
+				'id' => (int)$project['id'],
+				'name' => (string)$project['name'],
+				'boardId' => $boardId,
+				'status' => (int)$project['status'],
+				'bucket' => $bucketKey,
+				'bucketLabel' => $bucketLabel,
+				'completionPct' => $completionPct,
+				'totalCards' => $totalCards,
+				'doneCards' => $doneCards,
+				'openCards' => $openCards,
+				'actualEnd' => $actualEnd,
+				'plannedEnd' => $plannedEnd,
+				'isCompleted' => $isCompleted,
+				'expectedOrAchievedLabel' => $expectedOrAchievedLabel,
+				'startPrepDate' => $startPrepDate,
+				'startPrepWeek' => $startPrepWeek,
+				'startPrepCountdown' => $startPrepCountdown,
+				'startPrepCountdownWeeks' => $startPrepCountdownWeeks,
+				'requiredPrepWeeks' => $prepWeeks,
+				'minExecutionStartDate' => $minExecutionStartDate,
+				'minExecutionStartWeek' => $minExecutionStartWeek,
+				'desiredStartDate' => $desiredStartDate,
+				'desiredStartWeek' => $desiredStartWeek,
+				'desiredCountdown' => $desiredCountdown,
+				'desiredCountdownWeeks' => $desiredCountdownWeeks,
+				'isLeadingDesiredWeek' => $isLeadingDesiredWeek,
+				'planningGap' => [
+					'hasGap' => $hasGap,
+					'weeks' => $gapWeeks,
+					'spanLabel' => $gapSpan,
+					'display' => $planningGapDisplay,
+				],
+				'teamId' => $project['teamId'] ?? null,
+			];
+		}
+
+		$totalProjects = count($projectRows);
+		$bucketSummaries = [
+			['key' => 'all', 'label' => 'All statuses', 'count' => $totalProjects],
+			['key' => '0-24', 'label' => '0–24%', 'count' => $bucketCounters['0-24']],
+			['key' => '25-49', 'label' => '25–49%', 'count' => $bucketCounters['25-49']],
+			['key' => '50-74', 'label' => '50–74%', 'count' => $bucketCounters['50-74']],
+			['key' => '75-99', 'label' => '75–99% / Upcoming', 'count' => $bucketCounters['75-99']],
+			['key' => '100', 'label' => '100% ready for Handover 1', 'count' => $bucketCounters['100']],
+			['key' => 'gaps', 'label' => 'Open planning gaps', 'count' => $planningGapCount],
+		];
+
+		return [
+			'period' => $capacitySummary['period'] ?? [
+				'weekStart' => $requestedMonday->format('Y-m-d'),
+				'weekEnd' => $requestedMonday->modify('+41 days')->format('Y-m-d'),
+				'weeks' => 6,
+			],
+			'currentWeek' => [
+				'week' => (int)$currentMonday->format('W'),
+				'label' => 'W' . (int)$currentMonday->format('W'),
+				'date' => $currentMonday->format('Y-m-d'),
+			],
+			'team' => $capacitySummary['team'] ?? null,
+			'teams' => $capacitySummary['teams'] ?? [],
+			'teamWarnings' => $capacitySummary['teamWarnings'] ?? [],
+			'weeks' => $capacitySummary['weeks'] ?? [],
+			'totalProjects' => $totalProjects,
+			'planningGapCount' => $planningGapCount,
+			'buckets' => $bucketSummaries,
+			'projects' => $projectRows,
+		];
 	}
 
 	/**
@@ -135,12 +430,12 @@ class ProjectPortfolioService {
 	 * @param array<int,array<string,mixed>> $teams Raw team rows with fte/projectsPerFte keys
 	 * @return array<string,mixed> Synthetic team row carrying the summed capacity
 	 */
-	public function buildAllTeamsRow(array $teams, int $organizationId): array {
+	public function buildAllTeamsRow(array $teams, int $organizationId, string $name = 'All teams'): array {
 		$total = 0.0;
 		foreach ($this->summarizeTeams($teams) as $summary) {
 			$total = round($total + $summary['capacity'], 2);
 		}
-		return ['id' => 0, 'organizationId' => $organizationId, 'name' => 'All teams', 'fte' => $total, 'projectsPerFte' => 1.0];
+		return ['id' => 0, 'organizationId' => $organizationId, 'name' => $name, 'fte' => $total, 'projectsPerFte' => 1.0];
 	}
 
 	/**
@@ -176,6 +471,110 @@ class ProjectPortfolioService {
 			}
 		}
 		return $warnings;
+	}
+
+	/**
+	 * "My projects" predicate: project owner or member of the project group.
+	 * Mirrors the membership definition in ProjectMemberResolver.
+	 *
+	 * @param array{ownerId?:?string,projectGroupGid?:?string} $project
+	 * @param array<string,true> $memberGids Project-group gids the user belongs to
+	 */
+	public function isMemberProject(array $project, string $uid, array $memberGids): bool {
+		if (trim((string)($project['ownerId'] ?? '')) === trim($uid) && trim($uid) !== '') {
+			return true;
+		}
+		$gid = trim((string)($project['projectGroupGid'] ?? ''));
+		return $gid !== '' && isset($memberGids[$gid]);
+	}
+
+	/**
+	 * Filters capacity project rows down to the user's own projects.
+	 * Null uid disables the filter.
+	 *
+	 * @param array<int,array<string,mixed>> $projects Rows with ownerId/projectGroupGid keys
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function applyMemberFilter(array $projects, ?string $uid): array {
+		if ($uid === null) {
+			return $projects;
+		}
+		$gids = [];
+		foreach ($projects as $project) {
+			$gids[] = $project['projectGroupGid'] ?? null;
+		}
+		$memberGids = $this->loadMemberProjectGids($uid, $gids);
+		return array_values(array_filter(
+			$projects,
+			fn (array $project): bool => $this->isMemberProject($project, $uid, $memberGids),
+		));
+	}
+
+	/**
+	 * Single query resolving which of the given project-group gids the user
+	 * belongs to. Keeps the Mine filter free of per-project group lookups.
+	 *
+	 * @param array<int,?string> $groupGids
+	 * @return array<string,true>
+	 */
+	private function loadMemberProjectGids(string $uid, array $groupGids): array {
+		$gids = [];
+		foreach ($groupGids as $gid) {
+			$gid = trim((string)$gid);
+			if ($gid !== '') {
+				$gids[$gid] = true;
+			}
+		}
+		if ($gids === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$rows = $qb->select('gid')
+			->from('group_user')
+			->where($qb->expr()->eq('uid', $qb->createNamedParameter($uid)))
+			->andWhere($qb->expr()->in('gid', $qb->createNamedParameter(array_keys($gids), IQueryBuilder::PARAM_STR_ARRAY)))
+			->executeQuery()->fetchAllAssociative();
+		$out = [];
+		foreach ($rows as $row) {
+			$out[(string)$row['gid']] = true;
+		}
+		return $out;
+	}
+
+	/**
+	 * Teams behind the given capacity projects (assignment table), used as
+	 * the Mine-mode capacity denominator and warning scope.
+	 *
+	 * @param array<int,array<string,mixed>> $projects Rows with id keys
+	 * @return array<int,array<string,mixed>> Raw team rows
+	 */
+	private function loadInvolvedTeams(int $organizationId, array $projects): array {
+		$projectIds = [];
+		foreach ($projects as $project) {
+			$projectIds[(int)$project['id']] = true;
+		}
+		if ($projectIds === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$rows = $qb->selectDistinct('team_id')
+			->from('organization_project_teams')
+			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->in('project_id', $qb->createNamedParameter(array_keys($projectIds), IQueryBuilder::PARAM_INT_ARRAY)))
+			->executeQuery()->fetchAllAssociative();
+		$teamIds = [];
+		foreach ($rows as $row) {
+			$teamIds[(int)$row['team_id']] = true;
+		}
+		if ($teamIds === []) {
+			return [];
+		}
+		$teamQb = $this->db->getQueryBuilder();
+		return $teamQb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
+			->from('organization_teams')
+			->where($teamQb->expr()->eq('organization_id', $teamQb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($teamQb->expr()->in('id', $teamQb->createNamedParameter(array_keys($teamIds), IQueryBuilder::PARAM_INT_ARRAY)))
+			->executeQuery()->fetchAllAssociative();
 	}
 
 	/**
@@ -361,7 +760,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadCapacityProjects(int $organizationId, int $teamId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.owner_id', 'p.project_group_gid')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -376,6 +775,8 @@ class ProjectPortfolioService {
 				'boardId' => (string)($row['board_id'] ?? ''),
 				'createdAt' => (string)($row['created_at'] ?? ''),
 				'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+				'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
+				'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
 			];
 		}, $rows);
 	}
@@ -383,7 +784,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadAllCapacityProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.owner_id', 'p.project_group_gid')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -400,6 +801,62 @@ class ProjectPortfolioService {
 					'boardId' => (string)($row['board_id'] ?? ''),
 					'createdAt' => (string)($row['created_at'] ?? ''),
 					'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+					'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
+					'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
+				];
+			}
+		}
+		return array_values($projects);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function loadTableProjects(int $organizationId, int $teamId): array {
+		$qb = $this->db->getQueryBuilder();
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.required_preparation_weeks', 'p.owner_id', 'p.project_group_gid')
+			->selectAlias('pt.team_id', 'team_id')
+			->from('custom_projects', 'p')
+			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
+			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('pt.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('pt.team_id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->neq('p.status', $qb->createNamedParameter(ProjectStatus::ARCHIVED, IQueryBuilder::PARAM_INT)))
+			->executeQuery()->fetchAllAssociative();
+		return $this->mapTableProjectRows($rows);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function loadAllTableProjects(int $organizationId): array {
+		$qb = $this->db->getQueryBuilder();
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.required_preparation_weeks', 'p.owner_id', 'p.project_group_gid')
+			->selectAlias('pt.team_id', 'team_id')
+			->from('custom_projects', 'p')
+			->leftJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
+			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->neq('p.status', $qb->createNamedParameter(ProjectStatus::ARCHIVED, IQueryBuilder::PARAM_INT)))
+			->executeQuery()->fetchAllAssociative();
+		return $this->mapTableProjectRows($rows);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function mapTableProjectRows(array $rows): array {
+		$projects = [];
+		foreach ($rows as $row) {
+			$id = (int)$row['id'];
+			if (!isset($projects[$id])) {
+				$projects[$id] = [
+					'id' => $id,
+					'name' => (string)$row['name'],
+					'status' => (int)$row['status'],
+					'boardId' => (string)($row['board_id'] ?? ''),
+					'createdAt' => (string)($row['created_at'] ?? ''),
+					'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+					'requiredPreparationWeeks' => (int)($row['required_preparation_weeks'] ?? 0),
+					'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
+					'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
+					'teamId' => $row['team_id'] === null ? null : (int)$row['team_id'],
 				];
 			}
 		}
@@ -432,7 +889,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadUnassignedProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.owner_id', 'p.project_group_gid')
 			->from('custom_projects', 'p')
 			->leftJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -444,6 +901,8 @@ class ProjectPortfolioService {
 				'id' => (int)$row['id'],
 				'name' => (string)$row['name'],
 				'status' => (int)$row['status'],
+				'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
+				'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
 			];
 		}, $rows);
 	}

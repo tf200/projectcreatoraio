@@ -211,6 +211,33 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame([['id' => 1, 'name' => 'First'], ['id' => 2, 'name' => 'Second']], $this->service->dedupeCapacityGaps($gaps));
 	}
 
+	public function testIsMemberProjectMatchesOwnerGroupMemberAndNeither(): void {
+		self::assertTrue($this->service->isMemberProject(['ownerId' => 'ada', 'projectGroupGid' => 'g1'], 'ada', []));
+		self::assertTrue($this->service->isMemberProject(['ownerId' => 'bob', 'projectGroupGid' => 'g1'], 'ada', ['g1' => true]));
+		self::assertFalse($this->service->isMemberProject(['ownerId' => 'bob', 'projectGroupGid' => 'g1'], 'ada', ['g2' => true]));
+		self::assertFalse($this->service->isMemberProject(['ownerId' => 'bob', 'projectGroupGid' => null], 'ada', []));
+		self::assertFalse($this->service->isMemberProject(['ownerId' => null, 'projectGroupGid' => ''], 'ada', ['g1' => true]));
+	}
+
+	public function testBuildAllTeamsRowUsesCustomNameAndSumsInvolvedTeamsOnly(): void {
+		$row = $this->service->buildAllTeamsRow([
+			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.0],
+		], 42, 'My teams');
+
+		self::assertSame('My teams', $row['name']);
+		self::assertSame(3.0, $row['fte'] * $row['projectsPerFte']);
+
+		$result = $this->service->summarizeCapacity(
+			$row,
+			'2026-09-14',
+			[$this->capacityProject(1, '2026-09-14', '2026-09-20')],
+		);
+
+		self::assertSame('My teams', $result['team']['name']);
+		self::assertSame(3.0, $result['team']['capacity']);
+		self::assertSame(1, $result['weeks'][0]['totalActive']);
+	}
+
 	public function testCapacityDatesPreferActualDoneWeekOverPlannedHandoverWeek(): void {
 		$dates = $this->deriveDates(
 			$this->datedProject(),
@@ -272,6 +299,113 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 		self::assertNull($dates['actualEnd']);
 		self::assertSame('2026-10-20', $dates['end']);
+	}
+
+	public function testBuildTableOverviewCalculatesCountdownsBucketsAndPlanningGapsMatchingMockup(): void {
+		$currentMonday = new \DateTimeImmutable('2026-06-22'); // 2026-W26
+		$requestedMonday = new \DateTimeImmutable('2026-07-27'); // W31
+
+		$projects = [
+			[
+				'id' => 1,
+				'name' => 'De Rozenhof',
+				'status' => 1,
+				'boardId' => '101',
+				'createdAt' => '2026-05-01',
+				'desiredStartDate' => '2026-08-17', // W34
+				'requiredPreparationWeeks' => 4,
+				'ownerId' => 'admin',
+				'projectGroupGid' => 'p1',
+				'teamId' => 7,
+			],
+			[
+				'id' => 2,
+				'name' => 'Kerkstraat',
+				'status' => 1,
+				'boardId' => '102',
+				'createdAt' => '2026-05-01',
+				'desiredStartDate' => '2026-08-03', // W32
+				'requiredPreparationWeeks' => 4,
+				'ownerId' => 'admin',
+				'projectGroupGid' => 'p2',
+				'teamId' => 7,
+			],
+			[
+				'id' => 3,
+				'name' => 'Havenkwartier',
+				'status' => 1,
+				'boardId' => '103',
+				'createdAt' => '2026-04-01',
+				'desiredStartDate' => '2026-07-27', // W31
+				'requiredPreparationWeeks' => 0,
+				'ownerId' => 'admin',
+				'projectGroupGid' => 'p3',
+				'teamId' => 7,
+			],
+		];
+
+		$cardsByBoard = [
+			101 => [
+				$this->datedCard('Handover 1', '2026-07-19', null, 1, 'In progress', 1),
+				$this->datedCard('Task 1', '2026-06-01', '2026-06-02', 2, 'Done', 2),
+			],
+			102 => [
+				$this->datedCard('Handover 1', '2026-07-12', null, 1, 'In progress', 1),
+				$this->datedCard('Archived dummy', '2026-07-15', null, 2, 'Done', 2),
+			],
+			103 => [
+				$this->datedCard('Handover 1', '2026-07-20', '2026-07-24', 2, 'Done', 2),
+			],
+		];
+
+		$capacitySummary = [
+			'period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6],
+			'team' => ['id' => 7, 'name' => 'Team Alpha', 'fte' => 4.0, 'projectsPerFte' => 2.0, 'capacity' => 8.0],
+			'weeks' => [],
+		];
+
+		$result = $this->service->buildTableOverview($projects, $cardsByBoard, $capacitySummary, $currentMonday, $requestedMonday);
+
+		self::assertSame(3, $result['totalProjects']);
+		self::assertSame(1, $result['planningGapCount']);
+		self::assertSame('W26', $result['currentWeek']['label']);
+
+		$rows = $result['projects'];
+
+		// Row 1: De Rozenhof
+		self::assertSame('De Rozenhof', $rows[0]['name']);
+		self::assertSame('W29', $rows[0]['expectedOrAchievedLabel']);
+		self::assertSame('W30', $rows[0]['startPrepWeek']);
+		self::assertSame('4 weeks', $rows[0]['startPrepCountdown']);
+		self::assertSame('W34', $rows[0]['minExecutionStartWeek']);
+		self::assertSame('W34', $rows[0]['desiredStartWeek']);
+		self::assertSame('8 weeks', $rows[0]['desiredCountdown']);
+		self::assertFalse($rows[0]['planningGap']['hasGap']);
+		self::assertSame('None', $rows[0]['planningGap']['display']);
+		self::assertSame(1, $rows[0]['openCards']);
+
+		// Row 2: Kerkstraat
+		self::assertSame('Kerkstraat', $rows[1]['name']);
+		self::assertSame('W28', $rows[1]['expectedOrAchievedLabel']);
+		self::assertSame('W29', $rows[1]['startPrepWeek']);
+		self::assertSame('3 weeks', $rows[1]['startPrepCountdown']);
+		self::assertSame('W33', $rows[1]['minExecutionStartWeek']);
+		self::assertSame('W32', $rows[1]['desiredStartWeek']);
+		self::assertSame('6 weeks', $rows[1]['desiredCountdown']);
+		self::assertTrue($rows[1]['planningGap']['hasGap']);
+		self::assertSame('2 weeks · W32-W33', $rows[1]['planningGap']['display']);
+
+		// Row 3: Havenkwartier
+		self::assertSame('Havenkwartier', $rows[2]['name']);
+		self::assertTrue($rows[2]['isCompleted']);
+		self::assertSame('100% reached W30', $rows[2]['expectedOrAchievedLabel']);
+		self::assertSame('W31', $rows[2]['startPrepWeek']);
+		self::assertSame('—', $rows[2]['startPrepCountdown']);
+		self::assertTrue($rows[2]['isLeadingDesiredWeek']);
+		self::assertSame('5 weeks', $rows[2]['desiredCountdown']);
+		self::assertFalse($rows[2]['planningGap']['hasGap']);
+		self::assertSame('None', $rows[2]['planningGap']['display']);
+		self::assertSame(0, $rows[2]['openCards']);
 	}
 
 	private function deriveDates(array $project, array $cards): array {

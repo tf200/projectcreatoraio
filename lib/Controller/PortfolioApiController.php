@@ -30,8 +30,15 @@ class PortfolioApiController extends Controller {
 	#[NoAdminRequired]
 	public function completion(): DataResponse {
 		$organizationId = $this->requireOrganizationAdmin();
+		$scope = $this->request->getParam('scope');
+		if ($scope === null || $scope === '') {
+			return new DataResponse($this->portfolioService->getCompletion($organizationId));
+		}
+		if ($scope !== 'mine') {
+			throw new OCSBadRequestException('scope must be mine');
+		}
 
-		return new DataResponse($this->portfolioService->getCompletion($organizationId));
+		return new DataResponse($this->portfolioService->getCompletion($organizationId, $this->requireUid()));
 	}
 
 	#[NoCSRFRequired]
@@ -43,9 +50,17 @@ class PortfolioApiController extends Controller {
 			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
 		}
 
+		$scope = $this->request->getParam('scope');
+		if ($scope !== null && $scope !== '' && !in_array($scope, ['mine', 'team', 'all'], true)) {
+			throw new OCSBadRequestException('scope must be mine, team or all');
+		}
+
 		$teamId = $this->request->getParam('teamId');
 		try {
-			if ($teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all')) {
+			if ($scope === 'mine') {
+				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart, $this->requireUid()));
+			}
+			if ($scope === 'all' || $teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all')) {
 				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart));
 			}
 			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
@@ -53,6 +68,44 @@ class PortfolioApiController extends Controller {
 			}
 
 			return new DataResponse($this->portfolioService->getCapacity($organizationId, (int)$teamId, $weekStart));
+		} catch (\InvalidArgumentException $e) {
+			throw new OCSBadRequestException($e->getMessage());
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	public function table(): DataResponse {
+		$organizationId = $this->requireOrganizationAdmin();
+		$weekStart = $this->request->getParam('weekStart');
+		if ($weekStart !== null && (!is_string($weekStart) || !ProjectPortfolioService::isIsoDate($weekStart))) {
+			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
+		}
+
+		$scope = $this->request->getParam('scope');
+		if ($scope !== null && $scope !== '' && !in_array($scope, ['mine', 'team', 'all'], true)) {
+			throw new OCSBadRequestException('scope must be mine, team or all');
+		}
+
+		$teamId = $this->request->getParam('teamId');
+		$normalizedTeamId = null;
+		if ($teamId !== null && $teamId !== '' && strtolower((string)$teamId) !== 'all') {
+			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit((string)$teamId))) || (int)$teamId < 1) {
+				throw new OCSBadRequestException('teamId must be a positive integer');
+			}
+			$normalizedTeamId = (int)$teamId;
+		}
+
+		$memberUid = $scope === 'mine' ? $this->requireUid() : null;
+
+		try {
+			return new DataResponse($this->portfolioService->getTableOverview(
+				$organizationId,
+				$weekStart,
+				$normalizedTeamId,
+				$scope ?? 'all',
+				$memberUid,
+			));
 		} catch (\InvalidArgumentException $e) {
 			throw new OCSBadRequestException($e->getMessage());
 		}
@@ -70,5 +123,14 @@ class PortfolioApiController extends Controller {
 		}
 
 		return (int)$membership['organization_id'];
+	}
+
+	private function requireUid(): string {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			throw new OCSForbiddenException('Authentication required');
+		}
+
+		return $user->getUID();
 	}
 }

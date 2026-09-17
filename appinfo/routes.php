@@ -30,6 +30,11 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "portfolio_api#table",
+            "url" => "/api/v1/portfolio/table",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#listMine",
             "url" => "/api/v1/projects/mine",
             "verb" => "GET",
