@@ -81,13 +81,113 @@ class ProjectPortfolioService {
 	 */
 	public function getCapacity(int $organizationId, int $teamId, ?string $weekStart = null): array {
 		$requestedMonday = $this->normalizeMonday($weekStart);
-		$periodEnd = $requestedMonday->modify('+41 days');
 		$team = $this->loadTeam($organizationId, $teamId);
 		if ($team === null) {
 			throw new \InvalidArgumentException('Team does not belong to organization');
 		}
 
 		$projects = $this->loadCapacityProjects($organizationId, $teamId);
+		[$eligible, $planningGaps] = $this->deriveEligibleCapacityProjects($projects, $requestedMonday);
+
+		$unassigned = $this->loadUnassignedProjects($organizationId);
+		return $this->summarizeCapacity($team, $requestedMonday->format('Y-m-d'), $eligible, $planningGaps, $unassigned);
+	}
+
+	/**
+	 * Aggregate capacity across all teams of the organization. The combined
+	 * strip reuses summarizeCapacity() with a synthetic team row whose
+	 * capacity is the sum of the teams' capacities; per-team over-capacity
+	 * weeks are reported separately so one team's overload cannot hide
+	 * behind another team's slack.
+	 */
+	public function getCapacityForAll(int $organizationId, ?string $weekStart = null): array {
+		$requestedMonday = $this->normalizeMonday($weekStart);
+		$weekStartDate = $requestedMonday->format('Y-m-d');
+		$teamRows = $this->loadTeams($organizationId);
+		$projects = $this->loadAllCapacityProjects($organizationId);
+		[$eligible, $planningGaps] = $this->deriveEligibleCapacityProjects($projects, $requestedMonday);
+		$planningGaps = $this->dedupeCapacityGaps($planningGaps);
+
+		$unassigned = $this->loadUnassignedProjects($organizationId);
+		$result = $this->summarizeCapacity($this->buildAllTeamsRow($teamRows, $organizationId), $weekStartDate, $eligible, $planningGaps, $unassigned);
+		$result['teams'] = $this->summarizeTeams($teamRows);
+		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $requestedMonday, $weekStartDate));
+		return $result;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $teams Raw team rows with fte/projectsPerFte keys
+	 * @return array<int,array{id:int,name:string,capacity:float}>
+	 */
+	public function summarizeTeams(array $teams): array {
+		$out = [];
+		foreach ($teams as $team) {
+			$out[] = [
+				'id' => (int)$team['id'],
+				'name' => (string)$team['name'],
+				'capacity' => round((float)$team['fte'] * (float)$team['projectsPerFte'], 2),
+			];
+		}
+		return $out;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $teams Raw team rows with fte/projectsPerFte keys
+	 * @return array<string,mixed> Synthetic team row carrying the summed capacity
+	 */
+	public function buildAllTeamsRow(array $teams, int $organizationId): array {
+		$total = 0.0;
+		foreach ($this->summarizeTeams($teams) as $summary) {
+			$total = round($total + $summary['capacity'], 2);
+		}
+		return ['id' => 0, 'organizationId' => $organizationId, 'name' => 'All teams', 'fte' => $total, 'projectsPerFte' => 1.0];
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $gaps
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function dedupeCapacityGaps(array $gaps): array {
+		$out = [];
+		foreach ($gaps as $gap) {
+			$id = (int)($gap['id'] ?? 0);
+			if (!isset($out[$id])) {
+				$out[$id] = $gap;
+			}
+		}
+		return array_values($out);
+	}
+
+	/**
+	 * @param array<int,array{id:int,name:string,weeks:array<int,array<string,mixed>>}> $summaries
+	 * @return array<int,array{id:int,name:string,overWeeks:array<int,string>}>
+	 */
+	public function buildTeamWarnings(array $summaries): array {
+		$warnings = [];
+		foreach ($summaries as $summary) {
+			$overWeeks = [];
+			foreach ($summary['weeks'] as $week) {
+				if (!empty($week['overCapacity'])) {
+					$overWeeks[] = $week['label'];
+				}
+			}
+			if ($overWeeks !== []) {
+				$warnings[] = ['id' => (int)$summary['id'], 'name' => (string)$summary['name'], 'overWeeks' => $overWeeks];
+			}
+		}
+		return $warnings;
+	}
+
+	/**
+	 * Shared eligibility pipeline: derives dates from Deck cards, keeps
+	 * capacity-status projects plus in-period historical completions, and
+	 * splits off planning gaps.
+	 *
+	 * @param array<int,array<string,mixed>> $projects Raw project rows with boardId keys
+	 * @return array{0:array<int,array<string,mixed>>,1:array<int,array<string,mixed>>} [$eligible, $planningGaps]
+	 */
+	private function deriveEligibleCapacityProjects(array $projects, DateTimeImmutable $periodStart): array {
+		$periodEnd = $periodStart->modify('+41 days');
 		$boardIds = [];
 		foreach ($projects as $project) {
 			if (ctype_digit((string)$project['boardId']) && (int)$project['boardId'] > 0) {
@@ -101,7 +201,7 @@ class ProjectPortfolioService {
 			$dates = $this->deriveCapacityDates($project, $cards[(int)$project['boardId']] ?? []);
 			$project = array_merge($project, $dates);
 			$actual = $project['actualEnd'];
-			$isHistoricalCompletion = $actual !== null && $actual >= $requestedMonday->format('Y-m-d') && $actual <= $periodEnd->format('Y-m-d');
+			$isHistoricalCompletion = $actual !== null && $actual >= $periodStart->format('Y-m-d') && $actual <= $periodEnd->format('Y-m-d');
 			if (!in_array((int)$project['status'], self::CAPACITY_STATUSES, true) && !$isHistoricalCompletion) {
 				continue;
 			}
@@ -110,9 +210,32 @@ class ProjectPortfolioService {
 			}
 			$eligible[] = $project;
 		}
+		return [$eligible, $planningGaps];
+	}
 
-		$unassigned = $this->loadUnassignedProjects($organizationId);
-		return $this->summarizeCapacity($team, $requestedMonday->format('Y-m-d'), $eligible, $planningGaps, $unassigned);
+	/**
+	 * Per-team week summaries for the viewed period, used for All-teams
+	 * over-capacity warnings. Planning gaps are irrelevant here.
+	 *
+	 * @param array<int,array<string,mixed>> $teamRows
+	 * @return array<int,array{id:int,name:string,weeks:array<int,array<string,mixed>>}>
+	 */
+	private function summarizeTeamsInPeriod(int $organizationId, array $teamRows, DateTimeImmutable $periodStart, string $weekStart): array {
+		$summaries = [];
+		foreach ($teamRows as $row) {
+			$team = [
+				'id' => (int)$row['id'],
+				'organizationId' => $organizationId,
+				'name' => (string)$row['name'],
+				'fte' => (float)$row['fte'],
+				'projectsPerFte' => (float)$row['projects_per_fte'],
+			];
+			$projects = $this->loadCapacityProjects($organizationId, $team['id']);
+			[$eligible] = $this->deriveEligibleCapacityProjects($projects, $periodStart);
+			$summary = $this->summarizeCapacity($team, $weekStart, $eligible);
+			$summaries[] = ['id' => $team['id'], 'name' => $team['name'], 'weeks' => $summary['weeks']];
+		}
+		return $summaries;
 	}
 
 	/**
@@ -227,6 +350,15 @@ class ProjectPortfolioService {
 	}
 
 	/** @return array<int,array<string,mixed>> */
+	private function loadTeams(int $organizationId): array {
+		$qb = $this->db->getQueryBuilder();
+		return $qb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
+			->from('organization_teams')
+			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->executeQuery()->fetchAllAssociative();
+	}
+
+	/** @return array<int,array<string,mixed>> */
 	private function loadCapacityProjects(int $organizationId, int $teamId): array {
 		$qb = $this->db->getQueryBuilder();
 		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date')
@@ -246,6 +378,32 @@ class ProjectPortfolioService {
 				'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
 			];
 		}, $rows);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function loadAllCapacityProjects(int $organizationId): array {
+		$qb = $this->db->getQueryBuilder();
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date')
+			->from('custom_projects', 'p')
+			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
+			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('pt.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->executeQuery()->fetchAllAssociative();
+		$projects = [];
+		foreach ($rows as $row) {
+			$id = (int)$row['id'];
+			if (!isset($projects[$id])) {
+				$projects[$id] = [
+					'id' => $id,
+					'name' => (string)$row['name'],
+					'status' => (int)$row['status'],
+					'boardId' => (string)($row['board_id'] ?? ''),
+					'createdAt' => (string)($row['created_at'] ?? ''),
+					'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+				];
+			}
+		}
+		return array_values($projects);
 	}
 
 	/** @param int[] $boardIds @return array<int,array<int,array<string,mixed>>> */

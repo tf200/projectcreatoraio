@@ -144,6 +144,73 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame([1, 1, 1, 1, 1, 1], array_column($result['weeks'], 'totalActive'));
 	}
 
+	public function testSummarizeTeamsListsPerTeamCapacity(): void {
+		$result = $this->service->summarizeTeams([
+			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],
+			['id' => 8, 'organizationId' => 42, 'name' => 'Build', 'fte' => 2.0, 'projectsPerFte' => 1.0],
+		]);
+
+		self::assertSame([
+			['id' => 7, 'name' => 'Design', 'capacity' => 3.5],
+			['id' => 8, 'name' => 'Build', 'capacity' => 2.0],
+		], $result);
+	}
+
+	public function testBuildAllTeamsRowSumsCapacities(): void {
+		$row = $this->service->buildAllTeamsRow([
+			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],
+			['id' => 8, 'organizationId' => 42, 'name' => 'Build', 'fte' => 2.0, 'projectsPerFte' => 1.0],
+		], 42);
+
+		self::assertSame(0, $row['id']);
+		self::assertSame(42, $row['organizationId']);
+		self::assertSame('All teams', $row['name']);
+		self::assertSame(5.5, $row['fte'] * $row['projectsPerFte']);
+	}
+
+	public function testCapacityAllTeamsRowAggregatesLoadAcrossTeams(): void {
+		$row = $this->service->buildAllTeamsRow([
+			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.0, 'projectsPerFte' => 1.0],
+			['id' => 8, 'organizationId' => 42, 'name' => 'Build', 'fte' => 1.0, 'projectsPerFte' => 1.0],
+		], 42);
+		$result = $this->service->summarizeCapacity(
+			$row,
+			'2026-09-14',
+			[
+				['id' => 1, 'name' => 'Design project', 'status' => 1, 'start' => '2026-09-14', 'end' => '2026-09-20', 'actualEnd' => null],
+				['id' => 2, 'name' => 'Build project', 'status' => 1, 'start' => '2026-09-01', 'end' => null, 'actualEnd' => null],
+			],
+		);
+
+		self::assertSame(2.0, $result['team']['capacity']);
+		self::assertSame(2, $result['weeks'][0]['totalActive']);
+		self::assertFalse($result['weeks'][0]['overCapacity']);
+	}
+
+	public function testBuildTeamWarningsListsOnlyOverCapacityTeams(): void {
+		$warnings = $this->service->buildTeamWarnings([
+			['id' => 7, 'name' => 'Design', 'weeks' => [
+				['label' => '2026-W38', 'overCapacity' => true],
+				['label' => '2026-W39', 'overCapacity' => false],
+			]],
+			['id' => 8, 'name' => 'Build', 'weeks' => [
+				['label' => '2026-W38', 'overCapacity' => false],
+			]],
+		]);
+
+		self::assertSame([['id' => 7, 'name' => 'Design', 'overWeeks' => ['2026-W38']]], $warnings);
+	}
+
+	public function testDedupeCapacityGapsKeepsFirstProjectEntry(): void {
+		$gaps = [
+			['id' => 1, 'name' => 'First'],
+			['id' => 1, 'name' => 'Duplicate'],
+			['id' => 2, 'name' => 'Second'],
+		];
+
+		self::assertSame([['id' => 1, 'name' => 'First'], ['id' => 2, 'name' => 'Second']], $this->service->dedupeCapacityGaps($gaps));
+	}
+
 	public function testCapacityDatesPreferActualDoneWeekOverPlannedHandoverWeek(): void {
 		$dates = $this->deriveDates(
 			$this->datedProject(),

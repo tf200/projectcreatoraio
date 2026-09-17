@@ -38,17 +38,20 @@ class PortfolioApiController extends Controller {
 	#[NoAdminRequired]
 	public function capacity(): DataResponse {
 		$organizationId = $this->requireOrganizationAdmin();
-		$teamId = $this->request->getParam('teamId');
-		if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
-			throw new OCSBadRequestException('teamId is required');
-		}
-
 		$weekStart = $this->request->getParam('weekStart');
 		if ($weekStart !== null && (!is_string($weekStart) || !ProjectPortfolioService::isIsoDate($weekStart))) {
 			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
 		}
 
+		$teamId = $this->request->getParam('teamId');
 		try {
+			if ($teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all')) {
+				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart));
+			}
+			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
+				throw new OCSBadRequestException('teamId is required');
+			}
+
 			return new DataResponse($this->portfolioService->getCapacity($organizationId, (int)$teamId, $weekStart));
 		} catch (\InvalidArgumentException $e) {
 			throw new OCSBadRequestException($e->getMessage());
