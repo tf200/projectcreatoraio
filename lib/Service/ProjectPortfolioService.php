@@ -116,6 +116,10 @@ class ProjectPortfolioService {
 	}
 
 	/**
+	 * Each project's 'end' is its actual completion date when all cards are
+	 * done (done flag or done stack), otherwise the planned end, so Ending
+	 * lands in the actual done week even when it differs from the plan.
+	 *
 	 * @param array<string,mixed> $team
 	 * @param array<int,array<string,mixed>> $projects
 	 */
@@ -250,7 +254,9 @@ class ProjectPortfolioService {
 			return [];
 		}
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('s.board_id', 'c.title', 'c.startdate', 'c.duedate', 'c.done')
+		$rows = $qb->select('s.board_id', 'c.title', 'c.startdate', 'c.duedate', 'c.done', 'c.stack_id')
+			->selectAlias('s.title', 'stack_title')
+			->selectAlias('s.order', 'stack_order')
 			->from('deck_cards', 'c')
 			->innerJoin('c', 'deck_stacks', 's', 'c.stack_id = s.id')
 			->where($qb->expr()->in('s.board_id', $qb->createNamedParameter($boardIds, IQueryBuilder::PARAM_INT_ARRAY)))
@@ -292,6 +298,7 @@ class ProjectPortfolioService {
 		$handoverDue = null;
 		$active = count($cards);
 		$doneCount = 0;
+		$doneStackId = $this->resolveCapacityDoneStackId($cards);
 		foreach ($cards as $card) {
 			$startDate = $this->dateString($card['startdate'] ?? null);
 			if ($startDate !== null) {
@@ -308,7 +315,9 @@ class ProjectPortfolioService {
 			}
 
 			$doneValue = $card['done'] ?? null;
-			if ($doneValue !== null && trim((string)$doneValue) !== '') {
+			$hasDoneFlag = $doneValue !== null && trim((string)$doneValue) !== '';
+			$inDoneStack = $doneStackId !== null && (int)($card['stack_id'] ?? -1) === $doneStackId;
+			if ($hasDoneFlag || $inDoneStack) {
 				$doneCount++;
 			}
 			$doneDate = $this->dateString($doneValue);
@@ -328,6 +337,8 @@ class ProjectPortfolioService {
 			if ($dones !== []) {
 				$actual = max($dones);
 			} elseif ($dues !== []) {
+				// All cards done (flag or done stack) but no parseable done date:
+				// fall back to the latest due date so the project still ends.
 				$actual = max($dues);
 			}
 		}
@@ -355,6 +366,42 @@ class ProjectPortfolioService {
 			'actualEnd' => $actual,
 			'invalidEnd' => false,
 		];
+	}
+
+	/**
+	 * Resolves the board's done stack from the loaded cards. Mirrors the
+	 * title heuristic in ProjectDeckActivityService::findDoneStack() plus the
+	 * legacy 'Approved/Done' title; falls back to the last stack by order.
+	 *
+	 * @param array<int,array<string,mixed>> $cards
+	 */
+	private function resolveCapacityDoneStackId(array $cards): ?int {
+		$stacks = [];
+		foreach ($cards as $card) {
+			if (!isset($card['stack_id'])) {
+				continue;
+			}
+			$id = (int)$card['stack_id'];
+			if (!isset($stacks[$id])) {
+				$stacks[$id] = [
+					'id' => $id,
+					'title' => (string)($card['stack_title'] ?? ''),
+					'order' => (int)($card['stack_order'] ?? 0),
+				];
+			}
+		}
+		if ($stacks === []) {
+			return null;
+		}
+		$doneTitles = ['done', 'afgerond', 'gereed', 'approved/done'];
+		foreach ($stacks as $stack) {
+			if (in_array(strtolower(trim($stack['title'])), $doneTitles, true)) {
+				return $stack['id'];
+			}
+		}
+		usort($stacks, static fn (array $left, array $right): int => $left['order'] <=> $right['order']);
+		$last = end($stacks);
+		return $last === false ? null : (int)$last['id'];
 	}
 
 	private function dateString(mixed $value): ?string {

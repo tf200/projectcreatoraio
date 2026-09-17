@@ -144,6 +144,90 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame([1, 1, 1, 1, 1, 1], array_column($result['weeks'], 'totalActive'));
 	}
 
+	public function testCapacityDatesPreferActualDoneWeekOverPlannedHandoverWeek(): void {
+		$dates = $this->deriveDates(
+			$this->datedProject(),
+			[
+				$this->datedCard('Task A', '2026-09-10', '2026-09-16 10:00:00', 3, 'In progress', 2),
+				$this->datedCard('Handover 1', '2026-10-20', null, 9, 'Done', 5),
+			],
+		);
+
+		self::assertSame('2026-09-16', $dates['actualEnd']);
+		self::assertSame('2026-09-16', $dates['end']);
+		self::assertFalse($dates['invalidEnd']);
+	}
+
+	public function testCapacityDatesCountDoneStackCardsWithoutFlagsAsEnding(): void {
+		$dates = $this->deriveDates(
+			$this->datedProject(),
+			[
+				$this->datedCard('Task A', '2026-09-16', null, 9, 'Done', 5),
+				$this->datedCard('Task B', '2026-09-18', null, 9, 'Done', 5),
+			],
+		);
+
+		self::assertSame('2026-09-18', $dates['actualEnd']);
+		self::assertSame('2026-09-18', $dates['end']);
+
+		$result = $this->service->summarizeCapacity(
+			$this->team(1, 1),
+			'2026-09-14',
+			[['id' => 1, 'name' => 'Done stack project', 'status' => 1, 'start' => '2026-09-01', 'end' => $dates['end'], 'actualEnd' => $dates['actualEnd']]],
+		);
+
+		self::assertSame(1, $result['weeks'][0]['ending']);
+		self::assertSame(0, $result['weeks'][0]['continuing']);
+		self::assertSame(1, $result['weeks'][0]['totalActive']);
+	}
+
+	public function testCapacityDatesFallBackToMaxDueWhenDoneHasNoParseableDate(): void {
+		$dates = $this->deriveDates(
+			$this->datedProject(),
+			[
+				$this->datedCard('Task A', '2026-09-17', 'done', 3, 'In progress', 2),
+				$this->datedCard('Task B', '2026-09-18', 'done', 9, 'Done', 5),
+			],
+		);
+
+		self::assertSame('2026-09-18', $dates['actualEnd']);
+		self::assertSame('2026-09-18', $dates['end']);
+	}
+
+	public function testCapacityDatesStayPlannedWhenNotAllCardsAreDone(): void {
+		$dates = $this->deriveDates(
+			$this->datedProject(),
+			[
+				$this->datedCard('Task A', '2026-09-16', null, 9, 'Done', 5),
+				$this->datedCard('Task B', '2026-10-20', null, 2, 'In progress', 1, '2026-09-01'),
+			],
+		);
+
+		self::assertNull($dates['actualEnd']);
+		self::assertSame('2026-10-20', $dates['end']);
+	}
+
+	private function deriveDates(array $project, array $cards): array {
+		$method = new \ReflectionMethod(ProjectPortfolioService::class, 'deriveCapacityDates');
+		return $method->invoke($this->service, $project, $cards);
+	}
+
+	private function datedProject(): array {
+		return ['id' => 1, 'name' => 'Project 1', 'createdAt' => '2026-09-01', 'desiredStartDate' => null];
+	}
+
+	private function datedCard(string $title, ?string $due, mixed $done, int $stackId, string $stackTitle, int $stackOrder, ?string $start = null): array {
+		return [
+			'title' => $title,
+			'startdate' => $start,
+			'duedate' => $due,
+			'done' => $done,
+			'stack_id' => $stackId,
+			'stack_title' => $stackTitle,
+			'stack_order' => $stackOrder,
+		];
+	}
+
 	private function team(float $fte, float $projectsPerFte): array {
 		return [
 			'id' => 7,
