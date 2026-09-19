@@ -10,8 +10,8 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSBadRequestException;
+use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -34,11 +34,22 @@ class PortfolioApiController extends Controller {
 		if ($scope === null || $scope === '') {
 			return new DataResponse($this->portfolioService->getCompletion($organizationId));
 		}
-		if ($scope !== 'mine') {
-			throw new OCSBadRequestException('scope must be mine');
+		if ($scope === 'mine') {
+			return new DataResponse($this->portfolioService->getCompletion($organizationId, $this->requireUid()));
+		}
+		if ($scope === 'team') {
+			$teamId = $this->request->getParam('teamId');
+			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
+				throw new OCSBadRequestException('teamId must be a positive integer');
+			}
+			try {
+				return new DataResponse($this->portfolioService->getCompletion($organizationId, null, (int)$teamId));
+			} catch (\InvalidArgumentException $e) {
+				throw new OCSBadRequestException($e->getMessage());
+			}
 		}
 
-		return new DataResponse($this->portfolioService->getCompletion($organizationId, $this->requireUid()));
+		throw new OCSBadRequestException('scope must be mine or team');
 	}
 
 	#[NoCSRFRequired]
@@ -59,6 +70,9 @@ class PortfolioApiController extends Controller {
 		try {
 			if ($scope === 'mine') {
 				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart, $this->requireUid()));
+			}
+			if ($scope === 'team' && ($teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all'))) {
+				throw new OCSBadRequestException('teamId is required for team scope');
 			}
 			if ($scope === 'all' || $teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all')) {
 				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart));
@@ -94,6 +108,9 @@ class PortfolioApiController extends Controller {
 				throw new OCSBadRequestException('teamId must be a positive integer');
 			}
 			$normalizedTeamId = (int)$teamId;
+		}
+		if ($scope === 'team' && $normalizedTeamId === null) {
+			throw new OCSBadRequestException('teamId is required for team scope');
 		}
 
 		$memberUid = $scope === 'mine' ? $this->requireUid() : null;

@@ -243,7 +243,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 			$this->datedProject(),
 			[
 				$this->datedCard('Task A', '2026-09-10', '2026-09-16 10:00:00', 3, 'In progress', 2),
-				$this->datedCard('Handover 1', '2026-10-20', null, 9, 'Done', 5),
+				$this->datedCard('Handover 1', '2026-10-20', null, 9, 'Approved/Done', 5),
 			],
 		);
 
@@ -256,8 +256,8 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		$dates = $this->deriveDates(
 			$this->datedProject(),
 			[
-				$this->datedCard('Task A', '2026-09-16', null, 9, 'Done', 5),
-				$this->datedCard('Task B', '2026-09-18', null, 9, 'Done', 5),
+				$this->datedCard('Task A', '2026-09-16', null, 9, 'Approved/Done', 5),
+				$this->datedCard('Task B', '2026-09-18', null, 9, 'Approved/Done', 5),
 			],
 		);
 
@@ -368,17 +368,18 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 		self::assertSame(3, $result['totalProjects']);
 		self::assertSame(1, $result['planningGapCount']);
-		self::assertSame('W26', $result['currentWeek']['label']);
+		self::assertSame('2026-W26', $result['currentWeek']['label']);
+		self::assertSame(2026, $result['currentWeek']['isoYear']);
 
 		$rows = $result['projects'];
 
 		// Row 1: De Rozenhof
 		self::assertSame('De Rozenhof', $rows[0]['name']);
-		self::assertSame('W29', $rows[0]['expectedOrAchievedLabel']);
-		self::assertSame('W30', $rows[0]['startPrepWeek']);
+		self::assertSame('2026-W29', $rows[0]['expectedOrAchievedLabel']);
+		self::assertSame('2026-W30', $rows[0]['startPrepWeek']);
 		self::assertSame('4 weeks', $rows[0]['startPrepCountdown']);
-		self::assertSame('W34', $rows[0]['minExecutionStartWeek']);
-		self::assertSame('W34', $rows[0]['desiredStartWeek']);
+		self::assertSame('2026-W34', $rows[0]['minExecutionStartWeek']);
+		self::assertSame('2026-W34', $rows[0]['desiredStartWeek']);
 		self::assertSame('8 weeks', $rows[0]['desiredCountdown']);
 		self::assertFalse($rows[0]['planningGap']['hasGap']);
 		self::assertSame('None', $rows[0]['planningGap']['display']);
@@ -386,26 +387,213 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 		// Row 2: Kerkstraat
 		self::assertSame('Kerkstraat', $rows[1]['name']);
-		self::assertSame('W28', $rows[1]['expectedOrAchievedLabel']);
-		self::assertSame('W29', $rows[1]['startPrepWeek']);
+		self::assertSame('2026-W28', $rows[1]['expectedOrAchievedLabel']);
+		self::assertSame('2026-W29', $rows[1]['startPrepWeek']);
 		self::assertSame('3 weeks', $rows[1]['startPrepCountdown']);
-		self::assertSame('W33', $rows[1]['minExecutionStartWeek']);
-		self::assertSame('W32', $rows[1]['desiredStartWeek']);
+		self::assertSame('2026-W33', $rows[1]['minExecutionStartWeek']);
+		self::assertSame('2026-W32', $rows[1]['desiredStartWeek']);
 		self::assertSame('6 weeks', $rows[1]['desiredCountdown']);
 		self::assertTrue($rows[1]['planningGap']['hasGap']);
-		self::assertSame('2 weeks · W32-W33', $rows[1]['planningGap']['display']);
+		self::assertSame('2 weeks · 2026-W32-2026-W33', $rows[1]['planningGap']['display']);
 
 		// Row 3: Havenkwartier
 		self::assertSame('Havenkwartier', $rows[2]['name']);
 		self::assertTrue($rows[2]['isCompleted']);
-		self::assertSame('100% reached W30', $rows[2]['expectedOrAchievedLabel']);
-		self::assertSame('W31', $rows[2]['startPrepWeek']);
+		self::assertSame('100% reached 2026-W30', $rows[2]['expectedOrAchievedLabel']);
+		self::assertSame('2026-W31', $rows[2]['startPrepWeek']);
 		self::assertSame('—', $rows[2]['startPrepCountdown']);
 		self::assertTrue($rows[2]['isLeadingDesiredWeek']);
 		self::assertSame('5 weeks', $rows[2]['desiredCountdown']);
 		self::assertFalse($rows[2]['planningGap']['hasGap']);
 		self::assertSame('None', $rows[2]['planningGap']['display']);
 		self::assertSame(0, $rows[2]['openCards']);
+	}
+
+	public function testSummarizeNeverPromotesIncompleteProjectToHundred(): void {
+		// 199/200 rounds to 100% with round() but must stay in 75-99.
+		$result = $this->service->summarize([$this->project(1, 199, 200)]);
+
+		self::assertSame(99, $result['projects'][0]['completionPct']);
+		self::assertSame('75-99', $result['projects'][0]['bucket']);
+		self::assertSame(0, $result['buckets'][4]['count']);
+		self::assertSame(1, $result['buckets'][3]['count']);
+	}
+
+	public function testBuildTableOverviewCapsRoundedCompletionBelowHundred(): void {
+		$currentMonday = new \DateTimeImmutable('2026-06-22');
+		$requestedMonday = new \DateTimeImmutable('2026-07-27');
+		$cards = [];
+		for ($i = 0; $i < 199; $i++) {
+			$cards[] = $this->datedCard('Task ' . $i, '2026-07-19', '2026-06-02', 2, 'Approved/Done', 2);
+		}
+		$cards[] = $this->datedCard('Open task', '2026-07-19', null, 1, 'In progress', 1);
+		$result = $this->service->buildTableOverview(
+			[[
+				'id' => 9,
+				'name' => 'Almost done',
+				'status' => 1,
+				'boardId' => '109',
+				'createdAt' => '2026-05-01',
+				'desiredStartDate' => null,
+				'requiredPreparationWeeks' => 0,
+				'ownerId' => 'admin',
+				'projectGroupGid' => 'p9',
+				'teamId' => 7,
+			]],
+			[109 => $cards],
+			['period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6], 'weeks' => []],
+			$currentMonday,
+			$requestedMonday,
+		);
+
+		self::assertSame(99, $result['projects'][0]['completionPct']);
+		self::assertSame('75-99', $result['projects'][0]['bucket']);
+		self::assertFalse($result['projects'][0]['isCompleted']);
+		self::assertSame(0, $result['buckets'][5]['count']);
+	}
+
+	public function testBuildTableOverviewIgnoresUnknownDoneStackTitles(): void {
+		$currentMonday = new \DateTimeImmutable('2026-06-22');
+		$requestedMonday = new \DateTimeImmutable('2026-07-27');
+		$result = $this->service->buildTableOverview(
+			[[
+				'id' => 10,
+				'name' => 'Custom stack',
+				'status' => 1,
+				'boardId' => '110',
+				'createdAt' => '2026-05-01',
+				'desiredStartDate' => null,
+				'requiredPreparationWeeks' => 0,
+				'ownerId' => 'admin',
+				'projectGroupGid' => 'p10',
+				'teamId' => 7,
+			]],
+			[110 => [
+				$this->datedCard('Task A', '2026-07-19', null, 5, 'Klaar', 9),
+				$this->datedCard('Task B', '2026-07-19', null, 5, 'Klaar', 9),
+			]],
+			['period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6], 'weeks' => []],
+			$currentMonday,
+			$requestedMonday,
+		);
+
+		self::assertSame(0, $result['projects'][0]['doneCards']);
+		self::assertSame(0, $result['projects'][0]['completionPct']);
+		self::assertFalse($result['projects'][0]['isCompleted']);
+	}
+
+	public function testBuildTableOverviewCountsExactApprovedDoneStackWithoutFlag(): void {
+		$currentMonday = new \DateTimeImmutable('2026-06-22');
+		$requestedMonday = new \DateTimeImmutable('2026-07-27');
+		$result = $this->service->buildTableOverview(
+			[[
+				'id' => 11,
+				'name' => 'Approved stack',
+				'status' => 1,
+				'boardId' => '111',
+				'createdAt' => '2026-05-01',
+				'desiredStartDate' => null,
+				'requiredPreparationWeeks' => 0,
+				'ownerId' => 'admin',
+				'projectGroupGid' => 'p11',
+				'teamId' => 7,
+			]],
+			[111 => [
+				$this->datedCard('Task A', '2026-07-19', null, 9, 'Approved/Done', 5),
+				$this->datedCard('Task B', '2026-07-19', null, 1, 'In progress', 1),
+			]],
+			['period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6], 'weeks' => []],
+			$currentMonday,
+			$requestedMonday,
+		);
+
+		self::assertSame(1, $result['projects'][0]['doneCards']);
+		self::assertSame(50, $result['projects'][0]['completionPct']);
+	}
+
+	public function testBuildTableOverviewDegradesMalformedDesiredDatePerRow(): void {
+		$currentMonday = new \DateTimeImmutable('2026-06-22');
+		$requestedMonday = new \DateTimeImmutable('2026-07-27');
+		$result = $this->service->buildTableOverview(
+			[
+				[
+					'id' => 12,
+					'name' => 'Bad date',
+					'status' => 1,
+					'boardId' => '112',
+					'createdAt' => '2026-05-01',
+					'desiredStartDate' => 'not-a-date',
+					'requiredPreparationWeeks' => 0,
+					'ownerId' => 'admin',
+					'projectGroupGid' => 'p12',
+					'teamId' => 7,
+				],
+				[
+					'id' => 13,
+					'name' => 'Good date',
+					'status' => 1,
+					'boardId' => '113',
+					'createdAt' => '2026-05-01',
+					'desiredStartDate' => '2026-08-17',
+					'requiredPreparationWeeks' => 0,
+					'ownerId' => 'admin',
+					'projectGroupGid' => 'p13',
+					'teamId' => 7,
+				],
+			],
+			[
+				112 => [$this->datedCard('Handover 1', '2026-07-19', null, 1, 'In progress', 1)],
+				113 => [$this->datedCard('Handover 1', '2026-07-19', null, 1, 'In progress', 1)],
+			],
+			['period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6], 'weeks' => []],
+			$currentMonday,
+			$requestedMonday,
+		);
+
+		self::assertSame('—', $result['projects'][0]['desiredStartWeek']);
+		self::assertSame('—', $result['projects'][0]['desiredCountdown']);
+		self::assertFalse($result['projects'][0]['isLeadingDesiredWeek']);
+		self::assertSame('2026-W34', $result['projects'][1]['desiredStartWeek']);
+	}
+
+	public function testBuildTableOverviewLeadingDesiredWeekRequiresCompletionBeforeDesired(): void {
+		$currentMonday = new \DateTimeImmutable('2026-06-22');
+		$requestedMonday = new \DateTimeImmutable('2026-07-27');
+		$capacity = ['period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6], 'weeks' => []];
+		$project = [
+			'id' => 14,
+			'name' => 'Late completion',
+			'status' => 1,
+			'boardId' => '114',
+			'createdAt' => '2026-05-01',
+			'desiredStartDate' => '2026-07-27',
+			'requiredPreparationWeeks' => 0,
+			'ownerId' => 'admin',
+			'projectGroupGid' => 'p14',
+			'teamId' => 7,
+		];
+		// Completed 2026-08-10 (Monday 2026-W33), after desired 2026-W31.
+		$result = $this->service->buildTableOverview(
+			[$project],
+			[114 => [$this->datedCard('Handover 1', '2026-07-19', '2026-08-10', 9, 'Approved/Done', 5)]],
+			$capacity,
+			$currentMonday,
+			$requestedMonday,
+		);
+
+		self::assertTrue($result['projects'][0]['isCompleted']);
+		self::assertFalse($result['projects'][0]['isLeadingDesiredWeek']);
+
+		// Incomplete project with a desired date is never leading.
+		$open = $this->service->buildTableOverview(
+			[$project],
+			[114 => [$this->datedCard('Handover 1', '2026-09-19', null, 1, 'In progress', 1)]],
+			$capacity,
+			$currentMonday,
+			$requestedMonday,
+		);
+		self::assertFalse($open['projects'][0]['isCompleted']);
+		self::assertFalse($open['projects'][0]['isLeadingDesiredWeek']);
 	}
 
 	private function deriveDates(array $project, array $cards): array {

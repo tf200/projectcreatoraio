@@ -12,7 +12,16 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 class ProjectPortfolioService {
-	private const CAPACITY_STATUSES = [ProjectStatus::ACTIVE, ProjectStatus::WAITING_ON_CUSTOMER, ProjectStatus::ON_HOLD];
+	/**
+	 * Project statuses that are still in the initiation phase. ProjectStatus
+	 * is the authoritative project-level phase representation: there is no
+	 * separate "initiation" status, so initiation means any live,
+	 * non-archived project that has not reached done. Timeline phases
+	 * (category 'initiation') only exist for Combi-type projects and
+	 * describe task breakdowns, not project membership.
+	 */
+	public const INITIATION_STATUSES = [ProjectStatus::ACTIVE, ProjectStatus::WAITING_ON_CUSTOMER, ProjectStatus::ON_HOLD];
+	private const CAPACITY_STATUSES = self::INITIATION_STATUSES;
 	private const HANDOVER_TITLE = 'handover 1';
 	private const BUCKETS = [
 		['key' => '0-24', 'label' => '0 - 24%', 'min' => 0, 'max' => 24],
@@ -28,11 +37,22 @@ class ProjectPortfolioService {
 	) {
 	}
 
-	public function getCompletion(int $organizationId, ?string $memberUid = null): array {
+	public function getCompletion(int $organizationId, ?string $memberUid = null, ?int $teamId = null): array {
 		$projects = array_values(array_filter(
 			$this->projectMapper->findByOrganizationId($organizationId),
-			static fn (Project $project): bool => $project->getStatus() !== ProjectStatus::ARCHIVED,
+			static fn (Project $project): bool => in_array($project->getStatus(), self::INITIATION_STATUSES, true),
 		));
+		if ($teamId !== null) {
+			$team = $this->loadTeam($organizationId, $teamId);
+			if ($team === null) {
+				throw new \InvalidArgumentException('Team does not belong to organization');
+			}
+			$teamProjectIds = $this->loadTeamProjectIds($organizationId, $teamId);
+			$projects = array_values(array_filter(
+				$projects,
+				static fn (Project $project): bool => isset($teamProjectIds[(int)$project->getId()]),
+			));
+		}
 		if ($memberUid !== null) {
 			$gids = [];
 			foreach ($projects as $project) {
@@ -223,7 +243,13 @@ class ProjectPortfolioService {
 				}
 			}
 			$openCards = max(0, $totalCards - $doneCards);
-			$completionPct = $totalCards === 0 ? 0 : (int)round(($doneCards / $totalCards) * 100);
+			// A project is 100% only when every card is done (and at least
+			// one card exists). Rounding alone must never promote 199/200
+			// style rows into the 100% bucket.
+			$isFullyDone = $totalCards > 0 && $doneCards === $totalCards;
+			$completionPct = $isFullyDone
+				? 100
+				: ($totalCards === 0 ? 0 : min(99, (int)round(($doneCards / $totalCards) * 100)));
 			$bucketIndex = min(4, intdiv($completionPct, 25));
 			$bucketKey = self::BUCKETS[$bucketIndex]['key'];
 			$bucketCounters[$bucketKey]++;
@@ -240,16 +266,13 @@ class ProjectPortfolioService {
 			$dates = $this->deriveCapacityDates($project, $cards);
 			$actualEnd = $dates['actualEnd'];
 			$plannedEnd = $dates['end'];
-			$isCompleted = ($totalCards > 0 && $doneCards === $totalCards && $actualEnd !== null);
+			$isCompleted = $isFullyDone && $actualEnd !== null;
+			$actualEndMonday = $isCompleted ? $this->normalizeMonday($actualEnd) : null;
 
-			if ($isCompleted) {
-				$actualEndMonday = $this->normalizeMonday($actualEnd);
-				$actualWeek = 'W' . (int)$actualEndMonday->format('W');
-				$expectedOrAchievedLabel = '100% reached ' . $actualWeek;
+			if ($isCompleted && $actualEndMonday !== null) {
+				$expectedOrAchievedLabel = '100% reached ' . $this->isoWeekLabel($actualEndMonday);
 			} elseif ($plannedEnd !== null) {
-				$plannedMonday = $this->normalizeMonday($plannedEnd);
-				$plannedWeek = 'W' . (int)$plannedMonday->format('W');
-				$expectedOrAchievedLabel = $plannedWeek;
+				$expectedOrAchievedLabel = $this->isoWeekLabel($this->normalizeMonday($plannedEnd));
 			} else {
 				$expectedOrAchievedLabel = '—';
 			}
@@ -258,7 +281,7 @@ class ProjectPortfolioService {
 			if ($endForPrep !== null && !$dates['invalidEnd']) {
 				$startPrepDate = $this->firstMondayOnOrAfter($endForPrep)->format('Y-m-d');
 				$startPrepMonday = $this->normalizeMonday($startPrepDate);
-				$startPrepWeek = 'W' . (int)$startPrepMonday->format('W');
+				$startPrepWeek = $this->isoWeekLabel($startPrepMonday);
 
 				if ($isCompleted) {
 					$startPrepCountdown = '—';
@@ -287,7 +310,7 @@ class ProjectPortfolioService {
 			if ($startPrepMonday !== null) {
 				$minExecMonday = $startPrepMonday->modify('+' . ($prepWeeks * 7) . ' days');
 				$minExecutionStartDate = $minExecMonday->format('Y-m-d');
-				$minExecutionStartWeek = 'W' . (int)$minExecMonday->format('W');
+				$minExecutionStartWeek = $this->isoWeekLabel($minExecMonday);
 			} else {
 				$minExecMonday = null;
 				$minExecutionStartDate = null;
@@ -295,9 +318,12 @@ class ProjectPortfolioService {
 			}
 
 			$desiredStartDate = $project['desiredStartDate'] ?? null;
-			if ($desiredStartDate !== null) {
-				$desiredMonday = $this->normalizeMonday($desiredStartDate);
-				$desiredStartWeek = 'W' . (int)$desiredMonday->format('W');
+			// Persisted desired dates may be malformed; a single bad row
+			// must degrade to "no desired date" instead of failing the
+			// whole endpoint.
+			$desiredMonday = $this->tryParseMonday(is_string($desiredStartDate) ? $desiredStartDate : null);
+			if ($desiredMonday !== null) {
+				$desiredStartWeek = $this->isoWeekLabel($desiredMonday);
 				$diffDesiredDays = (int)$currentMonday->diff($desiredMonday)->format('%r%a');
 				$diffDesiredWeeks = (int)round($diffDesiredDays / 7);
 				$desiredCountdownWeeks = $diffDesiredWeeks;
@@ -309,12 +335,14 @@ class ProjectPortfolioService {
 					$desiredCountdown = abs($diffDesiredWeeks) . ' ' . (abs($diffDesiredWeeks) === 1 ? 'week ago' : 'weeks ago');
 				}
 			} else {
-				$desiredMonday = null;
 				$desiredStartWeek = '—';
 				$desiredCountdown = '—';
 				$desiredCountdownWeeks = null;
 			}
-			$isLeadingDesiredWeek = ($isCompleted && $desiredStartDate !== null);
+			// Leading means the project actually completed ahead of its
+			// desired week (strictly before that week's Monday), not merely
+			// that a desired date exists.
+			$isLeadingDesiredWeek = $isCompleted && $actualEndMonday !== null && $desiredMonday !== null && $actualEndMonday < $desiredMonday;
 
 			if ($dates['invalidEnd'] || $endForPrep === null) {
 				$hasGap = true;
@@ -325,9 +353,7 @@ class ProjectPortfolioService {
 				$hasGap = true;
 				$diffGapDays = (int)$desiredMonday->diff($minExecMonday)->format('%r%a');
 				$gapWeeks = max(1, (int)round($diffGapDays / 7) + 1);
-				$desWeek = (int)$desiredMonday->format('W');
-				$minWeek = (int)$minExecMonday->format('W');
-				$gapSpan = ($desWeek === $minWeek) ? "W{$desWeek}" : "W{$desWeek}-W{$minWeek}";
+				$gapSpan = $this->isoWeekLabel($desiredMonday) . '-' . $this->isoWeekLabel($minExecMonday);
 				$planningGapDisplay = "{$gapWeeks} " . ($gapWeeks === 1 ? 'week' : 'weeks') . " · {$gapSpan}";
 			} else {
 				$hasGap = false;
@@ -395,8 +421,9 @@ class ProjectPortfolioService {
 				'weeks' => 6,
 			],
 			'currentWeek' => [
+				'isoYear' => (int)$currentMonday->format('o'),
 				'week' => (int)$currentMonday->format('W'),
-				'label' => 'W' . (int)$currentMonday->format('W'),
+				'label' => $this->isoWeekLabel($currentMonday),
 				'date' => $currentMonday->format('Y-m-d'),
 			],
 			'team' => $capacitySummary['team'] ?? null,
@@ -767,18 +794,7 @@ class ProjectPortfolioService {
 			->andWhere($qb->expr()->eq('pt.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('pt.team_id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
 			->executeQuery()->fetchAllAssociative();
-		return array_map(static function (array $row): array {
-			return [
-				'id' => (int)$row['id'],
-				'name' => (string)$row['name'],
-				'status' => (int)$row['status'],
-				'boardId' => (string)($row['board_id'] ?? ''),
-				'createdAt' => (string)($row['created_at'] ?? ''),
-				'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
-				'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
-				'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
-			];
-		}, $rows);
+		return $this->mapCapacityProjectRows($rows);
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -794,19 +810,47 @@ class ProjectPortfolioService {
 		foreach ($rows as $row) {
 			$id = (int)$row['id'];
 			if (!isset($projects[$id])) {
-				$projects[$id] = [
-					'id' => $id,
-					'name' => (string)$row['name'],
-					'status' => (int)$row['status'],
-					'boardId' => (string)($row['board_id'] ?? ''),
-					'createdAt' => (string)($row['created_at'] ?? ''),
-					'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
-					'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
-					'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
-				];
+				$projects[$id] = $this->mapCapacityProjectRow($row);
 			}
 		}
 		return array_values($projects);
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function mapCapacityProjectRows(array $rows): array {
+		return array_map([$this, 'mapCapacityProjectRow'], $rows);
+	}
+
+	/** @return array<string,mixed> */
+	private function mapCapacityProjectRow(array $row): array {
+		return [
+			'id' => (int)$row['id'],
+			'name' => (string)$row['name'],
+			'status' => (int)$row['status'],
+			'boardId' => (string)($row['board_id'] ?? ''),
+			'createdAt' => (string)($row['created_at'] ?? ''),
+			'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+			'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
+			'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
+		];
+	}
+
+	/** @return array<int,true> Project ids assigned to the team */
+	private function loadTeamProjectIds(int $organizationId, int $teamId): array {
+		$qb = $this->db->getQueryBuilder();
+		$rows = $qb->select('project_id')
+			->from('organization_project_teams')
+			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('team_id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
+			->executeQuery()->fetchAllAssociative();
+		$ids = [];
+		foreach ($rows as $row) {
+			$ids[(int)$row['project_id']] = true;
+		}
+		return $ids;
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -819,7 +863,7 @@ class ProjectPortfolioService {
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('pt.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('pt.team_id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
-			->andWhere($qb->expr()->neq('p.status', $qb->createNamedParameter(ProjectStatus::ARCHIVED, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->in('p.status', $qb->createNamedParameter(self::INITIATION_STATUSES, IQueryBuilder::PARAM_INT_ARRAY)))
 			->executeQuery()->fetchAllAssociative();
 		return $this->mapTableProjectRows($rows);
 	}
@@ -832,7 +876,7 @@ class ProjectPortfolioService {
 			->from('custom_projects', 'p')
 			->leftJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
-			->andWhere($qb->expr()->neq('p.status', $qb->createNamedParameter(ProjectStatus::ARCHIVED, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->in('p.status', $qb->createNamedParameter(self::INITIATION_STATUSES, IQueryBuilder::PARAM_INT_ARRAY)))
 			->executeQuery()->fetchAllAssociative();
 		return $this->mapTableProjectRows($rows);
 	}
@@ -986,39 +1030,25 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Resolves the board's done stack from the loaded cards. Mirrors the
-	 * title heuristic in ProjectDeckActivityService::findDoneStack() plus the
-	 * legacy 'Approved/Done' title; falls back to the last stack by order.
+	 * Resolves the board's done stack from the loaded cards. Only the exact
+	 * 'Approved/Done' stack counts, mirroring the established convention in
+	 * DeckService/KpiService/OrgOverviewService (`s.title = 'Approved/Done'`
+	 * OR `c.done IS NOT NULL`). Unknown/custom stacks are never treated as
+	 * done, and there is deliberately no "last stack by order" fallback:
+	 * inferring it promoted in-progress work into the 100% bucket.
 	 *
 	 * @param array<int,array<string,mixed>> $cards
 	 */
 	private function resolveCapacityDoneStackId(array $cards): ?int {
-		$stacks = [];
 		foreach ($cards as $card) {
 			if (!isset($card['stack_id'])) {
 				continue;
 			}
-			$id = (int)$card['stack_id'];
-			if (!isset($stacks[$id])) {
-				$stacks[$id] = [
-					'id' => $id,
-					'title' => (string)($card['stack_title'] ?? ''),
-					'order' => (int)($card['stack_order'] ?? 0),
-				];
+			if (trim((string)($card['stack_title'] ?? '')) === 'Approved/Done') {
+				return (int)$card['stack_id'];
 			}
 		}
-		if ($stacks === []) {
-			return null;
-		}
-		$doneTitles = ['done', 'afgerond', 'gereed', 'approved/done'];
-		foreach ($stacks as $stack) {
-			if (in_array(strtolower(trim($stack['title'])), $doneTitles, true)) {
-				return $stack['id'];
-			}
-		}
-		usort($stacks, static fn (array $left, array $right): int => $left['order'] <=> $right['order']);
-		$last = end($stacks);
-		return $last === false ? null : (int)$last['id'];
+		return null;
 	}
 
 	private function dateString(mixed $value): ?string {
@@ -1047,6 +1077,32 @@ class ProjectPortfolioService {
 		return $date->modify('-' . ((int)$date->format('N') - 1) . ' days')->setTime(0, 0);
 	}
 
+	/**
+	 * Lenient Monday normalization for persisted dates (e.g. desired start
+	 * dates). Returns null instead of throwing so one malformed row cannot
+	 * fail the whole endpoint.
+	 */
+	private function tryParseMonday(?string $value): ?DateTimeImmutable {
+		if ($value === null || trim($value) === '') {
+			return null;
+		}
+		try {
+			$date = new DateTimeImmutable($value);
+		} catch (\Exception) {
+			return null;
+		}
+
+		return $date->modify('-' . ((int)$date->format('N') - 1) . ' days')->setTime(0, 0);
+	}
+
+	/**
+	 * ISO year-week label (e.g. "2026-W30"). The ISO year prefix removes
+	 * year-boundary ambiguity that bare "W30" labels have.
+	 */
+	private function isoWeekLabel(DateTimeImmutable $date): string {
+		return $date->format('o-\WW');
+	}
+
 	private function firstMondayOnOrAfter(string $value): DateTimeImmutable {
 		$date = new DateTimeImmutable($value);
 		$days = (8 - (int)$date->format('N')) % 7;
@@ -1066,7 +1122,8 @@ class ProjectPortfolioService {
 		foreach ($projects as &$project) {
 			$total = max(0, (int)$project['totalCards']);
 			$done = min($total, max(0, (int)$project['doneCards']));
-			$completion = $total === 0 ? 0 : (int)round(($done / $total) * 100);
+			$isFullyDone = $total > 0 && $done === $total;
+			$completion = $isFullyDone ? 100 : ($total === 0 ? 0 : min(99, (int)round(($done / $total) * 100)));
 			$bucketIndex = min(4, intdiv($completion, 25));
 
 			$project['totalCards'] = $total;
@@ -1157,7 +1214,14 @@ class ProjectPortfolioService {
 			->andWhere($doneQb->expr()->eq('s.deleted_at', $doneQb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
 			->andWhere($doneQb->expr()->eq('c.deleted_at', $doneQb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
 			->andWhere($doneQb->expr()->eq('c.archived', $doneQb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)))
-			->andWhere($doneQb->expr()->isNotNull('c.done'))
+			// Done means an explicit done flag OR the exact 'Approved/Done'
+			// stack (same convention as DeckService/KpiService and the
+			// table view). No last-stack fallback: unknown stacks are
+			// never treated as done.
+			->andWhere($doneQb->expr()->orX(
+				$doneQb->expr()->isNotNull('c.done'),
+				$doneQb->expr()->eq('s.title', $doneQb->createNamedParameter('Approved/Done')),
+			))
 			->groupBy('s.board_id')
 			->executeQuery()
 			->fetchAllAssociative();
