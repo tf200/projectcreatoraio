@@ -1,6 +1,5 @@
 <template>
  <header class="pc-project-header">
-  <a class="pc-back" :href="base + '/new'" @click.prevent="$emit('back')">← {{ t('projectcreatoraio', 'All projects') }}</a>
   <div class="pc-header-main">
    <div class="pc-project-identity"><h1>{{ project.name }}</h1><div class="pc-project-meta"><span>#{{ project.number }}</span><span>{{ projectType }} project</span><a v-if="project.loc_city" :href="locationUrl" target="_blank" rel="noopener noreferrer"><MapMarkerOutline :size="17" />{{ project.loc_city }}</a><span>{{ project.client_name }}</span></div></div>
    <div class="pc-header-actions">

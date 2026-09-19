@@ -21,9 +21,19 @@ export function interfaceUrl(base, route = {}, modern = true) {
  if (id && tab !== 'overview') url += '?tab=' + (modern ? tab : legacyTabs[tab])
  return url
 }
-export function filterProjects(projects, { query = '', status = 'all', sort = 'name' } = {}) {
+export function filterProjects(projects, { query = '', status = 'all', sort = 'name', client = '', scope = 'all', organization = 'all' } = {}, { isGlobalAdmin = false, isOrganizationAdmin = false, myProjectIds = [], recentProjectIds = [] } = {}) {
  const search = query.trim().toLocaleLowerCase()
+ const recency = new Map(recentProjectIds.map((id, index) => [Number(id), index]))
  return projects.filter(project => [project.name, project.number, project.client_name, project.loc_city].join(' ').toLocaleLowerCase().includes(search)
-  && (status === 'all' || String(project.status) === status))
-  .sort((a, b) => String(a[sort === 'number' ? 'number' : 'name'] || '').localeCompare(String(b[sort === 'number' ? 'number' : 'name'] || ''), undefined, { numeric: true }))
+  && (status === 'all' || String(project.status) === status)
+  && (!client || project.client_name === client)
+  && (!isOrganizationAdmin || scope !== 'my' || myProjectIds.includes(Number(project.id)))
+  && (!isGlobalAdmin || organization === 'all' || String(project.organization_id) === organization))
+  .sort((a, b) => {
+   if (sort === 'recent') {
+    const order = (recency.get(Number(a.id)) ?? Infinity) - (recency.get(Number(b.id)) ?? Infinity)
+    if (order) return order
+   }
+   return String(a[sort === 'number' ? 'number' : 'name'] || '').localeCompare(String(b[sort === 'number' ? 'number' : 'name'] || ''), undefined, { numeric: true })
+  })
 }

@@ -32,7 +32,7 @@
 					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Try again') }}</button>
 					<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 				</div>
-				<component :is="moduleComponent" v-else-if="moduleComponent" :key="scopeKey" v-bind="moduleProps" @refresh="loadFiles" />
+				<component :is="moduleComponent" v-else-if="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes' }" v-bind="moduleProps" @refresh="loadFiles" />
 				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
 			</template>
 		</template>

@@ -1,0 +1,103 @@
+/* Presentation only. Retain the real Notes, card detail, Talk and rich-text
+ * components and all their permission, loading and mobile navigation states.
+ * Scope overrides to the modern Notes module, not the legacy interface.
+ */
+.pc-new .pc-notes-theme.project-notes-list {
+	--pc-note-tint: color-mix(in srgb, var(--color-primary-element) 5%, var(--color-main-background));
+	gap: 18px;
+	min-width: 0;
+	font-size: 13px;
+}
+.pc-new .pc-notes-theme .project-notes-list__header { gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--color-border); padding-bottom: 8px; }
+.pc-new .pc-notes-theme .project-notes-list__main-tabs { gap: 22px; padding: 0; background: transparent; border-radius: 0; min-width: 0; max-width: 100%; overflow-x: auto; }
+.pc-new .pc-notes-theme .project-notes-list__main-tab { gap: 7px; padding: 12px 0; border-radius: 0; border-bottom: 2px solid transparent; font-size: 12px; font-weight: 500; white-space: nowrap; box-shadow: none; transition: none; }
+.pc-new .pc-notes-theme .project-notes-list__main-tab--active { color: var(--color-primary-element); background: transparent; border-bottom-color: var(--color-primary-element); font-weight: 650; }
+.pc-new .pc-notes-theme .project-notes-list__actions { gap: 8px; font-size: 12px; }
+.pc-new .pc-notes-theme .project-notes-list__filters { justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.pc-new .pc-notes-theme .project-notes-list__sub-tabs { background: var(--pc-note-tint); border-radius: var(--border-radius-element); }
+.pc-new .pc-notes-theme .project-notes-list__sub-tab { font-weight: 500; border-radius: 5px; transition: none; }
+.pc-new .pc-notes-theme .project-notes-list__sub-tab--active { color: var(--color-primary-element); box-shadow: 0 1px 3px var(--color-box-shadow); }
+.pc-new .pc-notes-theme .project-notes-list__type-filter { font-weight: 500; color: var(--color-text-maxcontrast); }
+.pc-new .pc-notes-theme .project-notes-list__type-filter select { min-height: 40px; border-radius: var(--border-radius-element); }
+.pc-new .pc-notes-theme .project-notes-list__tab-badge { font-weight: 600; font-size: 10px; }
+
+/* Flexible height keeps long titles, translated badges and actions accessible. */
+.pc-new .pc-notes-theme .project-notes-list__grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.pc-new .pc-notes-theme .project-notes-list__note-card { height: auto; min-height: 220px; border-radius: var(--border-radius-large); transition: border-color .15s ease; }
+.pc-new .pc-notes-theme .project-notes-list__note-card:hover { transform: none; box-shadow: none; }
+.pc-new .pc-notes-theme .project-notes-list__note-header { padding: 18px 18px 12px; gap: 8px; }
+.pc-new .pc-notes-theme .project-notes-list__note-title { font-size: 14px; font-weight: 650; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+.pc-new .pc-notes-theme .project-notes-list__note-date { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: normal; }
+.pc-new .pc-notes-theme .project-notes-list__note-content { padding: 0 18px 16px; }
+.pc-new .pc-notes-theme .project-notes-list__note-content::after { content: none; }
+.pc-new .pc-notes-theme .project-notes-list__note-preview { font-size: 12px; line-height: 1.8; -webkit-line-clamp: 3; overflow-wrap: anywhere; }
+.pc-new .pc-notes-theme .project-notes-list__note-footer { padding: 12px 18px; gap: 10px; flex-wrap: wrap; background: transparent; }
+.pc-new .pc-notes-theme .project-notes-list__note-badges { gap: 6px; flex-wrap: wrap; }
+.pc-new .pc-notes-theme .project-notes-list__author-avatar { font-size: 10px; font-weight: 600; background: var(--pc-note-tint); color: var(--color-primary-element); }
+.pc-new .pc-notes-theme .project-notes-list__author-name { font-size: 11px; font-weight: 500; }
+.pc-new .pc-notes-theme .project-notes-list__note-type,
+.pc-new .pc-notes-theme .project-notes-list__note-visibility { font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: normal; border-radius: 4px; }
+.pc-new .pc-notes-theme .project-notes-list__note-type--semantic { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+.pc-new .pc-notes-theme .project-notes-list__note-actions { opacity: 1; flex-shrink: 0; }
+.pc-new .pc-notes-theme .project-notes-list__action-btn { border-color: transparent; border-radius: var(--border-radius-element); }
+.pc-new .pc-notes-theme .project-notes-list__action-btn:hover { box-shadow: none; }
+.pc-new .pc-notes-theme .project-notes-list__pagination { padding: 8px 0; gap: 12px; flex-wrap: wrap; }
+.pc-new .pc-notes-theme .project-notes-list__pagination-info { font-size: 12px; font-weight: 500; }
+
+.pc-new .pc-notes-theme .project-notes-list__empty { padding: 48px 20px; gap: 14px; border-radius: var(--border-radius-large); background: var(--pc-note-tint); }
+.pc-new .pc-notes-theme .project-notes-list__empty-title { font-size: 18px; font-weight: 650; }
+.pc-new .pc-notes-theme .project-notes-list__empty-subtitle { font-size: 13px; }
+.pc-new .pc-notes-theme .project-notes-list__loading { padding: 48px 20px; font-size: 13px; font-weight: 500; }
+.pc-new .pc-notes-theme .project-notes-list__comment-item { border-radius: var(--border-radius-large); transition: none; }
+.pc-new .pc-notes-theme .project-notes-list__comment-item:hover { box-shadow: none; }
+.pc-new .pc-notes-theme .project-notes-list__comment-header,
+.pc-new .pc-notes-theme .project-notes-list__comment-footer { flex-wrap: wrap; }
+.pc-new .pc-notes-theme .project-notes-list__comment-message { font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.pc-new .pc-notes-theme .project-notes-list__comment-footer { background: transparent; }
+.pc-new .pc-notes-theme .project-notes-list__comment-type,
+.pc-new .pc-notes-theme .project-notes-list__comment-card-badge { font-size: 11px; font-weight: 500; border-radius: 5px; }
+
+/* Keep the original scroll containers, history pagination and mobile back flow. */
+.pc-new .pc-notes-theme .project-notes-list__chat-list { border-radius: var(--border-radius-large); background: var(--color-main-background); padding: 8px; }
+.pc-new .pc-notes-theme .project-notes-list__chat-message { padding: 16px 12px; border-bottom: 1px solid var(--color-border); border-radius: 0; }
+.pc-new .pc-notes-theme .project-notes-list__chat-avatar { background: var(--pc-note-tint); color: var(--color-primary-element); font-size: 12px; font-weight: 600; }
+.pc-new .pc-notes-theme .project-notes-list__chat-header { flex-wrap: wrap; gap: 6px 12px; }
+.pc-new .pc-notes-theme .project-notes-list__chat-author { font-size: 12px; font-weight: 650; }
+.pc-new .pc-notes-theme .project-notes-list__chat-time { font-weight: 400; }
+.pc-new .pc-notes-theme .project-notes-list__chat-text { font-size: 13px; line-height: 1.8; }
+.pc-new .pc-notes-theme .project-notes-list__direct-layout { border-radius: var(--border-radius-large); min-height: 400px; }
+.pc-new .pc-notes-theme .project-notes-list__direct-sidebar { background: var(--pc-note-tint); min-width: 0; }
+.pc-new .pc-notes-theme .project-notes-list__direct-search-box,
+.pc-new .pc-notes-theme .project-notes-list__direct-sidebar-item { border-radius: var(--border-radius-element); }
+.pc-new .pc-notes-theme .project-notes-list__direct-active-header { background: transparent; border-width: 0 0 1px; border-radius: 0; padding: 10px 0 16px; flex-wrap: wrap; }
+.pc-new .pc-notes-theme .project-notes-list__direct-chat-badge { text-transform: none; letter-spacing: normal; font-weight: 500; border-radius: 4px; }
+
+/* NcModal portals outside the module. Change only note-editor content styling,
+ * never the modal overlay, focus trap, close behavior or editor commands. */
+body:has(.pc-new .pc-notes-theme) .create-note-modal { font-family: var(--font-face); }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__header { padding: 22px 24px 18px; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__title { font-size: 20px; font-weight: 650; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__content { padding: 0 24px 22px; gap: 18px; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__label { font-size: 12px; font-weight: 600; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__label-row { flex-wrap: wrap; gap: 8px; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__editor { min-height: 260px; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__select { font-size: 13px; border-radius: var(--border-radius-element); }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__visibility-options { gap: 12px; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__visibility-btn { padding: 14px; gap: 10px; border-radius: var(--border-radius-large); }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__visibility-label { font-size: 13px; font-weight: 600; }
+body:has(.pc-new .pc-notes-theme) .create-note-modal__actions { padding: 18px 24px; }
+
+@media (max-width: 650px) {
+	.pc-new .pc-notes-theme .project-notes-list__main-tabs { gap: 14px; }
+	.pc-new .pc-notes-theme .project-notes-list__main-tab { gap: 4px; font-size: 11px; }
+	.pc-new .pc-notes-theme .project-notes-list__type-filter select { max-width: 65%; }
+	.pc-new .pc-notes-theme .project-notes-list__note-footer { padding: 12px 14px; }
+	.pc-new .pc-notes-theme .project-notes-list__direct-main { padding: 12px; }
+	.pc-new .pc-notes-theme .project-notes-list__chat-message { padding: 14px 0; }
+	body:has(.pc-new .pc-notes-theme) .create-note-modal__header,
+	body:has(.pc-new .pc-notes-theme) .create-note-modal__content,
+	body:has(.pc-new .pc-notes-theme) .create-note-modal__actions { padding-left: 18px; padding-right: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.pc-new .pc-notes-theme .project-notes-list__note-card { transition: none; }
+}

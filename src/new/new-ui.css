@@ -43,3 +43,23 @@
 .pc-new .pc-planning-grid{padding:0}.pc-new .pc-planning-grid dt,.pc-new .pc-planning-grid dd{display:block;width:auto;padding:0}
 .pc-new .pc-panel-body{display:flex;flex-direction:column}.pc-new .pc-panel-empty{height:auto;flex:1}.pc-new .pc-panel-tasks .pc-panel-empty{min-height:145px}
 .pc-new .pc-planning-grid dt,.pc-new .pc-planning-grid dd{text-align:left}
+
+/* Shared project shelf and centered picker. Native dialog keeps focus inside the modal. */
+.pc-project-navigation{margin-bottom:18px;background:var(--color-main-background);border:1px solid var(--color-border);border-radius:var(--border-radius-container);overflow:hidden}
+.pc-shelf-toolbar{display:flex;align-items:center;gap:12px;padding:14px 18px}
+.pc-shelf-label{font-size:13px}.pc-new .pc-shelf-search{width:min(340px,35%);min-width:120px;min-height:44px;margin:0;padding:8px 12px;background:var(--color-main-background);color:var(--color-main-text);border:1px solid var(--color-border-dark);border-radius:var(--border-radius-element)}
+.pc-new .pc-shelf-expand{margin-left:auto}.pc-new .pc-mobile-project{display:none}.pc-shelf-content{padding:0 18px 10px}
+.pc-shelf-cards{display:flex;gap:10px;overflow-x:auto;padding:3px 3px 10px;position:relative;scrollbar-width:thin}
+.pc-new .pc-shelf-card{display:flex;gap:12px;align-items:center;flex:0 0 245px;padding:13px;border:1px solid var(--color-border);border-radius:var(--border-radius-large);color:var(--color-main-text);text-decoration:none}
+.pc-new .pc-shelf-card:hover{background:var(--color-background-hover)}.pc-new .pc-shelf-card[aria-current=page],.pc-new .pc-selected-project{background:color-mix(in srgb,var(--color-primary-element) 10%,var(--color-main-background));border-color:var(--color-primary-element)}
+.pc-shelf-monogram{display:flex;align-items:center;justify-content:center;width:36px;height:42px;flex-shrink:0;border-radius:var(--border-radius-element);background:var(--color-background-dark);color:var(--color-primary-element);font-size:13px;font-weight:650}
+.pc-shelf-card-text{min-width:0}.pc-shelf-card-text strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.pc-shelf-card-text small{display:block;font-size:11px;color:var(--color-text-maxcontrast);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pc-shelf-status{display:block;font-size:10px;color:var(--color-text-maxcontrast);margin-top:5px}
+.pc-shelf-caption{display:flex;align-items:center;gap:15px;font-size:11px;color:var(--color-text-maxcontrast);min-height:26px}.pc-new .pc-shelf-caption .pc-link{font-size:11px;min-height:26px;padding:0}
+.pc-shelf-message{display:flex;align-items:center;gap:16px;padding:14px 18px;font-size:13px;color:var(--color-text-maxcontrast)}
+.pc-new .pc-project-picker{position:fixed;inset:0;width:1100px;max-width:calc(100vw - 40px);height:fit-content;max-height:calc(100dvh - 80px);margin:auto;padding:24px;border:1px solid var(--color-border);border-radius:16px;background:var(--color-main-background);color:var(--color-main-text);overflow:auto;box-shadow:0 24px 90px #0005}
+/* Nextcloud's reset sets dialog to display:block, including closed dialogs. */
+.pc-new .pc-project-picker:not([open]){display:none}
+.pc-project-picker::backdrop{background:#152c4599}body:has(.pc-project-picker[open]){overflow:hidden}
+.pc-picker-top{display:flex;align-items:center;justify-content:space-between;gap:20px;color:var(--color-text-maxcontrast);font-size:12px}.pc-project-picker .pc-list-heading{margin-top:20px}.pc-project-picker .pc-list-heading h2{font-size:25px;margin:0}.pc-project-picker .pc-filters{flex-wrap:wrap;gap:12px;padding:18px}.pc-project-picker .pc-filters label{min-width:120px;flex:1}.pc-project-picker .pc-filters .pc-search{flex-basis:100%}.pc-project-picker .pc-filters select{max-width:100%}.pc-project-picker .pc-project-table th,.pc-project-picker .pc-project-table td{padding:16px}
+@media(max-width:800px){.pc-shelf-toolbar{flex-wrap:wrap}.pc-shelf-label{display:none}.pc-new .pc-shelf-search{flex:1}}
+@media(max-width:650px){.pc-new .pc-shelf-search,.pc-new .pc-shelf-toggle,.pc-new .pc-shelf-create,.pc-shelf-content{display:none}.pc-new .pc-mobile-project{display:inline-flex;min-width:0;max-width:65%;text-align:left;overflow-wrap:anywhere}.pc-shelf-toolbar{gap:8px;padding:12px;flex-wrap:nowrap}.pc-new .pc-shelf-expand{padding:10px}.pc-new .pc-project-picker{max-width:calc(100vw - 24px);max-height:calc(100dvh - 48px);padding:16px}.pc-picker-top{align-items:flex-start}.pc-picker-top>span{line-height:1.6}.pc-project-picker .pc-filters{padding:12px}.pc-project-picker .pc-project-table{min-width:520px}}

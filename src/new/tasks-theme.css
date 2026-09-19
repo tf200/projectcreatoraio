@@ -1,0 +1,137 @@
+/* Presentation only: keep Deck's components, permission gates and DnD geometry.
+ * The extra root class out-ranks late-loaded Deck scoped styles without changing
+ * the standalone Deck app or the legacy project interface.
+ */
+.pc-new .pc-tasks-theme.deck-board {
+	--pc-task-surface: var(--color-main-background);
+	--pc-task-muted: var(--color-text-maxcontrast);
+	--pc-task-tint: color-mix(in srgb, var(--color-primary-element) 5%, var(--color-main-background));
+	gap: 14px;
+	min-width: 0;
+	font-size: 13px;
+}
+
+.pc-new .pc-tasks-theme.deck-board .deck-board__title-text { font-size: 20px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__badge { font-size: 11px; font-weight: 500; border-radius: var(--border-radius-element); }
+.pc-new .pc-tasks-theme.deck-board .deck-board__subtitle { font-size: 12px; margin-top: 6px; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__top { gap: 16px; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__actions { gap: 8px; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__tabs { gap: 22px; margin: 0; overflow-x: auto; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__tab { flex-shrink: 0; margin: 0; padding: 12px 0; border-radius: 0; font-size: 12px; font-weight: 500; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__tab--active { background: transparent; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__tab-content { min-width: 0; animation: none; }
+.pc-new .pc-tasks-theme.deck-board .deck-board__mount { border: 0; border-radius: 0; }
+
+/* Board controls keep the original view, filter, archive and display menus. */
+.pc-new .pc-tasks-theme.deck-board .controls { height: auto; min-height: 44px; margin: 0 0 14px; padding: 0; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+.pc-new .pc-tasks-theme.deck-board .controls .board-title { min-width: 0; gap: 6px; }
+.pc-new .pc-tasks-theme.deck-board .controls .board-title h2 { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.pc-new .pc-tasks-theme.deck-board .controls .board-bullet { width: 9px; height: 9px; flex-shrink: 0; }
+.pc-new .pc-tasks-theme.deck-board .board-actions { align-items: center; gap: 8px; }
+.pc-new .pc-tasks-theme.deck-board .board-action-buttons { gap: 6px; }
+.pc-new .pc-tasks-theme.deck-board .filter-button { border-radius: var(--border-radius-element); }
+
+/* Compact inline reporting, with all counters, legends and charts retained. */
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard { padding: 16px 0; border-radius: 0; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard--inline { padding: 0 0 18px; margin-bottom: 14px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(240px, 1.5fr); gap: 0; margin-bottom: 14px; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card { min-width: 0; padding: 15px; gap: 10px; background: transparent; border: 0; border-inline-end: 1px solid var(--color-border); border-radius: 0; box-shadow: none; transition: none; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card:last-child { border-inline-end: 0; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card:hover { transform: none; box-shadow: none; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard .reporting-dashboard__kpi-card .reporting-dashboard__kpi-icon { width: 32px; height: 32px; flex-shrink: 0; border: 0; border-radius: var(--border-radius-element); background: var(--pc-task-tint); color: var(--color-primary-element); }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-icon svg { width: 20px; height: 20px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard .reporting-dashboard__kpi-card.completed-card .reporting-dashboard__kpi-icon { color: var(--color-success); }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard .reporting-dashboard__kpi-card.has-overdue .reporting-dashboard__kpi-icon,
+.pc-new .pc-tasks-theme.deck-board .has-overdue .reporting-dashboard__kpi-value { color: var(--color-error); }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-value { font-size: 24px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-label { font-size: 11px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__open-tasks-split .reporting-dashboard__kpi-label { font-size: 11px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__charts { grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: 14px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__chart-card { min-width: 0; padding: 16px; background: var(--pc-task-surface); border-radius: var(--border-radius-large); }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__chart-card h3 { font-size: 12px; margin: 0 0 12px; padding: 0; border: 0; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__donut-container { width: 86px; height: 86px; }
+.pc-new .pc-tasks-theme.deck-board .percentage-val { font-size: 20px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .percentage-label { font-size: 10px; text-transform: none; letter-spacing: normal; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__bar-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 12px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__bar-info { font-size: 11px; gap: 8px; flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__bar-track { height: 5px; background: var(--color-background-dark); }
+
+/* Do not change drag handles, transforms, card colors, compact visibility or
+ * the horizontal/vertical scroll containers managed by vue-smooth-dnd. */
+.pc-new .pc-tasks-theme.deck-board .board .smooth-dnd-container.horizontal { gap: 12px; padding: 0 4px 12px; }
+.pc-new .pc-tasks-theme.deck-board .stack { padding: 0 10px; border-radius: var(--border-radius-large); background: var(--pc-task-tint); }
+.pc-new .pc-tasks-theme.deck-board .stack__header { background: var(--pc-task-tint); border-radius: var(--border-radius-large) var(--border-radius-large) 0 0; }
+.pc-new .pc-tasks-theme.deck-board .stack__header::before { background-image: linear-gradient(180deg, var(--pc-task-tint), transparent); }
+.pc-new .pc-tasks-theme.deck-board .stack__header h3 { font-size: 13px; font-weight: 600; }
+.pc-new .pc-tasks-theme.deck-board .card { border-width: 1px; border-color: var(--color-border-dark); border-radius: var(--border-radius-large); padding: 12px; font-size: 12px; box-shadow: 0 2px 3px var(--color-box-shadow); }
+.pc-new .pc-tasks-theme.deck-board .card:hover { border-color: var(--color-primary-element); }
+.pc-new .pc-tasks-theme.deck-board .card.current-card { border-color: var(--color-primary-element); }
+.pc-new .pc-tasks-theme.deck-board .card:focus-visible,
+.pc-new .pc-tasks-theme.deck-board .card:focus-within { outline: 2px solid var(--color-primary-element); outline-offset: -2px; }
+.pc-new .pc-tasks-theme.deck-board .card .card-upper h4 { font-size: 13px; font-weight: 600; line-height: 1.55; }
+.pc-new .pc-tasks-theme.deck-board .card:not(.compact) .labels li { font-size: 10px; border-radius: 4px; }
+.pc-new .pc-tasks-theme.deck-board .card.compact { padding: 8px; }
+.pc-new .pc-tasks-theme.deck-board .stack__card-add { background: var(--pc-task-tint); }
+.pc-new .pc-tasks-theme.deck-board .gantt-toolbar { gap: 8px; flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .gantt-undated,
+.pc-new .pc-tasks-theme.deck-board .gantt-legend { font-size: 12px; }
+
+/* Existing permission grids, bulk actions, profiles and member drill-downs. */
+.pc-new .pc-tasks-theme.deck-board .pc-policy-app { border-radius: var(--border-radius-large); font-size: 13px; }
+.pc-new .pc-tasks-theme.deck-board .pc-app-header { padding: 16px; gap: 16px; flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .pc-header-titles h2 { font-size: 18px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .pc-header-titles p { font-size: 12px; line-height: 1.6; }
+.pc-new .pc-tasks-theme.deck-board .pc-header-actions { gap: 8px; flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .pc-toolbar { padding: 14px 16px; gap: 12px; flex-wrap: wrap; background: var(--pc-task-surface); }
+.pc-new .pc-tasks-theme.deck-board .pc-toolbar-filters { flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .pc-search-input,
+.pc-new .pc-tasks-theme.deck-board .pc-stack-select { font-size: 12px; border-radius: var(--border-radius-element); }
+.pc-new .pc-tasks-theme.deck-board .pc-data-grid th { font-size: 11px; background: var(--color-background-hover); }
+.pc-new .pc-tasks-theme.deck-board .pc-data-grid td { font-size: 12px; }
+.pc-new .pc-tasks-theme.deck-board .pc-role-chip { font-size: 11px; border-radius: 5px; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary { gap: 14px; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__header { padding: 16px; gap: 16px; flex-wrap: wrap; box-shadow: none; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__scope { text-transform: none; letter-spacing: normal; font-weight: 600; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__header h4 { font-size: 18px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__header p { font-size: 12px; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__metric { padding: 12px; background: var(--pc-task-surface); }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__toolbar { gap: 12px; flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__filters { flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__search-input,
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__select { border-radius: var(--border-radius-element); background: var(--pc-task-surface); }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__name-line h5 { font-size: 14px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__role { border-radius: 5px; }
+
+/* NcModal portals card details to body; target only Deck's card content while
+ * the modern Tasks module is mounted, without touching modal/focus mechanics. */
+body:has(.pc-new .pc-tasks-theme) .modal__card { font-family: var(--font-face); color: var(--color-main-text); }
+body:has(.pc-new .pc-tasks-theme) .modal__card .app-sidebar-header__maintitle { font-size: 20px; font-weight: 650; }
+body:has(.pc-new .pc-tasks-theme) .modal__card .section-wrapper { font-size: 13px; }
+
+@media (max-width: 1050px) {
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card { border-bottom: 1px solid var(--color-border); }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card:nth-child(even) { border-inline-end: 0; }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card:nth-last-child(-n+2) { border-bottom: 0; }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__bar-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 650px) {
+	.pc-new .pc-tasks-theme.deck-board .deck-board__title-text { font-size: 17px; }
+	.pc-new .pc-tasks-theme.deck-board .deck-board__tabs { gap: 16px; }
+	.pc-new .pc-tasks-theme.deck-board .deck-board__tab { font-size: 11px; }
+	.pc-new .pc-tasks-theme.deck-board .controls .board-title { flex-basis: 100%; }
+	.pc-new .pc-tasks-theme.deck-board .board-actions { justify-content: flex-start; }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpis { grid-template-columns: minmax(0, 1fr); }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card:nth-child(n) { padding: 10px 12px; border-inline-end: 0; border-bottom: 1px solid var(--color-border); }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-card:last-child { border-bottom: 0; }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__kpi-value { font-size: 21px; }
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__charts { grid-template-columns: minmax(0, 1fr); }
+	.pc-new .pc-tasks-theme.deck-board .pc-toolbar-search { min-width: 0; width: 100%; }
+	.pc-new .pc-tasks-theme.deck-board .pc-stack-select { max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__donut-progress,
+	.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__bar-progress { transition: none; }
+}
