@@ -444,10 +444,11 @@ class ProjectPortfolioService {
 	public function summarizeTeams(array $teams): array {
 		$out = [];
 		foreach ($teams as $team) {
+			$projectsPerFte = (float)($team['projectsPerFte'] ?? $team['projects_per_fte'] ?? 1.0);
 			$out[] = [
 				'id' => (int)$team['id'],
 				'name' => (string)$team['name'],
-				'capacity' => round((float)$team['fte'] * (float)$team['projectsPerFte'], 2),
+				'capacity' => round((float)($team['fte'] ?? 0.0) * $projectsPerFte, 2),
 			];
 		}
 		return $out;
@@ -597,11 +598,12 @@ class ProjectPortfolioService {
 			return [];
 		}
 		$teamQb = $this->db->getQueryBuilder();
-		return $teamQb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
+		$rows = $teamQb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
 			->from('organization_teams')
 			->where($teamQb->expr()->eq('organization_id', $teamQb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
 			->andWhere($teamQb->expr()->in('id', $teamQb->createNamedParameter(array_keys($teamIds), IQueryBuilder::PARAM_INT_ARRAY)))
 			->executeQuery()->fetchAllAssociative();
+		return array_map([$this, 'mapTeamRow'], $rows);
 	}
 
 	/**
@@ -674,7 +676,8 @@ class ProjectPortfolioService {
 	 */
 	public function summarizeCapacity(array $team, string $weekStart, array $projects, array $planningGaps = [], array $unassigned = []): array {
 		$monday = $this->normalizeMonday($weekStart);
-		$capacity = round((float)$team['fte'] * (float)$team['projectsPerFte'], 2);
+		$projectsPerFte = (float)($team['projectsPerFte'] ?? $team['projects_per_fte'] ?? 1.0);
+		$capacity = round((float)($team['fte'] ?? 0.0) * $projectsPerFte, 2);
 		$normalizedProjects = [];
 		$normalizedPlanningGaps = $planningGaps;
 		foreach ($projects as $project) {
@@ -754,6 +757,22 @@ class ProjectPortfolioService {
 		];
 	}
 
+	/**
+	 * @param array<string,mixed> $row
+	 * @return array<string,mixed>
+	 */
+	private function mapTeamRow(array $row): array {
+		$projectsPerFte = (float)($row['projects_per_fte'] ?? $row['projectsPerFte'] ?? 1.0);
+		return [
+			'id' => (int)$row['id'],
+			'organizationId' => (int)($row['organization_id'] ?? $row['organizationId'] ?? 0),
+			'name' => (string)$row['name'],
+			'fte' => (float)$row['fte'],
+			'projects_per_fte' => $projectsPerFte,
+			'projectsPerFte' => $projectsPerFte,
+		];
+	}
+
 	/** @return array<string,mixed>|null */
 	private function loadTeam(int $organizationId, int $teamId): ?array {
 		$qb = $this->db->getQueryBuilder();
@@ -766,22 +785,17 @@ class ProjectPortfolioService {
 			return null;
 		}
 
-		return [
-			'id' => (int)$row['id'],
-			'organizationId' => (int)$row['organization_id'],
-			'name' => (string)$row['name'],
-			'fte' => (float)$row['fte'],
-			'projectsPerFte' => (float)$row['projects_per_fte'],
-		];
+		return $this->mapTeamRow($row);
 	}
 
 	/** @return array<int,array<string,mixed>> */
 	private function loadTeams(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		return $qb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
+		$rows = $qb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
 			->from('organization_teams')
 			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
 			->executeQuery()->fetchAllAssociative();
+		return array_map([$this, 'mapTeamRow'], $rows);
 	}
 
 	/** @return array<int,array<string,mixed>> */

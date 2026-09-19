@@ -168,6 +168,15 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame(5.5, $row['fte'] * $row['projectsPerFte']);
 	}
 
+	public function testBuildAllTeamsRowSupportsDatabaseSnakeCaseKeys(): void {
+		$row = $this->service->buildAllTeamsRow([
+			['id' => 7, 'organization_id' => 42, 'name' => 'Design', 'fte' => 1.5, 'projects_per_fte' => 2.0],
+			['id' => 8, 'organization_id' => 42, 'name' => 'Build', 'fte' => 2.0, 'projects_per_fte' => 1.0],
+		], 42);
+
+		self::assertSame(5.0, $row['fte'] * $row['projectsPerFte']);
+	}
+
 	public function testCapacityAllTeamsRowAggregatesLoadAcrossTeams(): void {
 		$row = $this->service->buildAllTeamsRow([
 			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.0, 'projectsPerFte' => 1.0],
