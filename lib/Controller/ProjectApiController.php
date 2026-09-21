@@ -211,6 +211,52 @@ class ProjectApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	public function addMembersBulk(int $projectId): DataResponse {
+		$params = $this->request->getParams();
+
+		$userIds = [];
+		if (is_array($params) && array_key_exists('userIds', $params) && is_array($params['userIds'])) {
+			$userIds = $params['userIds'];
+		} elseif (is_array($params) && array_key_exists('members', $params) && is_array($params['members'])) {
+			$userIds = $params['members'];
+		}
+
+		$teamId = null;
+		if (is_array($params) && array_key_exists('teamId', $params) && (is_int($params['teamId']) || is_string($params['teamId']))) {
+			$teamId = (int)$params['teamId'] > 0 ? (int)$params['teamId'] : null;
+		}
+
+		$drasciRoles = [];
+		if (is_array($params) && array_key_exists('drascivsRoles', $params) && is_array($params['drascivsRoles'])) {
+			$drasciRoles = $params['drascivsRoles'];
+		} elseif (is_array($params) && array_key_exists('drasciRoles', $params) && is_array($params['drasciRoles'])) {
+			$drasciRoles = $params['drasciRoles'];
+		} elseif (is_array($params) && array_key_exists('drasciRole', $params) && is_string($params['drasciRole'])) {
+			$drasciRoles = [$params['drasciRole']];
+		}
+
+		$functionalRoleKeys = null;
+		if (is_array($params) && array_key_exists('functionalRoleKeys', $params) && is_array($params['functionalRoleKeys'])) {
+			$functionalRoleKeys = $params['functionalRoleKeys'];
+		}
+
+		$project = $this->projectMapper->find($projectId);
+		if ($project === null) {
+			throw new OCSNotFoundException("Project with ID $projectId not found");
+		}
+
+		$this->assertCanAccessProject($project);
+		if (!$this->canEditPreparationWeeks($project)) {
+			throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+		}
+
+		$result = $this->projectService->addMembersToProjectBulk($projectId, $userIds, $drasciRoles, $functionalRoleKeys, $teamId);
+
+		return new DataResponse($result, $result['added'] !== [] ? 201 : 200);
+	}
+
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	public function updateMemberRole(int $projectId, string $userId): DataResponse {
 		$params = $this->request->getParams();
 		$drasciRoles = null;

@@ -20,6 +20,21 @@ return [
             "verb" => "GET",
         ],
         [
+            "name" => "portfolio_api#completion",
+            "url" => "/api/v1/portfolio/completion",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "portfolio_api#capacity",
+            "url" => "/api/v1/portfolio/capacity",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "portfolio_api#table",
+            "url" => "/api/v1/portfolio/table",
+            "verb" => "GET",
+        ],
+        [
             "name" => "project_api#listMine",
             "url" => "/api/v1/projects/mine",
             "verb" => "GET",
@@ -57,6 +72,11 @@ return [
         [
             "name" => "project_api#addMember",
             "url" => "/api/v1/projects/{projectId}/members",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "project_api#addMembersBulk",
+            "url" => "/api/v1/projects/{projectId}/members/bulk",
             "verb" => "POST",
         ],
         [
