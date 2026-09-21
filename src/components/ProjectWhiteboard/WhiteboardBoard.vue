@@ -7,15 +7,16 @@
 					<span v-if="whiteboardInfo" class="whiteboard-board__badge">#{{ whiteboardInfo.fileId }}</span>
 				</div>
 				<div class="whiteboard-board__subtitle">
-					{{ isPopoutWindow ? 'Autosaves while you work.' : 'Opens in a new window and autosaves while you work.' }}
+					{{ opensInPlace ? 'Autosaves while you work.' : 'Opens in a new window and autosaves while you work.' }}
 				</div>
 			</div>
 			<div class="whiteboard-board__actions">
 				<NcButton type="primary" :disabled="!canOpenWhiteboard" @click="openPopout">
 					<template #icon>
-						<EyeOutline :size="18" />
+						<ArrowExpand v-if="openMode === 'overlay'" :size="18" />
+						<EyeOutline v-else :size="18" />
 					</template>
-					Open whiteboard
+					{{ openMode === 'overlay' ? 'Focus mode' : 'Open whiteboard' }}
 				</NcButton>
 				<NcButton type="secondary" :disabled="!whiteboardInfo" @click="openInFiles">
 					<template #icon>
@@ -43,16 +44,17 @@
 			<div v-else-if="!handler" class="whiteboard-board__hint">
 				Preparing whiteboard preview...
 			</div>
-			<div v-else class="whiteboard-board__preview-wrap">
+			<div v-else class="whiteboard-board__preview-wrap" @pointerdown="onInlineInteraction">
 				<component
 					:is="handler.component"
+					v-if="!inlineSuspended"
 					:key="previewKey + ':' + String(whiteboardInfo.fileId)"
 					class="whiteboard-board__embedded"
 					:filename="whiteboardInfo.path"
 					:fileid="whiteboardInfo.fileId"
 					:basename="whiteboardInfo.name"
 					:source="previewSource"
-					:is-embedded="true"
+					:is-embedded="!inlineEditing"
 				/>
 				<button
 					type="button"
@@ -66,7 +68,8 @@
 
 		<WhiteboardActivity
 			v-if="normalizedProjectId"
-			:project-id="normalizedProjectId" />
+			:project-id="normalizedProjectId"
+			:reader="activityReader" />
 	</div>
 </template>
 
@@ -74,6 +77,7 @@
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
+import ArrowExpand from 'vue-material-design-icons/ArrowExpand.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
@@ -89,6 +93,7 @@ export default {
 	components: {
 		NcButton,
 		NcLoadingIcon,
+		ArrowExpand,
 		EyeOutline,
 		OpenInNew,
 		Refresh,
@@ -103,6 +108,21 @@ export default {
 			type: String,
 			default: '',
 		},
+		// Opt-in for the modern interface. The defaults keep the current
+		// interface on its preview-plus-popout behaviour.
+		inlineEditing: {
+			type: Boolean,
+			default: false,
+		},
+		openMode: {
+			type: String,
+			default: 'popout',
+			validator: value => ['popout', 'overlay'].includes(value),
+		},
+		activityReader: {
+			type: Function,
+			default: null,
+		},
 	},
 	data() {
 		return {
@@ -116,11 +136,20 @@ export default {
 			autosaveTimer: null,
 			lastSyncAttemptAt: 0,
 			isPopoutWindow: false,
+			overlayOpen: false,
 		}
 	},
 	computed: {
 		canOpenWhiteboard() {
 			return !!this.normalizedProjectId && !this.syncing
+		},
+		opensInPlace() {
+			return this.isPopoutWindow || this.openMode === 'overlay'
+		},
+		// One live board per file: the overlay and an editable inline board
+		// would otherwise share the same IndexedDB snapshot.
+		inlineSuspended() {
+			return this.inlineEditing && this.overlayOpen
 		},
 		normalizedProjectId() {
 			if (this.projectId === null || this.projectId === undefined || this.projectId === '') {
@@ -166,9 +195,19 @@ export default {
 		}
 	},
 	beforeDestroy() {
+		// Inline edits can be newer than the last ten-second autosave.
+		if (this.inlineEditing) {
+			this.syncLocalSnapshotToServer({ force: true }).catch(() => {})
+		}
 		this.stopAutosave()
 	},
 	methods: {
+		onInlineInteraction() {
+			if (!this.inlineEditing || this.overlayOpen) {
+				return
+			}
+			this.startAutosave()
+		},
 		startAutosave() {
 			if (this.autosaveTimer) {
 				return
@@ -470,6 +509,10 @@ export default {
 				type: 'file',
 			}
 
+			// Stand the inline board down before the overlay takes the file over.
+			this.overlayOpen = true
+			await this.$nextTick()
+
 			this.startAutosave()
 			viewer.openWith('whiteboard', {
 				fileInfo,
@@ -480,12 +523,13 @@ export default {
 					this.stopAutosave()
 					await this.syncLocalSnapshotToServer({ force: true })
 					await this.refreshInfo()
+					this.overlayOpen = false
 				},
 			})
 		},
 		openPopout() {
 			this.error = ''
-			if (this.isPopoutWindow) {
+			if (this.isPopoutWindow || this.openMode === 'overlay') {
 				this.openOverlay()
 				return
 			}

@@ -11,6 +11,7 @@ export const api = {
  list: () => get('projects/list'),
  myProjects: userId => get(`users/${encodeURIComponent(userId)}/projects`),
  project: id => get(`projects/${id}`),
+ whiteboardActivity: (id, limit, offset) => get(`projects/${id}/whiteboard/activity?limit=${limit}&offset=${offset}`),
 }
 export function errorMessage(error) {
  if (error?.response?.status === 403) return 'You do not have access to this data.'

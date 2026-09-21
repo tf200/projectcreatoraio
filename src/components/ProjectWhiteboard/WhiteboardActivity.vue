@@ -10,6 +10,13 @@
 			<span>Loading activity...</span>
 		</div>
 
+		<div v-else-if="error && events.length === 0" class="whiteboard-activity__error" role="alert">
+			<span>{{ error }}</span>
+			<NcButton type="secondary" @click="fetchEvents">
+				Try again
+			</NcButton>
+		</div>
+
 		<div v-else-if="events.length === 0" class="whiteboard-activity__empty">
 			No whiteboard activity yet.
 		</div>
@@ -37,8 +44,10 @@
 			</div>
 		</div>
 
-		<div v-if="hasMore" class="whiteboard-activity__load-more">
+		<div v-if="hasMore || (error && events.length > 0)" class="whiteboard-activity__load-more">
+			<span v-if="error && events.length > 0" class="whiteboard-activity__error-inline" role="alert">{{ error }}</span>
 			<NcButton
+				v-if="hasMore"
 				type="secondary"
 				:disabled="loading"
 				@click="loadMore">
@@ -73,6 +82,11 @@ export default {
 			type: [String, Number],
 			default: null,
 		},
+		// Without a reader the legacy service keeps swallowing its own errors.
+		reader: {
+			type: Function,
+			default: null,
+		},
 	},
 	data() {
 		return {
@@ -81,6 +95,7 @@ export default {
 			hasMore: false,
 			offset: 0,
 			limit: 20,
+			error: '',
 		}
 	},
 	computed: {
@@ -132,21 +147,34 @@ export default {
 		},
 	},
 	methods: {
+		read(limit, offset) {
+			if (this.reader) {
+				return this.reader(this.normalizedProjectId, limit, offset)
+			}
+			return projectsService.getWhiteboardActivity(this.normalizedProjectId, limit, offset)
+		},
+		// Only a caller that supplied a reader can tell failure from an empty board.
+		readFailed(message) {
+			return this.reader ? message : ''
+		},
 		async fetchEvents() {
 			if (!this.normalizedProjectId) {
 				this.events = []
 				return
 			}
 			this.loading = true
+			this.error = ''
 			this.offset = 0
 			try {
-				const result = await projectsService.getWhiteboardActivity(this.normalizedProjectId, this.limit, this.offset)
+				const result = await this.read(this.limit, this.offset)
 				this.events = result.events || []
 				this.hasMore = result.hasMore || false
 				this.offset = this.events.length
 			} catch (e) {
 				console.error('Failed to load whiteboard activity:', e)
 				this.events = []
+				this.hasMore = false
+				this.error = this.readFailed('Whiteboard activity could not be loaded. Check your access or try again.')
 			} finally {
 				this.loading = false
 			}
@@ -157,13 +185,14 @@ export default {
 			}
 			this.loading = true
 			try {
-				const result = await projectsService.getWhiteboardActivity(this.normalizedProjectId, this.limit, this.offset)
+				const result = await this.read(this.limit, this.offset)
 				const newEvents = result.events || []
 				this.events = [...this.events, ...newEvents]
 				this.hasMore = result.hasMore || false
 				this.offset += newEvents.length
 			} catch (e) {
 				console.error('Failed to load more whiteboard activity:', e)
+				this.error = this.readFailed('More whiteboard activity could not be loaded. Try again.')
 			} finally {
 				this.loading = false
 			}
@@ -228,7 +257,8 @@ export default {
 }
 
 .whiteboard-activity__loading,
-.whiteboard-activity__empty {
+.whiteboard-activity__empty,
+.whiteboard-activity__error {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -236,6 +266,16 @@ export default {
 	padding: 24px 0;
 	color: var(--color-text-maxcontrast);
 	font-size: 13px;
+}
+
+.whiteboard-activity__error {
+	flex-wrap: wrap;
+}
+
+.whiteboard-activity__error-inline {
+	margin-inline-end: auto;
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
 }
 
 .whiteboard-activity__group {

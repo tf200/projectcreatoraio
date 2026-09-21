@@ -1,0 +1,69 @@
+/* Presentation only: keep the whiteboard handler, its WebDAV source, the
+ * autosave cycle and the overlay lifecycle exactly as they are. The extra root
+ * class out-ranks the components' own scoped rules without reaching the
+ * standalone whiteboard app or the legacy project interface.
+ */
+.pc-new .pc-whiteboard-theme.whiteboard-board {
+	gap: 14px;
+	min-width: 0;
+	font-size: 13px;
+}
+
+/* Flat header on a divider, matching the Tasks and Notes tabs. */
+.pc-new .pc-whiteboard-theme .whiteboard-board__top { align-items: flex-end; gap: 16px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
+.pc-new .pc-whiteboard-theme .whiteboard-board__meta { min-width: 0; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__title { gap: 10px; flex-wrap: wrap; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__title-text { font-size: 20px; font-weight: 650; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__badge { padding: 6px 9px; border: 0; border-radius: var(--border-radius-element); background: var(--color-background-dark); font-size: 11px; font-weight: 500; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__subtitle { margin-top: 6px; font-size: 12px; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__actions { gap: 8px; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__actions .button-vue { border-radius: var(--border-radius-element); }
+
+/* The board is the work surface, not a screenshot. These two rules only clear
+ * the way: the palette and menu come from the whiteboard app itself, which
+ * renders its read-only viewer whenever it is told it is embedded, so the
+ * modern tab also passes is-embedded="false" through inlineEditing.
+ */
+.pc-new .pc-whiteboard-theme .whiteboard-board__embedded { pointer-events: auto; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__preview-overlay { display: none; }
+
+.pc-new .pc-whiteboard-theme .whiteboard-board__frame { border-radius: var(--border-radius-large); min-height: 440px; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__preview-wrap { height: 62vh; max-height: none; min-height: 440px; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__hint { padding: 16px; font-size: 12px; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__loading,
+.pc-new .pc-whiteboard-theme .whiteboard-board__error { font-size: 13px; }
+
+/* Activity drops its card and becomes rows, like the overview panels. */
+.pc-new .pc-whiteboard-theme .whiteboard-activity { margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__header { gap: 10px; margin-bottom: 10px; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__header > .material-design-icon { color: var(--color-primary-element); }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__title { font-size: 14px; font-weight: 650; }
+
+/* One scrolling column at a fixed height, so the board above never moves. */
+.pc-new .pc-whiteboard-theme .whiteboard-activity__timeline { max-height: 196px; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__group { margin-bottom: 0; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__date-label { position: sticky; top: 0; z-index: 1; margin-bottom: 0; padding: 9px 0 3px; border-bottom: 0; background: var(--color-main-background); font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: normal; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__entry { gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--color-border); }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__group:last-child .whiteboard-activity__entry:last-child { border-bottom: 0; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__details { flex-grow: 1; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__actor { font-size: 12px; font-weight: 500; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__description { font-size: 12px; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__time { margin-left: auto; font-size: 10px; white-space: nowrap; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__load-more { justify-content: flex-end; align-items: center; gap: 12px; margin-top: 8px; }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__load-more .button-vue { border-radius: var(--border-radius-element); }
+.pc-new .pc-whiteboard-theme .whiteboard-activity__empty,
+.pc-new .pc-whiteboard-theme .whiteboard-activity__error { flex-direction: column; gap: 12px; padding: 28px 18px; border: 1px dashed var(--color-border); border-radius: var(--border-radius-large); font-size: 12px; text-align: center; }
+
+@media (max-width: 1050px) {
+	.pc-new .pc-whiteboard-theme .whiteboard-board__preview-wrap { height: 56vh; }
+}
+
+@media (max-width: 650px) {
+	.pc-new .pc-whiteboard-theme.whiteboard-board { gap: 12px; }
+	.pc-new .pc-whiteboard-theme .whiteboard-board__top { flex-direction: column; align-items: stretch; }
+	.pc-new .pc-whiteboard-theme .whiteboard-board__title-text { font-size: 17px; }
+	.pc-new .pc-whiteboard-theme .whiteboard-board__actions .button-vue { flex: 1 1 auto; }
+	.pc-new .pc-whiteboard-theme .whiteboard-board__frame,
+	.pc-new .pc-whiteboard-theme .whiteboard-board__preview-wrap { min-height: 320px; height: 46vh; }
+	.pc-new .pc-whiteboard-theme .whiteboard-activity__timeline { max-height: 132px; }
+}

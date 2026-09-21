@@ -32,7 +32,7 @@
 					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Try again') }}</button>
 					<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 				</div>
-				<component :is="moduleComponent" v-else-if="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes' }" v-bind="moduleProps" @refresh="loadFiles" />
+				<component :is="moduleComponent" v-else-if="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard' }" v-bind="moduleProps" @refresh="loadFiles" />
 				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
 			</template>
 		</template>
@@ -43,6 +43,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { t } from '@nextcloud/l10n'
+import { api } from './api.js'
 
 const loaders = {
 	tasks: () => import('../components/ProjectDeck/DeckBoard.vue'),
@@ -110,7 +111,7 @@ export default {
 				case 'planning': return { ...base, isAdmin: !!(this.context.isGlobalAdmin || this.context.organizationId != null) }
 				case 'documents': return { ...base, sharedRoots: this.files.shared, privateRoots: this.files.private, loading: this.filesLoading, error: this.filesError }
 				case 'intake': return { ...base, canEdit: !!(this.context.isGlobalAdmin || this.context.organizationRole === 'admin' || (this.currentUserId && String(this.project.ownerId || '').trim() === this.currentUserId)) }
-				case 'whiteboard': return { ...base, userId: this.currentUserId }
+				case 'whiteboard': return { ...base, userId: this.currentUserId, inlineEditing: true, openMode: 'overlay', activityReader: api.whiteboardActivity }
 				default: return base
 			}
 		},
