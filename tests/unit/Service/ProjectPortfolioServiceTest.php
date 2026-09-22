@@ -62,6 +62,36 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame(100, $result['projects'][1]['completionPct']);
 	}
 
+	public function testSummarizeIncludesStatusCounts(): void {
+		$projects = [
+			['id' => 1, 'name' => 'P1', 'boardId' => 101, 'totalCards' => 1, 'doneCards' => 0, 'status' => 1],
+			['id' => 2, 'name' => 'P2', 'boardId' => 102, 'totalCards' => 2, 'doneCards' => 1, 'status' => 2],
+		];
+		$untracked = [
+			['id' => 3, 'name' => 'P3', 'status' => 3],
+			['id' => 4, 'name' => 'P4', 'status' => 0],
+		];
+
+		$result = $this->service->summarize($projects, $untracked);
+		self::assertSame([
+			'active' => 1,
+			'waiting' => 1,
+			'on_hold' => 1,
+			'done' => 0,
+			'archived' => 1,
+		], $result['statusCounts']);
+
+		$explicit = [
+			'active' => 10,
+			'waiting' => 5,
+			'on_hold' => 2,
+			'done' => 20,
+			'archived' => 15,
+		];
+		$resultExplicit = $this->service->summarize($projects, $untracked, $explicit);
+		self::assertSame($explicit, $resultExplicit['statusCounts']);
+	}
+
 	public function testCapacityUsesInclusiveBoundariesAndRoundsCapacity(): void {
 		$result = $this->service->summarizeCapacity(
 			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],

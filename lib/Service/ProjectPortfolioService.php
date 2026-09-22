@@ -38,29 +38,26 @@ class ProjectPortfolioService {
 	}
 
 	public function getCompletion(int $organizationId, ?string $memberUid = null, ?int $teamId = null): array {
-		$projects = array_values(array_filter(
-			$this->projectMapper->findByOrganizationId($organizationId),
-			static fn (Project $project): bool => in_array($project->getStatus(), self::INITIATION_STATUSES, true),
-		));
+		$allProjects = $this->projectMapper->findByOrganizationId($organizationId);
 		if ($teamId !== null) {
 			$team = $this->loadTeam($organizationId, $teamId);
 			if ($team === null) {
 				throw new \InvalidArgumentException('Team does not belong to organization');
 			}
 			$teamProjectIds = $this->loadTeamProjectIds($organizationId, $teamId);
-			$projects = array_values(array_filter(
-				$projects,
+			$allProjects = array_values(array_filter(
+				$allProjects,
 				static fn (Project $project): bool => isset($teamProjectIds[(int)$project->getId()]),
 			));
 		}
 		if ($memberUid !== null) {
 			$gids = [];
-			foreach ($projects as $project) {
+			foreach ($allProjects as $project) {
 				$gids[] = $project->getProjectGroupGid();
 			}
 			$memberGids = $this->loadMemberProjectGids($memberUid, $gids);
-			$projects = array_values(array_filter(
-				$projects,
+			$allProjects = array_values(array_filter(
+				$allProjects,
 				fn (Project $project): bool => $this->isMemberProject(
 					['ownerId' => $project->getOwnerId(), 'projectGroupGid' => $project->getProjectGroupGid()],
 					$memberUid,
@@ -68,6 +65,38 @@ class ProjectPortfolioService {
 				),
 			));
 		}
+
+		$statusCounts = [
+			'active' => 0,
+			'waiting' => 0,
+			'on_hold' => 0,
+			'done' => 0,
+			'archived' => 0,
+		];
+		foreach ($allProjects as $p) {
+			switch ((int)$p->getStatus()) {
+				case ProjectStatus::ACTIVE:
+					$statusCounts['active']++;
+					break;
+				case ProjectStatus::WAITING_ON_CUSTOMER:
+					$statusCounts['waiting']++;
+					break;
+				case ProjectStatus::ON_HOLD:
+					$statusCounts['on_hold']++;
+					break;
+				case ProjectStatus::DONE:
+					$statusCounts['done']++;
+					break;
+				case ProjectStatus::ARCHIVED:
+					$statusCounts['archived']++;
+					break;
+			}
+		}
+
+		$projects = array_values(array_filter(
+			$allProjects,
+			static fn (Project $project): bool => in_array($project->getStatus(), self::INITIATION_STATUSES, true),
+		));
 
 		$boardIds = [];
 		foreach ($projects as $project) {
@@ -88,6 +117,7 @@ class ProjectPortfolioService {
 				$untrackedProjects[] = [
 					'id' => (int)$project->getId(),
 					'name' => (string)$project->getName(),
+					'status' => (int)$project->getStatus(),
 				];
 				continue;
 			}
@@ -99,10 +129,11 @@ class ProjectPortfolioService {
 				'boardId' => $boardId,
 				'totalCards' => $counts['total'],
 				'doneCards' => $counts['done'],
+				'status' => (int)$project->getStatus(),
 			];
 		}
 
-		return $this->summarize($projectRows, $untrackedProjects);
+		return $this->summarize($projectRows, $untrackedProjects, $statusCounts);
 	}
 
 	public static function isIsoDate(string $value): bool {
@@ -1124,10 +1155,44 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * @param array<int,array{id:int,name:string,boardId:int,totalCards:int,doneCards:int}> $projects
-	 * @param array<int,array{id:int,name:string}> $untrackedProjects
+	 * @param array<int,array{id:int,name:string,boardId:int,totalCards:int,doneCards:int,status?:int}> $projects
+	 * @param array<int,array{id:int,name:string,status?:int}> $untrackedProjects
+	 * @param array<string,int> $statusCounts
 	 */
-	public function summarize(array $projects, array $untrackedProjects = []): array {
+	public function summarize(array $projects, array $untrackedProjects = [], array $statusCounts = []): array {
+		if ($statusCounts === []) {
+			$statusCounts = [
+				'active' => 0,
+				'waiting' => 0,
+				'on_hold' => 0,
+				'done' => 0,
+				'archived' => 0,
+			];
+			$all = array_merge($projects, $untrackedProjects);
+			foreach ($all as $item) {
+				if (!isset($item['status'])) {
+					continue;
+				}
+				switch ((int)$item['status']) {
+					case ProjectStatus::ACTIVE:
+						$statusCounts['active']++;
+						break;
+					case ProjectStatus::WAITING_ON_CUSTOMER:
+						$statusCounts['waiting']++;
+						break;
+					case ProjectStatus::ON_HOLD:
+						$statusCounts['on_hold']++;
+						break;
+					case ProjectStatus::DONE:
+						$statusCounts['done']++;
+						break;
+					case ProjectStatus::ARCHIVED:
+						$statusCounts['archived']++;
+						break;
+				}
+			}
+		}
+
 		$buckets = array_map(
 			static fn (array $bucket): array => $bucket + ['count' => 0, 'percent' => 0.0],
 			self::BUCKETS,
@@ -1160,6 +1225,7 @@ class ProjectPortfolioService {
 			'totalProjects' => $trackedCount + count($untrackedProjects),
 			'trackedProjects' => $trackedCount,
 			'untrackedProjects' => $untrackedProjects,
+			'statusCounts' => $statusCounts,
 			'buckets' => $buckets,
 			'projects' => $projects,
 		];
