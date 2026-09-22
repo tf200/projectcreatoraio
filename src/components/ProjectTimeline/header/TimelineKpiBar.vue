@@ -174,8 +174,8 @@
 
 				<div class="kpi-connector kpi-connector--dashed"></div>
 
-				<!-- 6. Start Dates (Interactive Edit Card - Compact) -->
-				<div class="kpi-card kpi-card--desired" :class="{ 'kpi-card--editing': isEditingDesiredDate || isEditingActualDate }">
+				<!-- 6. Start Dates (Interactive Direct Calendar Picker) -->
+				<div class="kpi-card kpi-card--desired">
 					<div class="kpi-card__step">6</div>
 					<div class="kpi-card__icon kpi-card__icon--play">
 						<Play :size="18" />
@@ -190,29 +190,51 @@
 							<div class="start-date-inline-row">
 								<div class="start-date-inline-left">
 									<span class="subrow-title">DESIRED</span>
-									<NcButton
-										v-if="canEdit && !isEditingDesiredDate && kpis.desiredStartDate"
-										type="tertiary"
-										size="small"
-										class="kpi-card__edit-btn"
-										title="Edit desired start date"
-										@click="startEditing">
-										<template #icon>
-											<Pencil :size="11" />
-										</template>
-									</NcButton>
 								</div>
 
-								<!-- View Mode -->
-								<div v-if="!isEditingDesiredDate" class="start-date-inline-right">
+								<div class="start-date-inline-right">
+									<!-- Hidden native date picker triggered directly by click -->
+									<input
+										ref="desiredDatePicker"
+										type="date"
+										class="kpi-native-date-hidden"
+										:value="isoDateOnly(kpis.desiredStartDate)"
+										:disabled="!canEdit || saving"
+										aria-label="Select desired start date"
+										@change="onDesiredDateChange" />
+
 									<div v-if="kpis.desiredStartDate" class="desired-date-row">
 										<span
 											class="kpi-card__value kpi-card__value--compact"
-											:class="{ 'kpi-card__value--clickable': canEdit }"
-											:title="canEdit ? 'Click to edit desired start date' : ''"
-											@click="canEdit ? startEditing() : null">
+											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+											:title="canEdit ? 'Click to change desired start date' : ''"
+											@click="openDesiredCalendar">
 											{{ formatDisplayDate(kpis.desiredStartDate) }}
 										</span>
+										<NcButton
+											v-if="canEdit"
+											type="tertiary"
+											size="small"
+											class="kpi-card__mini-btn"
+											title="Change desired start date"
+											:disabled="saving"
+											@click="openDesiredCalendar">
+											<template #icon>
+												<Pencil :size="11" />
+											</template>
+										</NcButton>
+										<NcButton
+											v-if="canEdit"
+											type="tertiary"
+											size="small"
+											class="kpi-card__mini-btn kpi-card__mini-btn--clear"
+											title="Clear desired start date"
+											:disabled="saving"
+											@click.stop="clearDesiredDate">
+											<template #icon>
+												<Close :size="11" />
+											</template>
+										</NcButton>
 										<span
 											v-if="floatBadgeText"
 											class="kpi-card__float-chip"
@@ -222,63 +244,25 @@
 										</span>
 									</div>
 									<div v-else class="desired-date-row desired-date-row--empty">
-										<span class="kpi-card__placeholder">Not set</span>
+										<span
+											class="kpi-card__placeholder"
+											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+											:title="canEdit ? 'Click to set desired start date' : ''"
+											@click="openDesiredCalendar">
+											Not set
+										</span>
 										<NcButton
 											v-if="canEdit"
 											type="tertiary"
 											size="small"
 											class="set-date-btn"
 											title="Set desired start date"
-											@click="startEditing">
-											+ Set
-										</NcButton>
-									</div>
-								</div>
-
-								<!-- Edit Mode Inline Input -->
-								<div v-else class="kpi-card__desired-edit">
-									<input
-										ref="dateInput"
-										v-model="draftDesiredDate"
-										type="date"
-										class="kpi-date-input"
-										:disabled="saving"
-										@keydown.enter.prevent="saveDesiredDate"
-										@keydown.esc.prevent="cancelEditing" />
-									<div class="kpi-date-actions">
-										<NcButton
-											type="primary"
-											size="small"
-											class="kpi-action-btn"
-											title="Save date"
 											:disabled="saving"
-											@click="saveDesiredDate">
+											@click="openDesiredCalendar">
 											<template #icon>
-												<Check :size="13" />
+												<Plus :size="12" />
 											</template>
-										</NcButton>
-										<NcButton
-											v-if="kpis.desiredStartDate"
-											type="tertiary"
-											size="small"
-											class="kpi-action-btn kpi-action-btn--delete"
-											title="Clear target date"
-											:disabled="saving"
-											@click="clearDesiredDate">
-											<template #icon>
-												<Delete :size="13" />
-											</template>
-										</NcButton>
-										<NcButton
-											type="tertiary"
-											size="small"
-											class="kpi-action-btn"
-											title="Cancel"
-											:disabled="saving"
-											@click="cancelEditing">
-											<template #icon>
-												<Close :size="13" />
-											</template>
+											Set
 										</NcButton>
 									</div>
 								</div>
@@ -288,88 +272,72 @@
 							<div class="start-date-inline-row">
 								<div class="start-date-inline-left">
 									<span class="subrow-title">ACTUAL</span>
-									<NcButton
-										v-if="canEdit && !isEditingActualDate && kpis.actualStartDate"
-										type="tertiary"
-										size="small"
-										class="kpi-card__edit-btn"
-										title="Edit actual start date"
-										@click="startEditingActual">
-										<template #icon>
-											<Pencil :size="11" />
-										</template>
-									</NcButton>
 								</div>
 
-								<!-- View Mode -->
-								<div v-if="!isEditingActualDate" class="start-date-inline-right">
+								<div class="start-date-inline-right">
+									<!-- Hidden native date picker triggered directly by click -->
+									<input
+										ref="actualDatePicker"
+										type="date"
+										class="kpi-native-date-hidden"
+										:value="isoDateOnly(kpis.actualStartDate)"
+										:disabled="!canEdit || saving"
+										aria-label="Select actual start date"
+										@change="onActualDateChange" />
+
 									<div v-if="kpis.actualStartDate" class="desired-date-row">
 										<span
 											class="kpi-card__value kpi-card__value--compact"
-											:class="{ 'kpi-card__value--clickable': canEdit }"
-											:title="canEdit ? 'Click to edit actual start date' : ''"
-											@click="canEdit ? startEditingActual() : null">
+											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+											:title="canEdit ? 'Click to change actual start date' : ''"
+											@click="openActualCalendar">
 											{{ formatDisplayDate(kpis.actualStartDate) }}
 										</span>
+										<NcButton
+											v-if="canEdit"
+											type="tertiary"
+											size="small"
+											class="kpi-card__mini-btn"
+											title="Change actual start date"
+											:disabled="saving"
+											@click="openActualCalendar">
+											<template #icon>
+												<Pencil :size="11" />
+											</template>
+										</NcButton>
+										<NcButton
+											v-if="canEdit"
+											type="tertiary"
+											size="small"
+											class="kpi-card__mini-btn kpi-card__mini-btn--clear"
+											title="Clear actual start date"
+											:disabled="saving"
+											@click.stop="clearActualDate">
+											<template #icon>
+												<Close :size="11" />
+											</template>
+										</NcButton>
 									</div>
 									<div v-else class="desired-date-row desired-date-row--empty">
-										<span class="kpi-card__placeholder">Not set</span>
+										<span
+											class="kpi-card__placeholder"
+											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+											:title="canEdit ? 'Click to set actual start date' : ''"
+											@click="openActualCalendar">
+											Not set
+										</span>
 										<NcButton
 											v-if="canEdit"
 											type="tertiary"
 											size="small"
 											class="set-date-btn"
 											title="Set actual start date"
-											@click="startEditingActual">
-											+ Set
-										</NcButton>
-									</div>
-								</div>
-
-								<!-- Edit Mode Inline Input -->
-								<div v-else class="kpi-card__desired-edit">
-									<input
-										ref="actualDateInput"
-										v-model="draftActualDate"
-										type="date"
-										class="kpi-date-input"
-										:disabled="saving"
-										@keydown.enter.prevent="saveActualDate"
-										@keydown.esc.prevent="cancelEditingActual" />
-									<div class="kpi-date-actions">
-										<NcButton
-											type="primary"
-											size="small"
-											class="kpi-action-btn"
-											title="Save date"
 											:disabled="saving"
-											@click="saveActualDate">
+											@click="openActualCalendar">
 											<template #icon>
-												<Check :size="13" />
+												<Plus :size="12" />
 											</template>
-										</NcButton>
-										<NcButton
-											v-if="kpis.actualStartDate"
-											type="tertiary"
-											size="small"
-											class="kpi-action-btn kpi-action-btn--delete"
-											title="Clear actual date"
-											:disabled="saving"
-											@click="clearActualDate">
-											<template #icon>
-												<Delete :size="13" />
-											</template>
-										</NcButton>
-										<NcButton
-											type="tertiary"
-											size="small"
-											class="kpi-action-btn"
-											title="Cancel"
-											:disabled="saving"
-											@click="cancelEditingActual">
-											<template #icon>
-												<Close :size="13" />
-											</template>
+											Set
 										</NcButton>
 									</div>
 								</div>
@@ -390,9 +358,8 @@ import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import RhombusMedium from 'vue-material-design-icons/RhombusMedium.vue'
 import Play from 'vue-material-design-icons/Play.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
-import Check from 'vue-material-design-icons/Check.vue'
+import Plus from 'vue-material-design-icons/Plus.vue'
 import Close from 'vue-material-design-icons/Close.vue'
-import Delete from 'vue-material-design-icons/Delete.vue'
 import CheckboxMarkedCircleOutline from 'vue-material-design-icons/CheckboxMarkedCircleOutline.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 
@@ -406,9 +373,8 @@ export default {
 		RhombusMedium,
 		Play,
 		Pencil,
-		Check,
+		Plus,
 		Close,
-		Delete,
 		CheckboxMarkedCircleOutline,
 		AlertCircleOutline,
 	},
@@ -449,10 +415,6 @@ export default {
 	},
 	data() {
 		return {
-			isEditingDesiredDate: false,
-			draftDesiredDate: '',
-			isEditingActualDate: false,
-			draftActualDate: '',
 			localPrepWeeks: Number(this.kpis?.preparationWeeks ?? 0),
 		}
 	},
@@ -615,49 +577,65 @@ export default {
 		},
 	},
 	methods: {
-		startEditing() {
-			this.draftDesiredDate = this.kpis.desiredStartDate || ''
-			this.isEditingDesiredDate = true
-			this.$nextTick(() => {
-				if (this.$refs.dateInput) {
-					this.$refs.dateInput.focus()
+		openDesiredCalendar() {
+			if (!this.canEdit || this.saving) return
+			const input = this.$refs.desiredDatePicker
+			if (!input) return
+			if (typeof input.showPicker === 'function') {
+				try {
+					input.showPicker()
+					return
+				} catch (e) {
+					console.warn('showPicker failed', e)
 				}
-			})
+			}
+			input.focus()
+			input.click()
 		},
-		cancelEditing() {
-			this.isEditingDesiredDate = false
-			this.draftDesiredDate = ''
-		},
-		saveDesiredDate() {
-			const dateStr = this.draftDesiredDate ? this.draftDesiredDate.trim() : null
-			this.$emit('save-desired-date', dateStr)
-			this.isEditingDesiredDate = false
+		onDesiredDateChange(e) {
+			const val = e?.target?.value ? e.target.value.trim() : null
+			if (val) {
+				this.$emit('save-desired-date', val)
+			}
 		},
 		clearDesiredDate() {
+			if (!this.canEdit || this.saving) return
 			this.$emit('save-desired-date', null)
-			this.isEditingDesiredDate = false
+			if (this.$refs.desiredDatePicker) {
+				this.$refs.desiredDatePicker.value = ''
+			}
 		},
-		startEditingActual() {
-			this.draftActualDate = this.kpis.actualStartDate || ''
-			this.isEditingActualDate = true
-			this.$nextTick(() => {
-				if (this.$refs.actualDateInput) {
-					this.$refs.actualDateInput.focus()
+		openActualCalendar() {
+			if (!this.canEdit || this.saving) return
+			const input = this.$refs.actualDatePicker
+			if (!input) return
+			if (typeof input.showPicker === 'function') {
+				try {
+					input.showPicker()
+					return
+				} catch (e) {
+					console.warn('showPicker failed', e)
 				}
-			})
+			}
+			input.focus()
+			input.click()
 		},
-		cancelEditingActual() {
-			this.isEditingActualDate = false
-			this.draftActualDate = ''
-		},
-		saveActualDate() {
-			const dateStr = this.draftActualDate ? this.draftActualDate.trim() : null
-			this.$emit('save-actual-date', dateStr)
-			this.isEditingActualDate = false
+		onActualDateChange(e) {
+			const val = e?.target?.value ? e.target.value.trim() : null
+			if (val) {
+				this.$emit('save-actual-date', val)
+			}
 		},
 		clearActualDate() {
+			if (!this.canEdit || this.saving) return
 			this.$emit('save-actual-date', null)
-			this.isEditingActualDate = false
+			if (this.$refs.actualDatePicker) {
+				this.$refs.actualDatePicker.value = ''
+			}
+		},
+		isoDateOnly(isoDate) {
+			if (!isoDate || typeof isoDate !== 'string') return ''
+			return isoDate.split('T')[0]
 		},
 		savePrepWeeks() {
 			if (this.localPrepWeeks === null || this.localPrepWeeks === undefined || this.localPrepWeeks < 0) return
@@ -1117,11 +1095,6 @@ export default {
 	border-color: rgba(79, 70, 229, 0.3);
 }
 
-.kpi-card--editing {
-	border-color: var(--color-primary-element);
-	box-shadow: 0 0 0 1px var(--color-primary-element);
-}
-
 .start-date-rows {
 	display: flex;
 	flex-direction: column;
@@ -1154,12 +1127,26 @@ export default {
 }
 
 .start-date-inline-right {
+	position: relative;
 	display: inline-flex;
 	align-items: center;
 	justify-content: flex-end;
 	gap: 4px;
 	min-width: 0;
 	flex: 1;
+}
+
+.kpi-native-date-hidden {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	opacity: 0;
+	pointer-events: none;
 }
 
 .desired-date-row {
@@ -1184,23 +1171,30 @@ export default {
 }
 
 .set-date-btn {
-	padding: 0 5px !important;
+	padding: 0 6px !important;
 	height: 18px !important;
 	font-size: 10px !important;
 	line-height: 16px !important;
 	border-radius: 4px;
 	font-weight: 600;
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 2px !important;
 }
 
-.kpi-card__edit-btn {
+.kpi-card__mini-btn {
 	padding: 0 !important;
-	height: 16px !important;
-	width: 16px !important;
-	min-width: 16px !important;
+	height: 18px !important;
+	width: 18px !important;
+	min-width: 18px !important;
 	display: inline-flex !important;
 	align-items: center !important;
 	justify-content: center !important;
 	border-radius: 3px;
+}
+
+.kpi-card__mini-btn--clear:hover {
+	color: var(--color-error);
 }
 
 .kpi-card__float-chip {
@@ -1221,51 +1215,6 @@ export default {
 .kpi-card__float-chip--danger {
 	background: rgba(239, 68, 68, 0.15);
 	color: #dc2626;
-}
-
-/* Inline Edit Controls */
-.kpi-card__desired-edit {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-width: 0;
-	flex: 1;
-	justify-content: flex-end;
-}
-
-.kpi-date-input {
-	height: 22px;
-	font-size: 11px;
-	padding: 1px 4px;
-	border-radius: 4px;
-	border: 1px solid var(--color-border);
-	background: var(--color-main-background);
-	color: var(--color-main-text);
-	width: 105px;
-	min-width: 0;
-	flex: 1 1 auto;
-}
-
-.kpi-date-actions {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
-	flex-shrink: 0;
-}
-
-.kpi-action-btn {
-	height: 20px !important;
-	width: 20px !important;
-	padding: 0 !important;
-	min-width: 20px !important;
-	display: inline-flex !important;
-	align-items: center !important;
-	justify-content: center !important;
-	border-radius: 4px;
-}
-
-.kpi-action-btn--delete:hover {
-	color: var(--color-error);
 }
 
 /* Container Queries for responsive adaptation */
