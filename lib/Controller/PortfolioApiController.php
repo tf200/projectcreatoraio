@@ -12,6 +12,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 use OCP\AppFramework\OCS\OCSForbiddenException;
+use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -22,6 +23,7 @@ class PortfolioApiController extends Controller {
 		private IUserSession $userSession,
 		private OrganizationUserMapper $organizationUserMapper,
 		private ProjectPortfolioService $portfolioService,
+		private ?IGroupManager $groupManager = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -134,12 +136,31 @@ class PortfolioApiController extends Controller {
 			throw new OCSForbiddenException('Authentication required');
 		}
 
+		$isSystemAdmin = $this->groupManager !== null && $this->groupManager->isAdmin($user->getUID());
+		$requestedOrgId = $this->request->getParam('organizationId');
+
+		if ($isSystemAdmin) {
+			if ($requestedOrgId !== null && $requestedOrgId !== '' && (is_int($requestedOrgId) || (is_string($requestedOrgId) && ctype_digit($requestedOrgId))) && (int)$requestedOrgId > 0) {
+				return (int)$requestedOrgId;
+			}
+			$membership = $this->organizationUserMapper->getOrganizationMembership($user->getUID());
+			if ($membership !== null) {
+				return (int)$membership['organization_id'];
+			}
+			throw new OCSBadRequestException('organizationId is required for system administrators');
+		}
+
 		$membership = $this->organizationUserMapper->getOrganizationMembership($user->getUID());
 		if ($membership === null || ($membership['role'] ?? null) !== 'admin') {
 			throw new OCSForbiddenException('Organization administrator access required');
 		}
 
-		return (int)$membership['organization_id'];
+		$userOrgId = (int)$membership['organization_id'];
+		if ($requestedOrgId !== null && $requestedOrgId !== '' && (int)$requestedOrgId !== $userOrgId) {
+			throw new OCSForbiddenException('Access denied to other organizations');
+		}
+
+		return $userOrgId;
 	}
 
 	private function requireUid(): string {
