@@ -370,6 +370,10 @@ class ProjectPortfolioService {
 				$desiredCountdown = '—';
 				$desiredCountdownWeeks = null;
 			}
+			$actualStartDate = $project['actualStartDate'] ?? null;
+			$actualStartMonday = $this->tryParseMonday(is_string($actualStartDate) ? $actualStartDate : null);
+			$actualStartWeek = $actualStartMonday !== null ? $this->isoWeekLabel($actualStartMonday) : '—';
+
 			// Leading means the project actually completed ahead of its
 			// desired week (strictly before that week's Monday), not merely
 			// that a desired date exists.
@@ -423,6 +427,8 @@ class ProjectPortfolioService {
 				'desiredStartWeek' => $desiredStartWeek,
 				'desiredCountdown' => $desiredCountdown,
 				'desiredCountdownWeeks' => $desiredCountdownWeeks,
+				'actualStartDate' => $actualStartDate,
+				'actualStartWeek' => $actualStartWeek,
 				'isLeadingDesiredWeek' => $isLeadingDesiredWeek,
 				'planningGap' => [
 					'hasGap' => $hasGap,
@@ -901,7 +907,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadTableProjects(int $organizationId, int $teamId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.required_preparation_weeks', 'p.owner_id', 'p.project_group_gid')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.required_preparation_weeks', 'p.owner_id', 'p.project_group_gid')
 			->selectAlias('pt.team_id', 'team_id')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
@@ -916,7 +922,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadAllTableProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.required_preparation_weeks', 'p.owner_id', 'p.project_group_gid')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.required_preparation_weeks', 'p.owner_id', 'p.project_group_gid')
 			->selectAlias('pt.team_id', 'team_id')
 			->from('custom_projects', 'p')
 			->leftJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
@@ -942,6 +948,7 @@ class ProjectPortfolioService {
 					'boardId' => (string)($row['board_id'] ?? ''),
 					'createdAt' => (string)($row['created_at'] ?? ''),
 					'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+					'actualStartDate' => $row['actual_start_date'] === null ? null : (string)$row['actual_start_date'],
 					'requiredPreparationWeeks' => (int)($row['required_preparation_weeks'] ?? 0),
 					'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
 					'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],

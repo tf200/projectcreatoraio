@@ -352,6 +352,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 				'boardId' => '101',
 				'createdAt' => '2026-05-01',
 				'desiredStartDate' => '2026-08-17', // W34
+				'actualStartDate' => '2026-08-24', // W35
 				'requiredPreparationWeeks' => 4,
 				'ownerId' => 'admin',
 				'projectGroupGid' => 'p1',
@@ -364,6 +365,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 				'boardId' => '102',
 				'createdAt' => '2026-05-01',
 				'desiredStartDate' => '2026-08-03', // W32
+				'actualStartDate' => null,
 				'requiredPreparationWeeks' => 4,
 				'ownerId' => 'admin',
 				'projectGroupGid' => 'p2',
@@ -420,6 +422,8 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('2026-W34', $rows[0]['minExecutionStartWeek']);
 		self::assertSame('2026-W34', $rows[0]['desiredStartWeek']);
 		self::assertSame('8 weeks', $rows[0]['desiredCountdown']);
+		self::assertSame('2026-08-24', $rows[0]['actualStartDate']);
+		self::assertSame('2026-W35', $rows[0]['actualStartWeek']);
 		self::assertFalse($rows[0]['planningGap']['hasGap']);
 		self::assertSame('None', $rows[0]['planningGap']['display']);
 		self::assertSame(1, $rows[0]['openCards']);
@@ -432,6 +436,8 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('2026-W33', $rows[1]['minExecutionStartWeek']);
 		self::assertSame('2026-W32', $rows[1]['desiredStartWeek']);
 		self::assertSame('6 weeks', $rows[1]['desiredCountdown']);
+		self::assertNull($rows[1]['actualStartDate']);
+		self::assertSame('—', $rows[1]['actualStartWeek']);
 		self::assertTrue($rows[1]['planningGap']['hasGap']);
 		self::assertSame('2 weeks · 2026-W32-2026-W33', $rows[1]['planningGap']['display']);
 
