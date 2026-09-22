@@ -7,6 +7,7 @@
 			:can-edit="isAdmin"
 			:saving="savingDesiredDate"
 			@save-desired-date="onSaveDesiredDate"
+			@save-actual-date="onSaveActualDate"
 			@save-prep-weeks="onSavePrepWeeks" />
 
 		<!-- What-If Simulation Banner (Step 3) -->
@@ -348,6 +349,15 @@
 									:style="{ left: desiredStartOffset + 'px' }"
 									:title="`Desired start: ${formatDate(systemPlanningData.desiredStart?.date)}`">
 									<div class="timeline-guide-line timeline-guide-line--desired-start" />
+								</div>
+
+								<!-- Actual Start Date Guide Line -->
+								<div
+									v-if="actualStartOffset !== null"
+									class="timeline-guide-marker timeline-guide-marker--actual-start"
+									:style="{ left: actualStartOffset + 'px' }"
+									:title="`Actual start: ${formatDate(systemPlanningData.actualStart?.date)}`">
+									<div class="timeline-guide-line timeline-guide-line--actual-start" />
 								</div>
 							</template>
 
@@ -1178,6 +1188,14 @@ export default {
 			const days = Math.floor((d - start) / (1000 * 60 * 60 * 24))
 			return days * this.dayWidth
 		},
+		actualStartOffset() {
+			const dateStr = this.systemPlanningData?.actualStart?.date
+			if (!dateStr) return null
+			const { start } = this.timelineRange
+			const d = this.parseDateOnly(dateStr)
+			const days = Math.floor((d - start) / (1000 * 60 * 60 * 24))
+			return days * this.dayWidth
+		},
 	},
 	watch: {
 		projectId: {
@@ -1464,6 +1482,24 @@ export default {
 				}
 			} catch (error) {
 				console.error('Error updating desired start date:', error)
+			} finally {
+				this.savingDesiredDate = false
+			}
+		},
+		async onSaveActualDate(dateStr) {
+			this.savingDesiredDate = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
+				const response = await axios.put(url, {
+					actual_start_date: dateStr || null,
+				})
+				if (response.data?.summary) {
+					this.timelineSummary = response.data.summary
+				} else {
+					await this.loadItems()
+				}
+			} catch (error) {
+				console.error('Error updating actual start date:', error)
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -2502,6 +2538,11 @@ export default {
 .timeline-guide-line--desired-start {
 	border-left: 2px dashed #4f46e5;
 	opacity: 0.7;
+}
+
+.timeline-guide-line--actual-start {
+	border-left: 2px dashed #059669;
+	opacity: 0.8;
 }
 
 /* Column 3: Status Column */

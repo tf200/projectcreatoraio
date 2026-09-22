@@ -164,94 +164,187 @@
 
 			<div class="kpi-connector kpi-connector--dashed"></div>
 
-			<!-- 6. Desired Start Date (Interactive Edit Card) -->
-			<div class="kpi-card kpi-card--desired" :class="{ 'kpi-card--editing': isEditingDesiredDate }">
+			<!-- 6. Start Dates (Interactive Edit Card) -->
+			<div class="kpi-card kpi-card--desired" :class="{ 'kpi-card--editing': isEditingDesiredDate || isEditingActualDate }">
 				<div class="kpi-card__step">6</div>
 				<div class="kpi-card__icon kpi-card__icon--play">
 					<Play :size="18" />
 				</div>
 				<div class="kpi-card__content">
 					<div class="kpi-card__header-line">
-						<span class="kpi-card__label">DESIRED START DATE</span>
-						<NcButton
-							v-if="canEdit && !isEditingDesiredDate"
-							type="tertiary"
-							size="small"
-							class="kpi-card__edit-btn"
-							title="Edit desired start date"
-							@click="startEditing">
-							<template #icon>
-								<Pencil :size="14" />
-							</template>
-						</NcButton>
+						<span class="kpi-card__label">START DATES</span>
 					</div>
 
-					<!-- View Mode -->
-					<div v-if="!isEditingDesiredDate" class="kpi-card__desired-display">
-						<div v-if="kpis.desiredStartDate" class="desired-date-row">
-							<span class="kpi-card__value">{{ formatDisplayDate(kpis.desiredStartDate) }}</span>
-							<span v-if="floatBadgeText" class="kpi-card__float-chip" :class="floatChipClass">
-								{{ floatBadgeText }}
-							</span>
-						</div>
-						<div v-else class="desired-date-row desired-date-row--empty">
-							<span class="kpi-card__placeholder">Not set</span>
+					<!-- Desired Start Date Sub-row -->
+					<div class="start-date-subrow">
+						<div class="start-date-subrow__label">
+							<span class="subrow-title">DESIRED</span>
 							<NcButton
-								v-if="canEdit"
+								v-if="canEdit && !isEditingDesiredDate"
 								type="tertiary"
 								size="small"
-								class="set-date-btn"
+								class="kpi-card__edit-btn"
+								title="Edit desired start date"
 								@click="startEditing">
-								+ Set date
+								<template #icon>
+									<Pencil :size="12" />
+								</template>
 							</NcButton>
+						</div>
+
+						<!-- View Mode -->
+						<div v-if="!isEditingDesiredDate" class="kpi-card__desired-display">
+							<div v-if="kpis.desiredStartDate" class="desired-date-row">
+								<span class="kpi-card__value kpi-card__value--compact">{{ formatDisplayDate(kpis.desiredStartDate) }}</span>
+								<span v-if="floatBadgeText" class="kpi-card__float-chip" :class="floatChipClass">
+									{{ floatBadgeText }}
+								</span>
+							</div>
+							<div v-else class="desired-date-row desired-date-row--empty">
+								<span class="kpi-card__placeholder">Not set</span>
+								<NcButton
+									v-if="canEdit"
+									type="tertiary"
+									size="small"
+									class="set-date-btn"
+									@click="startEditing">
+									+ Set
+								</NcButton>
+							</div>
+						</div>
+
+						<!-- Edit Mode Inline Input -->
+						<div v-else class="kpi-card__desired-edit">
+							<input
+								ref="dateInput"
+								v-model="draftDesiredDate"
+								type="date"
+								class="kpi-date-input"
+								:disabled="saving"
+								@keydown.enter.prevent="saveDesiredDate"
+								@keydown.esc.prevent="cancelEditing" />
+							<div class="kpi-date-actions">
+								<NcButton
+									type="primary"
+									size="small"
+									class="kpi-action-btn"
+									title="Save date"
+									:disabled="saving"
+									@click="saveDesiredDate">
+									<template #icon>
+										<Check :size="14" />
+									</template>
+								</NcButton>
+								<NcButton
+									v-if="kpis.desiredStartDate"
+									type="tertiary"
+									size="small"
+									class="kpi-action-btn kpi-action-btn--delete"
+									title="Clear target date"
+									:disabled="saving"
+									@click="clearDesiredDate">
+									<template #icon>
+										<Delete :size="14" />
+									</template>
+								</NcButton>
+								<NcButton
+									type="tertiary"
+									size="small"
+									class="kpi-action-btn"
+									title="Cancel"
+									:disabled="saving"
+									@click="cancelEditing">
+									<template #icon>
+										<Close :size="14" />
+									</template>
+								</NcButton>
+							</div>
 						</div>
 					</div>
 
-					<!-- Edit Mode Inline Input -->
-					<div v-else class="kpi-card__desired-edit">
-						<input
-							ref="dateInput"
-							v-model="draftDesiredDate"
-							type="date"
-							class="kpi-date-input"
-							:disabled="saving"
-							@keydown.enter.prevent="saveDesiredDate"
-							@keydown.esc.prevent="cancelEditing" />
-						<div class="kpi-date-actions">
+					<div class="start-date-divider"></div>
+
+					<!-- Actual Start Date Sub-row -->
+					<div class="start-date-subrow">
+						<div class="start-date-subrow__label">
+							<span class="subrow-title">ACTUAL</span>
 							<NcButton
-								type="primary"
-								size="small"
-								class="kpi-action-btn"
-								title="Save date"
-								:disabled="saving"
-								@click="saveDesiredDate">
-								<template #icon>
-									<Check :size="14" />
-								</template>
-							</NcButton>
-							<NcButton
-								v-if="kpis.desiredStartDate"
+								v-if="canEdit && !isEditingActualDate"
 								type="tertiary"
 								size="small"
-								class="kpi-action-btn kpi-action-btn--delete"
-								title="Clear target date"
-								:disabled="saving"
-								@click="clearDesiredDate">
+								class="kpi-card__edit-btn"
+								title="Edit actual start date"
+								@click="startEditingActual">
 								<template #icon>
-									<Delete :size="14" />
+									<Pencil :size="12" />
 								</template>
 							</NcButton>
-							<NcButton
-								type="tertiary"
-								size="small"
-								class="kpi-action-btn"
-								title="Cancel"
+						</div>
+
+						<!-- View Mode -->
+						<div v-if="!isEditingActualDate" class="kpi-card__desired-display">
+							<div v-if="kpis.actualStartDate" class="desired-date-row">
+								<span class="kpi-card__value kpi-card__value--compact">{{ formatDisplayDate(kpis.actualStartDate) }}</span>
+							</div>
+							<div v-else class="desired-date-row desired-date-row--empty">
+								<span class="kpi-card__placeholder">Not set</span>
+								<NcButton
+									v-if="canEdit"
+									type="tertiary"
+									size="small"
+									class="set-date-btn"
+									@click="startEditingActual">
+									+ Set
+								</NcButton>
+							</div>
+						</div>
+
+						<!-- Edit Mode Inline Input -->
+						<div v-else class="kpi-card__desired-edit">
+							<input
+								ref="actualDateInput"
+								v-model="draftActualDate"
+								type="date"
+								class="kpi-date-input"
 								:disabled="saving"
-								@click="cancelEditing">
-								<template #icon>
-									<Close :size="14" />
-								</template>
-							</NcButton>
+								@keydown.enter.prevent="saveActualDate"
+								@keydown.esc.prevent="cancelEditingActual" />
+							<div class="kpi-date-actions">
+								<NcButton
+									type="primary"
+									size="small"
+									class="kpi-action-btn"
+									title="Save date"
+									:disabled="saving"
+									@click="saveActualDate">
+									<template #icon>
+										<Check :size="14" />
+									</template>
+								</NcButton>
+								<NcButton
+									v-if="kpis.actualStartDate"
+									type="tertiary"
+									size="small"
+									class="kpi-action-btn kpi-action-btn--delete"
+									title="Clear actual date"
+									:disabled="saving"
+									@click="clearActualDate">
+									<template #icon>
+										<Delete :size="14" />
+									</template>
+								</NcButton>
+								<NcButton
+									type="tertiary"
+									size="small"
+									class="kpi-action-btn"
+									title="Cancel"
+									:disabled="saving"
+									@click="cancelEditingActual">
+									<template #icon>
+										<Close :size="14" />
+									</template>
+								</NcButton>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -308,6 +401,7 @@ export default {
 				minimumDurationRange: '',
 				minimumStartDate: '',
 				desiredStartDate: null,
+				actualStartDate: null,
 				deckTasksWeeks: 0,
 				preparationWeeks: 0,
 				overallFloatWeeks: null,
@@ -328,6 +422,8 @@ export default {
 		return {
 			isEditingDesiredDate: false,
 			draftDesiredDate: '',
+			isEditingActualDate: false,
+			draftActualDate: '',
 			localPrepWeeks: Number(this.kpis?.preparationWeeks ?? 0),
 		}
 	},
@@ -498,6 +594,28 @@ export default {
 		clearDesiredDate() {
 			this.$emit('save-desired-date', null)
 			this.isEditingDesiredDate = false
+		},
+		startEditingActual() {
+			this.draftActualDate = this.kpis.actualStartDate || ''
+			this.isEditingActualDate = true
+			this.$nextTick(() => {
+				if (this.$refs.actualDateInput) {
+					this.$refs.actualDateInput.focus()
+				}
+			})
+		},
+		cancelEditingActual() {
+			this.isEditingActualDate = false
+			this.draftActualDate = ''
+		},
+		saveActualDate() {
+			const dateStr = this.draftActualDate ? this.draftActualDate.trim() : null
+			this.$emit('save-actual-date', dateStr)
+			this.isEditingActualDate = false
+		},
+		clearActualDate() {
+			this.$emit('save-actual-date', null)
+			this.isEditingActualDate = false
 		},
 		savePrepWeeks() {
 			if (this.localPrepWeeks === null || this.localPrepWeeks === undefined || this.localPrepWeeks < 0) return
@@ -839,9 +957,41 @@ export default {
 	max-width: 100%;
 }
 
-/* Desired Date Card specifics */
+/* Start Dates Card specifics */
 .kpi-card--desired {
 	border-color: rgba(79, 70, 229, 0.3);
+}
+
+.start-date-subrow {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.start-date-subrow__label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	margin-bottom: 2px;
+}
+
+.subrow-title {
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	color: var(--color-text-maxcontrast);
+	text-transform: uppercase;
+}
+
+.start-date-divider {
+	height: 1px;
+	background: var(--color-border);
+	margin: 6px 0;
+}
+
+.kpi-card__value--compact {
+	font-size: 13px !important;
 }
 
 .desired-date-row {

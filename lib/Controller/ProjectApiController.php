@@ -1326,6 +1326,7 @@ class ProjectApiController extends Controller {
 		?int $status = null,
 		?int $required_preparation_weeks = null,
 		?string $desired_start_date = null,
+		?string $actual_start_date = null,
 	): DataResponse {
 		$params = $this->request->getParams();
 		if (is_array($params) && array_key_exists('required_preparation_weeks', $params)) {
@@ -1338,6 +1339,9 @@ class ProjectApiController extends Controller {
 		}
 		if (is_array($params) && array_key_exists('desired_start_date', $params)) {
 			$desired_start_date = is_string($params['desired_start_date']) ? $params['desired_start_date'] : null;
+		}
+		if (is_array($params) && array_key_exists('actual_start_date', $params)) {
+			$actual_start_date = is_string($params['actual_start_date']) ? $params['actual_start_date'] : null;
 		}
 
 		$existingProject = $this->projectMapper->find($id);
@@ -1365,6 +1369,7 @@ class ProjectApiController extends Controller {
 				'status',
 				'required_preparation_weeks',
 				'desired_start_date',
+				'actual_start_date',
 			];
 
 			$providedFields = array_keys($this->request->getParams());
@@ -1372,14 +1377,14 @@ class ProjectApiController extends Controller {
 			if ($attemptedRestrictedFields !== []) {
 				if (
 					$isProjectOwner
-					&& array_values(array_diff($attemptedRestrictedFields, ['name', 'status', 'required_preparation_weeks', 'desired_start_date'])) === []
+					&& array_values(array_diff($attemptedRestrictedFields, ['name', 'status', 'required_preparation_weeks', 'desired_start_date', 'actual_start_date'])) === []
 				) {
-					// Project owners may only edit project name, status, required preparation weeks and desired start date.
+					// Project owners may only edit project name, status, required preparation weeks, desired start date and actual start date.
 				} elseif (
 					$canEditPreparationWeeks
-					&& array_values(array_diff($attemptedRestrictedFields, ['required_preparation_weeks', 'desired_start_date'])) === []
+					&& array_values(array_diff($attemptedRestrictedFields, ['required_preparation_weeks', 'desired_start_date', 'actual_start_date'])) === []
 				) {
-					// Users with timeline edit permissions may update preparation weeks and desired start date.
+					// Users with timeline edit permissions may update preparation weeks, desired start date and actual start date.
 				} else {
 					throw new OCSForbiddenException('Project members can only update client and location details');
 				}
@@ -1403,6 +1408,7 @@ class ProjectApiController extends Controller {
 			'external_ref' => $existingProject->getExternalRef(),
 			'required_preparation_weeks' => $existingProject->getRequiredPreparationWeeks(),
 			'desired_start_date' => $existingProject->getDesiredStartDate() instanceof \DateTime ? $existingProject->getDesiredStartDate()->format('Y-m-d') : null,
+			'actual_start_date' => $existingProject->getActualStartDate() instanceof \DateTime ? $existingProject->getActualStartDate()->format('Y-m-d') : null,
 		];
 
 		$updatedProject = $this->projectService->updateProjectDetails(
@@ -1423,6 +1429,7 @@ class ProjectApiController extends Controller {
 			$status,
 			$required_preparation_weeks,
 			$desired_start_date,
+			$actual_start_date,
 		);
 
 		$changedFields = [];
@@ -1443,6 +1450,7 @@ class ProjectApiController extends Controller {
 			'external_ref' => $updatedProject->getExternalRef(),
 			'required_preparation_weeks' => $updatedProject->getRequiredPreparationWeeks(),
 			'desired_start_date' => $updatedProject->getDesiredStartDate() instanceof \DateTime ? $updatedProject->getDesiredStartDate()->format('Y-m-d') : null,
+			'actual_start_date' => $updatedProject->getActualStartDate() instanceof \DateTime ? $updatedProject->getActualStartDate()->format('Y-m-d') : null,
 		];
 		foreach ($newValues as $field => $newVal) {
 			if ($oldValues[$field] !== $newVal) {

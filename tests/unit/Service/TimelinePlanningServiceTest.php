@@ -29,6 +29,7 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertArrayHasKey('kpis', $summary);
 		$this->assertArrayHasKey('systemPlanning', $summary);
 		$this->assertArrayHasKey('desiredStartDate', $summary);
+		$this->assertArrayHasKey('actualStartDate', $summary);
 		$this->assertArrayHasKey('minimumStartDate', $summary);
 		$this->assertArrayHasKey('overallFloatWeeks', $summary);
 		$this->assertArrayHasKey('planningStatus', $summary);
@@ -36,6 +37,8 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertSame('2026-09-07', $summary['requestDate']);
 		$this->assertSame(4, $summary['requiredPreparationWeeks']);
 		$this->assertSame('2026-12-28', $summary['desiredStartDate']);
+		$this->assertNull($summary['actualStartDate']);
+		$this->assertNull($summary['kpis']['actualStartDate']);
 
 		// Process completion counter and state
 		$this->assertArrayHasKey('processCompleted', $summary);
@@ -50,10 +53,12 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertArrayHasKey('preparation', $sp);
 		$this->assertArrayHasKey('minimumStart', $sp);
 		$this->assertArrayHasKey('desiredStart', $sp);
+		$this->assertArrayHasKey('actualStart', $sp);
 		$this->assertArrayHasKey('float', $sp);
 
 		$this->assertSame(4, $sp['preparation']['weeks']);
 		$this->assertSame('2026-12-28', $sp['desiredStart']['date']);
+		$this->assertNull($sp['actualStart']['date']);
 	}
 
 	public function testFloatStatusBehindAtRiskWhenMinimumStartExceedsDesiredStart(): void {
@@ -117,5 +122,24 @@ final class TimelinePlanningServiceTest extends TestCase {
 
 		$this->assertSame('on_track', $summary['planningStatus']);
 		$this->assertGreaterThan(0, $summary['overallFloatWeeks']);
+	}
+
+	public function testBuildSummaryIncludesActualStartDateWhenConfigured(): void {
+		$db = $this->createMock(IDBConnection::class);
+		$logger = $this->createMock(LoggerInterface::class);
+		$service = new TimelinePlanningService($db, $logger);
+
+		$project = new Project();
+		$project->setId(45);
+		$project->setType(0);
+		$project->setCreatedAt(new DateTime('2026-09-07 10:00:00'));
+		$project->setDesiredStartDate(new DateTime('2026-12-28'));
+		$project->setActualStartDate(new DateTime('2027-01-05'));
+
+		$summary = $service->buildSummary($project);
+
+		$this->assertSame('2027-01-05', $summary['actualStartDate']);
+		$this->assertSame('2027-01-05', $summary['kpis']['actualStartDate']);
+		$this->assertSame('2027-01-05', $summary['systemPlanning']['actualStart']['date']);
 	}
 }

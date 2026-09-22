@@ -66,6 +66,22 @@
 			<div class="sp-marker__guide-line"></div>
 		</div>
 
+		<!-- 5b. Actual Start Marker (if actual start date is configured) -->
+		<div
+			v-if="systemPlanning.actualStart && systemPlanning.actualStart.date"
+			class="sp-marker sp-marker--actual-start"
+			:style="{ left: actualStartLeft + 'px' }"
+			:title="`Actual start: ${formatDate(systemPlanning.actualStart.date)}`">
+			<div class="sp-marker__pin">
+				<Flag :size="14" />
+			</div>
+			<div class="sp-marker__tag">
+				<span class="sp-marker__tag-title">Actual start</span>
+				<span class="sp-marker__tag-date">{{ formatDate(systemPlanning.actualStart.date) }}</span>
+			</div>
+			<div class="sp-marker__guide-line"></div>
+		</div>
+
 		<!-- 6. Mini Legend directly under the bars matching mockup -->
 		<div class="sp-mini-legend" :style="{ left: Math.max(16, deckBarLeft) + 'px' }">
 			<div class="sp-mini-legend__item">
@@ -88,6 +104,10 @@
 				<span class="sp-mini-legend__icon sp-mini-legend__icon--desired-start">▶</span>
 				<span>Desired start</span>
 			</div>
+			<div v-if="systemPlanning.actualStart && systemPlanning.actualStart.date" class="sp-mini-legend__item">
+				<span class="sp-mini-legend__icon sp-mini-legend__icon--actual-start">⚑</span>
+				<span>Actual start</span>
+			</div>
 		</div>
 	</div>
 </template>
@@ -95,12 +115,14 @@
 <script>
 import RhombusMedium from 'vue-material-design-icons/RhombusMedium.vue'
 import Play from 'vue-material-design-icons/Play.vue'
+import Flag from 'vue-material-design-icons/Flag.vue'
 
 export default {
 	name: 'SystemPlanningRow',
 	components: {
 		RhombusMedium,
 		Play,
+		Flag,
 	},
 	props: {
 		systemPlanning: {
@@ -146,6 +168,9 @@ export default {
 		},
 		desiredStartLeft() {
 			return this.getLeft(this.systemPlanning.desiredStart?.date)
+		},
+		actualStartLeft() {
+			return this.getLeft(this.systemPlanning.actualStart?.date)
 		},
 		isPositiveFloat() {
 			const floatDays = this.systemPlanning.float?.days
@@ -313,6 +338,10 @@ export default {
 	color: #4f46e5;
 }
 
+.sp-marker--actual-start .sp-marker__pin {
+	color: #059669;
+}
+
 .sp-marker__tag {
 	position: absolute;
 	top: -38px;
@@ -358,6 +387,10 @@ export default {
 
 .sp-marker--desired-start .sp-marker__guide-line {
 	background: #4f46e5;
+}
+
+.sp-marker--actual-start .sp-marker__guide-line {
+	background: #059669;
 }
 
 /* Mini Legend below bars */
@@ -415,5 +448,9 @@ export default {
 
 .sp-mini-legend__icon--desired-start {
 	color: #4f46e5;
+}
+
+.sp-mini-legend__icon--actual-start {
+	color: #059669;
 }
 </style>

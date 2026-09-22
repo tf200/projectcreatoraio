@@ -156,7 +156,7 @@ class TimelineApiController extends Controller
     }
 
     #[NoAdminRequired]
-    public function updatePlanning(int $projectId, ?string $desiredStartDate = null, ?int $requiredPreparationWeeks = null): JSONResponse
+    public function updatePlanning(int $projectId, ?string $desiredStartDate = null, ?int $requiredPreparationWeeks = null, ?string $actualStartDate = null): JSONResponse
     {
         try {
             $project = $this->requireProject($projectId);
@@ -167,6 +167,12 @@ class TimelineApiController extends Controller
                 $desiredStartDate = (string) $params['desired_start_date'];
             } elseif (array_key_exists('desiredStartDate', $params)) {
                 $desiredStartDate = (string) $params['desiredStartDate'];
+            }
+
+            if (array_key_exists('actual_start_date', $params)) {
+                $actualStartDate = (string) $params['actual_start_date'];
+            } elseif (array_key_exists('actualStartDate', $params)) {
+                $actualStartDate = (string) $params['actualStartDate'];
             }
 
             if (array_key_exists('required_preparation_weeks', $params)) {
@@ -183,6 +189,17 @@ class TimelineApiController extends Controller
                     $dt = new DateTime($trimmed);
                     $dt->setTime(0, 0, 0);
                     $project->setDesiredStartDate($dt);
+                }
+            }
+
+            if ($actualStartDate !== null) {
+                $trimmed = trim($actualStartDate);
+                if ($trimmed === '' || strtolower($trimmed) === 'null') {
+                    $project->setActualStartDate(null);
+                } else {
+                    $dt = new DateTime($trimmed);
+                    $dt->setTime(0, 0, 0);
+                    $project->setActualStartDate($dt);
                 }
             }
 

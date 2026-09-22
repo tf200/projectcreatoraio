@@ -39,6 +39,7 @@ class TimelinePlanningService
 		$enabledSets = CardVisibility::getEnabledSetsForProject($project);
 		$requiredTitles = ProjectTypeDeckDefaults::getVisibleImportantTitles($projectType, $enabledSets);
 		$desiredStartDate = $project->getDesiredStartDate();
+		$actualStartDate = $project->getActualStartDate();
 
 		if ($requiredTitles === []) {
 			$deckTasksEndDate = (clone $requestDateDate)->modify('+13 weeks');
@@ -51,6 +52,7 @@ class TimelinePlanningService
 				0,
 				false,
 				$initiationBounds,
+				$actualStartDate,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -81,6 +83,7 @@ class TimelinePlanningService
 				count($requiredTitles),
 				false,
 				$initiationBounds,
+				$actualStartDate,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -111,6 +114,7 @@ class TimelinePlanningService
 				count($requiredTitles),
 				false,
 				$initiationBounds,
+				$actualStartDate,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -181,6 +185,7 @@ class TimelinePlanningService
 				count($requiredTitles),
 				$isAllDone,
 				$initiationBounds,
+				$actualStartDate,
 			);
 
 			if ($missing !== []) {
@@ -252,6 +257,7 @@ class TimelinePlanningService
 				count($requiredTitles),
 				false,
 				$initiationBounds,
+				$actualStartDate,
 			);
 			$pending = $this->buildCoordinationPendingPeriod($requestDateDate, null);
 			return $this->assembleSummary(
@@ -422,6 +428,7 @@ class TimelinePlanningService
 		int $totalRequired,
 		bool $isAllDone,
 		?array $initiationBounds = null,
+		?DateTime $actualStartDate = null,
 	): array {
 		if (($initiationBounds['end'] ?? null) instanceof DateTime) {
 			$deckTasksEndDate = clone $initiationBounds['end'];
@@ -440,6 +447,7 @@ class TimelinePlanningService
 		$minimumDurationWeeks = $deckWeeks + $prepWeeks;
 
 		$desiredStartDateStr = $desiredStartDate instanceof DateTime ? $desiredStartDate->format('Y-m-d') : null;
+		$actualStartDateStr = $actualStartDate instanceof DateTime ? $actualStartDate->format('Y-m-d') : null;
 		$floatDays = null;
 		$floatWeeks = null;
 		$planningStatus = 'on_track';
@@ -489,6 +497,10 @@ class TimelinePlanningService
 				'label' => 'Desired start',
 				'date' => $desiredStartDateStr,
 			],
+			'actualStart' => [
+				'label' => 'Actual start',
+				'date' => $actualStartDateStr,
+			],
 			'float' => [
 				'label' => 'Float',
 				'days' => $floatDays,
@@ -505,6 +517,7 @@ class TimelinePlanningService
 			'minimumDurationRange' => $deckTasksStartDate->format('d/m/Y') . ' - ' . $minimumStartDate->format('d/m/Y'),
 			'minimumStartDate' => $minimumStartDate->format('Y-m-d'),
 			'desiredStartDate' => $desiredStartDateStr,
+			'actualStartDate' => $actualStartDateStr,
 			'deckTasksWeeks' => $deckWeeks,
 			'preparationWeeks' => $prepWeeks,
 			'overallFloatWeeks' => $floatWeeks,
@@ -517,6 +530,7 @@ class TimelinePlanningService
 			'minimumStartDate' => $minimumStartDate->format('Y-m-d'),
 			'minimumDurationWeeks' => $minimumDurationWeeks,
 			'desiredStartDate' => $desiredStartDateStr,
+			'actualStartDate' => $actualStartDateStr,
 			'overallFloatWeeks' => $floatWeeks,
 			'overallFloatDays' => $floatDays,
 			'planningStatus' => $planningStatus,
