@@ -412,6 +412,8 @@ class ProjectPortfolioService {
 				'totalCards' => $totalCards,
 				'doneCards' => $doneCards,
 				'openCards' => $openCards,
+				'startDate' => $dates['start'],
+				'endDate' => $dates['end'],
 				'actualEnd' => $actualEnd,
 				'plannedEnd' => $plannedEnd,
 				'isCompleted' => $isCompleted,
