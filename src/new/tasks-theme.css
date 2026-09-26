@@ -90,6 +90,7 @@
 .pc-new .pc-tasks-theme.deck-board .pc-data-grid td { font-size: 12px; }
 .pc-new .pc-tasks-theme.deck-board .pc-role-chip { font-size: 11px; border-radius: 5px; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary,
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard--inline,
 .pc-new .pc-tasks-theme.deck-board .project-member-access { gap: 14px; border-radius: var(--border-radius-large); }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__header,
 .pc-new .pc-tasks-theme.deck-board .project-member-access__header { padding: 14px 18px; }
