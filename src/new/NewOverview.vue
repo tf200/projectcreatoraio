@@ -11,9 +11,14 @@
    <div v-if="!events.length" class="pc-panel-empty"><History :size="28" /><strong>No activity yet</strong><p>Project updates will appear here.</p></div>
    <ul v-else class="pc-summary-rows"><li v-for="event in events" :key="event.id"><span class="pc-row-icon"><History :size="20" /></span><div class="pc-row-content"><button @click="open('activity')">{{ activityText(event) }}</button><small>{{ event.actorDisplayName || event.actorUid || 'Project' }} · {{ event.source || 'Project' }}</small></div><time>{{ date(event.occurredAt) }}</time></li></ul>
   </OverviewPanel>
-  <OverviewPanel name="tasks" title="4. My tasks" icon="tasks" link="View all tasks" :state="overview.tasks" @open="open('tasks')" @retry="retry('tasks')">
-   <div v-if="!tasks.length" class="pc-panel-empty pc-empty-outline"><ClipboardCheckOutline :size="28" /><strong>No open tasks assigned directly to you</strong><p>Open the task board to review team assignments.</p></div>
-   <ol v-else class="pc-task-summary"><li v-for="(task, index) in tasks.slice(0, 3)" :key="task.id"><span>{{ index + 1 }}</span><div><button @click="open('tasks')">{{ task.title }}</button><small>{{ task.stackTitle }}</small></div></li></ol>
+  <OverviewPanel name="tasks" title="4. Tasks" icon="tasks" link="View all tasks" :state="overview.tasks" @open="open('tasks')" @retry="retry('tasks')">
+   <div class="iz-tabs pc-task-tabs" role="tablist" aria-label="Tasks">
+    <button v-for="view in taskViews" :id="'pc-task-tab-' + view.id" :key="view.id" type="button" role="tab" class="iz-tab" :class="{ 'iz-tab--active': taskView === view.id }" :aria-selected="String(taskView === view.id)" aria-controls="pc-task-panel" @click="taskView = view.id">{{ view.label }}<span class="iz-tab__count">{{ view.tasks.length }}</span></button>
+   </div>
+   <div id="pc-task-panel" role="tabpanel" :aria-labelledby="'pc-task-tab-' + taskView">
+    <div v-if="!shownTasks.length" class="pc-panel-empty pc-empty-outline"><ClipboardCheckOutline :size="28" /><template v-if="taskView === 'mine'"><strong>No open tasks assigned directly to you</strong><p>Switch to All tasks to see the rest of the board.</p></template><template v-else><strong>No open tasks on the board</strong><p>Everything on the task board is done or archived.</p></template></div>
+    <ol v-else class="pc-task-summary"><li v-for="(task, index) in shownTasks.slice(0, 3)" :key="task.id"><span>{{ index + 1 }}</span><div><button @click="open('tasks')">{{ task.title }}</button><small>{{ task.stackTitle }}</small></div></li></ol>
+   </div>
   </OverviewPanel>
   <OverviewPanel name="progress" title="5. Process progress" icon="progress" link="View process details" :state="overview.planning" @open="open('planning')" @retry="retry('planning')">
    <div class="pc-progress-layout"><div class="pc-progress-ring" :style="{ '--pc-progress': (progress.percent || 0) + '%' }" :aria-label="progress.percent === null ? 'Checklist not configured' : progress.percent + '% of required checklist completed'"><div><strong>{{ progress.percent === null ? '—' : progress.percent + '%' }}</strong><small>Required checklist</small></div></div><div class="pc-phase-area"><ol v-if="planning.phases.length" class="pc-phase-track"><li v-for="phase in planning.phases" :key="phase.id" :class="{ 'pc-phase-done': phase.tasks.length && phase.tasks.every(task => task.isDone) }"><span aria-hidden="true">{{ phase.tasks.length && phase.tasks.every(task => task.isDone) ? '✓' : '○' }}</span><small>{{ phase.name }}</small><strong>{{ phase.tasks.filter(task => task.isDone).length }} / {{ phase.tasks.length }}</strong></li></ol><p v-else class="pc-muted">No process phases configured.</p></div></div>
@@ -41,10 +46,11 @@ import ClipboardCheckOutline from 'vue-material-design-icons/ClipboardCheckOutli
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
-import { progressSummary, planningSummary, assignedTasks, recentFiles, activityText, dateLabel, fileSize } from './overview.js'
+import { progressSummary, planningSummary, assignedTasks, openTasks, recentFiles, activityText, dateLabel, fileSize } from './overview.js'
 export default {
  components: { OverviewPanel, FlagOutline, EyeOutline, History, ClipboardCheckOutline, InformationOutline, FolderOutline, FileDocumentOutline },
  props: { project: { type: Object, required: true }, context: { type: Object, required: true }, overview: { type: Object, required: true }, legacyUrl: String },
+ data: () => ({ taskView: 'mine' }),
  computed: {
   summary() { return this.overview.planning.data || {} },
   progress() { return progressSummary(this.overview.planning.data) },
@@ -52,6 +58,9 @@ export default {
   notes() { return this.overview.notes.data?.notes || [] },
   events() { return this.overview.activity.data || [] },
   tasks() { return assignedTasks(this.overview.tasks.data || [], this.context.userId) },
+  allTasks() { return openTasks(this.overview.tasks.data || []) },
+  taskViews() { return [{ id: 'mine', label: 'My tasks', tasks: this.tasks }, { id: 'all', label: 'All tasks', tasks: this.allTasks }] },
+  shownTasks() { return this.taskView === 'mine' ? this.tasks : this.allTasks },
   files() { return this.overview.files.data ? recentFiles(this.overview.files.data) : [] },
  },
  methods: {

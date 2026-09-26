@@ -63,3 +63,28 @@
 .pc-picker-top{display:flex;align-items:center;justify-content:space-between;gap:20px;color:var(--color-text-maxcontrast);font-size:12px}.pc-project-picker .pc-list-heading{margin-top:20px}.pc-project-picker .pc-list-heading h2{font-size:25px;margin:0}.pc-project-picker .pc-filters{flex-wrap:wrap;gap:12px;padding:18px}.pc-project-picker .pc-filters label{min-width:120px;flex:1}.pc-project-picker .pc-filters .pc-search{flex-basis:100%}.pc-project-picker .pc-filters select{max-width:100%}.pc-project-picker .pc-project-table th,.pc-project-picker .pc-project-table td{padding:16px}
 @media(max-width:800px){.pc-shelf-toolbar{flex-wrap:wrap}.pc-shelf-label{display:none}.pc-new .pc-shelf-search{flex:1}}
 @media(max-width:650px){.pc-new .pc-shelf-search,.pc-new .pc-shelf-toggle,.pc-new .pc-shelf-create,.pc-shelf-content{display:none}.pc-new .pc-mobile-project{display:inline-flex;min-width:0;max-width:65%;text-align:left;overflow-wrap:anywhere}.pc-shelf-toolbar{gap:8px;padding:12px;flex-wrap:nowrap}.pc-new .pc-shelf-expand{padding:10px}.pc-new .pc-project-picker{max-width:calc(100vw - 24px);max-height:calc(100dvh - 48px);padding:16px}.pc-picker-top{align-items:flex-start}.pc-picker-top>span{line-height:1.6}.pc-project-picker .pc-filters{padding:12px}.pc-project-picker .pc-project-table{min-width:520px}}
+
+/* Views built from the In Zicht theme (Intake, Activity, and the Documents
+ * heading). Their tabs sit straight on the page background as iz- panels, so
+ * the module host stops drawing a card behind them. */
+.pc-new .pc-module--documents,.pc-new .pc-module--intake,.pc-new .pc-module--activity{margin-top:var(--iz-gap);padding:0;border:0;border-radius:0;background:transparent;min-height:0;overflow:visible}
+.pc-new .pc-view{display:flex;flex-direction:column;gap:var(--iz-gap);min-width:0;color:var(--iz-text);font-size:var(--iz-fs-md)}
+.pc-new .pc-view__head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--iz-gap);flex-wrap:wrap}
+.pc-new .project-module>.pc-view__head{margin-bottom:var(--iz-gap)}
+.pc-new .pc-view__heading{min-width:0}
+.pc-new .pc-view__title{margin:0;font-family:'Space Grotesk',system-ui,-apple-system,sans-serif;font-size:var(--iz-fs-xl);font-weight:600;line-height:1.3;color:var(--iz-text)}
+.pc-new .pc-view__lede{margin:4px 0 0;font-size:var(--iz-fs-sm);color:var(--iz-text-secondary)}
+.pc-new .pc-view__tools{display:flex;align-items:center;gap:var(--iz-gap);flex-wrap:wrap}
+.pc-new .pc-view__state{display:inline-flex;align-items:center;gap:6px;font-size:var(--iz-fs-sm);color:var(--iz-text-secondary)}
+.pc-new .pc-view__state-dot{color:var(--iz-accent)}
+.pc-new .pc-view__notice{display:flex;align-items:center;gap:8px;margin:0;padding:var(--iz-pad-cell);border-radius:var(--iz-radius);background:var(--iz-surface-inset);font-size:var(--iz-fs-sm);color:var(--iz-text-secondary)}
+.pc-new .pc-view__notice--ok{background:var(--iz-success-bg);color:var(--iz-success-text)}
+.pc-new .pc-view__notice--error{background:var(--iz-danger-bg);color:var(--iz-danger-text)}
+.pc-new .pc-sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.pc-new .pc-view__failure{display:flex;flex-direction:column;align-items:center;gap:var(--iz-gap-tight)}
+/* .pc-new h3 (0,1,1) above would otherwise repaint the theme's section title. */
+.pc-new .pc-view h3.iz-section-title{color:var(--iz-text-secondary);font-weight:700;line-height:normal}
+
+/* Overview task panel: My tasks / All tasks as compact iz-tabs. */
+.pc-new .pc-task-tabs{margin:-4px 0 10px}
+.pc-new .pc-task-tabs .iz-tab{padding:8px 10px;font-size:var(--iz-fs-sm)}

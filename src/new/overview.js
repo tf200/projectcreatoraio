@@ -11,9 +11,13 @@ export function planningSummary(summary) {
  const conflict = summary?.desiredStartDate && Number.isFinite(summary.overallFloatDays) ? summary.overallFloatDays < 0 : null
  return { milestone, conflict, phases, currentPhase: pending[0]?.name || null }
 }
+// Open means what the board shows as work left: not archived, deleted or done.
+export function openTasks(stacks) {
+ return stacks.filter(s => !s.deletedAt).flatMap(stack => (stack.cards || []).filter(card => !card.archived && !card.deletedAt && !card.done).map(card => ({ ...card, stackTitle: stack.title })))
+}
 export function assignedTasks(stacks, userId) {
  if (!userId) return []
- return stacks.filter(s => !s.deletedAt).flatMap(stack => (stack.cards || []).filter(card => !card.archived && !card.deletedAt && !card.done && (card.assignedUsers || []).some(a => Number(a.type) === 0 && (typeof a.participant === 'string' ? a.participant : a.participant?.uid) === userId)).map(card => ({ ...card, stackTitle: stack.title })))
+ return openTasks(stacks).filter(card => (card.assignedUsers || []).some(a => Number(a.type) === 0 && (typeof a.participant === 'string' ? a.participant : a.participant?.uid) === userId))
 }
 export function recentFiles(tree) {
  const result = [], seen = new Set()
