@@ -49,14 +49,6 @@
 					<ShieldAccount :size="18" class="deck-board__tab-icon" />
 					<span>Card Permissions</span>
 				</button>
-				<button
-					v-if="!loading && !error"
-					class="deck-board__tab"
-					:class="{ 'deck-board__tab--active': activeTab === 'overview' }"
-					@click="activeTab = 'overview'">
-					<AccountGroup :size="18" class="deck-board__tab-icon" />
-					<span>Permissions Overview</span>
-				</button>
 			</div>
 
 			<!-- TAB CONTENT: TASK BOARD -->
@@ -84,12 +76,6 @@
 					:board-id="boardId"
 					:members="projectMembers" />
 			</div>
-
-			<!-- TAB CONTENT: PERMISSIONS OVERVIEW -->
-			<div v-if="activeTab === 'overview' && !loading && !error" class="deck-board__tab-content">
-				<MemberAccessSummary
-					:project-id="projectId" />
-			</div>
 		</div>
 	</div>
 </template>
@@ -102,12 +88,10 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import ViewDashboard from 'vue-material-design-icons/ViewDashboard.vue'
 import ShieldAccount from 'vue-material-design-icons/ShieldAccount.vue'
-import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 
 import { DeckService } from '../../Services/deck.js'
 import { ProjectsService } from '../../Services/projects.js'
 import DeckCardPolicyManager from './DeckCardPolicyManager.vue'
-import MemberAccessSummary from './MemberAccessSummary.vue'
 
 const deckService = DeckService.getInstance()
 const projectsService = ProjectsService.getInstance()
@@ -116,13 +100,11 @@ export default {
 	name: 'DeckBoard',
 	components: {
 		DeckCardPolicyManager,
-		MemberAccessSummary,
 		NcButton,
 		OpenInNew,
 		Refresh,
 		ViewDashboard,
 		ShieldAccount,
-		AccountGroup,
 	},
 	props: {
 		boardId: {
