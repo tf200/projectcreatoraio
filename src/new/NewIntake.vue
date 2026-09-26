@@ -67,26 +67,27 @@
 			</div>
 			<ul v-else class="iz-panel iz-panel--list pc-intake-list">
 				<li v-for="question in questions" :key="question.field" class="iz-row pc-intake-row">
-					<div class="pc-intake-row__text">
-						<span class="iz-label pc-intake-row__category">{{ question.category }}</span>
-						<span :id="'pc-intake-' + question.field" class="pc-intake-row__question">{{ question.question }}</span>
+					<div class="pc-intake-row__head">
+						<span v-if="questionParts(question).label" class="iz-label pc-intake-row__label">{{ questionParts(question).label }}</span>
+						<span :id="'pc-intake-' + question.field" class="pc-intake-row__question">{{ questionParts(question).title }}</span>
 						<span v-if="isFieldDirty(question.field)" class="iz-dot pc-intake-row__dirty" title="Changed, not saved">
 							<span class="pc-sr-only">Changed, not saved</span>
 						</span>
 						<span v-else-if="answers[question.field] === null" class="iz-pill iz-pill--warning pc-intake-row__pill">Not answered</span>
+						<span v-if="questionParts(question).hint" class="pc-intake-row__hint">{{ questionParts(question).hint }}</span>
 					</div>
-					<div class="iz-segment" role="radiogroup" :aria-labelledby="'pc-intake-' + question.field">
+					<div class="pc-intake-options" role="radiogroup" :aria-labelledby="'pc-intake-' + question.field">
 						<label v-for="option in question.options"
 							:key="option.value"
-							class="iz-btn"
-							:class="{ 'iz-btn--active': answers[question.field] === Number(option.value) }">
+							class="pc-intake-option"
+							:class="{ 'pc-intake-option--active': answers[question.field] === Number(option.value), 'pc-intake-option--locked': !canEdit || saving }">
 							<input type="radio"
 								:name="'pc-intake-' + question.field"
 								:value="option.value"
 								:checked="answers[question.field] === Number(option.value)"
 								:disabled="!canEdit || saving"
 								@change="setAnswer(question.field, option.value)">
-							{{ option.label }}
+							<span>{{ option.label }}</span>
 						</label>
 					</div>
 				</li>
@@ -115,27 +116,51 @@ export default {
 			return this.questions.filter(question => this.isFieldDirty(question.field)).length
 		},
 	},
+	methods: {
+		// The questionnaire repeats each category at the start of its question,
+		// followed by the same instruction. Show the category as the heading and
+		// the rest as a hint; any question that does not follow that pattern is
+		// shown whole, under its category.
+		questionParts(question) {
+			const category = String(question.category || '').trim()
+			const text = String(question.question || '').trim()
+			if (category && text.toLocaleLowerCase().startsWith(category.toLocaleLowerCase())) {
+				const rest = text.slice(category.length).trim().replace(/^\((.*)\)\.?$/s, '$1').replace(/^[\s,.:;-]+|[\s.]+$/g, '')
+				return { label: '', title: category, hint: rest ? rest.charAt(0).toLocaleUpperCase() + rest.slice(1) + '.' : '' }
+			}
+			return { label: category, title: text, hint: '' }
+		},
+	},
 }
 </script>
 
 <style scoped>
 .pc-intake-list { margin: 0; list-style: none; }
-.pc-intake-row { justify-content: space-between; gap: var(--iz-gap); }
+.pc-intake-row { flex-direction: column; align-items: stretch; gap: 12px; padding: var(--iz-pad-panel); }
 .pc-intake-row:last-child { border-bottom: 0; }
-.pc-intake-row__text { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
-.pc-intake-row__category { flex-basis: 100%; margin: 0; }
-.pc-intake-row__question { font-size: var(--iz-fs-md); font-weight: 600; color: var(--iz-text); }
+.pc-intake-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.pc-intake-row__label { flex-basis: 100%; margin: 0; }
+.pc-intake-row__question { font-size: var(--iz-fs-lg); font-weight: 600; color: var(--iz-text); overflow-wrap: anywhere; }
+.pc-intake-row__hint { flex-basis: 100%; font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); }
 .pc-intake-row__dirty { color: var(--iz-accent); }
 /* iz-pill capitalises every word; this is a sentence. */
 .pc-intake-row__pill { text-transform: none; }
-.pc-intake-row .iz-segment { flex-shrink: 0; flex-wrap: wrap; }
-.pc-intake-row .iz-segment input:disabled { cursor: default; }
+
+/* The answers are whole sentences, so they are selectable cards that wrap,
+ * not a segmented control. Columns appear only when a card still gets 340px. */
+.pc-intake-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 8px; }
+.pc-intake-option { display: flex; align-items: flex-start; gap: var(--iz-gap-tight); padding: var(--iz-pad-cell); border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius-lg); background: var(--iz-surface); font-size: var(--iz-fs-md); line-height: 1.5; color: var(--iz-text); cursor: pointer; transition: background var(--iz-transition), border-color var(--iz-transition); }
+.pc-intake-option:hover { background: var(--iz-surface-subtle); }
+.pc-intake-option--active,
+.pc-intake-option--active:hover { border-color: var(--iz-accent); background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); }
+.pc-intake-option--locked { cursor: default; }
+.pc-intake-option:focus-within { outline: 2px solid var(--iz-accent); outline-offset: 2px; }
+.pc-intake-option input { flex-shrink: 0; margin: 3px 0 0; cursor: inherit; }
 .pc-intake-progress { display: flex; flex-direction: column; gap: 6px; width: 170px; }
 .pc-intake-progress__label { display: flex; justify-content: space-between; font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
 .pc-intake-progress__label strong { color: var(--iz-text); font-weight: 600; }
 
-@media (max-width: 800px) {
-	.pc-intake-row { flex-direction: column; align-items: stretch; }
-	.pc-intake-row .iz-segment { align-self: flex-start; }
+@media (max-width: 650px) {
+	.pc-intake-row { padding: var(--iz-pad-card); }
 }
 </style>

@@ -3,12 +3,8 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const http = require('node:http')
 
-const questions = [
-	{ field: 'cv_object_ownership', category: 'Object', question: 'Who owns the object?', options: [{ value: '0', label: 'The client' }, { value: '1', label: 'A third party' }] },
-	{ field: 'cv_trace_ownership', category: 'Route', question: 'Who owns the route?', options: [{ value: '0', label: 'Municipality' }, { value: '1', label: 'Province' }] },
-	{ field: 'cv_building_type', category: 'Building', question: 'What type of building is involved?', options: [{ value: '0', label: 'Residential' }, { value: '1', label: 'Commercial' }] },
-	{ field: 'cv_avp_location', category: 'Connection point', question: 'Where is the connection point located?', options: [{ value: '0', label: 'Indoors' }, { value: '1', label: 'Outdoors' }] },
-]
+// The real questionnaire, exported from lib/Service/CardVisibility.php: long Dutch sentences, as users see them.
+const questions = require('/check/questions.json')
 const at = (daysAgo, h, m) => { const d = new Date(); d.setDate(d.getDate() - daysAgo); d.setHours(h, m, 0, 0); return d.toISOString() }
 const events = [
 	{ id: 1, actorUid: 'emma', actorDisplayName: 'Emma de Vries', source: 'deck', eventType: 'project_updated', occurredAt: at(0, 9, 42), payload: {} },
@@ -30,7 +26,7 @@ const server = http.createServer((req, res) => {
 		if (url.searchParams.get('cursor') === 'c2') return send(200, { events: [{ id: 9, actorUid: 'sanne', actorDisplayName: 'Sanne Jacobs', source: 'internal', eventType: 'project_updated', occurredAt: at(3, 14, 10), payload: {} }], hasMore: false, nextCursor: null })
 		return send(200, { events: list, hasMore: !source, nextCursor: source ? null : 'c2' })
 	}
-	if (url.pathname.endsWith('/card-visibility')) return send(200, { questions, answers: { cv_object_ownership: 0, cv_trace_ownership: null, cv_building_type: 1, cv_avp_location: null } })
+	if (url.pathname.endsWith('/card-visibility')) return send(200, { questions, answers: { cv_object_ownership: questions[0].options[0].value, cv_trace_ownership: null, cv_building_type: questions[2].options[1].value, cv_avp_location: null } })
 	if (url.pathname.endsWith('/ocr/document-types')) return send(200, { document_types: [{ id: 1, name: 'Intakeformulier' }, { id: 2, name: 'Offerte' }, { id: 3, name: 'Kadaster' }] })
 	if ((m = url.pathname.match(/\/files\/(\d+)\/ocr$/))) return send(200, { processing: processing[m[1]] || null })
 	if (url.pathname.includes('/apps/projectcreatoraio/api/v1/')) return send(200, {})
@@ -85,14 +81,33 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		// ---- Intake ----
 		await page.locator('#intake .pc-intake-row').nth(3).waitFor()
 		assert.match(await page.locator('#intake .pc-intake-progress').innerText(), /2 of 4/)
+		assert.equal(await page.locator('#intake .pc-intake-option').count(), questions.reduce((n, q) => n + q.options.length, 0))
+		// The failure that shipped: sentence-length answers pushed out of the panel.
+		const panel = page.locator('#intake .pc-intake-list')
+		assert.ok(await panel.evaluate(n => n.scrollWidth <= n.clientWidth), 'no answer may run past the panel')
+		for (const option of await page.locator('#intake .pc-intake-option').all()) {
+			const box = await option.boundingBox(), outer = await panel.boundingBox()
+			assert.ok(box.x >= outer.x && box.x + box.width <= outer.x + outer.width + 1, 'every answer card stays inside the panel')
+		}
+		const head = await page.locator('#intake .pc-intake-row__head').first().boundingBox(), list = await panel.boundingBox()
+		assert.ok(head.width > list.width * 0.8, 'the question heading spans the row instead of a narrow column beside the answers')
+		// The category is the heading and is not repeated in the question.
+		assert.equal(await page.locator('#intake .pc-intake-row__question').first().innerText(), questions[0].category)
+		assert.equal(await page.locator('#intake .pc-intake-row__label').count(), 0)
+		assert.match(await page.locator('#intake .pc-intake-row__hint').first().innerText(), /^Antwoord met ja op de situatie die van toepassing is\.$/)
 		assert.equal(await page.locator('#intake .iz-pill--warning').count(), 2, 'both unanswered questions are marked')
-		await page.locator('#intake .pc-intake-row').nth(1).locator('label', { hasText: 'Province' }).click()
-		assert.ok(await page.locator('#intake .pc-intake-row').nth(1).locator('input').nth(1).isChecked(), 'the label checks its real radio')
+		const traceRow = page.locator('#intake .pc-intake-row').nth(1)
+		await traceRow.locator('.pc-intake-option').nth(1).click()
+		assert.ok(await traceRow.locator('input').nth(1).isChecked(), 'the card checks its real radio')
+		assert.ok(await traceRow.locator('.pc-intake-option').nth(1).evaluate(n => n.classList.contains('pc-intake-option--active')))
 		assert.match(await page.locator('#intake .pc-view__state').innerText(), /1 unsaved change/)
 		assert.equal((await page.locator('#intake .pc-intake-row__dirty .pc-sr-only').boundingBox()).width <= 1, true, 'the changed marker is a dot, its text is for screen readers')
 		assert.equal((await css(page.locator('#intake .pc-intake-row__pill').first())).textTransform, 'none')
 		assert.match(await page.locator('#intake .pc-intake-progress').innerText(), /3 of 4/)
 		assert.equal(await page.locator('#intake .iz-btn--primary').isDisabled(), false)
+		await traceRow.locator('.pc-intake-option').nth(2).focus().catch(() => {})
+		await traceRow.locator('input').nth(2).focus()
+		assert.notEqual((await css(traceRow.locator('.pc-intake-option').nth(2))).boxShadow + (await traceRow.locator('.pc-intake-option').nth(2).evaluate(n => getComputedStyle(n).outlineStyle)), 'nonenone', 'a keyboard-focused answer shows a focus ring')
 
 		// ---- Activity ----
 		await page.locator('#activity .pc-activity-row').nth(2).waitFor()

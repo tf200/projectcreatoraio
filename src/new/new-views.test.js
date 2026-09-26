@@ -135,3 +135,18 @@ test('choosing a source refetches once, and the time reads as a clock', () => {
 	assert.equal(view.clockTime(new Date(2026, 8, 25, 9, 42).toISOString()), '09:42')
 	assert.equal(view.clockTime('not a date'), '')
 })
+
+test('intake shows the category once, with the shared instruction as a hint', () => {
+	const view = intake()
+	const real = view.questionParts({ category: 'Eigendoms situatie te realiseren object', question: 'Eigendoms situatie te realiseren object (antwoord met ja op de situatie die van toepassing is).' })
+	assert.equal(real.title, 'Eigendoms situatie te realiseren object')
+	assert.equal(real.hint, 'Antwoord met ja op de situatie die van toepassing is.')
+	assert.equal(real.label, '')
+	const caseDiffers = view.questionParts({ category: 'AVP Locatie', question: 'AVP locatie (antwoord met ja op de situatie die van toepassing is).' })
+	assert.equal(caseDiffers.title, 'AVP Locatie')
+	const bare = view.questionParts({ category: 'Scope', question: 'Scope' })
+	assert.equal(bare.hint, '')
+	const other = view.questionParts({ category: 'Object', question: 'Who owns the object?' })
+	assert.equal(other.label, 'Object')
+	assert.equal(other.title, 'Who owns the object?')
+})

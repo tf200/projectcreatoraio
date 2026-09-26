@@ -1,0 +1,115 @@
+[
+    {
+        "field": "cv_object_ownership",
+        "category": "Eigendoms situatie te realiseren object",
+        "question": "Eigendoms situatie te realiseren object (antwoord met ja op de situatie die van toepassing is).",
+        "options": [
+            {
+                "label": "Het object(en) komt op eigen grond te staan en de gevel grenst direct aan gemeentegrond.",
+                "value": 201,
+                "show": 0
+            },
+            {
+                "label": "Het object komt op eigen grond te staan maar de gevel grenst niet direct aan gemeentegrond.",
+                "value": 202,
+                "show": 2
+            },
+            {
+                "label": "Het object komt op eigen grond te staan en de grond wordt overgedragen aan de gemeente.",
+                "value": 203,
+                "show": 2
+            },
+            {
+                "label": "Het object komt op openbare grond te staan.",
+                "value": 204,
+                "show": 0
+            },
+            {
+                "label": "Ik weet het nog niet.",
+                "value": 205,
+                "show": 2
+            }
+        ]
+    },
+    {
+        "field": "cv_trace_ownership",
+        "category": "Eigendoms situatie kabel en leidingen tracé",
+        "question": "Eigendoms situatie kabel en leidingen tracé (antwoord met ja op de situatie die van toepassing is).",
+        "options": [
+            {
+                "label": "Het vrije tracé komt in eigen grond te liggen.",
+                "value": 211,
+                "show": 2
+            },
+            {
+                "label": "Het vrije tracé komt in openbare grond te liggen.",
+                "value": 212,
+                "show": 0
+            },
+            {
+                "label": "Het vrije tracé komt zowel in eigen grond als in openbare grond te liggen.",
+                "value": 213,
+                "show": 2
+            },
+            {
+                "label": "Ik weet het nog niet.",
+                "value": 214,
+                "show": 2
+            }
+        ]
+    },
+    {
+        "field": "cv_building_type",
+        "category": "Grondgebonden woningen\/ hoogbouw\/ bedrijfsunits",
+        "question": "Grondgebonden woningen\/ hoogbouw\/ bedrijfsunits (antwoord met ja op de situatie die van toepassing is).",
+        "options": [
+            {
+                "label": "U realiseert grondgebonden woningen.",
+                "value": 121,
+                "show": 0
+            },
+            {
+                "label": "U realiseert appartementen.",
+                "value": 122,
+                "show": 1
+            },
+            {
+                "label": "U realiseert zowel grondgebonden woningen als appartementen.",
+                "value": 123,
+                "show": 1
+            },
+            {
+                "label": "U realiseert bedrijfsunits.",
+                "value": 124,
+                "show": 0
+            }
+        ]
+    },
+    {
+        "field": "cv_avp_location",
+        "category": "AVP Locatie",
+        "question": "AVP locatie (antwoord met ja op de situatie die van toepassing is).",
+        "options": [
+            {
+                "label": "Ik heb nog niet nagedacht over een mogelijke AVP.",
+                "value": 221,
+                "show": 2
+            },
+            {
+                "label": "Ik realiseer grondgebonden woningen en\/of hoogbouw en\/of bedrijfsunits. Er is rekening gehouden met een AVP op eigen grond.",
+                "value": 222,
+                "show": 0
+            },
+            {
+                "label": "Ik realiseer grondgebonden woningen en\/of hoogbouw en\/of bedrijfsunits. Er is geen rekening gehouden met een AVP op eigen grond.",
+                "value": 223,
+                "show": 2
+            },
+            {
+                "label": "Bij hoogbouw is de eis dat het AVP inpandig wordt opgenomen en daar is geen rekening mee gehouden.",
+                "value": 224,
+                "show": 2
+            }
+        ]
+    }
+]
