@@ -379,8 +379,8 @@ export default {
 
 .deck-board__mount {
 	width: 100%;
-	min-height: min(78vh, 1000px);
-	height: min(78vh, 1000px);
+	min-height: 720px;
+	height: min(88vh, 1200px);
 	border: 1px solid var(--color-border);
 	border-radius: 12px;
 	background: var(--color-main-background);
@@ -389,8 +389,8 @@ export default {
 
 @media (max-width: 900px) {
 	.deck-board__mount {
-		min-height: min(74vh, 880px);
-		height: min(74vh, 880px);
+		min-height: 600px;
+		height: min(84vh, 980px);
 	}
 }
 

@@ -89,18 +89,26 @@
 .pc-new .pc-tasks-theme.deck-board .pc-data-grid th { font-size: 11px; background: var(--color-background-hover); }
 .pc-new .pc-tasks-theme.deck-board .pc-data-grid td { font-size: 12px; }
 .pc-new .pc-tasks-theme.deck-board .pc-role-chip { font-size: 11px; border-radius: 5px; }
-.pc-new .pc-tasks-theme.deck-board .member-access-summary { gap: 14px; }
-.pc-new .pc-tasks-theme.deck-board .member-access-summary__header { padding: 16px; gap: 16px; flex-wrap: wrap; box-shadow: none; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary,
+.pc-new .pc-tasks-theme.deck-board .project-member-access { gap: 14px; border-radius: var(--border-radius-large); }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__header,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__header { padding: 14px 18px; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__scope { text-transform: none; letter-spacing: normal; font-weight: 600; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__header h4 { font-size: 18px; font-weight: 650; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__header p { font-size: 12px; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__metric { padding: 12px; background: var(--pc-task-surface); }
-.pc-new .pc-tasks-theme.deck-board .member-access-summary__toolbar { gap: 12px; flex-wrap: wrap; }
-.pc-new .pc-tasks-theme.deck-board .member-access-summary__filters { flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__toolbar,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__toolbar { gap: 12px; flex-wrap: wrap; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__filters,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__filters { flex-wrap: wrap; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__search-input,
-.pc-new .pc-tasks-theme.deck-board .member-access-summary__select { border-radius: var(--border-radius-element); background: var(--pc-task-surface); }
-.pc-new .pc-tasks-theme.deck-board .member-access-summary__name-line h5 { font-size: 14px; font-weight: 650; }
-.pc-new .pc-tasks-theme.deck-board .member-access-summary__role { border-radius: 5px; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__select,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__search-input,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__select { border-radius: var(--border-radius-element); background: var(--pc-task-surface); }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__name-line h5,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__name-line h5 { font-size: 14px; font-weight: 650; }
+.pc-new .pc-tasks-theme.deck-board .member-access-summary__role,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__role { border-radius: 5px; }
 
 /* NcModal portals card details to body; target only Deck's card content while
  * the modern Tasks module is mounted, without touching modal/focus mechanics. */
