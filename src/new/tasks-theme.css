@@ -91,9 +91,20 @@
 .pc-new .pc-tasks-theme.deck-board .pc-role-chip { font-size: 11px; border-radius: 5px; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary,
 .pc-new .pc-tasks-theme.deck-board .reporting-dashboard--inline,
-.pc-new .pc-tasks-theme.deck-board .project-member-access { gap: 14px; border-radius: var(--border-radius-large); }
+.pc-new .pc-tasks-theme.deck-board .project-member-access {
+	gap: 14px;
+	border-radius: var(--border-radius-large);
+	flex: 0 0 auto !important;
+	flex-shrink: 0 !important;
+}
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__header,
-.pc-new .pc-tasks-theme.deck-board .project-member-access__header { padding: 14px 18px; }
+.pc-new .pc-tasks-theme.deck-board .reporting-dashboard__header,
+.pc-new .pc-tasks-theme.deck-board .project-member-access__header {
+	padding: 10px 16px;
+	min-height: 44px !important;
+	box-sizing: border-box !important;
+	flex-shrink: 0 !important;
+}
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__scope { text-transform: none; letter-spacing: normal; font-weight: 600; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__header h4 { font-size: 18px; font-weight: 650; }
 .pc-new .pc-tasks-theme.deck-board .member-access-summary__header p { font-size: 12px; }
