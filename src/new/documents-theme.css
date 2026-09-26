@@ -1,0 +1,114 @@
+/* Documents in the modern interface, built from the In Zicht theme's tokens.
+ * Presentation only: the folder tree, search, OCR and signing pipelines, the
+ * upload and placement modals and every permission gate are untouched. Values
+ * come from the theme (--iz-*), never hand-picked pixels; the few literals are
+ * sizes the theme defines no token for, and each is named where it is used.
+ */
+.pc-new .pc-documents-theme.project-files { display: flex; flex-direction: column; gap: var(--iz-gap); min-width: 0; font-size: var(--iz-fs-md); color: var(--iz-text); }
+
+/* Shared / Private: the theme's iz-tabs. */
+.pc-new .pc-documents-theme .project-files__header { align-items: flex-end; gap: var(--iz-gap); flex-wrap: wrap; padding: 0; border-bottom: 1px solid var(--iz-border); }
+.pc-new .pc-documents-theme .project-files__tabs { gap: 4px; padding: 0; background: transparent; border-radius: 0; }
+.pc-new .pc-documents-theme .project-files__tab { gap: 6px; padding: 10px 16px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; box-shadow: none; font-size: var(--iz-fs-md); font-weight: 600; color: var(--iz-text-secondary); transition: color var(--iz-transition); }
+.pc-new .pc-documents-theme .project-files__tab:hover { background: transparent; color: var(--iz-text); }
+.pc-new .pc-documents-theme .project-files__tab--active,
+.pc-new .pc-documents-theme .project-files__tab--active:hover { color: var(--iz-accent); border-bottom-color: var(--iz-accent); background: transparent; box-shadow: none; }
+.pc-new .pc-documents-theme .project-files__tab-pill { min-width: 0; padding: 1px 7px; border-radius: var(--iz-radius); background: var(--iz-surface-inset); font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text-secondary); }
+.pc-new .pc-documents-theme .project-files__tab--active .project-files__tab-pill { background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); }
+.pc-new .pc-documents-theme .project-files__tools { gap: var(--iz-gap-tight); align-items: center; padding-bottom: var(--iz-gap-tight); }
+.pc-new .pc-documents-theme .project-files__clear { border-radius: var(--iz-radius); font-size: var(--iz-fs-sm); }
+
+/* Two panels on the page background: iz-panel--list, never a card in a card. */
+.pc-new .pc-documents-theme .project-files__grid { grid-template-columns: minmax(220px, 272px) minmax(0, 1fr); gap: var(--iz-gap); align-items: start; min-height: 0; margin: 0; }
+.pc-new .pc-documents-theme .project-files__pane { padding: 0; border: 0; border-radius: var(--iz-radius-card); background: var(--iz-surface); box-shadow: var(--iz-shadow); overflow: hidden; }
+.pc-new .pc-documents-theme .project-files__pane-title { margin: 0; padding: var(--iz-pad-card) var(--iz-pad-card) 8px; border: 0; background: transparent; font-size: var(--iz-fs-micro); font-weight: 700; color: var(--iz-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.pc-new .pc-documents-theme .project-files__tree { padding: 0; }
+
+/* Folder rows. The indent is set inline per depth, so only the block padding
+ * is ours (12px, the block half of --iz-pad-row). */
+.pc-new .pc-documents-theme .folder-tree-item { width: 100%; min-height: 44px; padding-top: 12px; padding-bottom: 12px; padding-inline-end: var(--iz-pad-card); gap: 8px; border: 0; border-bottom: 1px solid var(--iz-border); border-radius: 0; background: transparent; font-size: var(--iz-fs-md); color: var(--iz-text); transition: background var(--iz-transition); }
+.pc-new .pc-documents-theme .folder-tree-item:hover { background: var(--iz-surface-subtle); }
+.pc-new .pc-documents-theme .folder-tree-item--selected,
+.pc-new .pc-documents-theme .folder-tree-item--selected:hover { background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); font-weight: 600; }
+.pc-new .pc-documents-theme .folder-tree-item__icon { color: var(--iz-text-secondary); }
+.pc-new .pc-documents-theme .folder-tree-item--selected .folder-tree-item__icon { color: var(--iz-accent); }
+.pc-new .pc-documents-theme .folder-tree-item__meta { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
+
+/* The file panel's header holds the breadcrumb and the folder's actions. */
+.pc-new .pc-documents-theme .project-files__right-top { gap: var(--iz-gap-tight); flex-wrap: wrap; padding: var(--iz-pad-card); border-bottom: 1px solid var(--iz-border); background: transparent; }
+.pc-new .pc-documents-theme .project-files__breadcrumbs { gap: 4px; min-width: 0; font-size: var(--iz-fs-md); }
+.pc-new .pc-documents-theme .project-files__crumb { padding: 2px 4px; border: 0; border-radius: var(--iz-radius-sm); background: transparent; font-size: var(--iz-fs-md); color: var(--iz-text-secondary); }
+.pc-new .pc-documents-theme .project-files__crumb:last-child { font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; font-size: var(--iz-fs-lg); font-weight: 600; color: var(--iz-text); }
+.pc-new .pc-documents-theme .project-files__actions { gap: 6px; flex-wrap: wrap; }
+
+/* The actions take iz-btn geometry. Only the first accent button keeps the
+ * accent; the labels are the component's own. */
+.pc-new .pc-documents-theme .project-files__btn { gap: 6px; padding: 7px 14px; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius); background: var(--iz-surface); color: var(--iz-text); font-size: var(--iz-fs-sm); font-weight: 600; line-height: 1.4; box-shadow: none; }
+.pc-new .pc-documents-theme .project-files__btn:not(:disabled):hover { background: var(--iz-surface-subtle); }
+.pc-new .pc-documents-theme .project-files__btn--primary { border-color: var(--iz-accent); background: var(--iz-accent); color: var(--iz-accent-text); }
+.pc-new .pc-documents-theme .project-files__btn--primary:not(:disabled):hover { background: var(--iz-accent-hover); }
+.pc-new .pc-documents-theme .project-files__btn--primary ~ .project-files__btn--primary { border-color: var(--iz-border-strong); background: var(--iz-surface); color: var(--iz-text); }
+.pc-new .pc-documents-theme .project-files__btn--primary ~ .project-files__btn--primary:not(:disabled):hover { background: var(--iz-surface-subtle); }
+
+/* File rows: iz-row geometry, the icon in an inset tile, one detail line. */
+.pc-new .pc-documents-theme .project-files__list { min-width: 0; }
+.pc-new .pc-documents-theme .project-files__results { border-bottom: 1px solid var(--iz-border); }
+.pc-new .pc-documents-theme .project-files__results .project-files__pane-title { padding-top: var(--iz-gap-tight); }
+.pc-new .pc-documents-theme .project-files__row { gap: 12px; padding: var(--iz-pad-row); border-bottom: 1px solid var(--iz-border); transition: background var(--iz-transition); }
+.pc-new .pc-documents-theme .project-files__row:last-child { border-bottom: 0; }
+.pc-new .pc-documents-theme .project-files__row:hover { background: var(--iz-surface-subtle); }
+.pc-new .pc-documents-theme .project-files__row--highlight { background: var(--iz-accent-bg); }
+.pc-new .pc-documents-theme .project-files__row-main { gap: 12px; min-width: 0; }
+.pc-new .pc-documents-theme .project-files__row-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: var(--iz-radius); background: var(--iz-surface-inset); color: var(--iz-text-secondary); }
+.pc-new .pc-documents-theme .folder-outline-icon.project-files__row-icon { background: var(--iz-accent-bg); color: var(--iz-accent); }
+.pc-new .pc-documents-theme .project-files__row-info { gap: 2px; min-width: 0; }
+.pc-new .pc-documents-theme .project-files__row-name { font-size: var(--iz-fs-md); font-weight: 500; color: var(--iz-text); overflow-wrap: anywhere; }
+.pc-new .pc-documents-theme .project-files__row-sub { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
+.pc-new .pc-documents-theme .project-files__row-ocr { gap: var(--iz-gap-tight); }
+
+/* Document type and OCR status are iz-pills. The status shows the component's
+ * own title text (Ready, Queued, Partial, Failed…) next to its icon, so it
+ * reads without hovering and stays in the component's wording. */
+.pc-new .pc-documents-theme .project-files__type-label-inline { padding: 3px 10px; border-radius: var(--iz-radius-pill); background: var(--iz-surface-inset); font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text-secondary); white-space: nowrap; }
+.pc-new .pc-documents-theme .project-files__type-label-inline:empty { display: none; }
+.pc-new .pc-documents-theme .project-files__status-inline { width: auto; height: auto; gap: 5px; padding: 3px 10px; border: 0; border-radius: var(--iz-radius-pill); background: var(--iz-surface-inset); color: var(--iz-text-secondary); font-size: var(--iz-fs-xs); font-weight: 600; }
+.pc-new .pc-documents-theme .project-files__status-inline::after { content: attr(title); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-new .pc-documents-theme .project-files__status-inline--success { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-documents-theme .project-files__status-inline--pending,
+.pc-new .pc-documents-theme .project-files__status-inline--spin { background: var(--iz-warning-bg); color: var(--iz-warning-text); }
+.pc-new .pc-documents-theme .project-files__status-inline--partial { background: var(--iz-warning-bg); color: var(--iz-warning-text); }
+.pc-new .pc-documents-theme .project-files__status-inline--error { background: var(--iz-danger-bg); color: var(--iz-danger-text); }
+
+/* Row actions. The component hides them until the row is hovered, which
+ * leaves touch screens without them and keyboard users tabbing onto invisible
+ * buttons. Visible by default; only a precise pointer that can hover gets the
+ * calmer reveal, and focus reveals them too. 32px, the height of an iz-btn. */
+.pc-new .pc-documents-theme .project-files__row-actions { gap: 6px; flex-shrink: 0; }
+.pc-new .pc-documents-theme .project-files__icon-btn { width: 32px; height: 32px; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius); background: transparent; color: var(--iz-text-secondary); box-shadow: none; opacity: 1; }
+.pc-new .pc-documents-theme .project-files__icon-btn:hover { background: var(--iz-surface-subtle); color: var(--iz-text); }
+@media (hover: hover) and (pointer: fine) {
+	.pc-new .pc-documents-theme .project-files__icon-btn { opacity: 0; }
+	.pc-new .pc-documents-theme .project-files__row:hover .project-files__icon-btn,
+	.pc-new .pc-documents-theme .project-files__row:focus-within .project-files__icon-btn { opacity: 1; }
+}
+
+.pc-new .pc-documents-theme .project-files__empty,
+.pc-new .pc-documents-theme .project-files__muted { margin: var(--iz-pad-card); padding: 28px 20px; border: 1px dashed var(--iz-border-strong); border-radius: var(--iz-radius-lg); background: var(--iz-surface-subtle); font-size: var(--iz-fs-md); color: var(--iz-text-secondary); text-align: center; }
+.pc-new .pc-documents-theme > .project-files__muted { margin: 0; }
+
+@media (max-width: 1050px) {
+	.pc-new .pc-documents-theme .project-files__grid { grid-template-columns: minmax(200px, 240px) minmax(0, 1fr); }
+}
+
+@media (max-width: 650px) {
+	.pc-new .pc-documents-theme .project-files__header { align-items: stretch; }
+	.pc-new .pc-documents-theme .project-files__tools { width: 100%; }
+	.pc-new .pc-documents-theme .project-files__grid { grid-template-columns: minmax(0, 1fr); }
+	/* The folder panel stays reachable but short, so the files are not a
+	 * screen away. 180px shows three folder rows and a hint of the next. */
+	.pc-new .pc-documents-theme .project-files__pane--left .project-files__tree { max-height: 180px; overflow-y: auto; }
+	.pc-new .pc-documents-theme .project-files__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+	.pc-new .pc-documents-theme .project-files__btn { justify-content: center; min-height: 44px; }
+	.pc-new .pc-documents-theme .project-files__row { flex-wrap: wrap; }
+	.pc-new .pc-documents-theme .project-files__row-main { flex: 1 1 100%; }
+}

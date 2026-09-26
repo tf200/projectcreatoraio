@@ -32,7 +32,15 @@
 					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Try again') }}</button>
 					<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 				</div>
-				<component :is="moduleComponent" v-else-if="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard' }" v-bind="moduleProps" @refresh="loadFiles" />
+				<template v-else-if="moduleComponent">
+					<header v-if="tab === 'documents'" class="pc-view__head">
+						<div class="pc-view__heading">
+							<h2 class="pc-view__title">{{ t('projectcreatoraio', 'Documents') }}</h2>
+							<p class="pc-view__lede">{{ t('projectcreatoraio', 'Shared and private project files, with OCR and signing.') }}</p>
+						</div>
+					</header>
+					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents' }" v-bind="moduleProps" @refresh="loadFiles" />
+				</template>
 				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
 			</template>
 		</template>
@@ -50,9 +58,9 @@ const loaders = {
 	notes: () => import('../components/ProjectNotesList.vue'),
 	planning: () => import('../components/ProjectTimeline/GanttChart.vue'),
 	documents: () => import('../components/ProjectFiles/ProjectFilesBrowser.vue'),
-	intake: () => import('../components/ProjectCardVisibilityTab.vue'),
+	intake: () => import('./NewIntake.vue'),
 	whiteboard: () => import('../components/ProjectWhiteboard/WhiteboardBoard.vue'),
-	activity: () => import('../components/ProjectActivity/ProjectActivity.vue'),
+	activity: () => import('./NewActivity.vue'),
 	agenda: () => import('../components/ProjectCalendar.vue'),
 }
 
