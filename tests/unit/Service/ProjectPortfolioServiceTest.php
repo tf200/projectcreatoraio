@@ -430,7 +430,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('—', $rows[1]['actualStartWeek']);
 		self::assertFalse($rows[1]['planningGap']['hasGap']);
 		self::assertSame('None', $rows[1]['planningGap']['display']);
-		self::assertSame('Desired start is before minimum execution start', $result['scheduleIssues'][0]['note']);
+		self::assertSame('Desired start is before minimum execution start', $result['planningConflicts'][0]['note']);
 
 		// Row 3: Havenkwartier
 		self::assertSame('Havenkwartier', $rows[2]['name']);

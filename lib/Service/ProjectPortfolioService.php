@@ -9,6 +9,7 @@ use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDateTimeZone;
 use OCP\IDBConnection;
 
 class ProjectPortfolioService {
@@ -34,6 +35,7 @@ class ProjectPortfolioService {
 	public function __construct(
 		private ProjectMapper $projectMapper,
 		private IDBConnection $db,
+		private ?IDateTimeZone $dateTimeZone = null,
 	) {
 	}
 
@@ -280,6 +282,8 @@ class ProjectPortfolioService {
 		foreach ($scheduleIssues as $issue) {
 			$projectsWithIssues[(int)$issue['projectId']] = true;
 		}
+		// Table-only plan checks; kept apart so scheduleIssues matches the summary.
+		$planningConflicts = [];
 		$projectsWithGapsCount = 0;
 		$projectRows = [];
 
@@ -416,7 +420,7 @@ class ProjectPortfolioService {
 			// A missing end date is already explained by the card-level issues
 			// for this project; only report it when nothing else did.
 			if ($desiredBeforeMinExec || ($missingEnd && !isset($projectsWithIssues[(int)$project['id']]))) {
-				$scheduleIssues[] = [
+				$planningConflicts[] = [
 					'id' => 'project-plan:' . (int)$project['id'],
 					'projectId' => (int)$project['id'],
 					'projectName' => (string)$project['name'],
@@ -497,6 +501,7 @@ class ProjectPortfolioService {
 			'planningGapCount' => $planningGapCount,
 			'planningGaps' => $gapRecords,
 			'scheduleIssues' => $scheduleIssues,
+			'planningConflicts' => $planningConflicts,
 			'buckets' => $bucketSummaries,
 			'projects' => $projectRows,
 		];
@@ -1124,16 +1129,29 @@ class ProjectPortfolioService {
 		return null;
 	}
 
+	/**
+	 * Calendar date of a stored value. Deck and Nextcloud store timestamps in
+	 * UTC, so they are read as UTC and shifted into the viewer's time zone:
+	 * a card due at 00:30 in Amsterdam must not land on the previous day.
+	 * Plain dates carry no time and are returned unchanged.
+	 */
 	private function dateString(mixed $value): ?string {
 		if (!is_string($value) || trim($value) === '') {
 			return null;
 		}
+		$value = trim($value);
+		if (self::isIsoDate($value)) {
+			return $value;
+		}
 
 		try {
-			return (new DateTimeImmutable($value))->format('Y-m-d');
+			$date = new DateTimeImmutable($value, new \DateTimeZone('UTC'));
 		} catch (\Exception) {
 			return null;
 		}
+		// ?? also covers instances built without the constructor (unit tests).
+		$zone = ($this->dateTimeZone ?? null)?->getTimeZone();
+		return ($zone === null ? $date : $date->setTimezone($zone))->format('Y-m-d');
 	}
 
 	/** @param array<int,array<string,mixed>> $projects */

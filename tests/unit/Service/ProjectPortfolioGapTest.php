@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Tests\Unit\Service;
 
 use DateTimeImmutable;
+use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Service\ProjectPortfolioService;
+use OCP\IDateTimeZone;
+use OCP\IDBConnection;
 use PHPUnit\Framework\TestCase;
 
 final class ProjectPortfolioGapTest extends TestCase {
@@ -150,7 +153,25 @@ final class ProjectPortfolioGapTest extends TestCase {
 			new DateTimeImmutable('2026-09-21'),
 			new DateTimeImmutable('2026-09-21'),
 		);
-		self::assertSame(['project:1', 'project-plan:2'], array_column($result['scheduleIssues'], 'id'));
+		self::assertSame(['project:1'], array_column($result['scheduleIssues'], 'id'));
+		self::assertSame(['project-plan:2'], array_column($result['planningConflicts'], 'id'));
+	}
+
+	public function testCardTimestampsUseTheViewersCalendarDay(): void {
+		$zone = $this->createMock(IDateTimeZone::class);
+		$zone->method('getTimeZone')->willReturn(new \DateTimeZone('Europe/Amsterdam'));
+		$service = new ProjectPortfolioService($this->createMock(ProjectMapper::class), $this->createMock(IDBConnection::class), $zone);
+		[$gaps] = $service->findPlanningGaps(
+			[$this->project(1, [7])],
+			[101 => [
+				// 00:30 on the 22nd in Amsterdam is still the 21st in UTC.
+				$this->card(1, 'Monday', '2026-09-21 06:00:00', '2026-09-21 22:30:00'),
+				$this->card(2, 'Wednesday', '2026-09-23 06:00:00', '2026-09-23 16:00:00'),
+			]],
+			[7 => 'Design'],
+			new DateTimeImmutable('2026-09-21'),
+		);
+		self::assertSame([], $gaps);
 	}
 
 	private function project(int $id, array $teamIds): array {
