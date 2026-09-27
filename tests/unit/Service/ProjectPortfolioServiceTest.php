@@ -163,14 +163,14 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame(-1.0, $result['weeks'][0]['remaining']);
 	}
 
-	public function testCapacityTurnsAnEndBeforeStartIntoAPlanningGap(): void {
+	public function testCapacityDoesNotCountAnEndBeforeStartAsIdleTime(): void {
 		$result = $this->service->summarizeCapacity(
 			$this->team(4, 1),
 			'2026-09-14',
 			[$this->capacityProject(7, '2026-09-20', '2026-09-19')],
 		);
 
-		self::assertCount(1, $result['planningGaps']);
+		self::assertCount(0, $result['planningGaps']);
 		self::assertSame([1, 1, 1, 1, 1, 1], array_column($result['weeks'], 'totalActive'));
 	}
 
@@ -340,7 +340,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('2026-10-20', $dates['end']);
 	}
 
-	public function testBuildTableOverviewCalculatesCountdownsBucketsAndPlanningGapsMatchingMockup(): void {
+	public function testBuildTableOverviewCalculatesCountdownsBucketsAndScheduleIssues(): void {
 		$currentMonday = new \DateTimeImmutable('2026-06-22'); // 2026-W26
 		$requestedMonday = new \DateTimeImmutable('2026-07-27'); // W31
 
@@ -408,7 +408,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		$result = $this->service->buildTableOverview($projects, $cardsByBoard, $capacitySummary, $currentMonday, $requestedMonday);
 
 		self::assertSame(3, $result['totalProjects']);
-		self::assertSame(1, $result['planningGapCount']);
+		self::assertSame(0, $result['planningGapCount']);
 		self::assertSame('2026-W26', $result['currentWeek']['label']);
 		self::assertSame(2026, $result['currentWeek']['isoYear']);
 
@@ -438,8 +438,9 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('6 weeks', $rows[1]['desiredCountdown']);
 		self::assertNull($rows[1]['actualStartDate']);
 		self::assertSame('—', $rows[1]['actualStartWeek']);
-		self::assertTrue($rows[1]['planningGap']['hasGap']);
-		self::assertSame('2 weeks · 2026-W32-2026-W33', $rows[1]['planningGap']['display']);
+		self::assertFalse($rows[1]['planningGap']['hasGap']);
+		self::assertSame('None', $rows[1]['planningGap']['display']);
+		self::assertSame('Desired start is before minimum execution start', $result['scheduleIssues'][0]['note']);
 
 		// Row 3: Havenkwartier
 		self::assertSame('Havenkwartier', $rows[2]['name']);
