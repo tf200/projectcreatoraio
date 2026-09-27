@@ -153,8 +153,8 @@ class ProjectPortfolioService {
 		}
 
 		$projects = $this->loadCapacityProjects($organizationId, $teamId);
-		$eligible = $this->deriveEligibleCapacityProjects($projects, $requestedMonday);
 		$cards = $this->loadCardsForProjects($projects);
+		$eligible = $this->deriveEligibleCapacityProjects($projects, $requestedMonday, $cards);
 		[$planningGaps, $scheduleIssues] = $this->findPlanningGaps($projects, $cards, [$teamId => (string)$team['name']], $requestedMonday);
 
 		$unassigned = $this->loadUnassignedProjects($organizationId);
@@ -174,7 +174,9 @@ class ProjectPortfolioService {
 		$requestedMonday = $this->normalizeMonday($weekStart);
 		$weekStartDate = $requestedMonday->format('Y-m-d');
 		$projects = $this->applyMemberFilter($this->loadAllCapacityProjects($organizationId), $memberUid);
-		$eligible = $this->deriveEligibleCapacityProjects($projects, $requestedMonday);
+		$gapProjects = array_merge($projects, $this->applyMemberFilter($this->loadUnassignedCapacityProjects($organizationId), $memberUid));
+		$cards = $this->loadCardsForProjects($gapProjects);
+		$eligible = $this->deriveEligibleCapacityProjects($projects, $requestedMonday, $cards);
 		if ($memberUid !== null) {
 			$teamRows = $this->loadInvolvedTeams($organizationId, $projects);
 			$allRow = $this->buildAllTeamsRow($teamRows, $organizationId, 'My teams');
@@ -186,8 +188,7 @@ class ProjectPortfolioService {
 		foreach ($teamRows as $teamRow) {
 			$teamNames[(int)$teamRow['id']] = (string)$teamRow['name'];
 		}
-		$gapProjects = array_merge($projects, $this->applyMemberFilter($this->loadUnassignedCapacityProjects($organizationId), $memberUid));
-		[$planningGaps, $scheduleIssues] = $this->findPlanningGaps($gapProjects, $this->loadCardsForProjects($gapProjects), $teamNames, $requestedMonday);
+		[$planningGaps, $scheduleIssues] = $this->findPlanningGaps($gapProjects, $cards, $teamNames, $requestedMonday);
 
 		$unassigned = $this->applyMemberFilter($this->loadUnassignedProjects($organizationId), $memberUid);
 		$result = $this->summarizeCapacity($allRow, $weekStartDate, $eligible, $planningGaps, $unassigned);
@@ -275,6 +276,11 @@ class ProjectPortfolioService {
 			}
 		}
 		$scheduleIssues = $capacitySummary['scheduleIssues'] ?? [];
+		$projectsWithIssues = [];
+		foreach ($scheduleIssues as $issue) {
+			$projectsWithIssues[(int)$issue['projectId']] = true;
+		}
+		$projectsWithGapsCount = 0;
 		$projectRows = [];
 
 		foreach ($rawProjects as $project) {
@@ -399,15 +405,22 @@ class ProjectPortfolioService {
 
 			$projectGaps = $gapsByProject[(int)$project['id']] ?? [];
 			$hasGap = $projectGaps !== [];
+			if ($hasGap) {
+				$projectsWithGapsCount++;
+			}
 			$planningGapDisplay = $hasGap ? count($projectGaps) . (count($projectGaps) === 1 ? ' gap' : ' gaps') : 'None';
 			$gapWeeks = 0;
 			$gapSpan = null;
-			if ($dates['invalidEnd'] || $endForPrep === null || ($minExecMonday !== null && $desiredMonday !== null && $minExecMonday > $desiredMonday)) {
+			$missingEnd = $dates['invalidEnd'] || $endForPrep === null;
+			$desiredBeforeMinExec = $minExecMonday !== null && $desiredMonday !== null && $minExecMonday > $desiredMonday;
+			// A missing end date is already explained by the card-level issues
+			// for this project; only report it when nothing else did.
+			if ($desiredBeforeMinExec || ($missingEnd && !isset($projectsWithIssues[(int)$project['id']]))) {
 				$scheduleIssues[] = [
 					'id' => 'project-plan:' . (int)$project['id'],
 					'projectId' => (int)$project['id'],
 					'projectName' => (string)$project['name'],
-					'note' => $dates['invalidEnd'] || $endForPrep === null ? 'No valid project end date' : 'Desired start is before minimum execution start',
+					'note' => $missingEnd ? 'No valid project end date' : 'Desired start is before minimum execution start',
 				];
 			}
 
@@ -461,7 +474,7 @@ class ProjectPortfolioService {
 			['key' => '50-74', 'label' => '50–74%', 'count' => $bucketCounters['50-74']],
 			['key' => '75-99', 'label' => '75–99% / Upcoming', 'count' => $bucketCounters['75-99']],
 			['key' => '100', 'label' => '100% ready for Handover 1', 'count' => $bucketCounters['100']],
-			['key' => 'gaps', 'label' => 'Open planning gaps', 'count' => $planningGapCount],
+			['key' => 'gaps', 'label' => 'Projects with gaps', 'count' => $projectsWithGapsCount],
 		];
 
 		return [
@@ -516,21 +529,6 @@ class ProjectPortfolioService {
 			$total = round($total + $summary['capacity'], 2);
 		}
 		return ['id' => 0, 'organizationId' => $organizationId, 'name' => $name, 'fte' => $total, 'projectsPerFte' => 1.0];
-	}
-
-	/**
-	 * @param array<int,array<string,mixed>> $gaps
-	 * @return array<int,array<string,mixed>>
-	 */
-	public function dedupeCapacityGaps(array $gaps): array {
-		$out = [];
-		foreach ($gaps as $gap) {
-			$id = (int)($gap['id'] ?? 0);
-			if (!isset($out[$id])) {
-				$out[$id] = $gap;
-			}
-		}
-		return array_values($out);
 	}
 
 	/**
@@ -664,17 +662,12 @@ class ProjectPortfolioService {
 	 * selects projects that contribute to the capacity strip.
 	 *
 	 * @param array<int,array<string,mixed>> $projects Raw project rows with boardId keys
+	 * @param array<int,array<int,array<string,mixed>>>|null $cards Preloaded cards by board, loaded when null
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function deriveEligibleCapacityProjects(array $projects, DateTimeImmutable $periodStart): array {
+	private function deriveEligibleCapacityProjects(array $projects, DateTimeImmutable $periodStart, ?array $cards = null): array {
 		$periodEnd = $periodStart->modify('+41 days');
-		$boardIds = [];
-		foreach ($projects as $project) {
-			if (ctype_digit((string)$project['boardId']) && (int)$project['boardId'] > 0) {
-				$boardIds[(int)$project['boardId']] = true;
-			}
-		}
-		$cards = $this->loadCapacityCards(array_keys($boardIds));
+		$cards ??= $this->loadCardsForProjects($projects);
 		$eligible = [];
 		foreach ($projects as $project) {
 			$dates = $this->deriveCapacityDates($project, $cards[(int)$project['boardId']] ?? []);
@@ -727,7 +720,6 @@ class ProjectPortfolioService {
 		$projectsPerFte = (float)($team['projectsPerFte'] ?? $team['projects_per_fte'] ?? 1.0);
 		$capacity = round((float)($team['fte'] ?? 0.0) * $projectsPerFte, 2);
 		$normalizedProjects = [];
-		$normalizedPlanningGaps = $planningGaps;
 		foreach ($projects as $project) {
 			if ($project['end'] !== null && $project['end'] < $project['start']) {
 				$project['end'] = null;
@@ -799,7 +791,7 @@ class ProjectPortfolioService {
 				'weeks' => 6,
 			],
 			'weeks' => $weeks,
-			'planningGaps' => array_values($normalizedPlanningGaps),
+			'planningGaps' => array_values($planningGaps),
 			'unassignedProjects' => array_values($unassigned),
 		];
 	}
@@ -1177,6 +1169,9 @@ class ProjectPortfolioService {
 				continue;
 			}
 			$projectId = (int)$project['id'];
+			// Completed projects still occupy the team timeline, but their
+			// missing dates are history, not something to fix.
+			$reportsIssues = in_array((int)$project['status'], self::CAPACITY_STATUSES, true);
 			$boardId = $this->normalizeBoardId($project['boardId'] ?? null);
 			$cards = $boardId === null ? [] : ($cardsByBoard[$boardId] ?? []);
 			$intervals = [];
@@ -1185,7 +1180,7 @@ class ProjectPortfolioService {
 				$end = $this->dateString($card['duedate'] ?? null);
 				$cardId = (int)($card['id'] ?? $index + 1);
 				$title = (string)($card['title'] ?? 'Untitled card');
-				if ($start === null || $end === null || $end < $start) {
+				if ($reportsIssues && ($start === null || $end === null || $end < $start)) {
 					$issues[] = [
 						'id' => 'card:' . $projectId . ':' . $cardId,
 						'projectId' => $projectId,
@@ -1204,7 +1199,9 @@ class ProjectPortfolioService {
 				$intervals[] = ['start' => $start ?? $end, 'end' => $end ?? $start, 'card' => ['id' => $cardId, 'title' => $title]];
 			}
 			if ($intervals === []) {
-				$issues[] = ['id' => 'project:' . $projectId, 'projectId' => $projectId, 'projectName' => (string)$project['name'], 'note' => 'No dated Deck cards'];
+				if ($reportsIssues) {
+					$issues[] = ['id' => 'project:' . $projectId, 'projectId' => $projectId, 'projectName' => (string)$project['name'], 'note' => 'No dated Deck cards'];
+				}
 				continue;
 			}
 

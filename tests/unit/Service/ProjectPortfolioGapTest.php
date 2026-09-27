@@ -102,6 +102,57 @@ final class ProjectPortfolioGapTest extends TestCase {
 		self::assertTrue($result['projects'][1]['planningGap']['hasGap']);
 	}
 
+	public function testCompletedProjectsFillTheTimelineWithoutRaisingIssues(): void {
+		$done = $this->project(1, [7]);
+		$done['status'] = 4;
+		[$gaps, $issues] = $this->service->findPlanningGaps(
+			[$done, $this->project(2, [7])],
+			[
+				101 => [
+					$this->card(1, 'Old', '2026-09-21', '2026-09-24'),
+					$this->card(2, 'Undated', null, null),
+				],
+				102 => [$this->card(3, 'Start', '2026-09-25', '2026-09-25')],
+			],
+			[7 => 'Design'],
+			new DateTimeImmutable('2026-09-21'),
+		);
+		self::assertSame([], $gaps);
+		self::assertSame([], $issues);
+	}
+
+	public function testGapChipCountsProjectsNotGapRecords(): void {
+		$gaps = [
+			['id' => 'between:7:2026-09-22', 'projectIds' => [1, 2]],
+			['id' => 'internal:1:2026-09-28', 'projectIds' => [1]],
+			['id' => 'internal:9:2026-09-28', 'projectIds' => [9]],
+		];
+		$result = $this->service->buildTableOverview(
+			[$this->tableProject(1), $this->tableProject(2)],
+			[],
+			['planningGaps' => $gaps, 'scheduleIssues' => []],
+			new DateTimeImmutable('2026-09-21'),
+			new DateTimeImmutable('2026-09-21'),
+		);
+		self::assertSame(3, $result['planningGapCount']);
+		$chips = array_column($result['buckets'], 'count', 'key');
+		self::assertSame(2, $chips['gaps']);
+		self::assertSame('2 gaps', $result['projects'][0]['planningGap']['display']);
+	}
+
+	public function testMissingEndIsNotReportedTwice(): void {
+		$result = $this->service->buildTableOverview(
+			[$this->tableProject(1), $this->tableProject(2)],
+			[],
+			['planningGaps' => [], 'scheduleIssues' => [
+				['id' => 'project:1', 'projectId' => 1, 'projectName' => 'Project 1', 'note' => 'No dated Deck cards'],
+			]],
+			new DateTimeImmutable('2026-09-21'),
+			new DateTimeImmutable('2026-09-21'),
+		);
+		self::assertSame(['project:1', 'project-plan:2'], array_column($result['scheduleIssues'], 'id'));
+	}
+
 	private function project(int $id, array $teamIds): array {
 		return ['id' => $id, 'name' => 'Project ' . $id, 'status' => 1, 'boardId' => (string)(100 + $id), 'teamIds' => $teamIds];
 	}

@@ -240,16 +240,6 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame([['id' => 7, 'name' => 'Design', 'overWeeks' => ['2026-W38']]], $warnings);
 	}
 
-	public function testDedupeCapacityGapsKeepsFirstProjectEntry(): void {
-		$gaps = [
-			['id' => 1, 'name' => 'First'],
-			['id' => 1, 'name' => 'Duplicate'],
-			['id' => 2, 'name' => 'Second'],
-		];
-
-		self::assertSame([['id' => 1, 'name' => 'First'], ['id' => 2, 'name' => 'Second']], $this->service->dedupeCapacityGaps($gaps));
-	}
-
 	public function testIsMemberProjectMatchesOwnerGroupMemberAndNeither(): void {
 		self::assertTrue($this->service->isMemberProject(['ownerId' => 'ada', 'projectGroupGid' => 'g1'], 'ada', []));
 		self::assertTrue($this->service->isMemberProject(['ownerId' => 'bob', 'projectGroupGid' => 'g1'], 'ada', ['g1' => true]));
