@@ -137,131 +137,151 @@
 				Try again
 			</button>
 		</div>
-		<div v-else class="pc-members-layout">
-			<section class="iz-panel iz-panel--list pc-members" aria-label="Project members">
-				<div v-if="!members.length" class="pc-members__empty">
-					No members yet.
+		<section v-else class="iz-panel iz-panel--list pc-members" aria-label="Project members">
+			<div v-if="!members.length" class="pc-members__empty">
+				No members yet.
+			</div>
+			<template v-else>
+				<div class="pc-members__head pc-members__grid" aria-hidden="true">
+					<span>Member</span>
+					<span v-for="column in columns"
+						:key="column.value"
+						class="pc-members__role-head"
+						:class="{ 'pc-members__role-head--empty': !column.count }">
+						<span class="pc-members__letter">{{ column.letter }}</span>
+						<span class="pc-members__role-name">{{ column.label }}</span>
+					</span>
+					<span>Project role</span>
+					<span class="pc-members__actions-head">Actions</span>
 				</div>
-				<template v-else>
-					<div class="pc-members__head pc-members__grid" aria-hidden="true">
-						<span>Member</span><span>DRASCIVS</span><span>Project role</span><span class="pc-members__actions-head">Actions</span>
-					</div>
-					<ul class="pc-members__list">
-						<li v-for="member in members"
-							:key="member.id"
-							class="pc-member"
-							:class="{ 'pc-member--editing': editingId === member.id }">
-							<div class="pc-member__row pc-members__grid">
-								<div class="pc-member__who">
-									<NcAvatar :user="member.id"
-										:display-name="member.displayName || member.id"
-										:size="32"
-										:show-user-status="false" />
-									<div class="pc-member__identity">
-										<div class="pc-member__name-line">
-											<span class="pc-member__name">{{ member.displayName || member.id }}</span>
-											<span v-if="member.isOwner" class="iz-pill iz-pill--accent pc-member__owner">Owner</span>
-										</div>
-										<span class="pc-member__meta">{{ memberMeta(member) }}</span>
+				<ul class="pc-members__list">
+					<li v-for="member in members"
+						:key="member.id"
+						class="pc-member"
+						:class="{ 'pc-member--editing': editingId === member.id }">
+						<div class="pc-member__row pc-members__grid">
+							<div class="pc-member__who">
+								<NcAvatar :user="member.id"
+									:display-name="member.displayName || member.id"
+									:size="32"
+									:show-user-status="false" />
+								<div class="pc-member__identity">
+									<div class="pc-member__name-line">
+										<span class="pc-member__name">{{ member.displayName || member.id }}</span>
+										<span v-if="member.isOwner" class="iz-pill iz-pill--accent pc-member__owner">Owner</span>
 									</div>
+									<span class="pc-member__meta">{{ memberMeta(member) }}</span>
 								</div>
-								<template v-if="editingId !== member.id">
-									<div class="pc-member__pills" :aria-label="'DRASCIVS roles of ' + (member.displayName || member.id)">
-										<span v-for="role in rolesOf(member)" :key="role" class="iz-pill pc-pill">{{ drascivsLabel(role) }}</span>
-										<span v-if="!rolesOf(member).length" class="pc-member__none">None</span>
-									</div>
-									<div class="pc-member__pills" :aria-label="'Project roles of ' + (member.displayName || member.id)">
-										<span v-for="role in projectRolesOf(member)"
-											:key="role.value"
-											class="iz-pill pc-pill"
-											:class="'pc-tone--' + role.tone">{{ role.label }}</span>
-										<span v-if="!projectRolesOf(member).length" class="pc-member__none">None</span>
-									</div>
+							</div>
+							<template v-for="role in drascivsOptions">
+								<button v-if="editingId === member.id"
+									:key="'toggle-' + role.value"
+									type="button"
+									class="pc-cell pc-cell--toggle"
+									:aria-pressed="String(editDraft.drascivs.includes(role.value))"
+									:aria-label="role.label + ' — ' + (member.displayName || member.id)"
+									:title="role.label"
+									:disabled="editSaving"
+									@click="editDraft.drascivs = toggled(editDraft.drascivs, role.value)">
+									<span v-if="editDraft.drascivs.includes(role.value)" class="pc-tick"><Check :size="14" /></span>
+									<span v-else class="pc-tick pc-tick--off" />
+								</button>
+								<span v-else
+									:key="'cell-' + role.value"
+									class="pc-cell"
+									:title="(member.displayName || member.id) + (holds(member, role.value) ? ' is ' : ' is not ') + role.label">
+									<span v-if="holds(member, role.value)" class="pc-tick"><Check :size="14" /><span class="pc-sr-only">{{ role.label }}</span></span>
+									<span v-else class="pc-dot-off" aria-hidden="true" />
+								</span>
+							</template>
+							<div class="pc-member__pills pc-member__pills--drascivs" :aria-label="'DRASCIVS roles of ' + (member.displayName || member.id)">
+								<span v-for="role in rolesOf(editingId === member.id ? { drascivsRoles: editDraft.drascivs } : member)" :key="role" class="iz-pill pc-pill">{{ drascivsLabel(role) }}</span>
+								<span v-if="editingId !== member.id && !rolesOf(member).length" class="pc-member__none">No DRASCIVS role</span>
+							</div>
+							<div class="pc-member__pills" :aria-label="'Project roles of ' + (member.displayName || member.id)">
+								<span v-for="role in projectRolesOf(editingId === member.id ? { functionalRoleKeys: editDraft.functional } : member)"
+									:key="role.value"
+									class="iz-pill pc-pill"
+									:class="'pc-tone--' + role.tone">{{ role.label }}</span>
+								<span v-if="editingId !== member.id && !projectRolesOf(member).length" class="pc-member__none">None</span>
+							</div>
+							<div class="pc-member__actions">
+								<template v-if="editingId === member.id">
+									<button type="button"
+										class="iz-btn iz-btn--ghost iz-btn--sm"
+										:disabled="editSaving"
+										@click="cancelEdit">
+										Cancel
+									</button>
+									<button type="button"
+										class="iz-btn iz-btn--primary iz-btn--sm"
+										:disabled="!!editProblem || editSaving"
+										@click="saveEdit(member)">
+										{{ editSaving ? 'Saving…' : 'Save' }}
+									</button>
 								</template>
 								<template v-else>
-									<span /><span />
+									<button v-if="!isSelf(member)"
+										type="button"
+										class="iz-btn iz-btn--ghost iz-btn--sm"
+										:aria-label="'Chat with ' + (member.displayName || member.id)"
+										@click="$emit('open-direct-chat', member)">
+										<ChatOutline :size="14" />
+										Chat
+									</button>
+									<button v-if="canManage"
+										type="button"
+										class="iz-btn iz-btn--sm"
+										:disabled="editingId !== null"
+										:aria-label="'Edit roles of ' + (member.displayName || member.id)"
+										@click="startEdit(member)">
+										Edit
+									</button>
 								</template>
-								<div class="pc-member__actions">
-									<template v-if="editingId === member.id">
-										<button type="button"
-											class="iz-btn iz-btn--ghost iz-btn--sm"
-											:disabled="editSaving"
-											@click="cancelEdit">
-											Cancel
-										</button>
-										<button type="button"
-											class="iz-btn iz-btn--primary iz-btn--sm"
-											:disabled="!!editProblem || editSaving"
-											@click="saveEdit(member)">
-											{{ editSaving ? 'Saving…' : 'Save' }}
-										</button>
-									</template>
-									<template v-else>
-										<button v-if="!isSelf(member)"
-											type="button"
-											class="iz-btn iz-btn--ghost iz-btn--sm"
-											:aria-label="'Chat with ' + (member.displayName || member.id)"
-											@click="$emit('open-direct-chat', member)">
-											<ChatOutline :size="14" />
-											Chat
-										</button>
-										<button v-if="canManage"
-											type="button"
-											class="iz-btn iz-btn--sm"
-											:disabled="editingId !== null"
-											:aria-label="'Edit roles of ' + (member.displayName || member.id)"
-											@click="startEdit(member)">
-											Edit
-										</button>
-									</template>
-								</div>
 							</div>
-							<div v-if="editingId === member.id" class="pc-member__editor">
-								<RoleChips label="DRASCIVS"
-									:label-id="'pc-edit-drascivs-' + member.id"
-									:options="drascivsOptions"
-									:selected="editDraft.drascivs"
-									:disabled="editSaving"
-									@toggle="editDraft.drascivs = toggled(editDraft.drascivs, $event)" />
-								<RoleChips label="Project role"
-									:label-id="'pc-edit-functional-' + member.id"
-									:options="roleOptions"
-									:selected="editDraft.functional"
-									:disabled="editSaving"
-									@toggle="editDraft.functional = toggled(editDraft.functional, $event)" />
-								<p v-if="editError" class="pc-member-problem pc-member-problem--error" role="alert">
-									{{ editError }}
-								</p>
-								<p v-else-if="editProblem" class="pc-member-problem">
-									<InformationOutline :size="15" />
-									{{ editProblem }}
-								</p>
-							</div>
-						</li>
-					</ul>
-					<p class="pc-members__count">
-						{{ members.length === 1 ? '1 member' : members.length + ' members' }}
-					</p>
-				</template>
-			</section>
-
-			<aside class="iz-panel pc-coverage" aria-labelledby="pc-coverage-title">
-				<h3 id="pc-coverage-title" class="pc-coverage__title">
-					DRASCIVS coverage
-				</h3>
-				<p class="pc-coverage__lede">
-					Who holds each responsibility.
-				</p>
-				<dl class="pc-coverage__list">
-					<div v-for="row in coverageRows" :key="row.value" class="pc-coverage__row">
-						<dt>{{ row.label }}</dt>
-						<dd :class="{ 'pc-coverage__unset': !row.holders.length }">
-							{{ row.holders.length ? row.holders.join(', ') : 'Not assigned' }}
-						</dd>
-					</div>
-				</dl>
-			</aside>
-		</div>
+						</div>
+						<div v-if="editingId === member.id" class="pc-member__editor">
+							<p class="pc-member__editor-hint">
+								Tick the responsibilities in the row above.
+							</p>
+							<RoleChips class="pc-member__editor-drascivs"
+								label="DRASCIVS"
+								:label-id="'pc-edit-drascivs-' + member.id"
+								:options="drascivsOptions"
+								:selected="editDraft.drascivs"
+								:disabled="editSaving"
+								@toggle="editDraft.drascivs = toggled(editDraft.drascivs, $event)" />
+							<RoleChips label="Project role"
+								:label-id="'pc-edit-functional-' + member.id"
+								:options="roleOptions"
+								:selected="editDraft.functional"
+								:disabled="editSaving"
+								@toggle="editDraft.functional = toggled(editDraft.functional, $event)" />
+							<p v-if="editError" class="pc-member-problem pc-member-problem--error" role="alert">
+								{{ editError }}
+							</p>
+							<p v-else-if="editProblem" class="pc-member-problem">
+								<InformationOutline :size="15" />
+								{{ editProblem }}
+							</p>
+						</div>
+					</li>
+				</ul>
+				<div class="pc-members__foot pc-members__grid">
+					<span class="pc-members__count">{{ members.length === 1 ? '1 member' : members.length + ' members' }}<span class="pc-members__count-hint" aria-hidden="true"> · holders per responsibility</span></span>
+					<span v-for="column in columns"
+						:key="column.value"
+						class="pc-members__holders"
+						aria-hidden="true">
+						<span class="iz-pill pc-pill" :class="{ 'iz-pill--warning': !column.count }">{{ column.count }}</span>
+					</span>
+					<span class="pc-members__unassigned">
+						<template v-if="unassigned.length">Not assigned: {{ unassigned.join(', ') }}</template>
+						<template v-else>Every responsibility is held</template>
+					</span>
+				</div>
+			</template>
+		</section>
 	</section>
 </template>
 
@@ -272,6 +292,7 @@ import Close from 'vue-material-design-icons/Close.vue'
 import CheckCircle from 'vue-material-design-icons/CheckCircle.vue'
 import ChatOutline from 'vue-material-design-icons/ChatOutline.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
+import Check from 'vue-material-design-icons/Check.vue'
 import RoleChips from './RoleChips.vue'
 import { api, errorMessage, actionMessage } from './api.js'
 import { DRASCIVS, rolesOf, drascivsLabel, projectRoleOptions, coverage, draftProblem, toggled } from './members.js'
@@ -281,7 +302,7 @@ import { DRASCIVS, rolesOf, drascivsLabel, projectRoleOptions, coverage, draftPr
 // strict reads, so a failure is shown instead of an empty team.
 export default {
 	name: 'NewMembers',
-	components: { NcAvatar, Plus, Close, CheckCircle, ChatOutline, InformationOutline, RoleChips },
+	components: { NcAvatar, Plus, Close, CheckCircle, ChatOutline, InformationOutline, Check, RoleChips },
 	props: {
 		projectId: { type: [String, Number], required: true },
 		currentUserId: { type: String, default: '' },
@@ -317,7 +338,9 @@ export default {
 	computed: {
 		drascivsOptions() { return DRASCIVS },
 		roleOptions() { return projectRoleOptions(this.functionalRoles) },
-		coverageRows() { return coverage(this.members) },
+		// One matrix column per responsibility, with how many members hold it.
+		columns() { return coverage(this.members).map(row => ({ ...row, count: row.holders.length })) },
+		unassigned() { return this.columns.filter(column => !column.count).map(column => column.label) },
 		addProblem() { return draftProblem({ needsPerson: true, person: this.candidate, ...this.addDraft }) },
 		editProblem() { return draftProblem(this.editDraft) },
 	},
@@ -333,6 +356,7 @@ export default {
 		rolesOf,
 		drascivsLabel,
 		toggled,
+		holds(member, role) { return rolesOf(member).includes(role) },
 		isSelf(member) { return !!this.currentUserId && String(member.id) === this.currentUserId },
 		memberMeta(member) {
 			if (this.editingId === member.id) return member.id + ' · editing'
@@ -492,11 +516,15 @@ export default {
 .pc-member-problem { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: var(--iz-fs-sm); color: var(--iz-warning-text); }
 .pc-member-problem--error { color: var(--iz-danger-text); }
 
-/* The team */
-.pc-members-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--iz-gap); align-items: start; }
-.pc-members { min-width: 0; }
-.pc-members__grid { display: grid; grid-template-columns: minmax(200px, 1.2fr) minmax(0, 1.4fr) minmax(0, 1fr) 136px; gap: 12px; align-items: center; }
-.pc-members__head { padding: var(--iz-pad-cell); padding-inline: var(--iz-pad-panel); background: var(--iz-surface-subtle); border-bottom: 1px solid var(--iz-border); font-size: var(--iz-fs-micro); font-weight: 700; color: var(--iz-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+/* The team: a DRASCIVS matrix, one column per responsibility */
+.pc-members { min-width: 0; container: pc-members / inline-size; }
+.pc-members__grid { display: grid; grid-template-columns: minmax(180px, 1.3fr) repeat(8, 58px) minmax(130px, 1fr) 136px; column-gap: 8px; align-items: center; }
+.pc-members__head { padding: 8px var(--iz-pad-panel); background: var(--iz-surface-subtle); border-bottom: 1px solid var(--iz-border); font-size: var(--iz-fs-micro); font-weight: 700; color: var(--iz-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; align-items: end; }
+.pc-members__role-head { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; border-radius: var(--iz-radius-sm); text-transform: none; letter-spacing: 0; }
+.pc-members__letter { font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; font-size: var(--iz-fs-md); font-weight: 700; color: var(--iz-text); }
+.pc-members__role-name { font-size: 9px; font-weight: 600; }
+.pc-members__role-head--empty { background: var(--iz-warning-bg); }
+.pc-members__role-head--empty .pc-members__letter, .pc-members__role-head--empty .pc-members__role-name { color: var(--iz-warning-text); }
 .pc-members__actions-head { text-align: end; }
 .pc-members__list { margin: 0; padding: 0; list-style: none; }
 .pc-member { border-bottom: 1px solid var(--iz-border); }
@@ -509,11 +537,30 @@ export default {
 .pc-member__owner { text-transform: none; }
 .pc-member__meta { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); overflow-wrap: anywhere; }
 .pc-member__pills { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.pc-member__pills--drascivs { display: none; }
 .pc-pill { text-transform: none; }
 .pc-member__none { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); font-style: italic; }
 .pc-member__actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* Cells: a tick where the member holds the responsibility */
+.pc-cell { display: flex; align-items: center; justify-content: center; height: 32px; }
+.pc-tick { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--iz-accent); color: var(--iz-accent-text); }
+.pc-tick--off { background: var(--iz-surface); box-shadow: inset 0 0 0 1.5px var(--iz-border-strong); }
+.pc-dot-off { width: 5px; height: 5px; border-radius: 50%; background: var(--iz-border-strong); }
+.pc-cell--toggle { width: 100%; min-height: 36px; margin: 0; padding: 0; border: 0; border-radius: var(--iz-radius-sm); background: transparent; cursor: pointer; }
+.pc-cell--toggle:hover:not(:disabled) { background: var(--iz-surface-inset); }
+.pc-cell--toggle:focus-visible { outline: 2px solid var(--iz-accent); outline-offset: -2px; }
+.pc-cell--toggle:disabled { cursor: default; opacity: 0.6; }
+
 .pc-member__editor { display: flex; flex-direction: column; gap: 12px; padding: 0 var(--iz-pad-panel) var(--iz-pad-card) calc(var(--iz-pad-panel) + 44px); }
-.pc-members__count { margin: 0; padding: var(--iz-pad-row); padding-inline: var(--iz-pad-panel); font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); }
+.pc-member__editor-hint { margin: 0; font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
+.pc-member__editor-drascivs { display: none; }
+
+.pc-members__foot { padding: var(--iz-pad-row); padding-inline: var(--iz-pad-panel); }
+.pc-members__count { font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); }
+.pc-members__holders { display: flex; justify-content: center; }
+.pc-members__holders .iz-pill { min-width: 26px; justify-content: center; }
+.pc-members__unassigned { grid-column: span 2; font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
 .pc-members__empty { padding: 40px var(--iz-pad-panel); text-align: center; font-size: var(--iz-fs-md); color: var(--iz-text-secondary); }
 
 .pc-tone--1 { background: var(--iz-cat-1-bg); color: var(--iz-cat-1-text); }
@@ -522,28 +569,26 @@ export default {
 .pc-tone--4 { background: var(--iz-cat-4-bg); color: var(--iz-cat-4-text); }
 .pc-tone--5 { background: var(--iz-cat-5-bg); color: var(--iz-cat-5-text); }
 
-/* Coverage */
-.pc-coverage__title { margin: 0; font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; font-size: var(--iz-fs-lg); font-weight: 600; color: var(--iz-text); }
-.pc-coverage__lede { margin: 4px 0 12px; font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); }
-.pc-coverage__list { margin: 0; }
-.pc-coverage__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--iz-border); }
-.pc-coverage__row:last-child { border-bottom: 0; }
-.pc-coverage__row dt { font-size: var(--iz-fs-sm); font-weight: 600; color: var(--iz-text); }
-.pc-coverage__row dd { margin: 0; font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); text-align: end; overflow-wrap: anywhere; }
-.pc-coverage__unset { font-style: italic; }
-
-@media (max-width: 1050px) {
-	.pc-members-layout { grid-template-columns: minmax(0, 1fr); }
-}
-
 @media (max-width: 800px) {
 	.pc-member-add__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Under 1040px the eight columns (180 + 8 × 58 + 130 + 136 + gaps and padding)
+   do not fit: each member becomes a card with pills, as before. */
+@container pc-members (max-width: 1040px) {
 	.pc-members__head { display: none; }
-	.pc-member__row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; padding-inline: var(--iz-pad-card); }
+	.pc-members__grid { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+	.pc-member__row { padding-inline: var(--iz-pad-card); }
 	.pc-member__who { grid-column: 1; grid-row: 1; }
 	.pc-member__actions { grid-column: 2; grid-row: 1; }
+	.pc-cell { display: none; }
 	.pc-member__pills { grid-column: 1 / -1; padding-inline-start: 44px; }
-	.pc-member__editor { padding-inline: var(--iz-pad-card); }
+	.pc-member__pills--drascivs { display: flex; }
 	.pc-member__actions .iz-btn { min-height: 36px; }
+	.pc-member__editor { padding-inline: var(--iz-pad-card); }
+	.pc-member__editor-hint { display: none; }
+	.pc-member__editor-drascivs { display: flex; }
+	.pc-members__foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding-inline: var(--iz-pad-card); }
+	.pc-members__count-hint, .pc-members__holders { display: none; }
 }
 </style>

@@ -1,13 +1,14 @@
-// The eight DRASCIVS responsibilities, in the order the current interface lists them.
+// The eight DRASCIVS responsibilities, in the order the current interface lists
+// them; the letter heads the member matrix's column (S twice, so the name goes under it).
 export const DRASCIVS = [
-	{ value: 'driver', label: 'Driver' },
-	{ value: 'responsible', label: 'Responsible' },
-	{ value: 'accountable', label: 'Accountable' },
-	{ value: 'supportive', label: 'Supportive' },
-	{ value: 'consulted', label: 'Consulted' },
-	{ value: 'informed', label: 'Informed' },
-	{ value: 'verifier', label: 'Verifier' },
-	{ value: 'signer', label: 'Signer' },
+	{ value: 'driver', label: 'Driver', letter: 'D' },
+	{ value: 'responsible', label: 'Responsible', letter: 'R' },
+	{ value: 'accountable', label: 'Accountable', letter: 'A' },
+	{ value: 'supportive', label: 'Supportive', letter: 'S' },
+	{ value: 'consulted', label: 'Consulted', letter: 'C' },
+	{ value: 'informed', label: 'Informed', letter: 'I' },
+	{ value: 'verifier', label: 'Verifier', letter: 'V' },
+	{ value: 'signer', label: 'Signer', letter: 'S' },
 ]
 
 // Older members carry their roles under earlier field names.

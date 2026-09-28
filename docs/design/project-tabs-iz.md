@@ -31,14 +31,18 @@ current interface is untouched — no file under `src/components/` changed.
   done) and `assignedTasks` filters it, so My tasks is always a subset of All tasks.
 - **Members** — `src/new/NewMembers.vue`, a new view over the endpoints the current
   interface already calls (list, add, update roles, organisation search), read strictly
-  so a failure is not shown as an empty team. A table of members with DRASCIVS pills and
-  project-role pills (one theme category colour per role, `members.js`), a DRASCIVS
-  coverage aside that marks unheld responsibilities, an inline add panel and an inline
-  role editor, both built from `RoleChips` toggles and both stating the server's rules
-  (a person, one DRASCIVS role, one project role) before sending. Add and Edit show only
-  to global admins, organisation admins and the owner; Chat (not with yourself) opens
-  Notes with that member as the direct-chat target. There is no remove, because the API
-  has none.
+  so a failure is not shown as an empty team. The team is a DRASCIVS matrix: one column
+  per responsibility (letter and name), a tick where a member holds it, and a holders
+  row that counts each column and tints the ones nobody holds, so any number of people
+  can share a responsibility. Project roles are pills (one theme category colour per
+  role, `members.js`). In Edit, that row's ticks become the DRASCIVS toggles and the
+  project-role chips open below; an inline add panel uses the same `RoleChips`. Both
+  state the server's rules (a person, one DRASCIVS role, one project role) before
+  sending. Add and Edit show only to global admins, organisation admins and the owner;
+  Chat (not with yourself) opens Notes with that member as the direct-chat target. There
+  is no remove, because the API has none. Below 1040px of table width (a container
+  query, so the sidebar counts) the matrix falls back to one card per member with
+  DRASCIVS pills.
 
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
