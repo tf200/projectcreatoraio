@@ -66,7 +66,7 @@
 			</div>
 		</div>
 
-		<WhiteboardActivity
+		<component :is="activityComponent || 'WhiteboardActivity'"
 			v-if="normalizedProjectId"
 			:project-id="normalizedProjectId"
 			:reader="activityReader" />
@@ -121,6 +121,12 @@ export default {
 		},
 		activityReader: {
 			type: Function,
+			default: null,
+		},
+		// The modern interface shows its own activity view; without it the
+		// board keeps WhiteboardActivity.
+		activityComponent: {
+			type: [Object, Function],
 			default: null,
 		},
 	},

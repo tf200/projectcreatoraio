@@ -13,6 +13,20 @@ const events = [
 ]
 const processing = { 11: { ocr_status: 'done', document_type_id: 1 }, 12: { ocr_status: 'queued', document_type_id: 2 }, 13: { ocr_status: 'failed', document_type_id: 3 } }
 const requests = []
+// Whiteboard saves as the autosave writes them: every minute or so while someone draws.
+const boardSaves = (() => {
+	const list = []
+	let size = 4100000
+	const run = (daysAgo, h, m, uid, name, count, stepS) => { const t = new Date(); t.setDate(t.getDate() - daysAgo); t.setHours(h, m, 0, 0); for (let i = 0; i < count; i++) { size += 37; list.push({ id: list.length + 1, actorUid: uid, actorDisplayName: name, eventType: 'whiteboard_updated', source: 'whiteboard', occurredAt: new Date(t.getTime() + i * stepS * 1000).toISOString(), payload: { fileSize: size } }) } }
+	run(5, 13, 40, 'thomas', 'Thomas Jansen', 30, 100)
+	run(3, 10, 2, 'emma', 'Emma de Vries', 29, 95)
+	run(3, 11, 20, 'lotte', 'Lotte Bakker', 4, 120)
+	run(1, 16, 10, 'emma', 'Emma de Vries', 41, 80)
+	run(1, 16, 14, 'thomas', 'Thomas Jansen', 22, 120)
+	run(0, 9, 15, 'thomas', 'Thomas Jansen', 11, 102)
+	run(0, 14, 2, 'emma', 'Emma de Vries', 38, 62)
+	return list.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+})()
 const bodies = []
 const team = [
 	{ id: 'emma', displayName: 'Emma de Vries', isOwner: true, drascivsRoles: ['driver', 'accountable'], functionalRoleKeys: ['cpl'] },
@@ -35,6 +49,10 @@ const server = http.createServer((req, res) => {
 			return send(200, { alreadyMember: false })
 		})
 		return
+	}
+	if (url.pathname.endsWith('/projects/21/whiteboard/activity')) {
+		const limit = Number(url.searchParams.get('limit')), offset = Number(url.searchParams.get('offset'))
+		return send(200, { events: boardSaves.slice(offset, offset + limit), hasMore: offset + limit < boardSaves.length })
 	}
 	if ((m = url.pathname.match(/\/projects\/(\d+)\/members$/))) {
 		if (m[1] === '23') return send(403, { message: 'Forbidden' })
@@ -199,6 +217,42 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.locator('#activity-denied .pc-activity-state[role="alert"]').waitFor()
 		assert.match(await page.locator('#activity-denied .pc-activity-state').innerText(), /do not have access/, 'no access reads as a failure, not an empty project')
 
+		// ---- Whiteboard activity ----
+		const wb = page.locator('#wb-activity')
+		await wb.locator('.pc-wb-day').nth(3).waitFor()
+		assert.ok(requests.some(r => r.includes('whiteboard/activity?limit=100&offset=0')))
+		const dayToggles = wb.locator('.pc-wb-day__toggle')
+		assert.equal(await dayToggles.count(), 4, '175 saves, 4 days')
+		assert.match(await dayToggles.nth(0).innerText(), /Today\s*2 sessions · 55 min/)
+		assert.match(await dayToggles.nth(1).innerText(), /Yesterday\s*1 session/)
+		assert.equal((await dayToggles.evaluateAll(n => n.map(b => b.getAttribute('aria-expanded')))).join(), 'true,true,false,false', 'today and yesterday open, older days closed')
+		assert.equal(await wb.locator('.pc-wb-session').count(), 3)
+		assert.equal(await wb.locator('.pc-wb-session__detail').count(), 0, 'sessions start closed')
+		const together = wb.locator('.pc-wb-session', { hasText: 'edited together' })
+		assert.match(await together.innerText(), /Emma de Vries and Thomas Jansen edited together\s*16:10 – \d\d:\d\d/)
+		await together.locator('.pc-wb-session__toggle').click()
+		assert.equal(await together.locator('.pc-wb-session__toggle').getAttribute('aria-expanded'), 'true')
+		const lanes = await together.locator('.pc-wb-lane').allInnerTexts()
+		assert.equal(lanes.length, 2)
+		assert.match(lanes[0], /Emma de Vries\s*16:10 – \d\d:\d\d\s*41 saves/)
+		assert.match(lanes[1], /Thomas Jansen\s*16:14 – \d\d:\d\d\s*22 saves/)
+		assert.match(await together.locator('.pc-wb-session__facts').innerText(), /63 saves\s*Board grew by \d+ KB/)
+		assert.equal(await wb.locator('.pc-wb-tick, [class*=tick]').count(), 0, 'no per-save ticks')
+		await dayToggles.nth(2).click()
+		assert.equal(await wb.locator('.pc-wb-session').count(), 5)
+		await wb.locator('.iz-btn', { hasText: 'Collapse all' }).click()
+		assert.equal(await wb.locator('.pc-wb-session').count(), 0)
+		await wb.locator('.iz-btn', { hasText: 'Expand all' }).click()
+		assert.equal(await wb.locator('.pc-wb-session__detail').count(), 6)
+		assert.equal(await wb.locator('.iz-btn', { hasText: 'Older activity' }).count(), 0, 'everything fits in one read')
+		assert.deepEqual(await blends(wb), [], 'whiteboard activity')
+		await wb.locator('.iz-btn', { hasText: 'Collapse all' }).click()
+		await dayToggles.nth(0).click()
+		await dayToggles.nth(1).click()
+		await together.locator('.pc-wb-session__toggle').click()
+		await page.waitForTimeout(250)
+		await wb.screenshot({ path: '/check/wb-activity.png' })
+
 		// ---- Members ----
 		const members = page.locator('#members')
 		await members.locator('.pc-member').nth(2).waitFor()
@@ -309,9 +363,10 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), `mobile overflow: ${JSON.stringify(widest)}`)
 		await page.screenshot({ path: '/check/mobile.png', fullPage: true })
 		await page.locator('#members').screenshot({ path: '/check/members-mobile.png' })
+		await page.locator('#wb-activity').screenshot({ path: '/check/wb-activity-mobile.png' })
 
 		assert.deepEqual(errors, [])
-		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, 390px — current interface unchanged.')
+		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, 390px — current interface unchanged.')
 	} finally {
 		await browser.close()
 		server.close()

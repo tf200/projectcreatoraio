@@ -112,7 +112,7 @@ export default {
 				case 'documents': return { ...base, sharedRoots: this.files.shared, privateRoots: this.files.private, loading: this.filesLoading, error: this.filesError }
 				case 'intake': return { ...base, canEdit: this.canManageProject }
 				case 'members': return { ...base, currentUserId: this.currentUserId, organizationId: Number(this.project.organization_id) > 0 ? Number(this.project.organization_id) : (this.context.organizationId ?? null), canManage: this.canManageProject }
-				case 'whiteboard': return { ...base, userId: this.currentUserId, inlineEditing: true, openMode: 'overlay', activityReader: api.whiteboardActivity }
+				case 'whiteboard': return { ...base, userId: this.currentUserId, inlineEditing: true, openMode: 'overlay', activityReader: api.whiteboardActivity, activityComponent: () => import('./NewWhiteboardActivity.vue') }
 				default: return base
 			}
 		},

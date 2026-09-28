@@ -135,3 +135,12 @@ test('only the modern tab tells the whiteboard app it is embedded', () => {
 	// which is what removed the palette and the menu.
 	assert.match(source, /:is-embedded="!inlineEditing"/)
 })
+
+test('the current interface keeps WhiteboardActivity; only the modern tab swaps it', () => {
+	const options = boardOptions()
+	assert.equal(options.props.activityComponent.default, null)
+	const source = readFileSync(new URL('../components/ProjectWhiteboard/WhiteboardBoard.vue', import.meta.url), 'utf8')
+	assert.match(source, /:is="activityComponent \|\| 'WhiteboardActivity'"/)
+	const module = readFileSync(new URL('./ProjectModule.vue', import.meta.url), 'utf8')
+	assert.match(module, /activityComponent: \(\) => import\('\.\/NewWhiteboardActivity\.vue'\)/)
+})
