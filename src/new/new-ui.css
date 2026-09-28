@@ -88,3 +88,10 @@
 /* Overview task panel: My tasks / All tasks as compact iz-tabs. */
 .pc-new .pc-task-tabs{margin:-4px 0 10px}
 .pc-new .pc-task-tabs .iz-tab{padding:8px 10px;font-size:var(--iz-fs-sm)}
+
+/* The theme fills an inactive chip with the subtle surface, which is also the
+   page, a row being edited and, in the dark theme, darker than a panel: the
+   chips vanished there. Here they sit on the card surface with a hairline,
+   whatever is under them. */
+.pc-new .iz-chip:not(.iz-chip--active){background:var(--iz-surface);border-color:var(--iz-border-strong)}
+.pc-new .iz-chip:not(.iz-chip--active):hover{background:var(--iz-surface-inset)}

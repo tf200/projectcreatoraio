@@ -40,6 +40,11 @@ current interface is untouched — no file under `src/components/` changed.
   Notes with that member as the direct-chat target. There is no remove, because the API
   has none.
 
+Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
+(`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
+a row being edited and, in the dark theme, darker than a panel, so they vanished in the
+member editor and in the dark Activity filters.
+
 The module host drops its card for these tabs (`.pc-module--{tab}`), so their
 panels sit on the page background instead of inside another card.
 
@@ -51,6 +56,8 @@ answers, strict failure, stale responses, cursor/offset paging, failed later pag
 clock times) and the task split. `tests/browser/views/` renders the real components
 with the real theme stylesheet and fixtures, and asserts the OCR labels, the single
 accent button, segment/radio behaviour, chip filtering, the access-failure state, the
-task tabs, keyboard-visible row actions and 390px width, plus an unthemed Documents copy
+task tabs, keyboard-visible row actions and 390px width, and in both the light and dark In Zicht
+palettes that no control's fill blends into the surface under it and no enabled
+control's label falls under 3:1, plus an unthemed Documents copy
 that must keep its own look. It does not load Nextcloud core CSS; the theme's `iz-`
 selectors are written to out-rank core's bare-element rules.

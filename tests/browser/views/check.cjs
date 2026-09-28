@@ -61,6 +61,42 @@ const server = http.createServer((req, res) => {
 	res.end('{}')
 })
 
+// A control whose fill is the same as the surface under it, with no border or
+// shadow to set it apart, disappears: the chips in the member editor did.
+const camouflaged = scope => scope.evaluate(root => {
+	const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })
+	// Resolve any CSS colour (the theme uses oklch) to sRGB by painting it.
+	const rgba = c => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return ctx.getImageData(0, 0, 1, 1).data }
+	const clear = c => rgba(c)[3] === 0
+	const lum = c => { const [r, g, b] = [...rgba(c)].slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+	const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05) }
+	const surfaceOf = el => { for (let p = el.parentElement; p; p = p.parentElement) { const bg = getComputedStyle(p).backgroundColor; if (!clear(bg)) return bg } return 'rgb(255, 255, 255)' }
+	const found = []
+	for (const el of root.querySelectorAll('.iz-chip, .iz-pill, .iz-btn, .iz-input, .iz-tab, .iz-segment, .iz-meter, .pc-intake-option, button, input:not([type=radio]):not([type=checkbox]), select, textarea')) {
+		const box = el.getBoundingClientRect()
+		if (!box.width || !box.height) continue
+		const s = getComputedStyle(el)
+		if (clear(s.backgroundColor)) continue
+		const surface = surfaceOf(el)
+		if (ratio(s.backgroundColor, surface) >= 1.06) continue
+		const border = ['Top', 'Right', 'Bottom', 'Left'].some(side => parseFloat(s['border' + side + 'Width']) > 0 && !clear(s['border' + side + 'Color']) && ratio(s['border' + side + 'Color'], surface) >= 1.15)
+		if (border || s.boxShadow !== 'none') continue
+		found.push(el.className + ' "' + el.textContent.trim().slice(0, 30) + '" ' + s.backgroundColor + ' on ' + surface + ' (' + ratio(s.backgroundColor, surface).toFixed(3) + ')')
+	}
+	// And an enabled control whose label is too faint to read looks disabled.
+	// 3:1, not AA's 4.5:1: the theme's brand pink as text (4.1–4.4:1) and its
+	// warning pill (3.9:1) are the theme's to settle, not this app's.
+	for (const el of root.querySelectorAll('button:not(:disabled), .iz-chip, .iz-pill, .iz-tab, a.iz-btn')) {
+		const box = el.getBoundingClientRect()
+		if (!box.width || !box.height || !el.textContent.trim() || el.closest('[disabled]')) continue
+		const s = getComputedStyle(el)
+		const fill = clear(s.backgroundColor) ? surfaceOf(el) : s.backgroundColor
+		const r = ratio(s.color, fill)
+		if (r < 3 && parseFloat(s.opacity) === 1) found.push('faint text: ' + el.className + ' "' + el.textContent.trim().slice(0, 30) + '" ' + s.color + ' on ' + fill + ' (' + r.toFixed(2) + ')')
+	}
+	return found
+})
+
 const css = (locator, pseudo) => locator.evaluate((node, p) => {
 	const s = getComputedStyle(node, p || null)
 	return { content: s.content, color: s.color, background: s.backgroundColor, fontWeight: s.fontWeight, boxShadow: s.boxShadow, borderTopWidth: s.borderTopWidth, textTransform: s.textTransform, position: s.position, overflow: s.overflow }
@@ -76,6 +112,20 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.goto('http://localhost:8137')
 		// The real In Zicht theme: the iz- components and tokens under test.
 		await page.addStyleTag({ content: fs.readFileSync('/theme/server.css', 'utf8') })
+		// The theme's palette applies only under Nextcloud's theme attributes; without
+		// them the page runs on the fallback colours above and hides real clashes.
+		const theme = name => page.evaluate(id => { document.body.setAttribute('data-themes', id); for (const a of ['light', 'dark']) document.body.toggleAttribute('data-theme-' + a, a === id) }, name)
+		await theme('light')
+		// Colours are read mid-transition otherwise, right after the theme switch.
+		const blends = async scope => {
+			const still = await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' })
+			const light = await camouflaged(scope)
+			await theme('dark')
+			const dark = await camouflaged(scope)
+			await theme('light')
+			await still.evaluate(node => node.remove())
+			return [...light.map(x => 'light: ' + x), ...dark.map(x => 'dark: ' + x)]
+		}
 
 		// ---- Documents ----
 		await page.locator('#documents .project-files__row').nth(3).waitFor()
@@ -184,6 +234,7 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.equal(await addGroup.locator('.iz-chip', { hasText: 'Client/Developer' }).getAttribute('aria-pressed'), 'true')
 		assert.ok(!(await addBtn.isDisabled()))
 		await page.screenshot({ path: '/check/members-add.png', clip: await members.boundingBox() })
+		assert.deepEqual(await blends(members), [], 'add panel')
 		await addBtn.click()
 		await members.locator('.pc-view__notice--ok').waitFor()
 		assert.match(await members.locator('.pc-view__notice--ok').innerText(), /Jeroen Visser was added/)
@@ -194,6 +245,8 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await lotte.locator('.iz-btn', { hasText: 'Edit' }).click()
 		assert.equal(await lotte.locator('.pc-member__editor .iz-chip--active').count(), 2, 'the editor starts from the member\'s roles')
 		assert.equal(await members.locator('.pc-member').nth(1).locator('.iz-btn', { hasText: 'Edit' }).isDisabled(), true, 'one editor at a time')
+		await page.screenshot({ path: '/check/members-edit.png', clip: await members.boundingBox() })
+		assert.deepEqual(await blends(members), [], 'member editor')
 		await lotte.locator('.pc-member__editor .iz-chip', { hasText: 'Verifier' }).click()
 		await lotte.locator('.iz-btn', { hasText: 'Save' }).click()
 		await members.locator('.pc-view__notice--ok', { hasText: 'Roles updated for Lotte Bakker' }).waitFor()
@@ -223,6 +276,7 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		for (const title of ['Intake controleren', 'Offerte opvragen', 'Situatieschets maken']) assert.ok(all.includes(title), `All tasks should list ${title}`)
 		assert.ok(!all.includes('Oud werk') && !all.includes('Gearchiveerd'), 'done and archived cards stay out')
 
+		assert.deepEqual(await blends(page.locator('.pc-new')), [], 'every new view')
 		await page.screenshot({ path: '/check/desktop.png', fullPage: true })
 		await page.setViewportSize({ width: 390, height: 844 })
 		await page.evaluate(() => { document.getElementById('legacy-host').style.display = 'none' })
