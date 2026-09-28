@@ -13,12 +13,34 @@ const events = [
 ]
 const processing = { 11: { ocr_status: 'done', document_type_id: 1 }, 12: { ocr_status: 'queued', document_type_id: 2 }, 13: { ocr_status: 'failed', document_type_id: 3 } }
 const requests = []
+const bodies = []
+const team = [
+	{ id: 'emma', displayName: 'Emma de Vries', isOwner: true, drascivsRoles: ['driver', 'accountable'], functionalRoleKeys: ['cpl'] },
+	{ id: 'thomas', displayName: 'Thomas Jansen', drascivsRoles: ['responsible'], functionalRoleKeys: ['cpl', 'client'] },
+	{ id: 'lotte', displayName: 'Lotte Bakker', drasciRole: 'consulted', functionalRoleKeys: ['grid'] },
+]
+const functionalRoles = [{ key: 'cpl', name: 'CPL' }, { key: 'client', name: 'Client/Developer' }, { key: 'grid', name: 'Grid operator (Elektra)' }]
 
 const server = http.createServer((req, res) => {
 	const url = new URL(req.url, 'http://localhost')
 	requests.push(url.pathname + url.search)
 	const send = (status, body) => { res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(body)) }
 	let m
+	if (req.method !== 'GET') {
+		let body = ''
+		req.on('data', chunk => { body += chunk })
+		req.on('end', () => {
+			bodies.push({ method: req.method, path: url.pathname, body: JSON.parse(body || '{}') })
+			if ((m = url.pathname.match(/\/members\/([^/]+)\/role$/))) return send(200, { member: { id: decodeURIComponent(m[1]), ...JSON.parse(body) } })
+			return send(200, { alreadyMember: false })
+		})
+		return
+	}
+	if ((m = url.pathname.match(/\/projects\/(\d+)\/members$/))) {
+		if (m[1] === '23') return send(403, { message: 'Forbidden' })
+		return send(200, { members: team, functionalRoles })
+	}
+	if (url.pathname.endsWith('/users/search')) return send(200, { users: [{ id: 'thomas', displayName: 'Thomas Jansen' }, { id: 'jeroen', displayName: 'Jeroen Visser', subname: 'jeroen.visser@firma.nl' }] })
 	if ((m = url.pathname.match(/\/projects\/(\d+)\/activity$/))) {
 		if (m[1] === '23') return send(403, { message: 'Forbidden' })
 		const source = url.searchParams.get('source')
@@ -127,6 +149,68 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.locator('#activity-denied .pc-activity-state[role="alert"]').waitFor()
 		assert.match(await page.locator('#activity-denied .pc-activity-state').innerText(), /do not have access/, 'no access reads as a failure, not an empty project')
 
+		// ---- Members ----
+		const members = page.locator('#members')
+		await members.locator('.pc-member').nth(2).waitFor()
+		assert.match(await members.locator('.pc-member').nth(0).innerText(), /Emma de Vries\s*Owner/)
+		assert.match(await members.locator('.pc-member__meta').nth(0).innerText(), /emma · you/)
+		assert.equal(await members.locator('.pc-member').nth(0).locator('.iz-btn', { hasText: 'Chat' }).count(), 0, 'no chat with yourself')
+		assert.equal((await css(members.locator('.pc-member').nth(0).locator('.pc-pill').first())).textTransform, 'none')
+		assert.match(await members.locator('.pc-member').nth(2).innerText(), /Consulted/, 'the older single-role field still shows')
+		assert.match(await members.locator('.pc-member').nth(2).innerText(), /Grid operator \(Elektra\)/)
+		const cover = await members.locator('.pc-coverage__row').allInnerTexts()
+		assert.equal(cover.length, 8)
+		assert.match(cover[0], /Driver\s*Emma de Vries/)
+		assert.match(cover[5], /Informed\s*Not assigned/)
+		assert.equal(await members.locator('.pc-coverage__unset').first().evaluate(n => getComputedStyle(n).fontStyle), 'italic')
+		assert.match(await members.locator('.pc-members__count').innerText(), /3 members/)
+		await members.locator('.pc-member').nth(1).locator('.iz-btn', { hasText: 'Chat' }).click()
+		assert.equal(await page.evaluate(() => window.chatWith), 'thomas', 'Chat hands the member to Notes')
+
+		await members.locator('.iz-btn', { hasText: 'Add member' }).click()
+		const addBtn = members.locator('.iz-btn', { hasText: 'Add to project' })
+		assert.ok(await addBtn.isDisabled())
+		assert.match(await members.locator('.pc-member-add__foot').innerText(), /Choose a person to add\./)
+		await members.locator('#pc-member-search').fill('je')
+		await members.locator('.pc-member-result').first().waitFor()
+		assert.equal(await members.locator('.pc-member-result').count(), 1, 'Thomas is already a member')
+		assert.ok(requests.some(r => r.includes('users/search') && r.includes('organizationId=4')))
+		await members.locator('.pc-member-result').first().click()
+		assert.match(await members.locator('.pc-member-picked').innerText(), /Jeroen Visser/)
+		const addGroup = members.locator('.pc-member-add')
+		await addGroup.locator('.iz-chip', { hasText: 'Supportive' }).click()
+		assert.match(await members.locator('.pc-member-add__foot').innerText(), /Choose at least one project role\./)
+		await addGroup.locator('.iz-chip', { hasText: 'Client/Developer' }).click()
+		assert.equal(await addGroup.locator('.iz-chip', { hasText: 'Client/Developer' }).getAttribute('aria-pressed'), 'true')
+		assert.ok(!(await addBtn.isDisabled()))
+		await page.screenshot({ path: '/check/members-add.png', clip: await members.boundingBox() })
+		await addBtn.click()
+		await members.locator('.pc-view__notice--ok').waitFor()
+		assert.match(await members.locator('.pc-view__notice--ok').innerText(), /Jeroen Visser was added/)
+		const posted = bodies.find(b => b.method === 'POST')
+		assert.equal(JSON.stringify(posted.body), JSON.stringify({ userId: 'jeroen', drascivsRoles: ['supportive'], functionalRoleKeys: ['client'] }))
+
+		const lotte = members.locator('.pc-member').nth(2)
+		await lotte.locator('.iz-btn', { hasText: 'Edit' }).click()
+		assert.equal(await lotte.locator('.pc-member__editor .iz-chip--active').count(), 2, 'the editor starts from the member\'s roles')
+		assert.equal(await members.locator('.pc-member').nth(1).locator('.iz-btn', { hasText: 'Edit' }).isDisabled(), true, 'one editor at a time')
+		await lotte.locator('.pc-member__editor .iz-chip', { hasText: 'Verifier' }).click()
+		await lotte.locator('.iz-btn', { hasText: 'Save' }).click()
+		await members.locator('.pc-view__notice--ok', { hasText: 'Roles updated for Lotte Bakker' }).waitFor()
+		const put = bodies.find(b => b.method === 'PUT')
+		assert.equal(put.path, '/apps/projectcreatoraio/api/v1/projects/21/members/lotte/role')
+		assert.equal(JSON.stringify(put.body), JSON.stringify({ drascivsRoles: ['consulted', 'verifier'], functionalRoleKeys: ['grid'] }))
+		assert.match(await lotte.innerText(), /Consulted\s*Verifier/)
+
+		const readonly = page.locator('#members-readonly')
+		await readonly.locator('.pc-member').nth(2).waitFor()
+		assert.equal(await readonly.locator('.iz-btn', { hasText: 'Add member' }).count(), 0)
+		assert.equal(await readonly.locator('.iz-btn', { hasText: 'Edit' }).count(), 0)
+		assert.equal(await readonly.locator('.iz-btn', { hasText: 'Chat' }).count(), 2, 'everyone but yourself')
+		await page.locator('#members-denied .pc-view__failure').waitFor()
+		assert.match(await page.locator('#members-denied .pc-view__failure').innerText(), /do not have access/)
+		await page.screenshot({ path: '/check/members.png', clip: await members.boundingBox() })
+
 		// ---- Overview tasks ----
 		const tabs = page.locator('#overview .pc-task-tabs .iz-tab')
 		assert.equal(await tabs.count(), 2)
@@ -146,9 +230,10 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		const widest = await page.evaluate(() => [...document.querySelectorAll('.pc-new > *')].map(el => ({ id: el.id || el.className, w: el.scrollWidth })).sort((a, b) => b.w - a.w)[0])
 		assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), `mobile overflow: ${JSON.stringify(widest)}`)
 		await page.screenshot({ path: '/check/mobile.png', fullPage: true })
+		await page.screenshot({ path: '/check/members-mobile.png', clip: await page.locator('#members').boundingBox() })
 
 		assert.deepEqual(errors, [])
-		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, 390px — current interface unchanged.')
+		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, 390px — current interface unchanged.')
 	} finally {
 		await browser.close()
 		server.close()

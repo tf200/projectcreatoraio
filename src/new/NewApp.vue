@@ -29,7 +29,7 @@
       <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :class="'pc-module--' + route.tab" :aria-label="tabLabel" :aria-busy="projectLoading">
        <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'Open this section in the current interface to continue.') }}</p><a :href="legacyUrl" class="pc-button">{{ t('projectcreatoraio', 'Open current interface') }}</a></div>
-       <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :legacy-url="legacyUrl" />
+       <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :legacy-url="legacyUrl" :direct-chat-user="directChatUser" @direct-chat="openDirectChat" />
       </section>
      </template>
     </template>
@@ -61,7 +61,7 @@ export default {
  name: 'NewProjectApp',
  components: { NcContent, NcAppContent, ProjectShelf, ProjectHeader, NewOverview, ProjectModule },
  data() {
-  return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, requestVersion: 0, listVersion: 0, contextVersion: 0 }
+  return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, directChatUser: null, requestVersion: 0, listVersion: 0, contextVersion: 0 }
  },
  computed: {
   hasAccess() { return !!(this.context?.isGlobalAdmin || this.context?.organizationId) },
@@ -127,6 +127,7 @@ export default {
   scrollContainer() { return this.$el.querySelector('.app-content') || this.$el },
   async navigate(projectId, tab = 'overview') {
    const sameProject = projectId && projectId === this.route.projectId && this.project
+   if (!sameProject) this.directChatUser = null
    this.route = { projectId: projectId ? Number(projectId) : null, tab: normalizeTab(tab) }
    this.moduleError = false
    history.pushState(null, '', interfaceUrl(this.base, this.route, true))
@@ -134,6 +135,12 @@ export default {
    else if (this.route.tab === 'overview') this.loadOverview()
    await this.$nextTick()
    this.scrollContainer().scrollTop = 0
+  },
+  // Chat on a member opens Notes on a direct conversation with them, as the
+  // current interface does; Notes clears it once the conversation is open.
+  openDirectChat(member) {
+   this.directChatUser = member || null
+   if (member) this.navigate(this.route.projectId, 'notes')
   },
   async onPopState() {
    this.route = readRoute(location.pathname, location.search); this.moduleError = false

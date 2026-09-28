@@ -29,13 +29,24 @@ current interface is untouched — no file under `src/components/` changed.
 - **Overview tasks** — the panel has My tasks / All tasks `iz-tab`s over the Deck stacks
   the overview already loads. `openTasks` defines open once (not archived, deleted or
   done) and `assignedTasks` filters it, so My tasks is always a subset of All tasks.
+- **Members** — `src/new/NewMembers.vue`, a new view over the endpoints the current
+  interface already calls (list, add, update roles, organisation search), read strictly
+  so a failure is not shown as an empty team. A table of members with DRASCIVS pills and
+  project-role pills (one theme category colour per role, `members.js`), a DRASCIVS
+  coverage aside that marks unheld responsibilities, an inline add panel and an inline
+  role editor, both built from `RoleChips` toggles and both stating the server's rules
+  (a person, one DRASCIVS role, one project role) before sending. Add and Edit show only
+  to global admins, organisation admins and the owner; Chat (not with yourself) opens
+  Notes with that member as the direct-chat target. There is no remove, because the API
+  has none.
 
-The module host drops its card for these three tabs (`.pc-module--{tab}`), so their
+The module host drops its card for these tabs (`.pc-module--{tab}`), so their
 panels sit on the page background instead of inside another card.
 
 ## Verification
 
-49 Node tests, including the extends contracts (answered and unsaved counts, read-only
+62 Node tests, including the members rules (add/edit payloads, server messages, stale
+search answers), the extends contracts (answered and unsaved counts, read-only
 answers, strict failure, stale responses, cursor/offset paging, failed later pages,
 clock times) and the task split. `tests/browser/views/` renders the real components
 with the real theme stylesheet and fixtures, and asserts the OCR labels, the single

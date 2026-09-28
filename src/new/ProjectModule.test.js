@@ -48,7 +48,7 @@ test('stale files cannot overwrite a newer project or update after destroy', asy
 test('member reads retain all roles and ignore obsolete project responses', async () => {
 	const pending = deferred()
 	const { instance } = host(() => pending.promise)
-	instance.tab = 'members'
+	instance.tab = 'notes'
 	const request = instance.loadMembers()
 	instance.project = { id: 2 }
 	pending.resolve({ data: { members: [{ id: 'bob' }], functionalRoles: [] } })
@@ -90,13 +90,25 @@ test('a slower refresh cannot replace the latest file tree', async () => {
 	assert.equal(instance.files.shared[0].id, 2)
 })
 
-test('member reads preserve multiple DRASCIVS and functional role labels', async () => {
-	const { instance } = host(async () => ({ data: {
-		members: [{ id: 'bob', drascivsRoles: ['R', 'A'], functionalRoleKeys: ['lead', 'review'] }],
-		functionalRoles: [{ key: 'lead', name: 'Projectleider' }, { key: 'review', name: 'Reviewer' }],
-	} }))
-	instance.tab = 'members'
+test('notes loads the team for its direct chats; the members tab is its own view', async () => {
+	const { instance } = host(async () => ({ data: { members: [{ id: 'bob', drascivsRoles: ['driver'] }], functionalRoles: [] } }))
+	instance.tab = 'notes'
 	await instance.loadMembers()
-	assert.equal(instance.memberRoles(instance.members[0]), 'R · A · Projectleider · Reviewer')
+	assert.equal(instance.members.length, 1)
 	assert.equal(instance.membersError, '')
+	instance.tab = 'members'
+	assert.equal(instance.needsMembers, false, 'the members view reads its own list')
+	assert.equal(instance.unavailable, '', 'members is a real module, not a pointer to the current interface')
+	assert.equal(instance.moduleProps.canManage, false, 'a plain member cannot manage the team')
+	assert.equal(instance.moduleProps.currentUserId, 'alice')
+	assert.equal(instance.moduleProps.organizationId, 4)
+	instance.context.organizationRole = 'admin'
+	assert.equal(instance.moduleProps.canManage, true)
+})
+
+test('a member picked for a chat reaches Notes as its target', () => {
+	const { instance } = host()
+	instance.tab = 'notes'
+	instance.directChatUser = { id: 'bob', displayName: 'Bob' }
+	assert.equal(instance.moduleProps.targetDirectUser.id, 'bob')
 })

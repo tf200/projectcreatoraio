@@ -5,10 +5,6 @@
 			<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 		</div>
 		<template v-else>
-			<div v-if="tab === 'members'" class="project-module__members">
-				<p>{{ t('projectcreatoraio', 'View project members and their roles. Manage members in the current interface.') }}</p>
-				<a :href="legacyUrl">{{ t('projectcreatoraio', 'Manage members') }}</a>
-			</div>
 			<div v-if="needsMembers && membersLoading" class="project-module__state" role="status">
 				{{ t('projectcreatoraio', 'Loading members…') }}
 			</div>
@@ -16,15 +12,6 @@
 				<p>{{ membersError }}</p>
 				<button type="button" @click="loadMembers">{{ t('projectcreatoraio', 'Try again') }}</button>
 			</div>
-			<template v-else-if="tab === 'members'">
-				<p v-if="!members.length" role="status">{{ t('projectcreatoraio', 'No project members found.') }}</p>
-				<ul v-else class="project-module__member-list">
-					<li v-for="member in members" :key="member.id">
-						<strong>{{ member.displayName || member.id }}</strong>
-						<span>{{ memberRoles(member) }}</span>
-					</li>
-				</ul>
-			</template>
 			<template v-else>
 				<p v-if="moduleLoading" class="project-module__state" role="status">{{ t('projectcreatoraio', 'Loading section…') }}</p>
 				<div v-else-if="moduleError" class="project-module__state" role="alert">
@@ -39,7 +26,7 @@
 							<p class="pc-view__lede">{{ t('projectcreatoraio', 'Shared and private project files, with OCR and signing.') }}</p>
 						</div>
 					</header>
-					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents' }" v-bind="moduleProps" @refresh="loadFiles" />
+					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents' }" v-bind="moduleProps" @refresh="loadFiles" @open-direct-chat="$emit('direct-chat', $event)" @clear-target-direct-user="$emit('direct-chat', null)" />
 				</template>
 				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
 			</template>
@@ -61,6 +48,7 @@ const loaders = {
 	intake: () => import('./NewIntake.vue'),
 	whiteboard: () => import('../components/ProjectWhiteboard/WhiteboardBoard.vue'),
 	activity: () => import('./NewActivity.vue'),
+	members: () => import('./NewMembers.vue'),
 	agenda: () => import('../components/ProjectCalendar.vue'),
 }
 
@@ -71,6 +59,8 @@ export default {
 		context: { type: Object, required: true },
 		tab: { type: String, required: true },
 		legacyUrl: { type: String, required: true },
+		// A member picked for a direct chat from the Members tab, opened by Notes.
+		directChatUser: { type: Object, default: null },
 	},
 	data() {
 		return {
@@ -86,7 +76,6 @@ export default {
 			filesLoading: false,
 			filesError: '',
 			members: [],
-			functionalRoles: [],
 			membersLoading: false,
 			membersError: '',
 		}
@@ -94,13 +83,15 @@ export default {
 	computed: {
 		projectId() { return Number(this.project.id) },
 		currentUserId() { return String(this.context.userId || '').trim() },
-		needsMembers() { return this.tab === 'members' || this.tab === 'notes' },
+		// Notes needs the team for its direct chats; Members loads its own.
+		needsMembers() { return this.tab === 'notes' },
+		canManageProject() { return !!(this.context.isGlobalAdmin || this.context.organizationRole === 'admin' || (this.currentUserId && String(this.project.ownerId || '').trim() === this.currentUserId)) },
 		unavailable() {
 			if (!Number.isSafeInteger(this.projectId) || this.projectId <= 0) return t('projectcreatoraio', 'This project is unavailable.')
 			const feature = { tasks: 'deck', intake: 'deck', agenda: 'calendar', whiteboard: 'whiteboard' }[this.tab]
 			if (feature && this.context.features?.[feature] === false) return t('projectcreatoraio', 'This section is not enabled.')
 			if (this.tab === 'intake' && Number(this.project.type) !== 0) return t('projectcreatoraio', 'The intake form is only available for Combi projects.')
-			if (this.tab !== 'members' && !loaders[this.tab]) return t('projectcreatoraio', 'This section is available in the current interface.')
+			if (!loaders[this.tab]) return t('projectcreatoraio', 'This section is available in the current interface.')
 			return ''
 		},
 		scopeKey() { return `${this.projectId}:${this.tab}:${this.unavailable}` },
@@ -114,11 +105,13 @@ export default {
 					currentUserId: this.currentUserId,
 					talkConversationToken: this.context.features?.talk === false ? '' : String(this.project.talk_conversation_token || ''),
 					talkUrl: this.context.features?.talk === false ? '' : String(this.project.talk_url || ''),
+					targetDirectUser: this.directChatUser,
 				}
 				// Legacy timeline editing is available to project viewers, not only admins.
 				case 'planning': return { ...base, isAdmin: !!(this.context.isGlobalAdmin || this.context.organizationId != null) }
 				case 'documents': return { ...base, sharedRoots: this.files.shared, privateRoots: this.files.private, loading: this.filesLoading, error: this.filesError }
-				case 'intake': return { ...base, canEdit: !!(this.context.isGlobalAdmin || this.context.organizationRole === 'admin' || (this.currentUserId && String(this.project.ownerId || '').trim() === this.currentUserId)) }
+				case 'intake': return { ...base, canEdit: this.canManageProject }
+				case 'members': return { ...base, currentUserId: this.currentUserId, organizationId: Number(this.project.organization_id) > 0 ? Number(this.project.organization_id) : (this.context.organizationId ?? null), canManage: this.canManageProject }
 				case 'whiteboard': return { ...base, userId: this.currentUserId, inlineEditing: true, openMode: 'overlay', activityReader: api.whiteboardActivity }
 				default: return base
 			}
@@ -142,13 +135,12 @@ export default {
 			this.filesError = ''
 			this.filesLoading = false
 			this.members = []
-			this.functionalRoles = []
 			this.membersError = ''
 			this.membersLoading = false
 			if (this.unavailable) return
 			if (this.needsMembers) this.loadMembers()
 			if (this.tab === 'documents') this.loadFiles()
-			if (this.tab !== 'members') this.loadModule()
+			this.loadModule()
 		},
 		isCurrent(generation, projectId, tab) {
 			return this.alive && this.generation === generation && this.projectId === projectId && this.tab === tab
@@ -200,24 +192,15 @@ export default {
 			try {
 				const { data } = await axios.get(generateUrl(`/apps/projectcreatoraio/api/v1/projects/${projectId}/members`), { headers: { 'OCS-APIRequest': 'true' } })
 				if (!Array.isArray(data?.members)) throw new Error('Invalid members response')
-				if (current()) {
-					this.members = data.members
-					this.functionalRoles = Array.isArray(data.functionalRoles) ? data.functionalRoles : []
-				}
+				if (current()) this.members = data.members
 			} catch (error) {
 				if (current()) {
 					this.members = []
-					this.functionalRoles = []
 					this.membersError = t('projectcreatoraio', 'Project members could not be loaded. Check your access or try again.')
 				}
 			} finally {
 				if (current()) this.membersLoading = false
 			}
-		},
-		memberRoles(member) {
-			const roles = member.drascivsRoles || member.drasciRoles || (member.drasciRole ? [member.drasciRole] : [])
-			const functional = (member.functionalRoleKeys || []).map(key => this.functionalRoles.find(role => role.key === key)?.name || key)
-			return [...roles, ...functional].join(' · ') || t('projectcreatoraio', 'No roles assigned')
 		},
 	},
 }
@@ -229,8 +212,4 @@ export default {
 .project-module__state p { margin-bottom: 12px; }
 .project-module__state a { display: inline-block; margin: 8px; }
 .project-module a { color: var(--color-primary-element); text-decoration: underline; }
-.project-module__members { margin-bottom: 24px; }
-.project-module__member-list { padding: 0; list-style: none; }
-.project-module__member-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--color-border); }
-.project-module__member-list span { color: var(--color-text-maxcontrast); }
 </style>
