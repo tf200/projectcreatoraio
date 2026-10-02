@@ -235,8 +235,15 @@
 					@pointermove="onPointerMove"
 					@pointerup="onPointerUp"
 					@pointercancel="onPointerUp"
-					@pointerleave="onPointerUp">
-					<div class="gantt-v2__timeline" :style="{ width: totalTimelineWidth + 'px' }">
+					@pointerleave="onPointerLeave">
+					<div ref="timelineEl" class="gantt-v2__timeline" :style="{ width: totalTimelineWidth + 'px' }">
+						<TimelineHoverGuide
+							ref="hoverGuide"
+							:timeline-start="timelineRange.start"
+							:day-width="dayWidth"
+							:total-days="totalDays"
+							:header-height="timelineHeaderHeight" />
+
 						<!-- Timeline Header -->
 						<div class="gantt-v2__timeline-header" :style="{ height: timelineHeaderHeight + 'px' }">
 							<div v-if="spanMultipleYears" class="year-row">
@@ -271,6 +278,8 @@
 						<!-- Content Area -->
 						<div class="gantt-v2__content">
 							<!-- Grid Lines Background -->
+							<div v-if="showWeekendShading" class="gantt-v2__weekend-shading" :style="weekendShadingStyle" />
+							<div v-if="showWeekGrid" class="gantt-v2__week-lines" :style="weekLinesStyle" />
 							<div class="gantt-v2__grid-lines">
 								<div
 									v-for="month in visibleMonths"
@@ -333,42 +342,17 @@
 							</div>
 
 							<!-- Full-Height Guide Lines for System Planning -->
-							<template v-if="systemPlanningData">
-								<!-- Minimum Start Date Guide Line -->
-								<div
-									v-if="minStartOffset !== null"
-									class="timeline-guide-marker timeline-guide-marker--min-start"
-									:style="{ left: minStartOffset + 'px' }"
-									:title="`Minimum start: ${formatDate(systemPlanningData.minimumStart?.date)}`">
-									<div class="timeline-guide-line timeline-guide-line--min-start" />
+							<div
+								v-for="marker in guideMarkers"
+								:key="marker.key"
+								class="timeline-guide-marker"
+								:class="'timeline-guide-marker--' + marker.key"
+								:style="{ left: marker.offset + 'px' }">
+								<div class="timeline-guide-line" :class="'timeline-guide-line--' + marker.key" />
+								<div class="timeline-guide-flag" :style="{ top: (36 + marker.level * 20) + 'px' }">
+									{{ marker.label }} · {{ formatDate(marker.date) }}
 								</div>
-
-								<!-- Desired Start Date Guide Line -->
-								<div
-									v-if="desiredStartOffset !== null"
-									class="timeline-guide-marker timeline-guide-marker--desired-start"
-									:style="{ left: desiredStartOffset + 'px' }"
-									:title="`Desired start: ${formatDate(systemPlanningData.desiredStart?.date)}`">
-									<div class="timeline-guide-line timeline-guide-line--desired-start" />
-								</div>
-
-								<div
-									v-if="actualHandoverOffset !== null"
-									class="timeline-guide-marker"
-									:style="{ left: actualHandoverOffset + 'px' }"
-									:title="`Actual handover: ${formatDate(systemPlanningData.actualHandover?.date)}`">
-									<div class="timeline-guide-line timeline-guide-line--handover" />
-								</div>
-
-								<!-- Actual Start Date Guide Line -->
-								<div
-									v-if="actualStartOffset !== null"
-									class="timeline-guide-marker timeline-guide-marker--actual-start"
-									:style="{ left: actualStartOffset + 'px' }"
-									:title="`Actual start: ${formatDate(systemPlanningData.actualStart?.date)}`">
-									<div class="timeline-guide-line timeline-guide-line--actual-start" />
-								</div>
-							</template>
+							</div>
 
 							<!-- Row 1: System Planning Row -->
 							<SystemPlanningRow
@@ -723,6 +707,8 @@ import TimelineKpiBar from './header/TimelineKpiBar.vue'
 import TimelineSimulationBanner from './header/TimelineSimulationBanner.vue'
 import SystemPlanningRow from './rows/SystemPlanningRow.vue'
 import TimelineImpactDrawer from './drawer/TimelineImpactDrawer.vue'
+import TimelineHoverGuide from './overlays/TimelineHoverGuide.vue'
+import { DAY_MS, daysSinceMonday, formatShortDate, getIsoWeekInfo } from './timelineDates.js'
 
 export default {
 	name: 'GanttChart',
@@ -752,6 +738,7 @@ export default {
 		TimelineSimulationBanner,
 		SystemPlanningRow,
 		TimelineImpactDrawer,
+		TimelineHoverGuide,
 	},
 	props: {
 		projectId: {
@@ -1164,18 +1151,69 @@ export default {
 			let cursor = this.toDateOnly(start)
 			while (cursor.getTime() <= end.getTime()) {
 				const weekInfo = this.getIsoWeekInfo(cursor)
-				const effectiveStart = cursor < start ? start : cursor
-				const spanDays = Math.min(7, Math.floor((end - effectiveStart) / (1000 * 60 * 60 * 24)) + 1)
+				// Segments end on Sunday so they line up with ISO weeks (the first one may be partial)
+				const daysToNextMonday = 7 - daysSinceMonday(cursor)
+				const spanDays = Math.min(daysToNextMonday, Math.floor((end - cursor) / DAY_MS) + 1)
+				const monday = new Date(cursor)
+				monday.setDate(monday.getDate() - daysSinceMonday(cursor))
+				const sunday = new Date(monday)
+				sunday.setDate(sunday.getDate() + 6)
 				weeks.push({
 					key: `${weekInfo.isoYear}-W${weekInfo.isoWeek}`,
 					label: `W${weekInfo.isoWeek}`,
-					tooltip: `ISO Week ${weekInfo.isoWeek}, ${weekInfo.isoYear}`,
+					tooltip: `Week ${weekInfo.isoWeek} · ${formatShortDate(monday, false)} – ${formatShortDate(sunday)}`,
 					width: spanDays * this.dayWidth,
 				})
 				cursor = new Date(cursor)
 				cursor.setDate(cursor.getDate() + spanDays)
 			}
 			return weeks
+		},
+		firstMondayOffsetPx() {
+			return ((7 - daysSinceMonday(this.timelineRange.start)) % 7) * this.dayWidth
+		},
+		showWeekGrid() {
+			return this.dayWidth >= 3
+		},
+		showWeekendShading() {
+			return this.dayWidth >= 8
+		},
+		weekLinesStyle() {
+			const weekPx = 7 * this.dayWidth
+			return {
+				backgroundImage: 'linear-gradient(to right, var(--color-border) 0 1px, transparent 1px)',
+				backgroundSize: `${weekPx}px 100%`,
+				backgroundPosition: `${this.firstMondayOffsetPx}px 0`,
+			}
+		},
+		weekendShadingStyle() {
+			const weekPx = 7 * this.dayWidth
+			const saturdayPx = 5 * this.dayWidth
+			return {
+				backgroundImage: `linear-gradient(to right, transparent ${saturdayPx}px, var(--color-background-darker) ${saturdayPx}px)`,
+				backgroundSize: `${weekPx}px 100%`,
+				backgroundPosition: `${this.firstMondayOffsetPx}px 0`,
+			}
+		},
+		guideMarkers() {
+			const d = this.systemPlanningData
+			if (!d) return []
+			const candidates = [
+				{ key: 'min-start', label: 'Min start', date: d.minimumStart?.date, offset: this.minStartOffset },
+				{ key: 'desired-start', label: 'Desired start', date: d.desiredStart?.date, offset: this.desiredStartOffset },
+				{ key: 'actual-start', label: 'Actual start', date: d.actualStart?.date, offset: this.actualStartOffset },
+				{ key: 'handover', label: 'Handover', date: d.actualHandover?.date, offset: this.actualHandoverOffset },
+			].filter(m => m.offset !== null)
+				.sort((a, b) => a.offset - b.offset)
+			// Stack flags that would overlap their left neighbour
+			const flagWidth = 150
+			const levelEnds = []
+			return candidates.map(marker => {
+				let level = levelEnds.findIndex(endPx => endPx <= marker.offset)
+				if (level === -1) level = levelEnds.length
+				levelEnds[level] = marker.offset + flagWidth
+				return { ...marker, level }
+			})
 		},
 		todayOffset() {
 			const { start } = this.timelineRange
@@ -1602,14 +1640,7 @@ export default {
 			return `Starts in ${this.formatWeekCountFromDays(days)}`
 		},
 		getIsoWeekInfo(date) {
-			const d = this.toDateOnly(date)
-			const utcDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-			const day = utcDate.getUTCDay() || 7
-			utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day)
-			const isoYear = utcDate.getUTCFullYear()
-			const yearStart = new Date(Date.UTC(isoYear, 0, 1))
-			const isoWeek = Math.ceil(((utcDate - yearStart) / (1000 * 60 * 60 * 24)) + 1) / 7
-			return { isoWeek: Math.ceil(isoWeek), isoYear }
+			return getIsoWeekInfo(date)
 		},
 		getBarStyle(item) {
 			const { start } = this.timelineRange
@@ -1821,6 +1852,7 @@ export default {
 			const el = this.$refs.scrollEl
 			if (!el) return
 			this.isDragging = true
+			this.$refs.hoverGuide?.clear()
 			this.dragStartX = e.clientX
 			this.dragStartScrollLeft = el.scrollLeft
 			try {
@@ -1830,6 +1862,7 @@ export default {
 			}
 		},
 		onPointerMove(e) {
+			this.updateHoverGuide(e)
 			if (!this.isDragging) return
 			const el = this.$refs.scrollEl
 			if (!el) return
@@ -1839,6 +1872,21 @@ export default {
 		},
 		onPointerUp() {
 			this.isDragging = false
+		},
+		onPointerLeave() {
+			this.onPointerUp()
+			this.$refs.hoverGuide?.clear()
+		},
+		updateHoverGuide(e) {
+			const guide = this.$refs.hoverGuide
+			const timelineEl = this.$refs.timelineEl
+			if (!guide || !timelineEl) return
+			// Touch has no hover, and the guide would just jitter while panning
+			if (e.pointerType !== 'mouse' || this.isDragging) {
+				guide.clear()
+				return
+			}
+			guide.setPointerX(e.clientX - timelineEl.getBoundingClientRect().left)
 		},
 	},
 }
@@ -2281,6 +2329,23 @@ export default {
 	height: 100%;
 }
 
+/* Week start lines and weekend columns, drawn as repeating backgrounds */
+.gantt-v2__week-lines,
+.gantt-v2__weekend-shading {
+	position: absolute;
+	inset: 0;
+	background-repeat: repeat-x;
+	pointer-events: none;
+}
+
+.gantt-v2__week-lines {
+	opacity: 0.35;
+}
+
+.gantt-v2__weekend-shading {
+	opacity: 0.5;
+}
+
 /* SVG Dependency Lines */
 .timeline-dependencies-svg {
 	position: absolute;
@@ -2576,6 +2641,25 @@ export default {
 	border-left: 2px dashed #059669;
 	opacity: 0.8;
 }
+
+.timeline-guide-flag {
+	--guide-color: var(--color-success);
+	position: absolute;
+	left: 3px;
+	padding: 1px 6px;
+	border-radius: 0 8px 8px 0;
+	border-left: 2px solid var(--guide-color);
+	background: var(--color-main-background);
+	color: var(--guide-color);
+	font-size: 10px;
+	font-weight: 700;
+	white-space: nowrap;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.timeline-guide-marker--min-start .timeline-guide-flag { --guide-color: #7c3aed; }
+.timeline-guide-marker--desired-start .timeline-guide-flag { --guide-color: #4f46e5; }
+.timeline-guide-marker--actual-start .timeline-guide-flag { --guide-color: #059669; }
 
 /* Column 3: Status Column */
 .gantt-v2__status {
