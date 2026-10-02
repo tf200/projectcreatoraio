@@ -472,7 +472,7 @@ class ProjectPortfolioService {
 
 		$totalProjects = count($projectRows);
 		$bucketSummaries = [
-			['key' => 'all', 'label' => 'All statuses', 'count' => $totalProjects],
+			['key' => 'all', 'label' => 'All progression', 'count' => $totalProjects],
 			['key' => '0-24', 'label' => '0–24%', 'count' => $bucketCounters['0-24']],
 			['key' => '25-49', 'label' => '25–49%', 'count' => $bucketCounters['25-49']],
 			['key' => '50-74', 'label' => '50–74%', 'count' => $bucketCounters['50-74']],
