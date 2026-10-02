@@ -77,7 +77,7 @@ export function answeredOf(proposal) {
 
 // Statuses in plain words, with the theme tone they read in.
 const STATUS = {
-	'needs-action': ['Waiting', 'muted'],
+	'needs-action': ['Not answered yet', 'muted'],
 	responded: ['Answered', 'success'],
 	accepted: ['Accepted', 'success'],
 	tentative: ['Maybe', 'warning'],
@@ -99,17 +99,38 @@ export function peopleOf(event) {
 	})
 }
 
-// "2 accepted · 1 maybe · 1 declined".
+// The same statuses as a count: "2 accepted · 1 maybe · 1 not answered".
+const SUMMARY = { Accepted: 'accepted', Maybe: 'maybe', Declined: 'declined', 'Not answered yet': 'not answered', Delegated: 'delegated' }
+
 export function attendeeSummary(meeting) {
 	const counts = {}
 	for (const person of meeting.participants || []) {
 		const { label } = statusOf(person?.status)
 		counts[label] = (counts[label] || 0) + 1
 	}
-	return ['Accepted', 'Maybe', 'Declined', 'Waiting', 'Delegated']
+	return Object.keys(SUMMARY)
 		.filter(label => counts[label])
-		.map(label => counts[label] + ' ' + label.toLowerCase())
+		.map(label => counts[label] + ' ' + SUMMARY[label])
 		.join(' · ')
+}
+
+// What a proposal is waiting for, in one line: who still has to answer, the
+// organizer once everyone has, or nothing once every date has passed.
+export function proposalStatus(proposal, now = Date.now()) {
+	if (allPassed(proposal, now)) return { text: 'No date left to pick', tone: 'warning', bar: false }
+	const people = proposal.participants || []
+	if (!people.length) return { text: 'No participants yet', tone: 'muted', bar: false }
+	const waiting = people.filter(p => p?.status !== 'responded').map(p => String(p?.name || p?.address || 'Unknown'))
+	if (!waiting.length) return { text: 'Everyone answered · pick a date in Calendar', tone: 'accent', bar: true }
+	const who = waiting.length > 2 ? waiting.length + ' people' : waiting.join(' and ')
+	return { text: 'Waiting for ' + who, tone: 'normal', bar: true }
+}
+
+// How a proposal moves on, said under its dates.
+export function proposalHint(proposal, now = Date.now()) {
+	return allPassed(proposal, now)
+		? 'Every date offered has passed. Send new dates from Calendar, or remove the proposal there.'
+		: 'Participants mark the dates that suit them; the organizer then picks one in Calendar and it becomes a meeting.'
 }
 
 export function metaOf(event) {

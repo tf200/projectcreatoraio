@@ -48,10 +48,24 @@ test('a proposal whose dates have all passed says so', () => {
 test('answers, statuses and people read as plain words', () => {
 	assert.deepEqual(cal.answeredOf(proposal), { answered: 1, total: 3 })
 	const people = cal.peopleOf(proposal)
-	assert.equal(people.map(p => p.name + '|' + p.address + '|' + p.label + '|' + p.tone).join(' ; '), 'admin2|fasd@gmail.com|Waiting|muted ; Admin3|admin3@gmail.com|Waiting|muted ; taha@yba.ai||Answered|success')
+	assert.equal(people.map(p => p.name + '|' + p.address + '|' + p.label + '|' + p.tone).join(' ; '), 'admin2|fasd@gmail.com|Not answered yet|muted ; Admin3|admin3@gmail.com|Not answered yet|muted ; taha@yba.ai||Answered|success')
 	assert.equal(cal.attendeeSummary(kickoff), '2 accepted · 1 maybe · 1 declined')
+	assert.equal(cal.attendeeSummary({ participants: [{ status: 'accepted' }, { status: 'needs-action' }] }), '1 accepted · 1 not answered')
 	assert.equal(cal.attendeeSummary(later), '')
 	assert.deepEqual(cal.statusOf('something-new'), { label: 'something-new', tone: 'muted' })
+})
+
+test('a proposal says what it is waiting for', () => {
+	const open = { ...proposal, dates: [{ id: 9, date: '2026-10-20T09:00:00+00:00' }] }
+	const p = (name, status) => ({ name, address: name.toLowerCase() + '@firma.nl', status })
+	assert.deepEqual(cal.proposalStatus({ ...open, participants: [p('admin2', 'needs-action')] }, now), { text: 'Waiting for admin2', tone: 'normal', bar: true })
+	assert.equal(cal.proposalStatus({ ...open, participants: [p('admin2', 'needs-action'), p('Admin3', 'needs-action'), p('Taha', 'responded')] }, now).text, 'Waiting for admin2 and Admin3')
+	assert.equal(cal.proposalStatus({ ...open, participants: ['A', 'B', 'C'].map(n => p(n, 'needs-action')) }, now).text, 'Waiting for 3 people')
+	assert.deepEqual(cal.proposalStatus({ ...open, participants: [p('admin2', 'responded')] }, now), { text: 'Everyone answered · pick a date in Calendar', tone: 'accent', bar: true })
+	assert.deepEqual(cal.proposalStatus(proposal, now), { text: 'No date left to pick', tone: 'warning', bar: false }, 'passed dates win over who has answered')
+	assert.equal(cal.proposalStatus({ ...open, participants: [] }, now).text, 'No participants yet')
+	assert.match(cal.proposalHint(open, now), /organizer then picks one in Calendar/)
+	assert.match(cal.proposalHint(proposal, now), /^Every date offered has passed/)
 })
 
 test('dates, times and the one-line summary', () => {

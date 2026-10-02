@@ -85,8 +85,12 @@
 								</span>
 								<span class="pc-calendar__status">
 									<template v-if="isProposal(event)">
-										<span class="pc-calendar__status-text">{{ answeredOf(event).answered }} of {{ answeredOf(event).total }} answered</span>
-										<span class="iz-meter iz-meter--thin pc-calendar__meter" aria-hidden="true">
+										<span class="pc-calendar__status-text" :class="'pc-calendar__status-text--' + proposalStatus(event, now).tone">{{ proposalStatus(event, now).text }}</span>
+										<span v-if="proposalStatus(event, now).bar"
+											class="iz-meter iz-meter--thin pc-calendar__meter"
+											role="img"
+											:aria-label="answeredOf(event).answered + ' of ' + answeredOf(event).total + ' answered'"
+											:title="answeredOf(event).answered + ' of ' + answeredOf(event).total + ' answered'">
 											<span class="iz-meter__fill" :style="{ width: answeredWidth(event) }" />
 										</span>
 									</template>
@@ -132,6 +136,10 @@
 										</ul>
 									</div>
 								</div>
+								<p v-if="isProposal(event)" class="pc-calendar__hint">
+									<span>{{ proposalHint(event, now) }}</span>
+									<a :href="calendarUrl" class="pc-calendar__link">Open Calendar</a>
+								</p>
 							</div>
 						</li>
 					</ul>
@@ -156,7 +164,8 @@
 import ProjectCalendar from '../components/ProjectCalendar.vue'
 import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
-import { isProposal, isMeeting, keyOf, groupsOf, dateBlock, longDay, timeRange, optionsOf, allPassed, answeredOf, peopleOf, attendeeSummary, metaOf } from './calendar.js'
+import { generateUrl } from '@nextcloud/router'
+import { isProposal, isMeeting, keyOf, groupsOf, dateBlock, longDay, timeRange, optionsOf, allPassed, answeredOf, peopleOf, attendeeSummary, metaOf, proposalStatus, proposalHint } from './calendar.js'
 
 // The Calendar tab of the new layout. Extends ProjectCalendar for its loading,
 // paging and All / Proposals / Meetings filter; the list is grouped by what
@@ -170,6 +179,8 @@ export default {
 	},
 	computed: {
 		groups() { return groupsOf(this.events, this.filterType, this.now) },
+		// The organizer picks a date in the Calendar app; it has no link to one proposal.
+		calendarUrl() { return generateUrl('/apps/calendar/') },
 		tabs() {
 			return [
 				{ key: 'all', label: 'All', count: this.events.length },
@@ -194,6 +205,8 @@ export default {
 		peopleOf,
 		attendeeSummary,
 		metaOf,
+		proposalStatus,
+		proposalHint,
 		isOpen(event) { return !!this.open[keyOf(event)] },
 		toggle(event) { this.$set(this.open, keyOf(event), !this.isOpen(event)) },
 		answeredWidth(event) {
@@ -233,8 +246,10 @@ export default {
 .pc-calendar__title { font-size: var(--iz-fs-md); font-weight: 600; color: var(--iz-text); overflow-wrap: anywhere; }
 .pc-calendar__meta { font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); overflow-wrap: anywhere; }
 .pc-calendar__status { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 130px; }
-.pc-calendar__status-text { font-size: var(--iz-fs-sm); font-weight: 600; color: var(--iz-text); white-space: nowrap; }
+.pc-calendar__status-text { max-width: 260px; font-size: var(--iz-fs-sm); font-weight: 600; color: var(--iz-text); text-align: end; }
 .pc-calendar__status-text--muted { font-weight: 500; color: var(--iz-text-secondary); }
+.pc-calendar__status-text--accent { color: var(--iz-accent-bg-text); }
+.pc-calendar__status-text--warning { color: var(--iz-warning-text); }
 .pc-calendar__meter, .pc-calendar__meter .iz-meter__fill { display: block; }
 .pc-calendar__meter { width: 120px; }
 .pc-calendar__chevron { display: inline-flex; color: var(--iz-text-secondary); transition: transform var(--iz-transition, 150ms); }
@@ -262,6 +277,8 @@ export default {
 .pc-calendar__person-name { min-width: 0; overflow-wrap: anywhere; }
 .pc-calendar__muted { margin: 0; color: var(--iz-text-secondary); font-size: var(--iz-fs-sm); }
 
+.pc-calendar__hint { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding-top: 10px; border-top: 1px solid var(--iz-border); font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); }
+.pc-calendar__link { font-weight: 600; color: var(--iz-accent-bg-text); white-space: nowrap; }
 .pc-calendar__more { display: flex; align-items: center; justify-content: center; gap: var(--iz-gap-tight); padding: 12px; }
 .pc-calendar__error { font-size: var(--iz-fs-sm); color: var(--iz-danger-text); }
 .iz-btn:disabled { cursor: default; opacity: 0.5; }
@@ -269,6 +286,7 @@ export default {
 @media (max-width: 760px) {
 	.pc-calendar__row { grid-template-columns: 48px minmax(0, 1fr) 18px; row-gap: 6px; padding-inline: var(--iz-pad-card); }
 	.pc-calendar__status { grid-column: 2; grid-row: 2; align-items: flex-start; min-width: 0; }
+	.pc-calendar__status-text { max-width: none; text-align: start; }
 	.pc-calendar__chevron { grid-column: 3; grid-row: 1; }
 	.pc-calendar__detail { padding-inline: var(--iz-pad-card); }
 	.pc-calendar__columns, .pc-calendar__options { grid-template-columns: minmax(0, 1fr); }

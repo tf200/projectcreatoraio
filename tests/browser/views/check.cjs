@@ -57,6 +57,9 @@ const calendarItems = (() => {
 		{ '@type': 'MeetingProposal', id: 1, projectId: 22, title: 'test', description: 'test', location: 'Talk conversation', duration: 30,
 			participants: [{ name: 'admin2', address: 'fasd@gmail.com', status: 'needs-action' }, { name: 'Admin3', address: 'admin3@gmail.com', status: 'needs-action' }, { name: 'taha@yba.ai', address: 'taha@yba.ai', status: 'responded' }],
 			dates: ['2026-08-24T09:00:00+00:00', '2026-08-25T08:30:00+00:00', '2026-08-27T09:00:00+00:00', '2026-08-28T09:30:00+00:00', '2026-08-31T10:45:00+00:00', '2026-09-02T10:00:00+00:00', '2026-09-04T07:15:00+00:00'].map((date, i) => ({ '@type': 'MeetingProposalDate', id: i + 1, date })) },
+		{ '@type': 'MeetingProposal', id: 2, projectId: 22, title: 'Intake met klant', description: '', location: '', duration: 60,
+			participants: [{ name: 'Thomas Jansen', address: 'thomas@firma.nl', status: 'needs-action' }, { name: 'Lotte Bakker', address: 'lotte@firma.nl', status: 'responded' }],
+			dates: [{ '@type': 'MeetingProposalDate', id: 11, date: at(9, 9, 0) }, { '@type': 'MeetingProposalDate', id: 12, date: at(10, 13, 30) }] },
 		{ '@type': 'Meeting', id: 'kick', projectId: 22, title: 'Kick-off Combi', description: '', location: 'Talk conversation', duration: 60, startDate: at(5, 10, 0), endDate: at(5, 11, 0),
 			participants: [{ name: 'Emma de Vries', address: 'emma@firma.nl', status: 'accepted' }, { name: 'Thomas Jansen', address: 'thomas@firma.nl', status: 'accepted' }, { name: 'Lotte Bakker', address: 'lotte@firma.nl', status: 'tentative' }] },
 		{ '@type': 'Meeting', id: 'schouw', projectId: 22, title: 'Schouw locatie', description: 'Locatie bekijken met de aannemer.', location: 'Kruiskade 12, Rotterdam', duration: 90, startDate: at(-8, 9, 0), endDate: at(-8, 10, 30),
@@ -260,14 +263,13 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		// ---- Calendar ----
 		const calendar = page.locator('#calendar')
 		await calendar.locator('.pc-calendar__item').nth(2).waitFor()
-		assert.equal((await calendar.locator('.iz-tab').allInnerTexts()).map(t => t.replace(/\s+/g, ' ')).join('|'), 'All 3|Proposals 1|Meetings 2')
-		assert.equal((await calendar.locator('.pc-calendar__group-title').allTextContents()).map(t => t.trim()).join('|'), 'Needs a date · 1|Upcoming · 1|Past · 1', 'proposals, then what is coming, then the past')
+		assert.equal((await calendar.locator('.iz-tab').allInnerTexts()).map(t => t.replace(/\s+/g, ' ')).join('|'), 'All 4|Proposals 2|Meetings 2')
+		assert.equal((await calendar.locator('.pc-calendar__group-title').allTextContents()).map(t => t.trim()).join('|'), 'Needs a date · 2|Upcoming · 1|Past · 1', 'proposals, then what is coming, then the past')
 		const stale = calendar.locator('.pc-calendar__item').first()
 		assert.match(await stale.innerText(), /test\s*All 7 dates have passed/)
 		assert.match(await stale.innerText(), /7 date options · 30 min · Talk conversation/)
-		assert.match(await stale.locator('.pc-calendar__status').innerText(), /1 of 3 answered/)
-		const fill = await stale.locator('.pc-calendar__meter .iz-meter__fill').evaluate(n => n.getBoundingClientRect().width / n.parentElement.getBoundingClientRect().width)
-		assert.ok(Math.abs(fill - 1 / 3) < 0.02, 'the answered bar is a third full')
+		assert.equal(await stale.locator('.pc-calendar__status').innerText(), 'No date left to pick', 'every date has passed, so nobody is waited for')
+		assert.equal(await stale.locator('.pc-calendar__meter').count(), 0)
 		assert.equal(await calendar.locator('.pc-calendar__detail').count(), 0, 'rows start closed')
 		await stale.locator('.pc-calendar__row').click()
 		assert.equal(await stale.locator('.pc-calendar__row').getAttribute('aria-expanded'), 'true')
@@ -278,8 +280,18 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.match(await stale.locator('.pc-calendar__options li').first().innerText(), /^1\s*Mon 24 Aug · \d\d:\d\d/)
 		const people = await stale.locator('.pc-calendar__person').allInnerTexts()
 		assert.equal(people.length, 3)
-		assert.match(people[0], /admin2 fasd@gmail.com\s*Waiting/)
+		assert.match(people[0], /admin2 fasd@gmail.com\s*Not answered yet/)
 		assert.match(people[2], /^taha@yba.ai\s*Answered$/, 'an address equal to the name is not repeated')
+		assert.match(await stale.locator('.pc-calendar__hint').innerText(), /Every date offered has passed\. Send new dates from Calendar, or remove the proposal there\.\s*Open Calendar/)
+		assert.match(await stale.locator('.pc-calendar__link').getAttribute('href'), /\/apps\/calendar\/$/)
+		const waiting = calendar.locator('.pc-calendar__item', { hasText: 'Intake met klant' })
+		assert.equal(await waiting.locator('.pc-calendar__status-text').innerText(), 'Waiting for Thomas Jansen')
+		const fill = await waiting.locator('.pc-calendar__meter .iz-meter__fill').evaluate(n => n.getBoundingClientRect().width / n.parentElement.getBoundingClientRect().width)
+		assert.ok(Math.abs(fill - 0.5) < 0.02, 'the answered bar is half full')
+		assert.equal(await waiting.locator('.pc-calendar__meter').getAttribute('aria-label'), '1 of 2 answered')
+		await waiting.locator('.pc-calendar__row').click()
+		assert.match(await waiting.locator('.pc-calendar__hint').innerText(), /^Participants mark the dates that suit them/)
+		await waiting.locator('.pc-calendar__row').click()
 		const kick = calendar.locator('.pc-calendar__item', { hasText: 'Kick-off Combi' })
 		assert.match(await kick.innerText(), /2 accepted · 1 maybe/)
 		assert.match(await kick.locator('.pc-calendar__block').innerText(), /\w{3}\s*\d+\s*\w{3}/)
