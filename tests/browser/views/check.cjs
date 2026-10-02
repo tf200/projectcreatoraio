@@ -243,9 +243,10 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		// ---- Tasks progress ----
 		const tasks = page.locator('#tasks-progress')
 		await tasks.locator('.pc-progress__table tbody tr').nth(9).waitFor()
-		assert.match(await tasks.locator('.pc-progress__kpis').innerText(), /14\s*Total tasks\s*4\s*Completed\s*2\s*Overdue\s*Kritieke Processtap\s*7 \/ 10 open\s*Other open tasks\s*3 \/ 4/)
+		assert.equal(await tasks.locator('.pc-progress__kpis, .pc-progress__kpi').count(), 0, 'no KPI row: the panel says it all')
 		const headlines = await tasks.locator('.pc-progress__headline').allInnerTexts()
-		assert.match(headlines[0], /29%\s*of all tasks done · 4 of 14/)
+		assert.match(headlines[0], /29%\s*of all tasks done · 4 of 14\s*· 2 overdue/)
+		assert.equal(await tasks.locator('.pc-progress__overdue').evaluate(n => getComputedStyle(n).fontWeight), '700')
 		assert.match(headlines[1], /3 of 10\s*critical process steps done/)
 		assert.equal(await tasks.locator('.pc-progress__segment').count(), 10)
 		assert.equal((await tasks.locator('.pc-progress__stops > span').allInnerTexts()).join('|'), 'Process steps|Next priority|In progress|To review|Approved|Done')

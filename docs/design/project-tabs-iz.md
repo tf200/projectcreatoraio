@@ -49,8 +49,9 @@ current interface is untouched — no file under `src/components/` changed.
   the board in place of Deck's own dashboard row, which `tasks-theme.css` hides in the
   new layout only. It reads Deck's `/apps/deck/stacks/{board}` strictly and reads it
   again shortly after the embedded board's store commits anything (a moved card), and
-  on Reload. The four counts are Deck's, counted the same way (`tasks-progress.js`). The
-  Progress panel puts all-task completion and the critical process steps side by side:
+  on Reload. There is no separate KPI row: the Progress panel puts all-task completion
+  (with the overdue count, counted as Deck's dashboard does in `tasks-progress.js`) and
+  the critical process steps side by side:
   a step is a card labelled "Kritieke Processtap" (or its former name "Belangrijk"),
   ordered by the board's card dependencies, then the Combi timeline order (kept equal to
   `ProjectTypeDeckDefaults` by a test), then due date. Open steps come first, done ones

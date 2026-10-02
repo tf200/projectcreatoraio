@@ -10,31 +10,6 @@
 			</button>
 		</div>
 		<template v-else-if="board">
-			<div class="pc-progress__kpis">
-				<div class="pc-progress__kpi">
-					<span class="pc-progress__kpi-value">{{ counts.total }}</span>
-					<span class="pc-progress__kpi-label">Total tasks</span>
-				</div>
-				<div class="pc-progress__kpi">
-					<span class="pc-progress__kpi-value">{{ counts.completed }}</span>
-					<span class="pc-progress__kpi-label">Completed</span>
-				</div>
-				<div class="pc-progress__kpi" :class="{ 'pc-progress__kpi--late': counts.overdue > 0 }">
-					<span class="pc-progress__kpi-value">{{ counts.overdue }}</span>
-					<span class="pc-progress__kpi-label">Overdue</span>
-				</div>
-				<div class="pc-progress__kpi pc-progress__kpi--split">
-					<span class="pc-progress__split-line">
-						<span class="pc-progress__critical-label">Kritieke Processtap</span>
-						<span>{{ counts.criticalOpen }} / {{ counts.criticalTotal }} open</span>
-					</span>
-					<span class="pc-progress__split-line pc-progress__split-line--muted">
-						<span>Other open tasks</span>
-						<span>{{ counts.otherOpen }} / {{ counts.otherTotal }}</span>
-					</span>
-				</div>
-			</div>
-
 			<div class="pc-progress__panel">
 				<h3 class="pc-progress__title">
 					Progress
@@ -44,6 +19,7 @@
 						<p class="pc-progress__headline">
 							<strong>{{ counts.percent }}%</strong>
 							<span>of all tasks done · {{ counts.completed }} of {{ counts.total }}</span>
+							<span v-if="counts.overdue" class="pc-progress__overdue">· {{ counts.overdue }} overdue</span>
 						</p>
 						<div class="iz-meter"
 							role="progressbar"
@@ -147,7 +123,7 @@ import { boardOf, countsOf, stepsOf, dueOf } from './tasks-progress.js'
 // The most columns the per-step track shows; a board with more gets a pill.
 const MAX_STOPS = 8
 
-// Task counts and the critical process steps of a project's Deck board, above
+// Task completion and the critical process steps of a project's Deck board, above
 // the embedded board in the new layout's Tasks tab. refreshKey changes when the
 // embedded board changes something, and the board is read again.
 export default {
@@ -221,22 +197,12 @@ export default {
 <style scoped>
 .pc-progress { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; container: pc-progress / inline-size; }
 
-.pc-progress__kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(240px, 1.5fr); border: 1px solid var(--iz-border); border-radius: var(--iz-radius-lg); }
-.pc-progress__kpi { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; padding: 12px 16px; border-inline-end: 1px solid var(--iz-border); }
-.pc-progress__kpi:last-child { border-inline-end: 0; }
-.pc-progress__kpi-value { font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; font-size: var(--iz-fs-xl); font-weight: 600; color: var(--iz-text); }
-.pc-progress__kpi-label { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
-.pc-progress__kpi--late .pc-progress__kpi-value { color: var(--iz-danger-text); }
-.pc-progress__kpi--split { gap: 6px; }
-.pc-progress__split-line { display: flex; justify-content: space-between; gap: 12px; font-size: var(--iz-fs-sm); color: var(--iz-text); }
-.pc-progress__split-line--muted { color: var(--iz-text-secondary); }
-.pc-progress__critical-label { font-weight: 600; color: var(--iz-danger-text); }
-
 .pc-progress__panel { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border: 1px solid var(--iz-border); border-radius: var(--iz-radius-lg); }
 .pc-progress__title { margin: 0; font-size: var(--iz-fs-md); font-weight: 700; color: var(--iz-text); }
 .pc-progress__summaries { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .pc-progress__summary { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .pc-progress__headline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: var(--iz-fs-sm); color: var(--iz-text-secondary); }
+.pc-progress__overdue { font-weight: 700; color: var(--iz-danger-text); }
 .pc-progress__headline strong { font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; font-size: var(--iz-fs-xl); font-weight: 600; color: var(--iz-text); }
 .pc-progress__summary .iz-meter { height: 8px; }
 .pc-progress__headline--none { min-height: 30px; align-items: center; }
@@ -277,10 +243,6 @@ export default {
 .pc-progress__due--muted { color: var(--iz-text-secondary); }
 
 @container pc-progress (max-width: 760px) {
-	.pc-progress__kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-	.pc-progress__kpi { padding: 10px 12px; }
-	.pc-progress__kpi:nth-child(3) { border-inline-end: 0; }
-	.pc-progress__kpi--split { grid-column: 1 / -1; border-top: 1px solid var(--iz-border); }
 	.pc-progress__summaries { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 	/* No scroll box inside a scrolling page on a narrow screen. */
 	.pc-progress__scroll { max-height: none; }
