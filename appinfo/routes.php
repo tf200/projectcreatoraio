@@ -4,6 +4,7 @@ return [
     "routes" => [
         ['name' => 'page#newIndex', 'url' => '/new', 'verb' => 'GET'],
         ['name' => 'page#newProject', 'url' => '/new/projects/{projectId}', 'verb' => 'GET', 'requirements' => ['projectId' => '\\d+']],
+        ['name' => 'page#newCreate', 'url' => '/new/create', 'verb' => 'GET'],
         [
             "name" => "project_api#create",
             "url" => "/api/v1/projects",
@@ -42,6 +43,11 @@ return [
         [
             "name" => "project_api#context",
             "url" => "/api/v1/projects/context",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "project_api#allowance",
+            "url" => "/api/v1/projects/allowance",
             "verb" => "GET",
         ],
         [

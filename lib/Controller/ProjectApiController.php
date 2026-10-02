@@ -940,6 +940,24 @@ class ProjectApiController extends Controller {
 		return new DataResponse($this->projectService->buildProjectPayloads($projects));
 	}
 
+	/**
+	 * The plan limit a new project would count against, for the create page,
+	 * so it can say "2 of 5 projects used" before anyone presses Create.
+	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	public function allowance(?int $organizationId = null): DataResponse {
+		try {
+			return new DataResponse($this->projectService->getCreationAllowance($organizationId));
+		} catch (Throwable $e) {
+			$statusCode = (int)$e->getCode();
+			if ($statusCode < 400 || $statusCode > 599) {
+				$statusCode = 400;
+			}
+			return new DataResponse(['message' => $e->getMessage()], $statusCode);
+		}
+	}
+
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function context(): DataResponse {

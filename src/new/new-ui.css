@@ -95,3 +95,4 @@
    whatever is under them. */
 .pc-new .iz-chip:not(.iz-chip--active){background:var(--iz-surface);border-color:var(--iz-border-strong)}
 .pc-new .iz-chip:not(.iz-chip--active):hover{background:var(--iz-surface-inset)}
+.pc-new .pc-created-notice{margin:0 0 var(--iz-gap)}

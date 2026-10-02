@@ -73,6 +73,21 @@ current interface is untouched — no file under `src/components/` changed.
   anyone sees is decided by the Calendar app: proposals for their organizer, meetings
   that are in the viewer's own calendar.
 
+- **New project** — `src/new/NewCreate.vue`, a page of the new layout at `/new/create`
+  (a new page route, `page#newCreate`) instead of the current interface's modal. The same
+  fields, rules and request (`create.js` builds the same body as `Project.toJson()`; a
+  test keeps the keys in step): name, number and type required, an organisation for
+  administrators (the existing `OrganizationsFetcher`), client, location with the
+  existing map preview, description. Project types are cards that say what each sets up.
+  Beside the form, "Create sets up" names what the request makes after the project
+  (board, shared and private folders, whiteboard, chat) and the plan line comes from a
+  new read, `GET /api/v1/projects/allowance` (`ProjectService::getCreationAllowance`,
+  the same organisation, plan and count the create request checks). A full plan
+  disables Create; a refusal shows the server's own sentence, never a trace, and keeps
+  the form. Created projects open on their overview with a one-line notice; Cancel and
+  Back return to the project the page was opened from. The shelf, list and empty-state
+  buttons open it in place; "Back to current interface" opens the old create form.
+
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
 a row being edited and, in the dark theme, darker than a panel, so they vanished in the

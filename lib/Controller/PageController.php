@@ -52,6 +52,12 @@ class PageController extends Controller {
 		return $this->renderPage('new');
 	}
 
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function newCreate(): TemplateResponse|NotFoundResponse {
+		return $this->renderPage('new');
+	}
+
 	private function renderPage(string $template): TemplateResponse|NotFoundResponse {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {

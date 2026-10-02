@@ -5,7 +5,7 @@ import vm from 'node:vm'
 import { readRoute, interfaceUrl, normalizeTab } from './navigation.js'
 const script = readFileSync(new URL('./NewApp.vue', import.meta.url), 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '').replace('export default', 'globalThis.component =')
 function app(api, browser = {}) {
- const env = { history: { pushState() {}, replaceState() {} }, overviewState: {}, api, readRoute, interfaceUrl, normalizeTab, generateUrl: x => x, location: { pathname: '/apps/projectcreatoraio/new', search: '' }, NcContent: {}, NcAppContent: {}, ProjectList: {}, ProjectShelf: {}, ProjectHeader: {}, NewOverview: {}, ProjectModule: {}, errorMessage: () => 'error' }
+ const env = { history: { pushState() {}, replaceState() {} }, overviewState: {}, api, readRoute, interfaceUrl, normalizeTab, generateUrl: x => x, location: { pathname: '/apps/projectcreatoraio/new', search: '' }, NcContent: {}, NcAppContent: {}, ProjectList: {}, ProjectShelf: {}, ProjectHeader: {}, NewOverview: {}, ProjectModule: {}, NewCreate: {}, errorMessage: () => 'error' }
  Object.assign(env, browser)
  vm.runInNewContext(script, env)
  const component = env.component
@@ -105,4 +105,37 @@ test('browser history restores the requested project and section', async () => {
  await instance.onPopState()
  assert.equal(instance.project.id, 7)
  assert.equal(instance.route.tab, 'notes')
+})
+
+test('New project opens in the new layout, goes back to where it came from, and opens what it made', async () => {
+ const urls = []
+ const lists = []
+ const projects = [{ id: 21, name: 'Firma de Testerij' }]
+ const instance = app({ list: async () => { lists.push(1); return projects }, project: async id => projects.find(p => p.id === id) }, { history: { pushState: (_s, _t, url) => urls.push(url), replaceState() {} } })
+ instance.$nextTick = async () => {}
+ instance.scrollContainer = () => ({ scrollTop: 0 })
+ await instance.loadRoute()
+ await instance.navigate(21, 'tasks')
+ await instance.openCreate()
+ assert.equal(instance.route.create, true)
+ assert.equal(urls.at(-1), '/apps/projectcreatoraio/new/create')
+ assert.equal(instance.returnLabel, 'Firma de Testerij')
+ assert.equal(instance.legacyUrl, '/apps/projectcreatoraio?create=1')
+ await instance.loadRoute()
+ assert.equal(instance.route.projectId, null, 'the create page is not swapped for the last project')
+ instance.cancelCreate()
+ await new Promise(r => setTimeout(r, 0))
+ assert.equal(instance.route.projectId, 21)
+ assert.equal(instance.route.tab, 'tasks', 'back to the tab it came from')
+
+ projects.push({ id: 30, name: 'Nieuw' })
+ await instance.openCreate()
+ const before = lists.length
+ await instance.onCreated({ projectId: 30, name: 'Nieuw' })
+ assert.equal(instance.route.projectId, 30)
+ assert.equal(instance.route.tab, 'overview')
+ assert.ok(lists.length > before, 'the shelf is read again to hold the new project')
+ assert.equal(instance.createdNotice.text, 'Nieuw is ready: board, folders, whiteboard and chat are set up.')
+ await instance.navigate(21, 'overview')
+ assert.equal(instance.createdNotice, null, 'the notice goes once you move on')
 })

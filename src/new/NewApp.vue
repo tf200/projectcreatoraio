@@ -16,8 +16,9 @@
      <p>{{ t('projectcreatoraio', 'Ask your administrator for access to an organization.') }}</p>
     </section>
     <template v-else>
-     <ProjectShelf ref="shelf" :projects="projects" :selected-id="route.projectId" :selected-name="project ? project.name : ''" :loading="listLoading" :error="listError" :filters="filters" :base="base" :is-global-admin="context.isGlobalAdmin" :is-organization-admin="context.organizationRole === 'admin' && !context.isGlobalAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" @filter="setFilter" @open="navigate($event, route.tab)" @retry="retryList" />
-    <template v-if="route.projectId">
+     <ProjectShelf ref="shelf" :projects="projects" :selected-id="route.projectId" :selected-name="project ? project.name : ''" :loading="listLoading" :error="listError" :filters="filters" :base="base" :is-global-admin="context.isGlobalAdmin" :is-organization-admin="context.organizationRole === 'admin' && !context.isGlobalAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" @filter="setFilter" @open="navigate($event, route.tab)" @retry="retryList" @create="openCreate" />
+    <NewCreate v-if="route.create" :context="context" :back-label="returnLabel" :back-href="returnHref" @cancel="cancelCreate" @created="onCreated" />
+    <template v-else-if="route.projectId">
      <section v-if="projectLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project…') }}</section>
      <section v-else-if="projectError" class="pc-state" role="alert">
       <h1>{{ t('projectcreatoraio', 'Project unavailable') }}</h1><p>{{ projectError }}</p>
@@ -25,6 +26,7 @@
       <button class="pc-secondary" @click="$refs.shelf.openPicker()">{{ t('projectcreatoraio', 'Choose another project') }}</button>
      </section>
      <template v-else-if="project">
+      <p v-if="createdNotice && createdNotice.projectId === route.projectId" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ createdNotice.text }}</p>
       <ProjectHeader :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :class="'pc-module--' + route.tab" :aria-label="tabLabel" :aria-busy="projectLoading">
@@ -36,7 +38,7 @@
     <section v-else-if="!listLoading && !listError" class="pc-state">
      <h1>{{ t('projectcreatoraio', 'Your project workspace') }}</h1>
      <p>{{ t('projectcreatoraio', 'Create a project to get started. Your projects will appear in the shelf above.') }}</p>
-     <a class="pc-button" :href="base + '?create=1'">{{ t('projectcreatoraio', 'New project') }}</a>
+     <a class="pc-button" :href="base + '/new/create'" @click.prevent="openCreate">{{ t('projectcreatoraio', 'New project') }}</a>
     </section>
     </template>
    </main>
@@ -55,18 +57,22 @@ import ProjectShelf from './ProjectShelf.vue'
 import ProjectHeader from './ProjectHeader.vue'
 import NewOverview from './NewOverview.vue'
 import ProjectModule from './ProjectModule.vue'
+import NewCreate from './NewCreate.vue'
 
 export default {
  mixins: [overviewState],
  name: 'NewProjectApp',
- components: { NcContent, NcAppContent, ProjectShelf, ProjectHeader, NewOverview, ProjectModule },
+ components: { NcContent, NcAppContent, ProjectShelf, ProjectHeader, NewOverview, ProjectModule, NewCreate },
  data() {
-  return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, directChatUser: null, requestVersion: 0, listVersion: 0, contextVersion: 0 }
+  return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, directChatUser: null, returnRoute: null, createdNotice: null, requestVersion: 0, listVersion: 0, contextVersion: 0 }
  },
  computed: {
   hasAccess() { return !!(this.context?.isGlobalAdmin || this.context?.organizationId) },
   legacyUrl() { return interfaceUrl(this.base, this.route, false) },
   tabLabel() { return this.route.tab },
+  // The New project page leads back to the project it was opened from.
+  returnLabel() { return this.returnRoute ? (this.projects.find(p => Number(p.id) === this.returnRoute.projectId)?.name || '') : '' },
+  returnHref() { return interfaceUrl(this.base, this.returnRoute || {}, true) },
  },
  mounted() { window.addEventListener('popstate', this.onPopState); this.initialize() },
  beforeDestroy() { this.requestVersion++; this.listVersion++; this.contextVersion++; window.removeEventListener('popstate', this.onPopState) },
@@ -113,7 +119,7 @@ export default {
   },
   async loadRoute() {
    if (!this.listLoaded) await this.loadList()
-   if (!this.route.projectId && this.projects.length) {
+   if (!this.route.projectId && !this.route.create && this.projects.length) {
     let remembered = null
     try { remembered = Number(localStorage.getItem(this.base + ':last-project:' + this.context.userId)) } catch { /* Default to an accessible project. */ }
     const first = this.projects.find(p => Number(p.id) === remembered) || this.projects[0]
@@ -126,8 +132,9 @@ export default {
   async retryList() { await this.loadList(); if (!this.route.projectId && !this.listError) await this.loadRoute() },
   scrollContainer() { return this.$el.querySelector('.app-content') || this.$el },
   async navigate(projectId, tab = 'overview') {
-   const sameProject = projectId && projectId === this.route.projectId && this.project
+   const sameProject = projectId && projectId === this.route.projectId && this.project && !this.route.create
    if (!sameProject) this.directChatUser = null
+   if (this.createdNotice && Number(projectId) !== this.createdNotice.projectId) this.createdNotice = null
    this.route = { projectId: projectId ? Number(projectId) : null, tab: normalizeTab(tab) }
    this.moduleError = false
    history.pushState(null, '', interfaceUrl(this.base, this.route, true))
@@ -135,6 +142,26 @@ export default {
    else if (this.route.tab === 'overview') this.loadOverview()
    await this.$nextTick()
    this.scrollContainer().scrollTop = 0
+  },
+  async openCreate() {
+   this.returnRoute = this.route.projectId ? { projectId: this.route.projectId, tab: this.route.tab } : null
+   this.route = { projectId: null, tab: 'overview', create: true }
+   this.createdNotice = null
+   history.pushState(null, '', interfaceUrl(this.base, this.route, true))
+   await this.$nextTick()
+   this.scrollContainer().scrollTop = 0
+  },
+  cancelCreate() {
+   const back = this.returnRoute
+   this.returnRoute = null
+   this.navigate(back ? back.projectId : null, back ? back.tab : 'overview')
+  },
+  // A new project opens on its overview, with the list read again to hold it.
+  async onCreated({ projectId, name }) {
+   this.returnRoute = null
+   this.listLoaded = false
+   this.createdNotice = { projectId, text: name + ' is ready: board, folders, whiteboard and chat are set up.' }
+   await this.navigate(projectId, 'overview')
   },
   // Chat on a member opens Notes on a direct conversation with them, as the
   // current interface does; Notes clears it once the conversation is open.

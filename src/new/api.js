@@ -21,6 +21,9 @@ export const api = {
 	addMember: (id, userId, drascivsRoles, functionalRoleKeys) => send('post', `projects/${id}/members`, { userId, drascivsRoles, functionalRoleKeys }),
 	updateMemberRoles: (id, userId, drascivsRoles, functionalRoleKeys) => send('put', `projects/${id}/members/${encodeURIComponent(userId)}/role`, { drascivsRoles, functionalRoleKeys }),
 	searchUsers: (search, organizationId) => get('users/search', organizationId ? { search, organizationId } : { search }),
+	// The plan limit a new project counts against, and the create request itself.
+	allowance: organizationId => get('projects/allowance', organizationId ? { organizationId } : undefined),
+	createProject: payload => send('post', 'projects', payload),
 	// Deck's own read of a board's columns with their cards (labels, dates, dependencies).
 	deckStacks: async boardId => (await axios.get(generateUrl(`/apps/deck/stacks/${boardId}`))).data,
 }

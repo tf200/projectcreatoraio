@@ -1,6 +1,6 @@
 <template>
  <section>
-  <header class="pc-list-heading"><div><h2>{{ t('projectcreatoraio', 'Projects') }}</h2></div><a class="pc-button" :href="base + '?create=1'">+ {{ t('projectcreatoraio', 'New project') }}</a></header>
+  <header class="pc-list-heading"><div><h2>{{ t('projectcreatoraio', 'Projects') }}</h2></div><a class="pc-button" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a></header>
   <p class="pc-subtle">{{ t('projectcreatoraio', 'Project creation opens in the current interface for now.') }}</p>
   <div class="pc-list-surface">
    <div class="pc-filters">

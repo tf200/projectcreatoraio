@@ -83,12 +83,18 @@ const server = http.createServer((req, res) => {
 		req.on('data', chunk => { body += chunk })
 		req.on('end', () => {
 			bodies.push({ method: req.method, path: url.pathname, body: JSON.parse(body || '{}') })
+			if (url.pathname.endsWith('/api/v1/projects')) {
+				return bodies.filter(b => b.path === url.pathname).length === 1
+					? send(400, { message: 'Failed to create project: The maximum number of projects allowed for this plan (5) has been reached. You currently have 5 projects. Please upgrade your plan to create additional projects.' })
+					: send(200, { message: 'Project created successfully', projectId: 99 })
+			}
 			if ((m = url.pathname.match(/\/members\/([^/]+)\/role$/))) return send(200, { member: { id: decodeURIComponent(m[1]), ...JSON.parse(body) } })
 			return send(200, { alreadyMember: false })
 		})
 		return
 	}
 	if (url.pathname === '/apps/deck/stacks/31') return send(200, deckStacks)
+	if (url.pathname.endsWith('/api/v1/projects/allowance')) return send(200, { organizationId: 3, organizationName: 'ORG_STANDARD_01', maxProjects: 5, projectsCount: 2, sharedStoragePerProject: 10737418240 })
 	if ((m = url.pathname.match(/\/ocs\/v2\.php\/calendar\/proposal\/project\/(\d+)$/))) {
 		if (m[1] === '24') return send(500, { message: 'down' })
 		return send(200, { ocs: { data: m[1] === '22' ? calendarItems : [] } })
@@ -260,6 +266,40 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.locator('#activity-denied .pc-activity-state[role="alert"]').waitFor()
 		assert.match(await page.locator('#activity-denied .pc-activity-state').innerText(), /do not have access/, 'no access reads as a failure, not an empty project')
 
+		// ---- New project ----
+		const form = page.locator('#create')
+		await form.locator('.pc-create__plan-line').waitFor()
+		assert.match(await form.locator('.pc-create__plan-line').innerText(), /Plan for ORG_STANDARD_01\s*2 of 5 projects used/)
+		assert.match(await form.locator('.pc-create__plan-note').innerText(), /This one makes 3 of 5\./)
+		assert.match(await form.locator('.pc-create__back').innerText(), /Back to Firma de Testerij/)
+		const submit = form.locator('button[type=submit]')
+		assert.ok(await submit.isDisabled())
+		assert.equal(await form.locator('.pc-create__hint').innerText(), 'Still needed: a name, a number and a type.')
+		assert.equal(await form.locator('.vs__dropdown-toggle, .pc-create__field:has-text("Organisation")').count(), 0, 'members create in their own organisation, without a picker')
+		await form.locator('input[placeholder="e.g. Firma de Testerij"]').fill('Firma de Testerij')
+		assert.match(await form.locator('.pc-create__setup').innerText(), /Firma de Testerij - Main Board[\s\S]*Firma de Testerij - Shared Files\s*Team folder for everyone on the project, 10 GB/)
+		await form.locator('.pc-create__type', { hasText: 'Combi' }).click()
+		assert.ok(await form.locator('.pc-create__type', { hasText: 'Combi' }).locator('input').isChecked(), 'the card checks its real radio')
+		assert.match(await form.locator('.pc-create__setup li').first().innerText(), /20 Combi process tasks/)
+		assert.equal(await form.locator('.pc-create__hint').innerText(), 'Still needed: a number.')
+		await form.locator('input[placeholder="e.g. P-2026-014"]').fill('P-2026-014')
+		await form.locator('input[placeholder="e.g. Rotterdam"]').fill('Rotterdam')
+		await form.locator('.iz-chip', { hasText: 'Project Owner' }).click()
+		assert.equal(await form.locator('.pc-create__hint').innerText(), 'Ready to create.')
+		assert.deepEqual(await blends(form), [], 'new project')
+		await page.waitForTimeout(150)
+		await form.screenshot({ path: '/check/create.png' })
+		await submit.click()
+		await form.locator('.pc-create__failure').waitFor()
+		assert.match(await form.locator('.pc-create__failure').innerText(), /The project was not created\s*The maximum number of projects allowed for this plan \(5\) has been reached\./)
+		assert.doesNotMatch(await form.locator('.pc-create__failure').innerText(), /Failed to create project/)
+		assert.equal(await form.locator('input[placeholder="e.g. Firma de Testerij"]').inputValue(), 'Firma de Testerij', 'what was entered stays')
+		const sent = bodies.find(b => b.path.endsWith('/api/v1/projects'))
+		assert.equal(JSON.stringify(sent.body), JSON.stringify({ name: 'Firma de Testerij', number: 'P-2026-014', description: '', client_name: '', client_role: ['project_owner'], client_phone: '', client_email: '', client_address: '', loc_street: '', loc_city: 'Rotterdam', loc_zip: '', type: 0, organizationId: null, members: [] }))
+		await submit.click()
+		await page.waitForFunction(() => window.created)
+		assert.deepEqual(await page.evaluate(() => window.created), { projectId: 99, name: 'Firma de Testerij' })
+
 		// ---- Calendar ----
 		const calendar = page.locator('#calendar')
 		await calendar.locator('.pc-calendar__item').nth(2).waitFor()
@@ -426,7 +466,7 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await addBtn.click()
 		await members.locator('.pc-view__notice--ok').waitFor()
 		assert.match(await members.locator('.pc-view__notice--ok').innerText(), /Jeroen Visser was added/)
-		const posted = bodies.find(b => b.method === 'POST')
+		const posted = bodies.find(b => b.method === 'POST' && b.path.endsWith('/members'))
 		assert.equal(JSON.stringify(posted.body), JSON.stringify({ userId: 'jeroen', drascivsRoles: ['supportive'], functionalRoleKeys: ['client'] }))
 
 		const lotte = members.locator('.pc-member').nth(2)
@@ -494,9 +534,10 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.ok(await page.locator('#tasks-progress .pc-progress__scroll').evaluate(n => n.scrollHeight <= n.clientHeight), 'and no scroll box inside the page')
 		await page.locator('#tasks-progress').screenshot({ path: '/check/tasks-progress-mobile.png' })
 		await page.locator('#calendar').screenshot({ path: '/check/calendar-mobile.png' })
+		await page.locator('#create').screenshot({ path: '/check/create-mobile.png' })
 
 		assert.deepEqual(errors, [])
-		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, tasks progress, calendar agenda/empty/failure, 390px — current interface unchanged.')
+		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, tasks progress, calendar agenda/empty/failure, new project, 390px — current interface unchanged.')
 	} finally {
 		await browser.close()
 		server.close()

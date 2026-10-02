@@ -7,6 +7,7 @@ import NewMembers from '/app/src/new/NewMembers.vue'
 import NewWhiteboardActivity from '/app/src/new/NewWhiteboardActivity.vue'
 import TaskProgress from '/app/src/new/TaskProgress.vue'
 import NewCalendar from '/app/src/new/NewCalendar.vue'
+import NewCreate from '/app/src/new/NewCreate.vue'
 import '/app/src/new/new-ui.css'
 import '/app/src/new/documents-theme.css'
 
@@ -49,6 +50,7 @@ window.fixture = new Vue({
 			section(h, 'intake', 'intake', h(NewIntake, { props: { projectId: 21, canEdit: true } })),
 			section(h, 'activity', 'activity', h(NewActivity, { props: { projectId: 21 } })),
 			section(h, 'activity-denied', 'activity', h(NewActivity, { props: { projectId: 23 } })),
+			h('div', { attrs: { id: 'create' } }, [h(NewCreate, { props: { context: { userId: 'emma', isGlobalAdmin: false, organizationId: 3 }, backLabel: 'Firma de Testerij', backHref: '#back' }, on: { created: e => { window.created = e }, cancel: () => { window.cancelled = true } } })]),
 			section(h, 'calendar', 'agenda', h(NewCalendar, { props: { projectId: 22 } })),
 			section(h, 'calendar-empty', 'agenda', h(NewCalendar, { props: { projectId: 21 } })),
 			section(h, 'calendar-failed', 'agenda', h(NewCalendar, { props: { projectId: 24 } })),

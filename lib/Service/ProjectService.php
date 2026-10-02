@@ -1467,6 +1467,35 @@ class ProjectService {
 		return array_map(fn (Project $project): array => $this->buildProjectPayload($project), $projects);
 	}
 
+	/**
+	 * The organisation a new project by the current user would go to, with its
+	 * plan's project limit and how many projects it already has: the same
+	 * organisation, plan and count the create request checks.
+	 *
+	 * @return array{organizationId: ?int, organizationName: string, maxProjects: ?int, projectsCount: ?int, sharedStoragePerProject: ?int}
+	 */
+	public function getCreationAllowance(?int $organizationId = null): array {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			throw new OCSException('You must be logged in to create a project.');
+		}
+		if ($this->organizationMapper === null || $this->subscriptionMapper === null || $this->planMapper === null) {
+			return ['organizationId' => $organizationId, 'organizationName' => '', 'maxProjects' => null, 'projectsCount' => null, 'sharedStoragePerProject' => null];
+		}
+
+		$organization = $this->resolveOrganizationForCurrentUser($user->getUID(), $organizationId, false);
+		$subscription = $this->subscriptionMapper->findByOrganizationId($organization->getId());
+		$plan = $this->planMapper->find($subscription->getPlanId());
+
+		return [
+			'organizationId' => (int)$organization->getId(),
+			'organizationName' => (string)$organization->getName(),
+			'maxProjects' => (int)$plan->getMaxProjects(),
+			'projectsCount' => (int)$this->organizationMapper->getProjectsCount($organization->getId()),
+			'sharedStoragePerProject' => (int)$plan->getSharedStoragePerProject(),
+		];
+	}
+
 	private function resolveOrganizationForCurrentUser(
 		string $userId,
 		?int $organizationId = null,
