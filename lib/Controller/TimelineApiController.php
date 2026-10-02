@@ -181,6 +181,19 @@ class TimelineApiController extends Controller
                 $requiredPreparationWeeks = (int) $params['requiredPreparationWeeks'];
             }
 
+            if (array_key_exists('actual_handover_date', $params)) {
+                $value = $params['actual_handover_date'];
+                if ($value === null || $value === '') {
+                    $project->setActualHandoverDate(null);
+                } else {
+                    $date = is_string($value) ? DateTime::createFromFormat('!Y-m-d', $value) : false;
+                    if ($date === false || $date->format('Y-m-d') !== $value) {
+                        throw new \InvalidArgumentException('Actual handover date must be a valid date in YYYY-MM-DD format');
+                    }
+                    $project->setActualHandoverDate($date);
+                }
+            }
+
             if ($desiredStartDate !== null) {
                 $trimmed = trim($desiredStartDate);
                 if ($trimmed === '' || strtolower($trimmed) === 'null') {

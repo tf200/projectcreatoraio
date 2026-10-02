@@ -346,6 +346,30 @@
 					</div>
 				</div>
 			</div>
+			<div class="kpi-card">
+				<div class="kpi-card__content">
+					<label class="kpi-card__label" for="actual-handover-date">
+						ACTUAL HANDOVER DATE
+					</label>
+					<input
+						id="actual-handover-date"
+						type="date"
+						:value="isoDateOnly(kpis.actualHandoverDate)"
+						:disabled="!canEdit || saving"
+						@change="onHandoverDateChange" />
+					<NcButton
+						v-if="canEdit && kpis.actualHandoverDate"
+						type="tertiary"
+						size="small"
+						:disabled="saving"
+						@click="$emit('save-handover-date', null)">
+						Clear
+					</NcButton>
+					<div class="kpi-card__subtext">
+						{{ kpis.actualHandoverDate ? `Handed over on ${formatDisplayDate(kpis.actualHandoverDate)}` : 'Not set' }}
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 </template>
@@ -632,6 +656,10 @@ export default {
 			if (this.$refs.actualDatePicker) {
 				this.$refs.actualDatePicker.value = ''
 			}
+		},
+		onHandoverDateChange(event) {
+			if (!this.canEdit || this.saving) return
+			this.$emit('save-handover-date', event.target.value || null)
 		},
 		isoDateOnly(isoDate) {
 			if (!isoDate || typeof isoDate !== 'string') return ''

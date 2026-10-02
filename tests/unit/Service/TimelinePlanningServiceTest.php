@@ -12,6 +12,28 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 final class TimelinePlanningServiceTest extends TestCase {
+	public function testHandoverDateIsManualAndCanBeClearedWithoutChangingPlanning(): void {
+		$service = new TimelinePlanningService($this->createMock(IDBConnection::class), $this->createMock(LoggerInterface::class));
+		$project = new Project();
+		$project->setType(-1);
+		$project->setCreatedAt(new DateTime('2026-09-07'));
+		$before = $service->buildSummary($project);
+		$this->assertNull($before['actualHandoverDate']);
+
+		$project->setActualHandoverDate(new DateTime('2026-10-01'));
+		$after = $service->buildSummary($project);
+		$this->assertSame('2026-10-01', $after['actualHandoverDate']);
+		$this->assertSame('2026-10-01', $after['kpis']['actualHandoverDate']);
+		$this->assertSame('2026-10-01', $after['systemPlanning']['actualHandover']['date']);
+		$this->assertSame('2026-10-01', $project->jsonSerialize()['actual_handover_date']);
+		$this->assertSame($before['processCompleted'], $after['processCompleted']);
+		$this->assertSame($before['minimumStartDate'], $after['minimumStartDate']);
+
+		$project->setActualHandoverDate(null);
+		$this->assertSame($before, $service->buildSummary($project));
+		$this->assertNull($project->jsonSerialize()['actual_handover_date']);
+	}
+
 	public function testBuildSummaryIncludesPlanningMetricsAndKpis(): void {
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);

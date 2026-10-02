@@ -8,6 +8,7 @@
 			:saving="savingDesiredDate"
 			@save-desired-date="onSaveDesiredDate"
 			@save-actual-date="onSaveActualDate"
+			@save-handover-date="onSaveHandoverDate"
 			@save-prep-weeks="onSavePrepWeeks" />
 
 		<!-- What-If Simulation Banner (Step 3) -->
@@ -351,6 +352,14 @@
 									<div class="timeline-guide-line timeline-guide-line--desired-start" />
 								</div>
 
+								<div
+									v-if="actualHandoverOffset !== null"
+									class="timeline-guide-marker"
+									:style="{ left: actualHandoverOffset + 'px' }"
+									:title="`Actual handover: ${formatDate(systemPlanningData.actualHandover?.date)}`">
+									<div class="timeline-guide-line timeline-guide-line--handover" />
+								</div>
+
 								<!-- Actual Start Date Guide Line -->
 								<div
 									v-if="actualStartOffset !== null"
@@ -687,6 +696,7 @@
 </template>
 
 <script>
+import { showError } from '@nextcloud/dialogs'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import { NcButton, NcLoadingIcon, NcModal, NcTextField } from '@nextcloud/vue'
@@ -1048,6 +1058,7 @@ export default {
 					this.systemPlanningData.deckTasks?.endDate,
 					this.systemPlanningData.minimumStart?.date,
 					this.systemPlanningData.desiredStart?.date,
+					this.systemPlanningData.actualHandover?.date,
 				].filter(Boolean)
 				for (const dateStr of planningDates) {
 					const d = this.parseDateOnly(dateStr)
@@ -1187,6 +1198,11 @@ export default {
 			const d = this.parseDateOnly(dateStr)
 			const days = Math.floor((d - start) / (1000 * 60 * 60 * 24))
 			return days * this.dayWidth
+		},
+		actualHandoverOffset() {
+			const date = this.systemPlanningData?.actualHandover?.date
+			if (!date) return null
+			return Math.floor((this.parseDateOnly(date) - this.timelineRange.start) / (1000 * 60 * 60 * 24)) * this.dayWidth
 		},
 		actualStartOffset() {
 			const dateStr = this.systemPlanningData?.actualStart?.date
@@ -1500,6 +1516,18 @@ export default {
 				}
 			} catch (error) {
 				console.error('Error updating actual start date:', error)
+			} finally {
+				this.savingDesiredDate = false
+			}
+		},
+		async onSaveHandoverDate(dateStr) {
+			this.savingDesiredDate = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
+				await axios.put(url, { actual_handover_date: dateStr || null })
+				await this.loadItems()
+			} catch (error) {
+				showError('Could not save actual handover date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -2528,6 +2556,10 @@ export default {
 .timeline-guide-line {
 	width: 2px;
 	height: 100%;
+}
+
+.timeline-guide-line--handover {
+	border-left: 2px solid var(--color-success);
 }
 
 .timeline-guide-line--min-start {

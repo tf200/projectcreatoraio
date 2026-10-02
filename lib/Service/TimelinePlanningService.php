@@ -21,6 +21,18 @@ class TimelinePlanningService
 	/** @param null|array<int, array<string, mixed>> $phases */
 	public function buildSummary(Project $project, ?array $phases = null): array
 	{
+		$summary = $this->buildPlanningSummary($project, $phases);
+		$date = $project->getActualHandoverDate();
+		$dateString = $date instanceof DateTime ? $date->format('Y-m-d') : null;
+		$summary['actualHandoverDate'] = $dateString;
+		$summary['kpis']['actualHandoverDate'] = $dateString;
+		$summary['systemPlanning']['actualHandover'] = ['date' => $dateString];
+		return $summary;
+	}
+
+	/** @param null|array<int, array<string, mixed>> $phases */
+	private function buildPlanningSummary(Project $project, ?array $phases): array
+	{
 		$createdAt = $project->getCreatedAt();
 		$createdAt = $createdAt instanceof DateTime ? clone $createdAt : new DateTime('now');
 
