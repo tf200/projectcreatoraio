@@ -41,7 +41,7 @@ import { t } from '@nextcloud/l10n'
 import { api } from './api.js'
 
 const loaders = {
-	tasks: () => import('../components/ProjectDeck/DeckBoard.vue'),
+	tasks: () => import('./NewTasks.vue'),
 	notes: () => import('../components/ProjectNotesList.vue'),
 	planning: () => import('../components/ProjectTimeline/GanttChart.vue'),
 	documents: () => import('../components/ProjectFiles/ProjectFilesBrowser.vue'),

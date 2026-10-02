@@ -28,6 +28,28 @@ const boardSaves = (() => {
 	return list.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
 })()
 const bodies = []
+// A Combi board part-way through its process, as Deck's /apps/deck/stacks returns it.
+const deckStacks = (() => {
+	const day = n => new Date(Date.now() + n * 86400000).toISOString()
+	const crit = [{ title: 'Kritieke Processtap' }]
+	let id = 500
+	const c = (title, extra = {}) => ({ id: ++id, title, labels: crit, archived: false, deletedAt: 0, dependentCards: [], ...extra })
+	const plain = (title, extra = {}) => c(title, { labels: [], ...extra })
+	const intake = c('Intakeformulier', { done: day(-20) }), quick = c('Quickscan', { done: day(-16) }), peak = c('Piekvermogensformulier', { done: day(-10) })
+	const situ = c('Situatie tekening', { duedate: day(1) }), avp = c('AVP', { duedate: day(4) })
+	const vo = c('VO', { duedate: day(7), dependentCards: [] }), house = c('Huisnummerbesluit', { duedate: day(-3) })
+	const report = c('Verslag inpandig overleg', { duedate: day(18) }), doc = c('DO'), soil = c('Bodemrapport', { duedate: day(33) })
+	vo.dependentCards = [situ.id, avp.id]
+	doc.dependentCards = [vo.id]
+	return [
+		{ id: 1, title: 'Process steps', order: 0, cards: [doc, soil, plain('Garantie overeenkomst'), plain('Blokkenschema'), plain('Zakelijkrecht', { archived: true })] },
+		{ id: 2, title: 'Next priority', order: 1, cards: [report, plain('Intakeverslag', { duedate: day(-1) })] },
+		{ id: 3, title: 'In progress', order: 2, cards: [vo, house] },
+		{ id: 4, title: 'To review', order: 3, cards: [avp] },
+		{ id: 5, title: 'Approved', order: 4, cards: [situ] },
+		{ id: 6, title: 'Done', order: 5, cards: [intake, quick, peak, plain('Intake inplannen & hosten')] },
+	]
+})()
 const team = [
 	{ id: 'emma', displayName: 'Emma de Vries', isOwner: true, drascivsRoles: ['driver', 'accountable'], functionalRoleKeys: ['cpl'] },
 	{ id: 'thomas', displayName: 'Thomas Jansen', drascivsRoles: ['responsible'], functionalRoleKeys: ['cpl', 'client'] },
@@ -50,6 +72,7 @@ const server = http.createServer((req, res) => {
 		})
 		return
 	}
+	if (url.pathname === '/apps/deck/stacks/31') return send(200, deckStacks)
 	if (url.pathname.endsWith('/projects/21/whiteboard/activity')) {
 		const limit = Number(url.searchParams.get('limit')), offset = Number(url.searchParams.get('offset'))
 		return send(200, { events: boardSaves.slice(offset, offset + limit), hasMore: offset + limit < boardSaves.length })
@@ -217,6 +240,34 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.locator('#activity-denied .pc-activity-state[role="alert"]').waitFor()
 		assert.match(await page.locator('#activity-denied .pc-activity-state').innerText(), /do not have access/, 'no access reads as a failure, not an empty project')
 
+		// ---- Tasks progress ----
+		const tasks = page.locator('#tasks-progress')
+		await tasks.locator('.pc-progress__table tbody tr').nth(9).waitFor()
+		assert.match(await tasks.locator('.pc-progress__kpis').innerText(), /14\s*Total tasks\s*4\s*Completed\s*2\s*Overdue\s*Kritieke Processtap\s*7 \/ 10 open\s*Other open tasks\s*3 \/ 4/)
+		const headlines = await tasks.locator('.pc-progress__headline').allInnerTexts()
+		assert.match(headlines[0], /29%\s*of all tasks done · 4 of 14/)
+		assert.match(headlines[1], /3 of 10\s*critical process steps done/)
+		assert.equal(await tasks.locator('.pc-progress__segment').count(), 10)
+		assert.equal((await tasks.locator('.pc-progress__stops > span').allInnerTexts()).join('|'), 'Process steps|Next priority|In progress|To review|Approved|Done')
+		const stepRows = (await tasks.locator('.pc-progress__table tbody th').allInnerTexts()).map(t => t.trim())
+		assert.equal(stepRows.join(' > '), 'Situatie tekening > AVP > VO > DO > Verslag inpandig overleg > Bodemrapport > Huisnummerbesluit > Intakeformulier > Piekvermogensformulier > Quickscan', 'open first in process order (DO waits on VO), done last')
+		assert.equal(await tasks.locator('.pc-progress__due--late').innerText(), '3 days late')
+		assert.equal(await tasks.locator('tbody tr').nth(3).locator('.pc-progress__due').innerText(), 'Not planned')
+		assert.match(await tasks.locator('.pc-progress__due--done').first().innerText(), /^Done \d+ \w+/)
+		assert.equal(await tasks.locator('tbody tr').nth(0).locator('.pc-progress__stop--here').count(), 1, 'one stop marks the column')
+		const box = await tasks.locator('.pc-progress__scroll').evaluate(n => ({ h: n.clientHeight, sh: n.scrollHeight }))
+		assert.ok(box.h <= 300 && box.sh > box.h, 'ten steps scroll inside the box')
+		assert.ok(await tasks.locator('.pc-progress__wrap--more').count(), 'with a fade while there is more below')
+		await tasks.locator('.pc-progress__scroll').evaluate(n => { n.scrollTop = n.scrollHeight })
+		await page.waitForTimeout(100)
+		assert.equal(await tasks.locator('.pc-progress__wrap--more').count(), 0, 'and none at the end')
+		const headTop = await tasks.locator('.pc-progress__table thead th').first().evaluate(n => n.getBoundingClientRect().top - n.closest('.pc-progress__scroll').getBoundingClientRect().top)
+		assert.ok(Math.abs(headTop) < 1, 'the column header stays at the top while scrolling')
+		await tasks.locator('.pc-progress__scroll').evaluate(n => { n.scrollTop = 0 })
+		assert.deepEqual(await blends(tasks), [], 'tasks progress')
+		await page.waitForTimeout(150)
+		await tasks.screenshot({ path: '/check/tasks-progress.png' })
+
 		// ---- Whiteboard activity ----
 		const wb = page.locator('#wb-activity')
 		await wb.locator('.pc-wb-day').nth(3).waitFor()
@@ -364,9 +415,13 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.screenshot({ path: '/check/mobile.png', fullPage: true })
 		await page.locator('#members').screenshot({ path: '/check/members-mobile.png' })
 		await page.locator('#wb-activity').screenshot({ path: '/check/wb-activity-mobile.png' })
+		assert.equal(await page.locator('#tasks-progress .pc-progress__track').first().isVisible(), false, 'no track on a phone')
+		assert.equal(await page.locator('#tasks-progress .pc-progress__pill').first().isVisible(), true, 'the column as a pill instead')
+		assert.ok(await page.locator('#tasks-progress .pc-progress__scroll').evaluate(n => n.scrollHeight <= n.clientHeight), 'and no scroll box inside the page')
+		await page.locator('#tasks-progress').screenshot({ path: '/check/tasks-progress-mobile.png' })
 
 		assert.deepEqual(errors, [])
-		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, 390px — current interface unchanged.')
+		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, tasks progress, 390px — current interface unchanged.')
 	} finally {
 		await browser.close()
 		server.close()

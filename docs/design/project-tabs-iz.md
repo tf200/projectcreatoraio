@@ -44,6 +44,20 @@ current interface is untouched — no file under `src/components/` changed.
   query, so the sidebar counts) the matrix falls back to one card per member with
   DRASCIVS pills.
 
+- **Tasks progress** — `src/new/NewTasks.vue` extends `DeckBoard` (header, sub-tabs,
+  embedded Deck board and card permissions unchanged) and puts `TaskProgress.vue` above
+  the board in place of Deck's own dashboard row, which `tasks-theme.css` hides in the
+  new layout only. It reads Deck's `/apps/deck/stacks/{board}` strictly and reads it
+  again shortly after the embedded board's store commits anything (a moved card), and
+  on Reload. The four counts are Deck's, counted the same way (`tasks-progress.js`). The
+  Progress panel puts all-task completion and the critical process steps side by side:
+  a step is a card labelled "Kritieke Processtap" (or its former name "Belangrijk"),
+  ordered by the board's card dependencies, then the Combi timeline order (kept equal to
+  `ProjectTypeDeckDefaults` by a test), then due date. Open steps come first, done ones
+  last, each with a track over the board's columns and its due date (late in red). The
+  list scrolls inside a box of eight rows with a fade; on a narrow screen it runs full
+  length with a column pill instead of the track.
+
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
 a row being edited and, in the dark theme, darker than a panel, so they vanished in the
