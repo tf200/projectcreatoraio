@@ -67,7 +67,7 @@
 /* Views built from the In Zicht theme (Intake, Activity, and the Documents
  * heading). Their tabs sit straight on the page background as iz- panels, so
  * the module host stops drawing a card behind them. */
-.pc-new .pc-module--documents,.pc-new .pc-module--intake,.pc-new .pc-module--activity{margin-top:var(--iz-gap);padding:0;border:0;border-radius:0;background:transparent;min-height:0;overflow:visible}
+.pc-new .pc-module--documents,.pc-new .pc-module--intake,.pc-new .pc-module--activity,.pc-new .pc-module--members{margin-top:var(--iz-gap);padding:0;border:0;border-radius:0;background:transparent;min-height:0;overflow:visible}
 .pc-new .pc-view{display:flex;flex-direction:column;gap:var(--iz-gap);min-width:0;color:var(--iz-text);font-size:var(--iz-fs-md)}
 .pc-new .pc-view__head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--iz-gap);flex-wrap:wrap}
 .pc-new .project-module>.pc-view__head{margin-bottom:var(--iz-gap)}
@@ -88,3 +88,10 @@
 /* Overview task panel: My tasks / All tasks as compact iz-tabs. */
 .pc-new .pc-task-tabs{margin:-4px 0 10px}
 .pc-new .pc-task-tabs .iz-tab{padding:8px 10px;font-size:var(--iz-fs-sm)}
+
+/* The theme fills an inactive chip with the subtle surface, which is also the
+   page, a row being edited and, in the dark theme, darker than a panel: the
+   chips vanished there. Here they sit on the card surface with a hairline,
+   whatever is under them. */
+.pc-new .iz-chip:not(.iz-chip--active){background:var(--iz-surface);border-color:var(--iz-border-strong)}
+.pc-new .iz-chip:not(.iz-chip--active):hover{background:var(--iz-surface-inset)}

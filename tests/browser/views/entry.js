@@ -3,6 +3,8 @@ import Files from '/app/src/components/ProjectFiles/ProjectFilesBrowser.vue'
 import NewIntake from '/app/src/new/NewIntake.vue'
 import NewActivity from '/app/src/new/NewActivity.vue'
 import NewOverview from '/app/src/new/NewOverview.vue'
+import NewMembers from '/app/src/new/NewMembers.vue'
+import NewWhiteboardActivity from '/app/src/new/NewWhiteboardActivity.vue'
 import '/app/src/new/new-ui.css'
 import '/app/src/new/documents-theme.css'
 
@@ -45,6 +47,10 @@ window.fixture = new Vue({
 			section(h, 'intake', 'intake', h(NewIntake, { props: { projectId: 21, canEdit: true } })),
 			section(h, 'activity', 'activity', h(NewActivity, { props: { projectId: 21 } })),
 			section(h, 'activity-denied', 'activity', h(NewActivity, { props: { projectId: 23 } })),
+			section(h, 'wb-activity', 'whiteboard', h(NewWhiteboardActivity, { props: { projectId: 21 } })),
+			section(h, 'members', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'emma', organizationId: 4, canManage: true }, on: { 'open-direct-chat': member => { window.chatWith = member.id } } })),
+			section(h, 'members-readonly', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'thomas', canManage: false } })),
+			section(h, 'members-denied', 'members', h(NewMembers, { props: { projectId: 23, currentUserId: 'emma', canManage: true } })),
 			h('div', { attrs: { id: 'overview' } }, [h(NewOverview, { props: { project: { id: 21, description: '' }, context: { userId: 'emma' }, overview, legacyUrl: '#' } })]),
 		]),
 		h('div', { attrs: { id: 'legacy-host' }, style: 'padding:22px;background:#fff' }, [

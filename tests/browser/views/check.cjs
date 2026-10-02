@@ -13,12 +13,52 @@ const events = [
 ]
 const processing = { 11: { ocr_status: 'done', document_type_id: 1 }, 12: { ocr_status: 'queued', document_type_id: 2 }, 13: { ocr_status: 'failed', document_type_id: 3 } }
 const requests = []
+// Whiteboard saves as the autosave writes them: every minute or so while someone draws.
+const boardSaves = (() => {
+	const list = []
+	let size = 4100000
+	const run = (daysAgo, h, m, uid, name, count, stepS) => { const t = new Date(); t.setDate(t.getDate() - daysAgo); t.setHours(h, m, 0, 0); for (let i = 0; i < count; i++) { size += 37; list.push({ id: list.length + 1, actorUid: uid, actorDisplayName: name, eventType: 'whiteboard_updated', source: 'whiteboard', occurredAt: new Date(t.getTime() + i * stepS * 1000).toISOString(), payload: { fileSize: size } }) } }
+	run(5, 13, 40, 'thomas', 'Thomas Jansen', 30, 100)
+	run(3, 10, 2, 'emma', 'Emma de Vries', 29, 95)
+	run(3, 11, 20, 'lotte', 'Lotte Bakker', 4, 120)
+	run(1, 16, 10, 'emma', 'Emma de Vries', 41, 80)
+	run(1, 16, 14, 'thomas', 'Thomas Jansen', 22, 120)
+	run(0, 9, 15, 'thomas', 'Thomas Jansen', 11, 102)
+	run(0, 14, 2, 'emma', 'Emma de Vries', 38, 62)
+	return list.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+})()
+const bodies = []
+const team = [
+	{ id: 'emma', displayName: 'Emma de Vries', isOwner: true, drascivsRoles: ['driver', 'accountable'], functionalRoleKeys: ['cpl'] },
+	{ id: 'thomas', displayName: 'Thomas Jansen', drascivsRoles: ['responsible'], functionalRoleKeys: ['cpl', 'client'] },
+	{ id: 'lotte', displayName: 'Lotte Bakker', drasciRole: 'consulted', functionalRoleKeys: ['grid'] },
+]
+const functionalRoles = [{ key: 'cpl', name: 'CPL' }, { key: 'client', name: 'Client/Developer' }, { key: 'grid', name: 'Grid operator (Elektra)' }]
 
 const server = http.createServer((req, res) => {
 	const url = new URL(req.url, 'http://localhost')
 	requests.push(url.pathname + url.search)
 	const send = (status, body) => { res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(body)) }
 	let m
+	if (req.method !== 'GET') {
+		let body = ''
+		req.on('data', chunk => { body += chunk })
+		req.on('end', () => {
+			bodies.push({ method: req.method, path: url.pathname, body: JSON.parse(body || '{}') })
+			if ((m = url.pathname.match(/\/members\/([^/]+)\/role$/))) return send(200, { member: { id: decodeURIComponent(m[1]), ...JSON.parse(body) } })
+			return send(200, { alreadyMember: false })
+		})
+		return
+	}
+	if (url.pathname.endsWith('/projects/21/whiteboard/activity')) {
+		const limit = Number(url.searchParams.get('limit')), offset = Number(url.searchParams.get('offset'))
+		return send(200, { events: boardSaves.slice(offset, offset + limit), hasMore: offset + limit < boardSaves.length })
+	}
+	if ((m = url.pathname.match(/\/projects\/(\d+)\/members$/))) {
+		if (m[1] === '23') return send(403, { message: 'Forbidden' })
+		return send(200, { members: team, functionalRoles })
+	}
+	if (url.pathname.endsWith('/users/search')) return send(200, { users: [{ id: 'thomas', displayName: 'Thomas Jansen' }, { id: 'jeroen', displayName: 'Jeroen Visser', subname: 'jeroen.visser@firma.nl' }] })
 	if ((m = url.pathname.match(/\/projects\/(\d+)\/activity$/))) {
 		if (m[1] === '23') return send(403, { message: 'Forbidden' })
 		const source = url.searchParams.get('source')
@@ -39,6 +79,42 @@ const server = http.createServer((req, res) => {
 	res.end('{}')
 })
 
+// A control whose fill is the same as the surface under it, with no border or
+// shadow to set it apart, disappears: the chips in the member editor did.
+const camouflaged = scope => scope.evaluate(root => {
+	const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })
+	// Resolve any CSS colour (the theme uses oklch) to sRGB by painting it.
+	const rgba = c => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return ctx.getImageData(0, 0, 1, 1).data }
+	const clear = c => rgba(c)[3] === 0
+	const lum = c => { const [r, g, b] = [...rgba(c)].slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+	const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05) }
+	const surfaceOf = el => { for (let p = el.parentElement; p; p = p.parentElement) { const bg = getComputedStyle(p).backgroundColor; if (!clear(bg)) return bg } return 'rgb(255, 255, 255)' }
+	const found = []
+	for (const el of root.querySelectorAll('.iz-chip, .iz-pill, .iz-btn, .iz-input, .iz-tab, .iz-segment, .iz-meter, .pc-intake-option, button, input:not([type=radio]):not([type=checkbox]), select, textarea')) {
+		const box = el.getBoundingClientRect()
+		if (!box.width || !box.height) continue
+		const s = getComputedStyle(el)
+		if (clear(s.backgroundColor)) continue
+		const surface = surfaceOf(el)
+		if (ratio(s.backgroundColor, surface) >= 1.06) continue
+		const border = ['Top', 'Right', 'Bottom', 'Left'].some(side => parseFloat(s['border' + side + 'Width']) > 0 && !clear(s['border' + side + 'Color']) && ratio(s['border' + side + 'Color'], surface) >= 1.15)
+		if (border || s.boxShadow !== 'none') continue
+		found.push(el.className + ' "' + el.textContent.trim().slice(0, 30) + '" ' + s.backgroundColor + ' on ' + surface + ' (' + ratio(s.backgroundColor, surface).toFixed(3) + ')')
+	}
+	// And an enabled control whose label is too faint to read looks disabled.
+	// 3:1, not AA's 4.5:1: the theme's brand pink as text (4.1–4.4:1) and its
+	// warning pill (3.9:1) are the theme's to settle, not this app's.
+	for (const el of root.querySelectorAll('button:not(:disabled), .iz-chip, .iz-pill, .iz-tab, a.iz-btn')) {
+		const box = el.getBoundingClientRect()
+		if (!box.width || !box.height || !el.textContent.trim() || el.closest('[disabled]')) continue
+		const s = getComputedStyle(el)
+		const fill = clear(s.backgroundColor) ? surfaceOf(el) : s.backgroundColor
+		const r = ratio(s.color, fill)
+		if (r < 3 && parseFloat(s.opacity) === 1) found.push('faint text: ' + el.className + ' "' + el.textContent.trim().slice(0, 30) + '" ' + s.color + ' on ' + fill + ' (' + r.toFixed(2) + ')')
+	}
+	return found
+})
+
 const css = (locator, pseudo) => locator.evaluate((node, p) => {
 	const s = getComputedStyle(node, p || null)
 	return { content: s.content, color: s.color, background: s.backgroundColor, fontWeight: s.fontWeight, boxShadow: s.boxShadow, borderTopWidth: s.borderTopWidth, textTransform: s.textTransform, position: s.position, overflow: s.overflow }
@@ -54,6 +130,20 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.goto('http://localhost:8137')
 		// The real In Zicht theme: the iz- components and tokens under test.
 		await page.addStyleTag({ content: fs.readFileSync('/theme/server.css', 'utf8') })
+		// The theme's palette applies only under Nextcloud's theme attributes; without
+		// them the page runs on the fallback colours above and hides real clashes.
+		const theme = name => page.evaluate(id => { document.body.setAttribute('data-themes', id); for (const a of ['light', 'dark']) document.body.toggleAttribute('data-theme-' + a, a === id) }, name)
+		await theme('light')
+		// Colours are read mid-transition otherwise, right after the theme switch.
+		const blends = async scope => {
+			const still = await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' })
+			const light = await camouflaged(scope)
+			await theme('dark')
+			const dark = await camouflaged(scope)
+			await theme('light')
+			await still.evaluate(node => node.remove())
+			return [...light.map(x => 'light: ' + x), ...dark.map(x => 'dark: ' + x)]
+		}
 
 		// ---- Documents ----
 		await page.locator('#documents .project-files__row').nth(3).waitFor()
@@ -127,6 +217,131 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		await page.locator('#activity-denied .pc-activity-state[role="alert"]').waitFor()
 		assert.match(await page.locator('#activity-denied .pc-activity-state').innerText(), /do not have access/, 'no access reads as a failure, not an empty project')
 
+		// ---- Whiteboard activity ----
+		const wb = page.locator('#wb-activity')
+		await wb.locator('.pc-wb-day').nth(3).waitFor()
+		assert.ok(requests.some(r => r.includes('whiteboard/activity?limit=100&offset=0')))
+		const dayToggles = wb.locator('.pc-wb-day__toggle')
+		assert.equal(await dayToggles.count(), 4, '175 saves, 4 days')
+		assert.match(await dayToggles.nth(0).innerText(), /Today\s*2 sessions · 55 min/)
+		assert.match(await dayToggles.nth(1).innerText(), /Yesterday\s*1 session/)
+		assert.equal((await dayToggles.evaluateAll(n => n.map(b => b.getAttribute('aria-expanded')))).join(), 'true,true,false,false', 'today and yesterday open, older days closed')
+		assert.equal(await wb.locator('.pc-wb-session').count(), 3)
+		assert.equal(await wb.locator('.pc-wb-session__detail').count(), 0, 'sessions start closed')
+		const together = wb.locator('.pc-wb-session', { hasText: 'edited together' })
+		assert.match(await together.innerText(), /Emma de Vries and Thomas Jansen edited together\s*16:10 – \d\d:\d\d/)
+		await together.locator('.pc-wb-session__toggle').click()
+		assert.equal(await together.locator('.pc-wb-session__toggle').getAttribute('aria-expanded'), 'true')
+		const lanes = await together.locator('.pc-wb-lane').allInnerTexts()
+		assert.equal(lanes.length, 2)
+		assert.match(lanes[0], /Emma de Vries\s*16:10 – \d\d:\d\d\s*41 saves/)
+		assert.match(lanes[1], /Thomas Jansen\s*16:14 – \d\d:\d\d\s*22 saves/)
+		assert.match(await together.locator('.pc-wb-session__facts').innerText(), /63 saves\s*Board grew by \d+ KB/)
+		assert.equal(await wb.locator('.pc-wb-tick, [class*=tick]').count(), 0, 'no per-save ticks')
+		await dayToggles.nth(2).click()
+		assert.equal(await wb.locator('.pc-wb-session').count(), 5)
+		await wb.locator('.iz-btn', { hasText: 'Collapse all' }).click()
+		assert.equal(await wb.locator('.pc-wb-session').count(), 0)
+		await wb.locator('.iz-btn', { hasText: 'Expand all' }).click()
+		assert.equal(await wb.locator('.pc-wb-session__detail').count(), 6)
+		assert.equal(await wb.locator('.iz-btn', { hasText: 'Older activity' }).count(), 0, 'everything fits in one read')
+		assert.deepEqual(await blends(wb), [], 'whiteboard activity')
+		await wb.locator('.iz-btn', { hasText: 'Collapse all' }).click()
+		await dayToggles.nth(0).click()
+		await dayToggles.nth(1).click()
+		await together.locator('.pc-wb-session__toggle').click()
+		await page.waitForTimeout(250)
+		await wb.screenshot({ path: '/check/wb-activity.png' })
+
+		// ---- Members ----
+		const members = page.locator('#members')
+		await members.locator('.pc-member').nth(2).waitFor()
+		assert.match(await members.locator('.pc-member').nth(0).innerText(), /Emma de Vries\s*Owner/)
+		assert.match(await members.locator('.pc-member__meta').nth(0).innerText(), /emma · you/)
+		assert.equal(await members.locator('.pc-member').nth(0).locator('.iz-btn', { hasText: 'Chat' }).count(), 0, 'no chat with yourself')
+		assert.equal((await css(members.locator('.pc-member').nth(0).locator('.pc-pill').first())).textTransform, 'none')
+		// The matrix: one column per responsibility, a tick where a member holds it.
+		const heads = members.locator('.pc-members__role-head')
+		assert.equal(await heads.count(), 8)
+		assert.match(await heads.nth(7).innerText(), /S\s*Signer/)
+		assert.equal(await members.locator('.pc-members__role-head--empty').count(), 4, 'Supportive, Informed, Verifier and Signer have nobody')
+		const ticks = row => members.locator('.pc-member').nth(row).locator('.pc-cell .pc-tick')
+		assert.equal(await ticks(0).count(), 2)
+		assert.equal(await members.locator('.pc-member').nth(2).locator('.pc-cell').nth(4).locator('.pc-tick').count(), 1, 'the older single-role field still ticks Consulted')
+		assert.match(await members.locator('.pc-member').nth(2).innerText(), /Grid operator \(Elektra\)/)
+		assert.equal(await members.locator('.pc-member__pills--drascivs').first().isVisible(), false, 'the pills are the narrow fallback only')
+		const holders = await members.locator('.pc-members__holders').allInnerTexts()
+		assert.equal(holders.join(','), '1,1,1,0,1,0,0,0')
+		assert.equal(await members.locator('.pc-members__holders .iz-pill--warning').count(), 4)
+		assert.match(await members.locator('.pc-members__unassigned').innerText(), /Not assigned: Supportive, Informed, Verifier, Signer/)
+		const heads1 = await heads.first().boundingBox(), cell1 = await members.locator('.pc-member').nth(1).locator('.pc-cell').first().boundingBox()
+		assert.ok(Math.abs((heads1.x + heads1.width / 2) - (cell1.x + cell1.width / 2)) < 1, 'ticks sit under their column')
+		assert.match(await members.locator('.pc-members__count').innerText(), /3 members/)
+		await members.locator('.pc-member').nth(1).locator('.iz-btn', { hasText: 'Chat' }).click()
+		assert.equal(await page.evaluate(() => window.chatWith), 'thomas', 'Chat hands the member to Notes')
+
+		await members.locator('.iz-btn', { hasText: 'Add member' }).click()
+		const addBtn = members.locator('.iz-btn', { hasText: 'Add to project' })
+		assert.ok(await addBtn.isDisabled())
+		assert.match(await members.locator('.pc-member-add__foot').innerText(), /Choose a person to add\./)
+		await members.locator('#pc-member-search').fill('je')
+		await members.locator('.pc-member-result').first().waitFor()
+		assert.equal(await members.locator('.pc-member-result').count(), 1, 'Thomas is already a member')
+		assert.ok(requests.some(r => r.includes('users/search') && r.includes('organizationId=4')))
+		await members.locator('.pc-member-result').first().click()
+		assert.match(await members.locator('.pc-member-picked').innerText(), /Jeroen Visser/)
+		const addGroup = members.locator('.pc-member-add')
+		await addGroup.locator('.iz-chip', { hasText: 'Supportive' }).click()
+		assert.match(await members.locator('.pc-member-add__foot').innerText(), /Choose at least one project role\./)
+		await addGroup.locator('.iz-chip', { hasText: 'Client/Developer' }).click()
+		assert.equal(await addGroup.locator('.iz-chip', { hasText: 'Client/Developer' }).getAttribute('aria-pressed'), 'true')
+		assert.ok(!(await addBtn.isDisabled()))
+		await members.screenshot({ path: '/check/members-add.png' })
+		assert.deepEqual(await blends(members), [], 'add panel')
+		await addBtn.click()
+		await members.locator('.pc-view__notice--ok').waitFor()
+		assert.match(await members.locator('.pc-view__notice--ok').innerText(), /Jeroen Visser was added/)
+		const posted = bodies.find(b => b.method === 'POST')
+		assert.equal(JSON.stringify(posted.body), JSON.stringify({ userId: 'jeroen', drascivsRoles: ['supportive'], functionalRoleKeys: ['client'] }))
+
+		const lotte = members.locator('.pc-member').nth(2)
+		await lotte.locator('.iz-btn', { hasText: 'Edit' }).click()
+		assert.equal(await lotte.locator('.pc-cell--toggle').count(), 8, 'in Edit the row\'s cells are the toggles')
+		assert.equal(await lotte.locator('.pc-cell--toggle[aria-pressed="true"]').count(), 1, 'starting from the member\'s roles')
+		assert.equal(await lotte.locator('.pc-member__editor-drascivs').isVisible(), false, 'no second set of DRASCIVS chips beside the matrix')
+		assert.equal(await lotte.locator('.pc-member__editor .iz-chip--active').count(), 2)
+		assert.equal(await members.locator('.pc-member').nth(1).locator('.iz-btn', { hasText: 'Edit' }).isDisabled(), true, 'one editor at a time')
+		await members.screenshot({ path: '/check/members-edit.png' })
+		assert.deepEqual(await blends(members), [], 'member editor')
+		await lotte.locator('.pc-cell--toggle[title="Verifier"]').click()
+		assert.equal(await lotte.locator('.pc-cell--toggle[aria-pressed="true"]').count(), 2)
+		await lotte.locator('.iz-btn', { hasText: 'Save' }).click()
+		await members.locator('.pc-view__notice--ok', { hasText: 'Roles updated for Lotte Bakker' }).waitFor()
+		const put = bodies.find(b => b.method === 'PUT')
+		assert.equal(put.path, '/apps/projectcreatoraio/api/v1/projects/21/members/lotte/role')
+		assert.equal(JSON.stringify(put.body), JSON.stringify({ drascivsRoles: ['consulted', 'verifier'], functionalRoleKeys: ['grid'] }))
+		assert.equal(await lotte.locator('.pc-cell .pc-tick').count(), 2)
+		assert.equal((await members.locator('.pc-members__holders').allInnerTexts())[6], '1', 'the Verifier count follows the save')
+
+		const readonly = page.locator('#members-readonly')
+		await readonly.locator('.pc-member').nth(2).waitFor()
+		assert.equal(await readonly.locator('.iz-btn', { hasText: 'Add member' }).count(), 0)
+		assert.equal(await readonly.locator('.iz-btn', { hasText: 'Edit' }).count(), 0)
+		assert.equal(await readonly.locator('.iz-btn', { hasText: 'Chat' }).count(), 2, 'everyone but yourself')
+		await page.locator('#members-denied .pc-view__failure').waitFor()
+		assert.match(await page.locator('#members-denied .pc-view__failure').innerText(), /do not have access/)
+		await members.screenshot({ path: '/check/members.png' })
+		// The tightest width that still gets the matrix, and one that does not.
+		for (const [width, matrix] of [[1100, true], [1000, false]]) {
+			await page.setViewportSize({ width, height: 1200 })
+			await page.waitForTimeout(100)
+			assert.equal(await members.locator('.pc-members__head').isVisible(), matrix, `matrix at ${width}px: ${matrix}`)
+			assert.ok(await members.locator('.pc-members').evaluate(n => n.scrollWidth <= n.clientWidth), `nothing runs out of the table at ${width}px`)
+			assert.equal(await members.locator('.pc-member__pills--drascivs').first().isVisible(), !matrix)
+		}
+		await members.screenshot({ path: '/check/members-narrow.png' })
+		await page.setViewportSize({ width: 1440, height: 1200 })
+
 		// ---- Overview tasks ----
 		const tabs = page.locator('#overview .pc-task-tabs .iz-tab')
 		assert.equal(await tabs.count(), 2)
@@ -139,6 +354,7 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		for (const title of ['Intake controleren', 'Offerte opvragen', 'Situatieschets maken']) assert.ok(all.includes(title), `All tasks should list ${title}`)
 		assert.ok(!all.includes('Oud werk') && !all.includes('Gearchiveerd'), 'done and archived cards stay out')
 
+		assert.deepEqual(await blends(page.locator('.pc-new')), [], 'every new view')
 		await page.screenshot({ path: '/check/desktop.png', fullPage: true })
 		await page.setViewportSize({ width: 390, height: 844 })
 		await page.evaluate(() => { document.getElementById('legacy-host').style.display = 'none' })
@@ -146,9 +362,11 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		const widest = await page.evaluate(() => [...document.querySelectorAll('.pc-new > *')].map(el => ({ id: el.id || el.className, w: el.scrollWidth })).sort((a, b) => b.w - a.w)[0])
 		assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), `mobile overflow: ${JSON.stringify(widest)}`)
 		await page.screenshot({ path: '/check/mobile.png', fullPage: true })
+		await page.locator('#members').screenshot({ path: '/check/members-mobile.png' })
+		await page.locator('#wb-activity').screenshot({ path: '/check/wb-activity-mobile.png' })
 
 		assert.deepEqual(errors, [])
-		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, 390px — current interface unchanged.')
+		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, 390px — current interface unchanged.')
 	} finally {
 		await browser.close()
 		server.close()

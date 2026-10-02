@@ -41,6 +41,29 @@ unmounts the inline board first: the board keeps its snapshot in IndexedDB keyed
 by file id, so only one live instance may hold a file. Closing the overlay syncs,
 refreshes the file metadata and remounts the inline board at the new revision.
 
+## Activity as editing sessions
+
+Every save of the board records one `whiteboard_updated` event, and the tab
+autosaves every ten seconds while someone draws, so the plain list was mostly the
+same line repeated (127 events for 7 sittings on the test project). The modern
+tab shows `src/new/NewWhiteboardActivity.vue` instead, through a new opt-in
+`WhiteboardBoard` prop, `activityComponent` (default `null`, which keeps
+`WhiteboardActivity` for the current interface).
+
+`src/new/whiteboard-activity.js` groups the events we already get, with no
+backend change: saves by one person less than 20 minutes apart are one sitting;
+sittings by different people that overlap are one session "edited together",
+with a lane per person (their own from–to and number of saves). The size change
+compares the board's `fileSize` after the session with the size before it.
+Sessions are grouped by the day they ended on.
+
+Days and sessions are both collapsible. Until someone opens or closes one, the
+newest day, today and yesterday are open, older days closed, and every session
+closed; Expand all and Collapse all set every row. The endpoint caps a read at 100
+events, so the view reads 300 at a time (three pages) and "Older activity" reads
+the next 300. While older events exist, the oldest session is held back, since it
+may continue further back than what is loaded.
+
 ## Verification
 
 40 Node tests pass, 8 of them covering the opt-in props, the reader contract,
