@@ -1565,6 +1565,7 @@ export default {
 				await axios.put(url, { actual_handover_date: dateStr || null })
 				await this.loadItems()
 			} catch (error) {
+				console.error('Error updating actual handover date:', error)
 				showError('Could not save actual handover date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false

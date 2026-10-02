@@ -21,355 +21,432 @@
 		<!-- KPI Metric Cards Row -->
 		<div class="timeline-kpi-bar__cards">
 			<!-- Phase 1: Initiation & Readiness Group -->
-			<div class="kpi-group kpi-group--initiation">
-				<!-- 1. Request Date -->
-				<div class="kpi-card">
-					<div class="kpi-card__step">1</div>
-					<div class="kpi-card__icon kpi-card__icon--calendar">
-						<Calendar :size="18" />
-					</div>
-					<div class="kpi-card__content">
-						<div class="kpi-card__label">REQUEST DATE</div>
-						<div class="kpi-card__value">{{ formatDisplayDate(kpis.requestDate) || '—' }}</div>
-						<div class="kpi-card__subtext">Project kickoff</div>
-					</div>
-				</div>
-
-				<div class="kpi-connector" :class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
-
-				<!-- 2. Process Steps Completion -->
-				<div class="kpi-card kpi-card--process" :class="{ 'kpi-card--complete': processStatus === 'complete' }">
-					<div class="kpi-card__step">2</div>
-					<div class="kpi-card__icon" :class="processIconClass">
-						<CheckboxMarkedCircleOutline v-if="processStatus === 'complete'" :size="18" />
-						<ClockOutline v-else-if="processStatus === 'incomplete'" :size="18" />
-						<AlertCircleOutline v-else :size="18" />
-					</div>
-					<div class="kpi-card__content">
-						<div class="kpi-card__header-line">
-							<span class="kpi-card__label">PROCESS STEPS</span>
-							<span class="kpi-process-pill" :class="processPillClass">
-								{{ processStatusLabel }}
-							</span>
+			<section class="kpi-phase kpi-phase--initiation">
+				<div class="kpi-phase__label">Initiation</div>
+				<div class="kpi-group kpi-group--initiation">
+					<!-- 1. Request Date -->
+					<div class="kpi-card">
+						<div class="kpi-card__step">1</div>
+						<div class="kpi-card__icon kpi-card__icon--calendar">
+							<Calendar :size="18" />
 						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__label">REQUEST DATE</div>
+							<div class="kpi-card__value">{{ formatDisplayDate(kpis.requestDate) || '—' }}</div>
+							<div class="kpi-card__subtext">Project kickoff</div>
+						</div>
+					</div>
 
-						<div class="process-metrics-row">
-							<div class="process-counter-badge" :class="processBadgeClass">
-								<span class="process-counter-count">{{ processDoneCount }}</span>
-								<span class="process-counter-divider">/</span>
-								<span class="process-counter-total">{{ processTotalRequired }}</span>
-								<span class="process-counter-suffix">done</span>
+					<div class="kpi-connector" :class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
+
+					<!-- 2. Process Steps Completion -->
+					<div class="kpi-card kpi-card--process" :class="{ 'kpi-card--complete': processStatus === 'complete' }">
+						<div class="kpi-card__step">2</div>
+						<div class="kpi-card__icon" :class="processIconClass">
+							<CheckboxMarkedCircleOutline v-if="processStatus === 'complete'" :size="18" />
+							<ClockOutline v-else-if="processStatus === 'incomplete'" :size="18" />
+							<AlertCircleOutline v-else :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__header-line">
+								<span class="kpi-card__label">PROCESS STEPS</span>
+								<span class="kpi-process-pill" :class="processPillClass">
+									{{ processStatusLabel }}
+								</span>
 							</div>
-							<span
-								v-if="hasMissingTitles"
-								class="process-missing-chip"
-								:title="'Missing required checklist cards:\n• ' + missingTitlesList.join('\n• ')">
-								Missing {{ missingTitlesList.length }}
-							</span>
-						</div>
 
-						<div class="kpi-card__subtext process-subtext" :title="processSubtextTitle">
-							<template v-if="processStatus === 'complete'">
-								All steps complete
-							</template>
-							<template v-else-if="coordinationDurationText">
-								{{ coordinationDurationText }} pending
-							</template>
-							<template v-else-if="processRemainingCount > 0">
-								{{ processRemainingCount }} remaining to complete
-							</template>
-							<template v-else>
-								Readiness checklist
-							</template>
+							<div class="process-metrics-row">
+								<div class="process-counter-badge" :class="processBadgeClass">
+									<span class="process-counter-count">{{ processDoneCount }}</span>
+									<span class="process-counter-divider">/</span>
+									<span class="process-counter-total">{{ processTotalRequired }}</span>
+									<span class="process-counter-suffix">done</span>
+								</div>
+								<span
+									v-if="hasMissingTitles"
+									class="process-missing-chip"
+									:title="'Missing required checklist cards:\n• ' + missingTitlesList.join('\n• ')">
+									Missing {{ missingTitlesList.length }}
+								</span>
+							</div>
+
+							<div class="kpi-card__subtext process-subtext" :title="processSubtextTitle">
+								<template v-if="processStatus === 'complete'">
+									All steps complete
+								</template>
+								<template v-else-if="coordinationDurationText">
+									{{ coordinationDurationText }} pending
+								</template>
+								<template v-else-if="processRemainingCount > 0">
+									{{ processRemainingCount }} remaining to complete
+								</template>
+								<template v-else>
+									Readiness checklist
+								</template>
+							</div>
+						</div>
+					</div>
+
+					<div class="kpi-connector" :class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
+
+					<!-- 3. Process Completion Date -->
+					<div class="kpi-card kpi-card--completion" :class="{ 'kpi-card--complete': processStatus === 'complete' }">
+						<div class="kpi-card__step">3</div>
+						<div class="kpi-card__icon" :class="processStatus === 'complete' ? 'kpi-card__icon--success' : 'kpi-card__icon--calendar'">
+							<CheckboxMarkedCircleOutline v-if="processStatus === 'complete'" :size="18" />
+							<Calendar v-else :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__label">PROCESS COMPLETION DATE</div>
+							<div class="kpi-card__value">{{ formatDisplayDate(processCompletedDate) || 'Pending' }}</div>
+							<div class="kpi-card__subtext">
+								{{ processStatus === 'complete' ? 'All required steps done' : 'Awaiting completion' }}
+							</div>
 						</div>
 					</div>
 				</div>
+			</section>
 
-				<div class="kpi-connector" :class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
-
-				<!-- 3. Process Completion Date -->
-				<div class="kpi-card kpi-card--completion" :class="{ 'kpi-card--complete': processStatus === 'complete' }">
-					<div class="kpi-card__step">3</div>
-					<div class="kpi-card__icon" :class="processStatus === 'complete' ? 'kpi-card__icon--success' : 'kpi-card__icon--calendar'">
-						<CheckboxMarkedCircleOutline v-if="processStatus === 'complete'" :size="18" />
-						<Calendar v-else :size="18" />
-					</div>
-					<div class="kpi-card__content">
-						<div class="kpi-card__label">PROCESS COMPLETION DATE</div>
-						<div class="kpi-card__value">{{ formatDisplayDate(processCompletedDate) || 'Pending' }}</div>
-						<div class="kpi-card__subtext">
-							{{ processStatus === 'complete' ? 'All required steps done' : 'Awaiting completion' }}
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<!-- Mid-Phase Link Connector (hidden on 2-row layout) -->
+			<!-- Phase Link Connector (hidden on stacked layouts) -->
 			<div
 				class="kpi-connector kpi-connector--group-link"
 				:class="{ 'kpi-connector--active': processStatus === 'complete' }"></div>
 
 			<!-- Phase 2: Preparation & Execution Group -->
-			<div class="kpi-group kpi-group--execution">
-				<!-- 4. Preparation Time & Calculated Duration -->
-				<div class="kpi-card kpi-card--prep">
-					<div class="kpi-card__step">4</div>
-					<div class="kpi-card__icon kpi-card__icon--clock">
-						<CalendarEdit :size="18" />
-					</div>
-					<div class="kpi-card__content">
-						<div class="kpi-card__label">REQUIRED PREPARATION TIME</div>
+			<section class="kpi-phase kpi-phase--execution">
+				<div class="kpi-phase__label">Execution</div>
+				<div class="kpi-group kpi-group--execution">
+					<!-- 4. Preparation Time & Calculated Duration -->
+					<div class="kpi-card kpi-card--prep">
+						<div class="kpi-card__step">4</div>
+						<div class="kpi-card__icon kpi-card__icon--clock">
+							<CalendarEdit :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__label">REQUIRED PREPARATION TIME</div>
 
-						<div class="prep-input-row">
-							<div class="prep-input-wrap">
+							<div class="prep-input-row">
+								<div class="prep-input-wrap">
+									<input
+										id="prep-weeks-kpi-input"
+										v-model.number="localPrepWeeks"
+										type="number"
+										min="0"
+										max="104"
+										class="prep-number-field"
+										:disabled="!canEdit || saving"
+										@keydown.enter.prevent="savePrepWeeks"
+										@keydown.esc.prevent="resetPrepWeeks" />
+									<label for="prep-weeks-kpi-input" class="prep-unit-suffix">Weeks</label>
+								</div>
+
+								<transition name="fade">
+									<NcButton
+										v-if="canEdit && isPrepWeeksDirty"
+										type="primary"
+										size="small"
+										class="prep-save-btn"
+										title="Save preparation weeks"
+										:disabled="saving || localPrepWeeks === null || localPrepWeeks < 0"
+										@click="savePrepWeeks">
+										{{ saving ? '...' : 'Save' }}
+									</NcButton>
+								</transition>
+							</div>
+
+							<div
+								class="kpi-card__subtext kpi-card__subtext--breakdown"
+								:title="'Minimum Duration: ' + (kpis.minimumDurationWeeks ?? 0) + 'w (Initiation: ' + (kpis.deckTasksWeeks ?? 0) + 'w + Prep: ' + (kpis.preparationWeeks ?? 0) + 'w)'">
+								Min. Duration: <strong>{{ kpis.minimumDurationWeeks ?? 0 }}w</strong> (Initiation: {{ kpis.deckTasksWeeks ?? 0 }}w + Prep: {{ kpis.preparationWeeks ?? 0 }}w)
+							</div>
+						</div>
+					</div>
+
+					<div class="kpi-connector"></div>
+
+					<!-- 5. Minimum Start Date -->
+					<div class="kpi-card">
+						<div class="kpi-card__step">5</div>
+						<div class="kpi-card__icon kpi-card__icon--diamond">
+							<RhombusMedium :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__label">MINIMUM START DATE</div>
+							<div class="kpi-card__value">{{ formatDisplayDate(kpis.minimumStartDate) || '—' }}</div>
+							<div class="kpi-card__subtext">Earliest execution</div>
+						</div>
+					</div>
+
+					<div class="kpi-connector kpi-connector--dashed"></div>
+
+					<!-- 6. Start Dates (Interactive Direct Calendar Picker) -->
+					<div class="kpi-card kpi-card--desired">
+						<div class="kpi-card__step">6</div>
+						<div class="kpi-card__icon kpi-card__icon--play">
+							<Play :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__header-line">
+								<span class="kpi-card__label">START DATES</span>
+							</div>
+
+							<div class="start-date-rows">
+								<!-- Desired Start Date Sub-row -->
+								<div class="start-date-inline-row">
+									<div class="start-date-inline-left">
+										<span class="subrow-title">DESIRED</span>
+									</div>
+
+									<div class="start-date-inline-right">
+										<!-- Hidden native date picker triggered directly by click -->
+										<input
+											ref="desiredDatePicker"
+											type="date"
+											class="kpi-native-date-hidden"
+											:value="isoDateOnly(kpis.desiredStartDate)"
+											:disabled="!canEdit || saving"
+											aria-label="Select desired start date"
+											@change="onDesiredDateChange" />
+
+										<div v-if="kpis.desiredStartDate" class="desired-date-row">
+											<span
+												class="kpi-card__value kpi-card__value--compact"
+												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+												:title="canEdit ? 'Click to change desired start date' : ''"
+												@click="openDesiredCalendar">
+												{{ formatDisplayDate(kpis.desiredStartDate) }}
+											</span>
+											<NcButton
+												v-if="canEdit"
+												type="tertiary"
+												size="small"
+												class="kpi-card__mini-btn"
+												title="Change desired start date"
+												:disabled="saving"
+												@click="openDesiredCalendar">
+												<template #icon>
+													<Pencil :size="11" />
+												</template>
+											</NcButton>
+											<NcButton
+												v-if="canEdit"
+												type="tertiary"
+												size="small"
+												class="kpi-card__mini-btn kpi-card__mini-btn--clear"
+												title="Clear desired start date"
+												:disabled="saving"
+												@click.stop="clearDesiredDate">
+												<template #icon>
+													<Close :size="11" />
+												</template>
+											</NcButton>
+											<span
+												v-if="floatBadgeText"
+												class="kpi-card__float-chip"
+												:class="floatChipClass"
+												:title="floatTooltip">
+												{{ floatBadgeText }}
+											</span>
+										</div>
+										<div v-else class="desired-date-row desired-date-row--empty">
+											<span
+												class="kpi-card__placeholder"
+												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+												:title="canEdit ? 'Click to set desired start date' : ''"
+												@click="openDesiredCalendar">
+												Not set
+											</span>
+											<NcButton
+												v-if="canEdit"
+												type="tertiary"
+												size="small"
+												class="set-date-btn"
+												title="Set desired start date"
+												:disabled="saving"
+												@click="openDesiredCalendar">
+												<template #icon>
+													<Plus :size="12" />
+												</template>
+												Set
+											</NcButton>
+										</div>
+									</div>
+								</div>
+
+								<!-- Actual Start Date Sub-row -->
+								<div class="start-date-inline-row">
+									<div class="start-date-inline-left">
+										<span class="subrow-title">ACTUAL</span>
+									</div>
+
+									<div class="start-date-inline-right">
+										<!-- Hidden native date picker triggered directly by click -->
+										<input
+											ref="actualDatePicker"
+											type="date"
+											class="kpi-native-date-hidden"
+											:value="isoDateOnly(kpis.actualStartDate)"
+											:disabled="!canEdit || saving"
+											aria-label="Select actual start date"
+											@change="onActualDateChange" />
+
+										<div v-if="kpis.actualStartDate" class="desired-date-row">
+											<span
+												class="kpi-card__value kpi-card__value--compact"
+												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+												:title="canEdit ? 'Click to change actual start date' : ''"
+												@click="openActualCalendar">
+												{{ formatDisplayDate(kpis.actualStartDate) }}
+											</span>
+											<NcButton
+												v-if="canEdit"
+												type="tertiary"
+												size="small"
+												class="kpi-card__mini-btn"
+												title="Change actual start date"
+												:disabled="saving"
+												@click="openActualCalendar">
+												<template #icon>
+													<Pencil :size="11" />
+												</template>
+											</NcButton>
+											<NcButton
+												v-if="canEdit"
+												type="tertiary"
+												size="small"
+												class="kpi-card__mini-btn kpi-card__mini-btn--clear"
+												title="Clear actual start date"
+												:disabled="saving"
+												@click.stop="clearActualDate">
+												<template #icon>
+													<Close :size="11" />
+												</template>
+											</NcButton>
+										</div>
+										<div v-else class="desired-date-row desired-date-row--empty">
+											<span
+												class="kpi-card__placeholder"
+												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+												:title="canEdit ? 'Click to set actual start date' : ''"
+												@click="openActualCalendar">
+												Not set
+											</span>
+											<NcButton
+												v-if="canEdit"
+												type="tertiary"
+												size="small"
+												class="set-date-btn"
+												title="Set actual start date"
+												:disabled="saving"
+												@click="openActualCalendar">
+												<template #icon>
+													<Plus :size="12" />
+												</template>
+												Set
+											</NcButton>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<div
+				class="kpi-connector kpi-connector--group-link"
+				:class="{ 'kpi-connector--active': !!kpis.actualHandoverDate }"></div>
+
+			<!-- Phase 3: Delivery -->
+			<section class="kpi-phase kpi-phase--delivery">
+				<div class="kpi-phase__label">Delivery</div>
+				<div class="kpi-group kpi-group--delivery">
+					<!-- 7. Actual Handover Date -->
+					<div class="kpi-card kpi-card--handover" :class="{ 'kpi-card--complete': !!kpis.actualHandoverDate }">
+						<div class="kpi-card__step" :class="{ 'kpi-card__step--success': !!kpis.actualHandoverDate }">
+							7
+						</div>
+						<div class="kpi-card__icon" :class="kpis.actualHandoverDate ? 'kpi-card__icon--success' : 'kpi-card__icon--muted'">
+							<FlagCheckered :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__label">HANDOVER</div>
+
+							<div class="start-date-inline-right start-date-inline-right--start">
+								<!-- Hidden native date picker triggered directly by click -->
 								<input
-									id="prep-weeks-kpi-input"
-									v-model.number="localPrepWeeks"
-									type="number"
-									min="0"
-									max="104"
-									class="prep-number-field"
+									ref="handoverDatePicker"
+									type="date"
+									class="kpi-native-date-hidden"
+									:value="isoDateOnly(kpis.actualHandoverDate)"
 									:disabled="!canEdit || saving"
-									@keydown.enter.prevent="savePrepWeeks"
-									@keydown.esc.prevent="resetPrepWeeks" />
-								<label for="prep-weeks-kpi-input" class="prep-unit-suffix">Weeks</label>
-							</div>
+									aria-label="Select actual handover date"
+									@change="onHandoverDateChange" />
 
-							<transition name="fade">
-								<NcButton
-									v-if="canEdit && isPrepWeeksDirty"
-									type="primary"
-									size="small"
-									class="prep-save-btn"
-									title="Save preparation weeks"
-									:disabled="saving || localPrepWeeks === null || localPrepWeeks < 0"
-									@click="savePrepWeeks">
-									{{ saving ? '...' : 'Save' }}
-								</NcButton>
-							</transition>
-						</div>
-
-						<div
-							class="kpi-card__subtext kpi-card__subtext--breakdown"
-							:title="'Minimum Duration: ' + (kpis.minimumDurationWeeks ?? 0) + 'w (Initiation: ' + (kpis.deckTasksWeeks ?? 0) + 'w + Prep: ' + (kpis.preparationWeeks ?? 0) + 'w)'">
-							Min. Duration: <strong>{{ kpis.minimumDurationWeeks ?? 0 }}w</strong> (Initiation: {{ kpis.deckTasksWeeks ?? 0 }}w + Prep: {{ kpis.preparationWeeks ?? 0 }}w)
-						</div>
-					</div>
-				</div>
-
-				<div class="kpi-connector"></div>
-
-				<!-- 5. Minimum Start Date -->
-				<div class="kpi-card">
-					<div class="kpi-card__step">5</div>
-					<div class="kpi-card__icon kpi-card__icon--diamond">
-						<RhombusMedium :size="18" />
-					</div>
-					<div class="kpi-card__content">
-						<div class="kpi-card__label">MINIMUM START DATE</div>
-						<div class="kpi-card__value">{{ formatDisplayDate(kpis.minimumStartDate) || '—' }}</div>
-						<div class="kpi-card__subtext">Earliest execution</div>
-					</div>
-				</div>
-
-				<div class="kpi-connector kpi-connector--dashed"></div>
-
-				<!-- 6. Start Dates (Interactive Direct Calendar Picker) -->
-				<div class="kpi-card kpi-card--desired">
-					<div class="kpi-card__step">6</div>
-					<div class="kpi-card__icon kpi-card__icon--play">
-						<Play :size="18" />
-					</div>
-					<div class="kpi-card__content">
-						<div class="kpi-card__header-line">
-							<span class="kpi-card__label">START DATES</span>
-						</div>
-
-						<div class="start-date-rows">
-							<!-- Desired Start Date Sub-row -->
-							<div class="start-date-inline-row">
-								<div class="start-date-inline-left">
-									<span class="subrow-title">DESIRED</span>
+								<div v-if="kpis.actualHandoverDate" class="desired-date-row">
+									<span
+										class="kpi-card__value"
+										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+										:title="canEdit ? 'Click to change actual handover date' : ''"
+										@click="openHandoverCalendar">
+										{{ formatDisplayDate(kpis.actualHandoverDate) }}
+									</span>
+									<NcButton
+										v-if="canEdit"
+										type="tertiary"
+										size="small"
+										class="kpi-card__mini-btn"
+										title="Change actual handover date"
+										:disabled="saving"
+										@click="openHandoverCalendar">
+										<template #icon>
+											<Pencil :size="11" />
+										</template>
+									</NcButton>
+									<NcButton
+										v-if="canEdit"
+										type="tertiary"
+										size="small"
+										class="kpi-card__mini-btn kpi-card__mini-btn--clear"
+										title="Clear actual handover date"
+										:disabled="saving"
+										@click.stop="clearHandoverDate">
+										<template #icon>
+											<Close :size="11" />
+										</template>
+									</NcButton>
 								</div>
-
-								<div class="start-date-inline-right">
-									<!-- Hidden native date picker triggered directly by click -->
-									<input
-										ref="desiredDatePicker"
-										type="date"
-										class="kpi-native-date-hidden"
-										:value="isoDateOnly(kpis.desiredStartDate)"
-										:disabled="!canEdit || saving"
-										aria-label="Select desired start date"
-										@change="onDesiredDateChange" />
-
-									<div v-if="kpis.desiredStartDate" class="desired-date-row">
-										<span
-											class="kpi-card__value kpi-card__value--compact"
-											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-											:title="canEdit ? 'Click to change desired start date' : ''"
-											@click="openDesiredCalendar">
-											{{ formatDisplayDate(kpis.desiredStartDate) }}
-										</span>
-										<NcButton
-											v-if="canEdit"
-											type="tertiary"
-											size="small"
-											class="kpi-card__mini-btn"
-											title="Change desired start date"
-											:disabled="saving"
-											@click="openDesiredCalendar">
-											<template #icon>
-												<Pencil :size="11" />
-											</template>
-										</NcButton>
-										<NcButton
-											v-if="canEdit"
-											type="tertiary"
-											size="small"
-											class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-											title="Clear desired start date"
-											:disabled="saving"
-											@click.stop="clearDesiredDate">
-											<template #icon>
-												<Close :size="11" />
-											</template>
-										</NcButton>
-										<span
-											v-if="floatBadgeText"
-											class="kpi-card__float-chip"
-											:class="floatChipClass"
-											:title="floatTooltip">
-											{{ floatBadgeText }}
-										</span>
-									</div>
-									<div v-else class="desired-date-row desired-date-row--empty">
-										<span
-											class="kpi-card__placeholder"
-											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-											:title="canEdit ? 'Click to set desired start date' : ''"
-											@click="openDesiredCalendar">
-											Not set
-										</span>
-										<NcButton
-											v-if="canEdit"
-											type="tertiary"
-											size="small"
-											class="set-date-btn"
-											title="Set desired start date"
-											:disabled="saving"
-											@click="openDesiredCalendar">
-											<template #icon>
-												<Plus :size="12" />
-											</template>
-											Set
-										</NcButton>
-									</div>
+								<div v-else class="desired-date-row desired-date-row--empty">
+									<span
+										class="kpi-card__placeholder"
+										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+										:title="canEdit ? 'Click to set actual handover date' : ''"
+										@click="openHandoverCalendar">
+										Not set
+									</span>
+									<NcButton
+										v-if="canEdit"
+										type="tertiary"
+										size="small"
+										class="set-date-btn"
+										title="Set actual handover date"
+										:disabled="saving"
+										@click="openHandoverCalendar">
+										<template #icon>
+											<Plus :size="12" />
+										</template>
+										Set
+									</NcButton>
 								</div>
 							</div>
 
-							<!-- Actual Start Date Sub-row -->
-							<div class="start-date-inline-row">
-								<div class="start-date-inline-left">
-									<span class="subrow-title">ACTUAL</span>
-								</div>
-
-								<div class="start-date-inline-right">
-									<!-- Hidden native date picker triggered directly by click -->
-									<input
-										ref="actualDatePicker"
-										type="date"
-										class="kpi-native-date-hidden"
-										:value="isoDateOnly(kpis.actualStartDate)"
-										:disabled="!canEdit || saving"
-										aria-label="Select actual start date"
-										@change="onActualDateChange" />
-
-									<div v-if="kpis.actualStartDate" class="desired-date-row">
-										<span
-											class="kpi-card__value kpi-card__value--compact"
-											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-											:title="canEdit ? 'Click to change actual start date' : ''"
-											@click="openActualCalendar">
-											{{ formatDisplayDate(kpis.actualStartDate) }}
-										</span>
-										<NcButton
-											v-if="canEdit"
-											type="tertiary"
-											size="small"
-											class="kpi-card__mini-btn"
-											title="Change actual start date"
-											:disabled="saving"
-											@click="openActualCalendar">
-											<template #icon>
-												<Pencil :size="11" />
-											</template>
-										</NcButton>
-										<NcButton
-											v-if="canEdit"
-											type="tertiary"
-											size="small"
-											class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-											title="Clear actual start date"
-											:disabled="saving"
-											@click.stop="clearActualDate">
-											<template #icon>
-												<Close :size="11" />
-											</template>
-										</NcButton>
-									</div>
-									<div v-else class="desired-date-row desired-date-row--empty">
-										<span
-											class="kpi-card__placeholder"
-											:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-											:title="canEdit ? 'Click to set actual start date' : ''"
-											@click="openActualCalendar">
-											Not set
-										</span>
-										<NcButton
-											v-if="canEdit"
-											type="tertiary"
-											size="small"
-											class="set-date-btn"
-											title="Set actual start date"
-											:disabled="saving"
-											@click="openActualCalendar">
-											<template #icon>
-												<Plus :size="12" />
-											</template>
-											Set
-										</NcButton>
-									</div>
-								</div>
+							<div class="kpi-card__subtext" :title="handoverSubtext">
+								{{ handoverSubtext }}
 							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-			<div class="kpi-card">
-				<div class="kpi-card__content">
-					<label class="kpi-card__label" for="actual-handover-date">
-						ACTUAL HANDOVER DATE
-					</label>
-					<input
-						id="actual-handover-date"
-						type="date"
-						:value="isoDateOnly(kpis.actualHandoverDate)"
-						:disabled="!canEdit || saving"
-						@change="onHandoverDateChange" />
-					<NcButton
-						v-if="canEdit && kpis.actualHandoverDate"
-						type="tertiary"
-						size="small"
-						:disabled="saving"
-						@click="$emit('save-handover-date', null)">
-						Clear
-					</NcButton>
-					<div class="kpi-card__subtext">
-						{{ kpis.actualHandoverDate ? `Handed over on ${formatDisplayDate(kpis.actualHandoverDate)}` : 'Not set' }}
-					</div>
-				</div>
-			</div>
+			</section>
 		</div>
 	</div>
 </template>
@@ -386,6 +463,7 @@ import Plus from 'vue-material-design-icons/Plus.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import CheckboxMarkedCircleOutline from 'vue-material-design-icons/CheckboxMarkedCircleOutline.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
+import FlagCheckered from 'vue-material-design-icons/FlagCheckered.vue'
 
 export default {
 	name: 'TimelineKpiBar',
@@ -401,6 +479,7 @@ export default {
 		Close,
 		CheckboxMarkedCircleOutline,
 		AlertCircleOutline,
+		FlagCheckered,
 	},
 	props: {
 		kpis: {
@@ -421,6 +500,7 @@ export default {
 				minimumStartDate: '',
 				desiredStartDate: null,
 				actualStartDate: null,
+				actualHandoverDate: null,
 				deckTasksWeeks: 0,
 				preparationWeeks: 0,
 				overallFloatWeeks: null,
@@ -592,6 +672,22 @@ export default {
 			}
 			return `${Math.abs(float)} week${Math.abs(float) === 1 ? '' : 's'} behind schedule`
 		},
+		handoverSubtext() {
+			const handover = this.kpis?.actualHandoverDate
+			if (!handover) {
+				return 'Awaiting handover'
+			}
+			const start = this.kpis?.actualStartDate
+			if (!start) {
+				return 'Project handed over'
+			}
+			const days = Math.round((Date.parse(this.isoDateOnly(handover)) - Date.parse(this.isoDateOnly(start))) / 86400000)
+			if (!Number.isFinite(days) || days < 0) {
+				return 'Project handed over'
+			}
+			const weeks = Math.round(days / 7 * 10) / 10
+			return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} after actual start`
+		},
 		floatChipClass() {
 			const float = this.kpis.overallFloatWeeks
 			if (float < 0) {
@@ -657,9 +753,33 @@ export default {
 				this.$refs.actualDatePicker.value = ''
 			}
 		},
-		onHandoverDateChange(event) {
+		openHandoverCalendar() {
 			if (!this.canEdit || this.saving) return
-			this.$emit('save-handover-date', event.target.value || null)
+			const input = this.$refs.handoverDatePicker
+			if (!input) return
+			if (typeof input.showPicker === 'function') {
+				try {
+					input.showPicker()
+					return
+				} catch (e) {
+					console.warn('showPicker failed', e)
+				}
+			}
+			input.focus()
+			input.click()
+		},
+		onHandoverDateChange(e) {
+			const val = e?.target?.value ? e.target.value.trim() : null
+			if (val) {
+				this.$emit('save-handover-date', val)
+			}
+		},
+		clearHandoverDate() {
+			if (!this.canEdit || this.saving) return
+			this.$emit('save-handover-date', null)
+			if (this.$refs.handoverDatePicker) {
+				this.$refs.handoverDatePicker.value = ''
+			}
 		},
 		isoDateOnly(isoDate) {
 			if (!isoDate || typeof isoDate !== 'string') return ''
@@ -784,10 +904,41 @@ export default {
 	gap: 6px;
 }
 
+.kpi-phase {
+	display: flex;
+	flex-direction: column;
+	flex: 3 1 0;
+	min-width: 0;
+}
+
+.kpi-phase--delivery {
+	flex: 1.15 1 0;
+}
+
+.kpi-phase__label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+	font-size: 9px;
+	font-weight: 700;
+	line-height: 14px;
+	letter-spacing: 0.8px;
+	text-transform: uppercase;
+	color: var(--color-text-maxcontrast);
+}
+
+.kpi-phase__label::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--color-border);
+}
+
 .kpi-group {
 	display: flex;
 	align-items: stretch;
-	flex: 1 1 0;
+	flex: 1 1 auto;
 	min-width: 0;
 	gap: 6px;
 }
@@ -855,6 +1006,14 @@ export default {
 
 .kpi-card__icon--warning {
 	color: #f59e0b;
+}
+
+.kpi-card__icon--muted {
+	color: var(--color-text-maxcontrast);
+}
+
+.kpi-card__step--success {
+	background: #10b981;
 }
 
 .kpi-card__content {
@@ -938,6 +1097,8 @@ export default {
 .kpi-connector--group-link {
 	flex: 0 1 14px;
 	min-width: 6px;
+	/* Phase label height: keeps the link centred on the cards, not the label */
+	margin-top: 20px;
 }
 
 /* Process Card specifics */
@@ -951,6 +1112,23 @@ export default {
 
 .kpi-card--completion.kpi-card--complete {
 	border-color: rgba(16, 185, 129, 0.35);
+}
+
+/* Handover Card specifics */
+.kpi-card--handover {
+	border-style: dashed;
+}
+
+.kpi-card--handover.kpi-card--complete {
+	border-style: solid;
+	border-color: rgba(16, 185, 129, 0.35);
+	background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), var(--color-background-hover) 60%);
+}
+
+.start-date-inline-right--start {
+	justify-content: flex-start;
+	flex: 0 1 auto;
+	min-height: 20px;
 }
 
 .kpi-process-pill {
@@ -1246,27 +1424,34 @@ export default {
 }
 
 /* Container Queries for responsive adaptation */
-@container kpi-bar (max-width: 1179px) {
+/* < 1400px: Initiation on its own row, Execution + Delivery below */
+@container kpi-bar (max-width: 1399px) {
 	.timeline-kpi-bar__cards {
-		flex-direction: column;
-		gap: 8px;
+		flex-wrap: wrap;
+		row-gap: 10px;
 	}
-	.kpi-group {
-		width: 100%;
+	.kpi-phase--initiation {
+		flex-basis: 100%;
+	}
+	.timeline-kpi-bar__cards > .kpi-connector--group-link:nth-child(2) {
+		display: none;
+	}
+}
+
+/* < 980px: every phase on its own row */
+@container kpi-bar (max-width: 979px) {
+	.kpi-phase {
+		flex-basis: 100%;
 	}
 	.kpi-connector--group-link {
 		display: none;
 	}
 }
 
+/* < 720px: cards stack vertically */
 @container kpi-bar (max-width: 719px) {
-	.timeline-kpi-bar__cards {
-		flex-direction: column;
-		gap: 8px;
-	}
 	.kpi-group {
 		flex-direction: column;
-		width: 100%;
 		gap: 8px;
 	}
 	.kpi-connector {
@@ -1285,13 +1470,22 @@ export default {
 
 /* Fallback media queries for browsers that do not support container queries */
 @supports not (container-type: inline-size) {
-	@media (max-width: 1179px) and (min-width: 720px) {
+	@media (max-width: 1399px) {
 		.timeline-kpi-bar__cards {
-			flex-direction: column;
-			gap: 8px;
+			flex-wrap: wrap;
+			row-gap: 10px;
 		}
-		.kpi-group {
-			width: 100%;
+		.kpi-phase--initiation {
+			flex-basis: 100%;
+		}
+		.timeline-kpi-bar__cards > .kpi-connector--group-link:nth-child(2) {
+			display: none;
+		}
+	}
+
+	@media (max-width: 979px) {
+		.kpi-phase {
+			flex-basis: 100%;
 		}
 		.kpi-connector--group-link {
 			display: none;
@@ -1299,13 +1493,8 @@ export default {
 	}
 
 	@media (max-width: 719px) {
-		.timeline-kpi-bar__cards {
-			flex-direction: column;
-			gap: 8px;
-		}
 		.kpi-group {
 			flex-direction: column;
-			width: 100%;
 			gap: 8px;
 		}
 		.kpi-connector {
