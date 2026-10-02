@@ -6,6 +6,7 @@ import NewOverview from '/app/src/new/NewOverview.vue'
 import NewMembers from '/app/src/new/NewMembers.vue'
 import NewWhiteboardActivity from '/app/src/new/NewWhiteboardActivity.vue'
 import TaskProgress from '/app/src/new/TaskProgress.vue'
+import NewCalendar from '/app/src/new/NewCalendar.vue'
 import '/app/src/new/new-ui.css'
 import '/app/src/new/documents-theme.css'
 
@@ -48,6 +49,9 @@ window.fixture = new Vue({
 			section(h, 'intake', 'intake', h(NewIntake, { props: { projectId: 21, canEdit: true } })),
 			section(h, 'activity', 'activity', h(NewActivity, { props: { projectId: 21 } })),
 			section(h, 'activity-denied', 'activity', h(NewActivity, { props: { projectId: 23 } })),
+			section(h, 'calendar', 'agenda', h(NewCalendar, { props: { projectId: 22 } })),
+			section(h, 'calendar-empty', 'agenda', h(NewCalendar, { props: { projectId: 21 } })),
+			section(h, 'calendar-failed', 'agenda', h(NewCalendar, { props: { projectId: 24 } })),
 			section(h, 'tasks-progress', 'tasks', h(TaskProgress, { props: { boardId: 31 } })),
 			section(h, 'wb-activity', 'whiteboard', h(NewWhiteboardActivity, { props: { projectId: 21 } })),
 			section(h, 'members', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'emma', organizationId: 4, canManage: true }, on: { 'open-direct-chat': member => { window.chatWith = member.id } } })),

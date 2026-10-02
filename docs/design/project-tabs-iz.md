@@ -59,12 +59,23 @@ current interface is untouched — no file under `src/components/` changed.
   list scrolls inside a box of eight rows with a fade; on a narrow screen it runs full
   length with a column pill instead of the track.
 
+- **Calendar** — `src/new/NewCalendar.vue` extends `ProjectCalendar` (its loading, Load
+  older events paging and All / Proposals / Meetings filter, now `iz-tab`s with counts)
+  with one agenda grouped by what needs doing (`calendar.js`): date proposals ("Needs a
+  date", with how many participants answered and a warning when every offered date has
+  passed), then meetings still to come, soonest first, then past meetings. Each row opens
+  for the description, the date options (passed ones struck) or the meeting time, and
+  every participant with a plain status (Waiting, Answered, Accepted, Maybe, Declined).
+  Times show in the viewer's zone. An empty calendar says what would appear there. What
+  anyone sees is decided by the Calendar app: proposals for their organizer, meetings
+  that are in the viewer's own calendar.
+
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
 a row being edited and, in the dark theme, darker than a panel, so they vanished in the
 member editor and in the dark Activity filters.
 
-The module host drops its card for these tabs (`.pc-module--{tab}`), so their
+The module host drops its card for these tabs (Calendar included) (`.pc-module--{tab}`), so their
 panels sit on the page background instead of inside another card.
 
 ## Verification

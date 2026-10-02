@@ -50,6 +50,19 @@ const deckStacks = (() => {
 		{ id: 6, title: 'Done', order: 5, cards: [intake, quick, peak, plain('Intake inplannen & hosten')] },
 	]
 })()
+// The local #22 proposal as the Calendar app returns it, plus two meetings around today.
+const calendarItems = (() => {
+	const at = (days, h, m) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + days); d.setUTCHours(h, m, 0, 0); return d.toISOString() }
+	return [
+		{ '@type': 'MeetingProposal', id: 1, projectId: 22, title: 'test', description: 'test', location: 'Talk conversation', duration: 30,
+			participants: [{ name: 'admin2', address: 'fasd@gmail.com', status: 'needs-action' }, { name: 'Admin3', address: 'admin3@gmail.com', status: 'needs-action' }, { name: 'taha@yba.ai', address: 'taha@yba.ai', status: 'responded' }],
+			dates: ['2026-08-24T09:00:00+00:00', '2026-08-25T08:30:00+00:00', '2026-08-27T09:00:00+00:00', '2026-08-28T09:30:00+00:00', '2026-08-31T10:45:00+00:00', '2026-09-02T10:00:00+00:00', '2026-09-04T07:15:00+00:00'].map((date, i) => ({ '@type': 'MeetingProposalDate', id: i + 1, date })) },
+		{ '@type': 'Meeting', id: 'kick', projectId: 22, title: 'Kick-off Combi', description: '', location: 'Talk conversation', duration: 60, startDate: at(5, 10, 0), endDate: at(5, 11, 0),
+			participants: [{ name: 'Emma de Vries', address: 'emma@firma.nl', status: 'accepted' }, { name: 'Thomas Jansen', address: 'thomas@firma.nl', status: 'accepted' }, { name: 'Lotte Bakker', address: 'lotte@firma.nl', status: 'tentative' }] },
+		{ '@type': 'Meeting', id: 'schouw', projectId: 22, title: 'Schouw locatie', description: 'Locatie bekijken met de aannemer.', location: 'Kruiskade 12, Rotterdam', duration: 90, startDate: at(-8, 9, 0), endDate: at(-8, 10, 30),
+			participants: [{ name: 'Emma de Vries', address: 'emma@firma.nl', status: 'accepted' }, { name: 'Mark Koster', address: 'mark@elektra.nl', status: 'declined' }] },
+	]
+})()
 const team = [
 	{ id: 'emma', displayName: 'Emma de Vries', isOwner: true, drascivsRoles: ['driver', 'accountable'], functionalRoleKeys: ['cpl'] },
 	{ id: 'thomas', displayName: 'Thomas Jansen', drascivsRoles: ['responsible'], functionalRoleKeys: ['cpl', 'client'] },
@@ -73,6 +86,10 @@ const server = http.createServer((req, res) => {
 		return
 	}
 	if (url.pathname === '/apps/deck/stacks/31') return send(200, deckStacks)
+	if ((m = url.pathname.match(/\/ocs\/v2\.php\/calendar\/proposal\/project\/(\d+)$/))) {
+		if (m[1] === '24') return send(500, { message: 'down' })
+		return send(200, { ocs: { data: m[1] === '22' ? calendarItems : [] } })
+	}
 	if (url.pathname.endsWith('/projects/21/whiteboard/activity')) {
 		const limit = Number(url.searchParams.get('limit')), offset = Number(url.searchParams.get('offset'))
 		return send(200, { events: boardSaves.slice(offset, offset + limit), hasMore: offset + limit < boardSaves.length })
@@ -239,6 +256,50 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.equal(await page.locator('#activity .iz-chip--active').innerText(), 'Files')
 		await page.locator('#activity-denied .pc-activity-state[role="alert"]').waitFor()
 		assert.match(await page.locator('#activity-denied .pc-activity-state').innerText(), /do not have access/, 'no access reads as a failure, not an empty project')
+
+		// ---- Calendar ----
+		const calendar = page.locator('#calendar')
+		await calendar.locator('.pc-calendar__item').nth(2).waitFor()
+		assert.equal((await calendar.locator('.iz-tab').allInnerTexts()).map(t => t.replace(/\s+/g, ' ')).join('|'), 'All 3|Proposals 1|Meetings 2')
+		assert.equal((await calendar.locator('.pc-calendar__group-title').allTextContents()).map(t => t.trim()).join('|'), 'Needs a date · 1|Upcoming · 1|Past · 1', 'proposals, then what is coming, then the past')
+		const stale = calendar.locator('.pc-calendar__item').first()
+		assert.match(await stale.innerText(), /test\s*All 7 dates have passed/)
+		assert.match(await stale.innerText(), /7 date options · 30 min · Talk conversation/)
+		assert.match(await stale.locator('.pc-calendar__status').innerText(), /1 of 3 answered/)
+		const fill = await stale.locator('.pc-calendar__meter .iz-meter__fill').evaluate(n => n.getBoundingClientRect().width / n.parentElement.getBoundingClientRect().width)
+		assert.ok(Math.abs(fill - 1 / 3) < 0.02, 'the answered bar is a third full')
+		assert.equal(await calendar.locator('.pc-calendar__detail').count(), 0, 'rows start closed')
+		await stale.locator('.pc-calendar__row').click()
+		assert.equal(await stale.locator('.pc-calendar__row').getAttribute('aria-expanded'), 'true')
+		assert.equal(await stale.locator('.pc-calendar__options li').count(), 7)
+		assert.equal(await stale.locator('.pc-calendar__option--passed').count(), 7)
+		const [o1, o2, o5] = await Promise.all([0, 1, 4].map(i => stale.locator('.pc-calendar__options li').nth(i).boundingBox()))
+		assert.ok(o2.y > o1.y && Math.abs(o2.x - o1.x) < 1 && o5.x > o1.x, 'options read down the first column, then the second')
+		assert.match(await stale.locator('.pc-calendar__options li').first().innerText(), /^1\s*Mon 24 Aug · \d\d:\d\d/)
+		const people = await stale.locator('.pc-calendar__person').allInnerTexts()
+		assert.equal(people.length, 3)
+		assert.match(people[0], /admin2 fasd@gmail.com\s*Waiting/)
+		assert.match(people[2], /^taha@yba.ai\s*Answered$/, 'an address equal to the name is not repeated')
+		const kick = calendar.locator('.pc-calendar__item', { hasText: 'Kick-off Combi' })
+		assert.match(await kick.innerText(), /2 accepted · 1 maybe/)
+		assert.match(await kick.locator('.pc-calendar__block').innerText(), /\w{3}\s*\d+\s*\w{3}/)
+		await kick.locator('.pc-calendar__row').click()
+		assert.match(await kick.locator('.pc-calendar__when').innerText(), /\w+day \d+ \w+ · \d\d:\d\d – \d\d:\d\d \(60 min\)/)
+		assert.ok(await calendar.locator('.pc-calendar__item--past', { hasText: 'Schouw locatie' }).count())
+		await calendar.locator('.iz-tab', { hasText: 'Meetings' }).click()
+		assert.equal((await calendar.locator('.pc-calendar__group-title').allTextContents()).map(t => t.trim()).join('|'), 'Upcoming · 1|Past · 1')
+		await calendar.locator('.iz-tab', { hasText: 'All' }).click()
+		assert.deepEqual(await blends(calendar), [], 'calendar')
+		await page.waitForTimeout(150)
+		await calendar.screenshot({ path: '/check/calendar.png' })
+		const empty = page.locator('#calendar-empty')
+		await empty.locator('.pc-calendar__empty').waitFor()
+		assert.match(await empty.innerText(), /Nothing planned yet/)
+		assert.equal(await empty.locator('.iz-tab').count(), 0, 'no tabs on an empty calendar')
+		const failed = page.locator('#calendar-failed')
+		await failed.locator('.pc-view__failure').waitFor()
+		assert.match(await failed.innerText(), /Failed to retrieve calendar events/)
+		assert.equal(await failed.locator('.iz-btn', { hasText: 'Try again' }).count(), 1)
 
 		// ---- Tasks progress ----
 		const tasks = page.locator('#tasks-progress')
@@ -420,9 +481,10 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.equal(await page.locator('#tasks-progress .pc-progress__pill').first().isVisible(), true, 'the column as a pill instead')
 		assert.ok(await page.locator('#tasks-progress .pc-progress__scroll').evaluate(n => n.scrollHeight <= n.clientHeight), 'and no scroll box inside the page')
 		await page.locator('#tasks-progress').screenshot({ path: '/check/tasks-progress-mobile.png' })
+		await page.locator('#calendar').screenshot({ path: '/check/calendar-mobile.png' })
 
 		assert.deepEqual(errors, [])
-		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, tasks progress, 390px — current interface unchanged.')
+		console.log('PASS: documents on theme tokens with real OCR labels, intake segments and progress, activity chips/paging/clock/sticky days and access failure, overview My/All tasks, members list/add/edit/chat/read-only/denied, whiteboard sessions by day, tasks progress, calendar agenda/empty/failure, 390px — current interface unchanged.')
 	} finally {
 		await browser.close()
 		server.close()

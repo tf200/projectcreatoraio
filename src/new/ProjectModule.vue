@@ -49,7 +49,7 @@ const loaders = {
 	whiteboard: () => import('../components/ProjectWhiteboard/WhiteboardBoard.vue'),
 	activity: () => import('./NewActivity.vue'),
 	members: () => import('./NewMembers.vue'),
-	agenda: () => import('../components/ProjectCalendar.vue'),
+	agenda: () => import('./NewCalendar.vue'),
 }
 
 export default {
