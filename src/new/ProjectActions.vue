@@ -14,7 +14,7 @@
 					aria-haspopup="true"
 					:aria-expanded="String(open === 'contacts')"
 					aria-controls="pc-actions-contacts"
-					@click="toggle('contacts')">
+					@click="toggle('contacts', $event)">
 					<AccountGroupOutline :size="16" />
 					Contacts
 					<ChevronDown :size="14" class="pc-actions__caret" />
@@ -56,7 +56,7 @@
 					aria-haspopup="menu"
 					:aria-expanded="String(open === 'more')"
 					aria-controls="pc-actions-more"
-					@click="toggle('more')">
+					@click="toggle('more', $event)">
 					<DotsHorizontal :size="16" />
 					More
 				</button>
@@ -64,8 +64,7 @@
 					id="pc-actions-more"
 					class="pc-actions__pop pc-actions__menu"
 					role="menu"
-					aria-label="Project actions"
-					@keydown.esc="close('moreButton')">
+					aria-label="Project actions">
 					<button v-if="can.rename || can.describe"
 						type="button"
 						role="menuitem"
@@ -330,17 +329,30 @@ export default {
 	watch: {
 		'project.id'() { this.open = ''; this.notice = ''; this.closeDialog() },
 	},
-	mounted() { document.addEventListener('click', this.onOutside, true) },
-	beforeDestroy() { document.removeEventListener('click', this.onOutside, true) },
+	mounted() {
+		document.addEventListener('click', this.onOutside, true)
+		document.addEventListener('keydown', this.onKey)
+	},
+	beforeDestroy() {
+		document.removeEventListener('click', this.onOutside, true)
+		document.removeEventListener('keydown', this.onKey)
+	},
 	methods: {
 		toggled,
-		toggle(name) {
+		// Focus moves into the menu only when it was opened from the keyboard
+		// (a click from a keyboard reports detail 0); a mouse user sees no item
+		// singled out.
+		toggle(name, event) {
 			this.open = this.open === name ? '' : name
-			if (this.open) this.$nextTick(() => this.$el.querySelector('.pc-actions__pop .pc-actions__item:not(:disabled)')?.focus())
+			if (this.open && event?.detail === 0) this.$nextTick(() => this.$el.querySelector('.pc-actions__pop .pc-actions__item:not(:disabled)')?.focus())
 		},
 		close(button) {
 			this.open = ''
 			if (button) this.$refs[button]?.focus()
+		},
+		// Escape closes an open menu wherever focus is, and returns it to the button.
+		onKey(event) {
+			if (event.key === 'Escape' && this.open && !this.dialog) this.close(this.open === 'more' ? 'moreButton' : 'contactsButton')
 		},
 		onOutside(event) {
 			if (this.open && !this.$el.querySelector('.pc-actions__row').contains(event.target)) this.open = ''
@@ -453,6 +465,8 @@ export default {
 .pc-actions__item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; margin: 0; padding: 7px 10px; border: 0; border-radius: var(--iz-radius); background: transparent; color: var(--iz-text); font: inherit; font-size: var(--iz-fs-md); text-align: start; text-decoration: none; cursor: pointer; }
 .pc-actions__item:hover:not(:disabled), .pc-actions__item:focus-visible { background: var(--iz-surface-subtle); outline: none; }
 .pc-actions__item:focus-visible { box-shadow: inset 0 0 0 2px var(--iz-accent); }
+/* Nextcloud paints any focused button; only hover and keyboard focus may mark an item. */
+.pc-actions__item:focus:not(:focus-visible):not(:hover) { background: transparent; }
 .pc-actions__item:disabled { cursor: default; opacity: 0.5; }
 .pc-actions__item > .material-design-icon { color: var(--iz-text-secondary); }
 .pc-actions__item small { display: block; font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
