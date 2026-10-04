@@ -17,6 +17,7 @@
     </section>
     <template v-else>
      <ProjectShelf ref="shelf" :projects="projects" :selected-id="route.projectId" :selected-name="project ? project.name : ''" :loading="listLoading" :error="listError" :filters="filters" :base="base" :is-global-admin="context.isGlobalAdmin" :is-organization-admin="context.organizationRole === 'admin' && !context.isGlobalAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" @filter="setFilter" @open="navigate($event, route.tab)" @retry="retryList" @create="openCreate" />
+    <p v-if="deletedNotice" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ deletedNotice }}</p>
     <NewCreate v-if="route.create" :context="context" :back-label="returnLabel" :back-href="returnHref" @cancel="cancelCreate" @created="onCreated" />
     <template v-else-if="route.projectId">
      <section v-if="projectLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project…') }}</section>
@@ -27,7 +28,7 @@
      </section>
      <template v-else-if="project">
       <p v-if="createdNotice && createdNotice.projectId === route.projectId" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ createdNotice.text }}</p>
-      <ProjectHeader :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
+      <ProjectHeader @updated="refreshProject" @deleted="onDeleted" :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :class="'pc-module--' + route.tab" :aria-label="tabLabel" :aria-busy="projectLoading">
        <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'Open this section in the current interface to continue.') }}</p><a :href="legacyUrl" class="pc-button">{{ t('projectcreatoraio', 'Open current interface') }}</a></div>
@@ -64,7 +65,7 @@ export default {
  name: 'NewProjectApp',
  components: { NcContent, NcAppContent, ProjectShelf, ProjectHeader, NewOverview, ProjectModule, NewCreate },
  data() {
-  return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, directChatUser: null, returnRoute: null, createdNotice: null, requestVersion: 0, listVersion: 0, contextVersion: 0 }
+  return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, directChatUser: null, returnRoute: null, createdNotice: null, deletedNotice: '', requestVersion: 0, listVersion: 0, contextVersion: 0 }
  },
  computed: {
   hasAccess() { return !!(this.context?.isGlobalAdmin || this.context?.organizationId) },
@@ -135,6 +136,7 @@ export default {
    const sameProject = projectId && projectId === this.route.projectId && this.project && !this.route.create
    if (!sameProject) this.directChatUser = null
    if (this.createdNotice && Number(projectId) !== this.createdNotice.projectId) this.createdNotice = null
+   if (this.deletedNotice && projectId) this.deletedNotice = ''
    this.route = { projectId: projectId ? Number(projectId) : null, tab: normalizeTab(tab) }
    this.moduleError = false
    history.pushState(null, '', interfaceUrl(this.base, this.route, true))
@@ -155,6 +157,22 @@ export default {
    const back = this.returnRoute
    this.returnRoute = null
    this.navigate(back ? back.projectId : null, back ? back.tab : 'overview')
+  },
+  // The header changed the project: read it and the shelf again.
+  async refreshProject() {
+   const id = this.route.projectId
+   try {
+    const project = await api.project(id)
+    if (this.route.projectId === id && Number(project?.id) === id) this.project = project
+   } catch (error) { /* The project on screen stays; the next visit reads it again. */ }
+   this.loadList()
+  },
+  async onDeleted({ projectId, name }) {
+   this.recentProjectIds = this.recentProjectIds.filter(id => id !== projectId)
+   try { if (Number(localStorage.getItem(this.base + ':last-project:' + this.context.userId)) === projectId) localStorage.removeItem(this.base + ':last-project:' + this.context.userId) } catch { /* Storage can be unavailable. */ }
+   this.listLoaded = false
+   this.deletedNotice = name + ' was deleted.'
+   await this.navigate(null, 'overview')
   },
   // A new project opens on its overview, with the list read again to hold it.
   async onCreated({ projectId, name }) {

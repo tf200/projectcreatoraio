@@ -88,6 +88,19 @@ current interface is untouched — no file under `src/components/` changed.
   Back return to the project the page was opened from. The shelf, list and empty-state
   buttons open it in place; "Back to current interface" opens the old create form.
 
+- **Header actions** — `src/new/ProjectActions.vue` replaces the three tiles (Project
+  updates, Project contacts, Manage project) with `iz-btn`s: Chat (when the project has a
+  conversation), Contacts (the client card, Email the client, View project team, Edit
+  client & address) and More, which does in the new layout what Manage project used to
+  leave for: edit details, client and address, status, export and delete (confirmed by
+  typing the project's name). `project-actions.js` follows the server's rules: every
+  member edits the client and address and can export; the owner also renames, changes
+  status and deletes; organisation administrators also edit the description. Only
+  changed, allowed fields are sent. After a change the app reads the project and the
+  shelf again; after a delete it opens another project with a notice. Project updates
+  is gone; the Activity tab is right below. Dialogs are native `<dialog>`s, hidden when
+  closed even though Nextcloud's own styles show every `dialog`.
+
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
 a row being edited and, in the dark theme, darker than a panel, so they vanished in the

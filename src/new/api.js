@@ -24,6 +24,10 @@ export const api = {
 	// The plan limit a new project counts against, and the create request itself.
 	allowance: organizationId => get('projects/allowance', organizationId ? { organizationId } : undefined),
 	createProject: payload => send('post', 'projects', payload),
+	// The header's More menu: edit, export and delete, as the current interface does them.
+	updateProject: (id, payload) => send('put', `projects/${id}`, payload),
+	requestExport: id => send('post', `projects/${id}/download`, {}),
+	deleteProject: async id => (await axios.delete(generateUrl(`/apps/projectcreatoraio/api/v1/projects/${id}`))).data,
 	// Deck's own read of a board's columns with their cards (labels, dates, dependencies).
 	deckStacks: async boardId => (await axios.get(generateUrl(`/apps/deck/stacks/${boardId}`))).data,
 }

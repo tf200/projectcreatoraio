@@ -2,11 +2,7 @@
  <header class="pc-project-header">
   <div class="pc-header-main">
    <div class="pc-project-identity"><h1>{{ project.name }}</h1><div class="pc-project-meta"><span>#{{ project.number }}</span><span>{{ projectType }} project</span><a v-if="project.loc_city" :href="locationUrl" target="_blank" rel="noopener noreferrer"><MapMarkerOutline :size="17" />{{ project.loc_city }}</a><span>{{ project.client_name }}</span></div></div>
-   <div class="pc-header-actions">
-    <button class="pc-header-action" @click="$emit('navigate', 'activity')"><BellOutline :size="23" /><span>Project updates</span></button>
-    <details class="pc-contact-menu"><summary class="pc-header-action"><AccountGroupOutline :size="24" /><span>Project contacts</span><small>Contact / chat / team</small></summary><div class="pc-contact-popover"><strong>{{ project.client_name || 'Project contact' }}</strong><a v-if="project.client_email" :href="'mailto:' + project.client_email">{{ project.client_email }}</a><a v-if="project.client_phone" :href="'tel:' + project.client_phone">{{ project.client_phone }}</a><button @click="$emit('navigate', 'members')">View project team</button><a v-if="chatUrl" :href="chatUrl">Open project chat</a></div></details>
-    <a class="pc-header-action" :href="legacyUrl"><DotsHorizontal :size="24" /><span>Manage project</span></a>
-   </div>
+   <ProjectActions class="pc-header-actions" :project="project" :context="context" :chat-url="chatUrl" @navigate="$emit('navigate', $event)" @updated="$emit('updated')" @deleted="$emit('deleted', $event)" />
   </div>
   <div class="pc-badges">
    <span class="pc-badge" :class="{ 'pc-positive': Number(project.status) === 1 }"><CircleOutline :size="15" />{{ statusLabel }}</span>
@@ -21,8 +17,7 @@
 </template>
 <script>
 import { generateUrl } from '@nextcloud/router'
-import BellOutline from 'vue-material-design-icons/BellOutline.vue'
-import DotsHorizontal from 'vue-material-design-icons/DotsHorizontal.vue'
+import ProjectActions from './ProjectActions.vue'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import CircleOutline from 'vue-material-design-icons/CircleOutline.vue'
 import ChartDonut from 'vue-material-design-icons/ChartDonut.vue'
@@ -43,7 +38,7 @@ import { PROJECT_TYPES } from '../macros/project-types.js'
 import { getProjectStatusLabel } from '../constants/project-statuses.js'
 import { interfaceUrl } from './navigation.js'
 export default {
- components: { BellOutline, DotsHorizontal, MapMarkerOutline, CircleOutline, ChartDonut, AlertCircleOutline, FlagOutline, CalendarMonthOutline, AccountGroupOutline },
+ components: { ProjectActions, MapMarkerOutline, CircleOutline, ChartDonut, AlertCircleOutline, FlagOutline, CalendarMonthOutline, AccountGroupOutline },
  props: { context: { type: Object, required: true }, overview: { type: Object, required: true }, project: { type: Object, required: true }, tab: { type: String, required: true }, base: { type: String, required: true }, legacyUrl: { type: String, required: true } },
  computed: {
   chatUrl() { return this.context.features?.talk !== false && this.project.talk_conversation_token ? generateUrl('/call/' + encodeURIComponent(this.project.talk_conversation_token)) : null },
