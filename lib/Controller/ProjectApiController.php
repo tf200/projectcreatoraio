@@ -3,13 +3,13 @@
 namespace OCA\Projectcreatoraio\Controller;
 
 use OCA\Deck\NoPermissionException;
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\BackgroundJob\GenerateProjectExportJob;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\ProjectStatus;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityAggregationService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
@@ -56,7 +56,7 @@ class ProjectApiController extends Controller {
 		private IRootFolder $rootFolder,
 		private IJobList $jobList,
 		private readonly IAppManager $appManager,
-		private ?OrganizationUserMapper $organizationUserMapper = null,
+		private ProjectAccessService $access,
 		private ?ProjectMembershipService $membershipService = null,
 	) {
 		parent::__construct($appName, $request);
@@ -928,23 +928,7 @@ class ProjectApiController extends Controller {
 			throw new OCSForbiddenException('Authentication required');
 		}
 
-		if ($this->iGroupManager->isAdmin($currentUser->getUID())) {
-			return $this->projectMapper->list();
-		}
-
-		$membership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
-		if ($membership === null) {
-			throw new OCSForbiddenException('You are not assigned to an organization');
-		}
-
-		if ($membership['role'] === 'admin') {
-			return $this->projectMapper->findByOrganizationId((int)$membership['organization_id']);
-		}
-
-		return $this->projectMapper->findByUserIdAndOrganizationId(
-			$currentUser->getUID(),
-			(int)$membership['organization_id'],
-		);
+		return $this->access->getAccessibleProjects($currentUser->getUID());
 	}
 
 	#[NoCSRFRequired]
@@ -988,7 +972,7 @@ class ProjectApiController extends Controller {
 
 		$userId = $currentUser->getUID();
 		$isGlobalAdmin = $this->iGroupManager->isAdmin($userId);
-		$membership = $this->organizationUserMapper !== null ? $this->organizationUserMapper->getOrganizationMembership($userId) : null;
+		$membership = $this->access->getOrganizationMembership($userId);
 
 		return new DataResponse([
 			'userId' => $userId,
@@ -1309,7 +1293,7 @@ class ProjectApiController extends Controller {
 
 		$isGlobalAdmin = $this->iGroupManager->isAdmin($currentUser->getUID());
 		if (!$isGlobalAdmin) {
-			$currentMembership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
+			$currentMembership = $this->access->getOrganizationMembership($currentUser->getUID());
 			if ($currentMembership === null) {
 				throw new OCSForbiddenException('You are not assigned to an organization');
 			}
@@ -1327,7 +1311,7 @@ class ProjectApiController extends Controller {
 				return new DataResponse($projects);
 			}
 
-			$targetMembership = $this->organizationUserMapper->getOrganizationMembership($userId);
+			$targetMembership = $this->access->getOrganizationMembership($userId);
 			if ($targetMembership === null || (int)$targetMembership['organization_id'] !== (int)$currentMembership['organization_id']) {
 				throw new OCSNotFoundException('User not found in your organization');
 			}
@@ -1634,20 +1618,7 @@ class ProjectApiController extends Controller {
 			return false;
 		}
 
-		if ($this->iGroupManager->isAdmin($currentUser->getUID())) {
-			return true;
-		}
-
-		$membership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
-		if ($membership === null) {
-			return false;
-		}
-
-		if ((int)$membership['organization_id'] !== (int)$project->getOrganizationId()) {
-			return false;
-		}
-
-		return $membership['role'] === 'admin';
+		return $this->access->canAdminister($currentUser->getUID(), $project);
 	}
 
 	private function canEditPreparationWeeks(Project $project): bool {
@@ -1684,33 +1655,6 @@ class ProjectApiController extends Controller {
 			throw new OCSForbiddenException('Authentication required');
 		}
 
-		if ($this->iGroupManager->isAdmin($currentUser->getUID())) {
-			return;
-		}
-
-		$membership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
-		if ($membership === null) {
-			throw new OCSForbiddenException('You are not assigned to an organization');
-		}
-
-		if ((int)$membership['organization_id'] !== (int)$project->getOrganizationId()) {
-			throw new OCSNotFoundException('Project not found');
-		}
-
-		if ($membership['role'] === 'admin') {
-			return;
-		}
-
-		if (!$this->isProjectGroupMember($currentUser->getUID(), $project->getProjectGroupGid())) {
-			throw new OCSNotFoundException('Project not found');
-		}
-	}
-
-	private function isProjectGroupMember(string $userId, string $projectGroupGid): bool {
-		if ($projectGroupGid === '') {
-			return false;
-		}
-
-		return $this->iGroupManager->isInGroup($userId, $projectGroupGid);
+		$this->access->assertCanView($currentUser->getUID(), $project);
 	}
 }

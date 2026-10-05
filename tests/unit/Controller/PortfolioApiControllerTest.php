@@ -6,9 +6,12 @@ namespace OCA\ProjectCreatorAIO\Tests\Unit\Controller;
 
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Controller\PortfolioApiController;
+use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectPortfolioService;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 use OCP\AppFramework\OCS\OCSForbiddenException;
+use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
@@ -63,7 +66,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		$service = $this->createMock(ProjectPortfolioService::class);
 		$service->expects($this->once())->method('getCapacity')->with(42, 9, '2026-09-16')->willReturn(['weeks' => []]);
 
-		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service);
 		self::assertSame(['weeks' => []], $controller->capacity()->getData());
 	}
 
@@ -83,7 +86,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		$service = $this->createMock(ProjectPortfolioService::class);
 		$service->expects($this->once())->method('getTableOverview')->with(42, '2026-09-14', 9, 'team', null)->willReturn(['projects' => []]);
 
-		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service);
 		self::assertSame(['projects' => []], $controller->table()->getData());
 	}
 
@@ -94,7 +97,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		]);
 		$service->expects($this->once())->method('getCompletion')->with(42, null, 9)->willReturn(['trackedProjects' => 1]);
 
-		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service);
 		self::assertSame(['trackedProjects' => 1], $controller->completion()->getData());
 	}
 
@@ -107,7 +110,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		$service->expects($this->never())->method('getCompletion');
 
 		$this->expectException(OCSBadRequestException::class);
-		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service))->completion();
+		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service))->completion();
 	}
 
 	/** @return array<string,array{0:mixed}> */
@@ -128,7 +131,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		]);
 
 		$this->expectException(OCSBadRequestException::class);
-		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service))->completion();
+		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service))->completion();
 	}
 
 	public function testTableRejectsTeamScopeWithoutPositiveTeamId(): void {
@@ -140,7 +143,7 @@ final class PortfolioApiControllerTest extends TestCase {
 			]);
 			$service->expects($this->never())->method('getTableOverview');
 			try {
-				(new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service))->table();
+				(new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service))->table();
 				self::fail('Expected OCSBadRequestException for teamId=' . var_export($teamId, true));
 			} catch (OCSBadRequestException $e) {
 				// expected
@@ -158,7 +161,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		$service->expects($this->never())->method('getCapacityForAll');
 
 		$this->expectException(OCSBadRequestException::class);
-		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service))->capacity();
+		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service))->capacity();
 	}
 
 	public function testTableRejectsInvalidWeekStart(): void {
@@ -169,7 +172,7 @@ final class PortfolioApiControllerTest extends TestCase {
 		]);
 
 		$this->expectException(OCSBadRequestException::class);
-		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $userMapper, $service))->table();
+		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service))->table();
 	}
 
 	/**
@@ -198,8 +201,15 @@ final class PortfolioApiControllerTest extends TestCase {
 			'projectcreatoraio',
 			$this->createMock(IRequest::class),
 			$userSession,
-			$userMapper,
+			$this->access($userMapper),
 			$service,
 		);
+	}
+
+	private function access(OrganizationUserMapper $userMapper): ProjectAccessService {
+		$groupManager = $this->createMock(IGroupManager::class);
+		$groupManager->method('isAdmin')->willReturn(false);
+
+		return new ProjectAccessService($this->createMock(ProjectMapper::class), $groupManager, $userMapper);
 	}
 }

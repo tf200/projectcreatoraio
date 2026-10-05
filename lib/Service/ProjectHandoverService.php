@@ -2,7 +2,6 @@
 
 namespace OCA\ProjectCreatorAIO\Service;
 
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembership;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
@@ -39,7 +38,7 @@ class ProjectHandoverService
         private readonly IDBConnection $db,
         private readonly LoggerInterface $logger,
         private readonly ?ProjectAdministratorAccessService $administratorAccessService = null,
-        private readonly ?OrganizationUserMapper $organizationUserMapper = null,
+        private readonly ?ProjectAccessService $access = null,
     ) {
     }
 
@@ -261,11 +260,10 @@ class ProjectHandoverService
 
     private function assertUserBelongsToOrganization(string $userId, int $organizationId, string $label): void
     {
-        if ($this->organizationUserMapper === null) {
+        if ($this->access === null || !$this->access->hasOrganizations()) {
             throw new OCSException('Organization service is not available.', 500);
         }
-        $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-        if ($membership === null || (int) ($membership['organization_id'] ?? 0) !== $organizationId) {
+        if (!$this->access->belongsToOrganization($userId, $organizationId)) {
             throw new OCSException(sprintf('%s does not belong to organization %d.', $label, $organizationId), 403);
         }
     }

@@ -15,6 +15,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberSourceMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectHandoverService;
 use OCA\ProjectCreatorAIO\Service\ProjectMembershipService;
 use OCA\ProjectCreatorAIO\Service\ProjectTalkIntegrationService;
@@ -91,7 +92,7 @@ final class ProjectHandoverServiceTest extends TestCase {
 			$this->createMock(IDBConnection::class),
 			$this->createMock(LoggerInterface::class),
 			null,
-			$organizationUserMapper,
+			new ProjectAccessService($projectMapper, $groupManager, $organizationUserMapper),
 		);
 
 		$result = $service->handoverUserInOrganization('alice', 'carol', 9, true);

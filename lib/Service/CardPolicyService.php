@@ -42,7 +42,7 @@ class CardPolicyService {
 		private readonly IUserManager $userManager,
 		private readonly ?object $cardMapper, // OCA\Deck\Db\CardMapper
 		private readonly ?object $stackMapper, // OCA\Deck\Db\StackMapper
-		private readonly ?object $organizationUserMapper = null, // OCA\Organization\Db\UserMapper
+		private readonly ?ProjectAccessService $access = null,
 	) {
 	}
 
@@ -416,13 +416,9 @@ class CardPolicyService {
 			return true;
 		}
 
-		if ($this->organizationUserMapper !== null) {
+		if ($project !== null && $this->access !== null) {
 			try {
-				$membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-				if ($project !== null
-					&& $membership !== null
-					&& (int)($membership['organization_id'] ?? 0) === (int)$project->getOrganizationId()
-					&& ($membership['role'] ?? '') === 'admin') {
+				if ($this->access->isOrganizationAdmin($userId, (int)$project->getOrganizationId())) {
 					return true;
 				}
 			} catch (\Throwable $e) {

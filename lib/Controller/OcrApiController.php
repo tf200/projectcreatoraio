@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Controller;
 
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectFileProcessing;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Service\FileProcessingPipelineService;
 use OCA\ProjectCreatorAIO\Service\OcrDocumentService;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckOcrAttachmentService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -18,7 +18,6 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCS\OCSException;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -28,12 +27,11 @@ class OcrApiController extends Controller
         string $appName,
         IRequest $request,
         private readonly IUserSession $userSession,
-        private readonly IGroupManager $groupManager,
         private readonly ProjectMapper $projectMapper,
         private readonly OcrDocumentService $ocrDocumentService,
         private readonly FileProcessingPipelineService $fileProcessingPipelineService,
         private readonly ProjectDeckOcrAttachmentService $projectDeckOcrAttachmentService,
-        private readonly ?OrganizationUserMapper $organizationUserMapper = null,
+        private readonly ProjectAccessService $access,
     ) {
         parent::__construct($appName, $request);
     }
@@ -296,26 +294,7 @@ class OcrApiController extends Controller
         }
 
         $userId = $currentUser->getUID();
-        if ($this->groupManager->isAdmin($userId)) {
-            return $userId;
-        }
-
-        if ($this->organizationUserMapper === null) {
-            throw new OCSForbiddenException('Organization management is not available');
-        }
-
-        $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-        if ($membership === null) {
-            throw new OCSForbiddenException('You are not assigned to an organization');
-        }
-
-        if ((int) ($membership['organization_id'] ?? 0) !== $organizationId) {
-            throw new OCSNotFoundException('Organization not found');
-        }
-
-        if (($membership['role'] ?? '') !== 'admin') {
-            throw new OCSForbiddenException('Organization admin privilege required to manage OCR document types');
-        }
+        $this->access->assertCanManageOrganization($userId, $organizationId, 'Organization admin privilege required to manage OCR document types');
 
         return $userId;
     }
@@ -328,35 +307,7 @@ class OcrApiController extends Controller
         }
 
         $userId = $currentUser->getUID();
-        if ($this->groupManager->isAdmin($userId)) {
-            return $userId;
-        }
-
-        if ($this->organizationUserMapper === null) {
-            $projectGroupGid = trim((string) $project->getProjectGroupGid());
-            if ($projectGroupGid === '' || !$this->groupManager->isInGroup($userId, $projectGroupGid)) {
-                throw new OCSNotFoundException('Project not found');
-            }
-            return $userId;
-        }
-
-        $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-        if ($membership === null) {
-            throw new OCSForbiddenException('You are not assigned to an organization');
-        }
-
-        if ((int) ($membership['organization_id'] ?? 0) !== (int) $project->getOrganizationId()) {
-            throw new OCSNotFoundException('Project not found');
-        }
-
-        if (($membership['role'] ?? null) === 'admin') {
-            return $userId;
-        }
-
-        $projectGroupGid = trim((string) $project->getProjectGroupGid());
-        if ($projectGroupGid === '' || !$this->groupManager->isInGroup($userId, $projectGroupGid)) {
-            throw new OCSNotFoundException('Project not found');
-        }
+        $this->access->assertCanView($userId, $project);
 
         return $userId;
     }

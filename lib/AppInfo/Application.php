@@ -44,6 +44,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectDigestService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectQuotaService;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectAdministratorAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
@@ -269,6 +270,7 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardPolicyMembershipMapper::class),
 				$c->get(CardPolicyService::class),
 				$c->get(OrganizationPdfService::class),
+				$c->get(ProjectAccessService::class),
 				$c->get(ProjectAdministratorAccessService::class),
 				$c->get(ProjectDirectChatMapper::class),
 				$c->get(ProjectMemberResolver::class),
@@ -316,6 +318,17 @@ class Application extends App implements IBootstrap {
 			return new ProjectActivityAggregationService(
 				$c->get(ProjectActivityEventMapper::class),
 				$c->get(NativeDeckActivityReader::class),
+			);
+		});
+
+		$context->registerService(ProjectAccessService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$organizationEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationUserMapper::class);
+
+			return new ProjectAccessService(
+				$c->get(ProjectMapper::class),
+				$c->get(IGroupManager::class),
+				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null,
 			);
 		});
 
@@ -407,7 +420,7 @@ class Application extends App implements IBootstrap {
 				$c->get(IUserManager::class),
 				$deckEnabled ? $c->get(CardMapper::class) : null,
 				$deckEnabled ? $c->get(StackMapper::class) : null,
-				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null
+				$c->get(ProjectAccessService::class),
 			);
 		});
 		$context->registerService(BoardPermissionProfileMapper::class, fn(ContainerInterface $c) => new BoardPermissionProfileMapper($c->get(IDBConnection::class)));
@@ -419,12 +432,9 @@ class Application extends App implements IBootstrap {
 				$deck ? $c->get(StackService::class) : null, $deck ? $c->get(CardService::class) : null, $deck ? $c->get(StackMapper::class) : null);
 		});
 		$context->registerService(BoardPermissionProfileApiController::class, function (ContainerInterface $c) {
-			$appManager = $c->get(IAppManager::class);
-			$organization = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationUserMapper::class);
 			return new BoardPermissionProfileApiController(self::APP_ID, $c->get(\OCP\IRequest::class),
 				$c->get(BoardPermissionProfileMapper::class), $c->get(BoardPermissionProfileService::class), $c->get(ProjectMapper::class),
-				$c->get(CardPolicyService::class), $c->get(IUserSession::class), $c->get(IGroupManager::class),
-				$organization ? $c->get(OrganizationUserMapper::class) : null);
+				$c->get(CardPolicyService::class), $c->get(IUserSession::class), $c->get(ProjectAccessService::class));
 		});
 
 		$context->registerService(PolicyApiController::class, function (ContainerInterface $c) {

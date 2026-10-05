@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Controller;
 
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\OCS\OCSForbiddenException;
-use OCP\AppFramework\OCS\OCSNotFoundException;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 use InvalidArgumentException;
@@ -24,9 +22,8 @@ class OrganizationPdfController extends Controller
         string $appName,
         IRequest $request,
         private readonly IUserSession $userSession,
-        private readonly IGroupManager $groupManager,
         private readonly OrganizationPdfService $organizationPdfService,
-        private readonly ?OrganizationUserMapper $organizationUserMapper = null,
+        private readonly ProjectAccessService $access,
     ) {
         parent::__construct($appName, $request);
     }
@@ -111,26 +108,7 @@ class OrganizationPdfController extends Controller
         }
 
         $userId = $currentUser->getUID();
-        if ($this->groupManager->isAdmin($userId)) {
-            return $userId;
-        }
-
-        if ($this->organizationUserMapper === null) {
-            throw new OCSForbiddenException('Organization management is not available');
-        }
-
-        $membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-        if ($membership === null) {
-            throw new OCSForbiddenException('You are not assigned to an organization');
-        }
-
-        if ((int) ($membership['organization_id'] ?? 0) !== $organizationId) {
-            throw new OCSNotFoundException('Organization not found');
-        }
-
-        if (($membership['role'] ?? '') !== 'admin') {
-            throw new OCSForbiddenException('Organization admin privilege required to manage default PDF templates');
-        }
+        $this->access->assertCanManageOrganization($userId, $organizationId, 'Organization admin privilege required to manage default PDF templates');
 
         return $userId;
     }

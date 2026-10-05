@@ -19,6 +19,7 @@ use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
 use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectAdministratorAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectMemberResolver;
@@ -912,6 +913,7 @@ final class ProjectServiceTest extends TestCase {
 			policyMembershipMapper: $policyMembershipMapper,
 			cardPolicyService: $cardPolicyService ?? $this->createMock(CardPolicyService::class),
 			organizationPdfService: $this->createMock(OrganizationPdfService::class),
+			access: new ProjectAccessService($projectMapper, $groupManager, null),
 			administratorAccessService: null,
 			directChatMapper: $directChatMapper,
 			projectMemberResolver: $projectMemberResolver,

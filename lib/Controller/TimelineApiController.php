@@ -4,11 +4,11 @@ namespace OCA\ProjectCreatorAIO\Controller;
 
 use DateTime;
 use OCA\Deck\NoPermissionException;
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
@@ -23,7 +23,6 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -35,7 +34,6 @@ class TimelineApiController extends Controller
 		private TimelineItemMapper $mapper,
 		private ProjectMapper $projectMapper,
 		private IUserSession $userSession,
-		private IGroupManager $groupManager,
 		private ProjectActivityService $projectActivityService,
 		private TimelinePlanningService $planningService,
 		private TimelinePhaseService $phaseService,
@@ -44,7 +42,7 @@ class TimelineApiController extends Controller
 		private TimelineScenarioService $scenarioService,
 		private TimelineScenarioApplyService $scenarioApplyService,
 		private TimelineScenarioLibraryService $scenarioLibrary,
-		private ?OrganizationUserMapper $organizationUserMapper = null,
+		private ProjectAccessService $access,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -736,47 +734,12 @@ class TimelineApiController extends Controller
             throw new OCSForbiddenException('Authentication required');
         }
 
-        if ($this->groupManager->isAdmin($currentUser->getUID())) {
-            return;
-        }
-
-        if ($this->organizationUserMapper === null) {
-            if (!$this->isProjectGroupMember($currentUser->getUID(), (string) $project->getProjectGroupGid())) {
-                throw new OCSNotFoundException('Project not found');
-            }
-            return;
-        }
-
-        $membership = $this->organizationUserMapper->getOrganizationMembership($currentUser->getUID());
-        if ($membership === null) {
-            throw new OCSForbiddenException('You are not assigned to an organization');
-        }
-
-        if ((int) $membership['organization_id'] !== (int) $project->getOrganizationId()) {
-            throw new OCSNotFoundException('Project not found');
-        }
-
-        if ($membership['role'] === 'admin') {
-            return;
-        }
-
-        if (!$this->isProjectGroupMember($currentUser->getUID(), (string) $project->getProjectGroupGid())) {
-            throw new OCSNotFoundException('Project not found');
-        }
+        $this->access->assertCanView($currentUser->getUID(), $project);
     }
 
     private function assertCanManageTimelineProject(Project $project): void
     {
         $this->assertCanAccessProject($project);
-    }
-
-    private function isProjectGroupMember(string $userId, string $projectGroupGid): bool
-    {
-        if ($projectGroupGid === '') {
-            return false;
-        }
-
-        return $this->groupManager->isInGroup($userId, $projectGroupGid);
     }
 
     private function errorResponse(\Throwable $e): JSONResponse

@@ -91,6 +91,7 @@ class ProjectService {
 		private readonly BoardPolicyMembershipMapper $policyMembershipMapper,
 		private readonly CardPolicyService $cardPolicyService,
 		private readonly OrganizationPdfService $organizationPdfService,
+		private readonly ProjectAccessService $access,
 		private readonly ?ProjectAdministratorAccessService $administratorAccessService = null,
 		private readonly ?ProjectDirectChatMapper $directChatMapper = null,
 		private readonly ?ProjectMemberResolver $projectMemberResolver = null,
@@ -677,11 +678,8 @@ class ProjectService {
 			throw new OCSException('This project cannot accept members because the member group is not configured.', 500);
 		}
 
-		if ($this->organizationUserMapper !== null) {
-			$memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
-			if ($memberOrganization === null || (int)$memberOrganization['organization_id'] !== (int)$project->getOrganizationId()) {
-				throw new OCSException('User does not belong to this organization.', 403);
-			}
+		if (!$this->access->isEligibleProjectMember($userId, $project)) {
+			throw new OCSException('User does not belong to this organization.', 403);
 		}
 
 		$user = $this->userManager->get($userId);
@@ -1143,11 +1141,8 @@ class ProjectService {
 			throw new OCSException('User is not a project member.', 404);
 		}
 
-		if ($this->organizationUserMapper !== null) {
-			$memberOrganization = $this->organizationUserMapper->getOrganizationMembership($userId);
-			if ($memberOrganization === null || (int)$memberOrganization['organization_id'] !== (int)$project->getOrganizationId()) {
-				throw new OCSException('User does not belong to this organization.', 403);
-			}
+		if (!$this->access->isEligibleProjectMember($userId, $project)) {
+			throw new OCSException('User does not belong to this organization.', 403);
 		}
 
 		$user = $this->userManager->get($userId);
@@ -1558,7 +1553,7 @@ class ProjectService {
 			return $organization;
 		}
 
-		$membership = $this->organizationUserMapper->getOrganizationMembership($userId);
+		$membership = $this->access->getOrganizationMembership($userId);
 		if ($membership === null) {
 			throw new OCSException('No organization is assigned to your user account.');
 		}
@@ -1586,8 +1581,7 @@ class ProjectService {
 	 */
 	private function assertUsersBelongToOrganization(array $userIds, int $organizationId): void {
 		foreach ($userIds as $userId) {
-			$membership = $this->organizationUserMapper->getOrganizationMembership((string)$userId);
-			if ($membership === null || (int)$membership['organization_id'] !== $organizationId) {
+			if (!$this->access->belongsToOrganization((string)$userId, $organizationId)) {
 				throw new OCSException(sprintf(
 					'User "%s" does not belong to the selected organization.',
 					(string)$userId,
@@ -1904,16 +1898,7 @@ class ProjectService {
 	}
 
 	private function canAdministrateProject(Project $project, string $userId): bool {
-		if ($this->groupManager->isAdmin($userId)) {
-			return true;
-		}
-		if ($this->organizationUserMapper === null) {
-			return false;
-		}
-		$membership = $this->organizationUserMapper->getOrganizationMembership($userId);
-		return $membership !== null
-			&& ($membership['role'] ?? '') === 'admin'
-			&& (int)($membership['organization_id'] ?? 0) === (int)$project->getOrganizationId();
+		return $this->access->canAdminister($userId, $project);
 	}
 
 	/**

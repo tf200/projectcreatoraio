@@ -9,6 +9,7 @@ use OCA\Projectcreatoraio\Controller\ProjectApiController;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityAggregationService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
@@ -65,7 +66,7 @@ final class ProjectApiControllerDirectChatTest extends TestCase {
 			$this->createMock(IRootFolder::class),
 			$this->createMock(IJobList::class),
 			$this->createMock(IAppManager::class),
-			$this->orgUserMapper,
+			new ProjectAccessService($this->projectMapper, $this->groupManager, $this->orgUserMapper),
 		);
 	}
 

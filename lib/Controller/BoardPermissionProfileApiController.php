@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Controller;
 
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPermissionProfile;
 use OCA\ProjectCreatorAIO\Db\BoardPermissionProfileMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Service\BoardPermissionProfileService;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -27,8 +26,7 @@ class BoardPermissionProfileApiController extends Controller {
 		private readonly ProjectMapper $projectMapper,
 		private readonly CardPolicyService $policyService,
 		private readonly IUserSession $userSession,
-		private readonly IGroupManager $groupManager,
-		private readonly ?OrganizationUserMapper $organizationUserMapper = null,
+		private readonly ProjectAccessService $access,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -118,14 +116,13 @@ class BoardPermissionProfileApiController extends Controller {
 			throw new \RuntimeException('NOT_FOUND: Board is not associated with an organization.');
 		}
 		$uid = $user->getUID();
-		if ($this->groupManager->isAdmin($uid)) {
+		if ($this->access->isGlobalAdmin($uid)) {
 			return [(int)$organizationId, $uid, true];
 		}
-		$membership = $this->organizationUserMapper?->getOrganizationMembership($uid);
-		if ($membership === null || (int)($membership['organization_id'] ?? 0) !== (int)$organizationId) {
+		if (!$this->access->belongsToOrganization($uid, (int)$organizationId)) {
 			throw new \RuntimeException('NOT_FOUND: Board not found.');
 		}
-		return [(int)$organizationId, $uid, ($membership['role'] ?? null) === 'admin'];
+		return [(int)$organizationId, $uid, $this->access->isOrganizationAdmin($uid, (int)$organizationId)];
 	}
 
 	private function assertManager(int $boardId, string $uid): void {

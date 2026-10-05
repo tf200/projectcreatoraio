@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Controller;
 
-use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectPortfolioService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -12,7 +12,6 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCS\OCSBadRequestException;
 use OCP\AppFramework\OCS\OCSForbiddenException;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -21,9 +20,8 @@ class PortfolioApiController extends Controller {
 		string $appName,
 		IRequest $request,
 		private IUserSession $userSession,
-		private OrganizationUserMapper $organizationUserMapper,
+		private ProjectAccessService $access,
 		private ProjectPortfolioService $portfolioService,
-		private ?IGroupManager $groupManager = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -136,21 +134,21 @@ class PortfolioApiController extends Controller {
 			throw new OCSForbiddenException('Authentication required');
 		}
 
-		$isSystemAdmin = $this->groupManager !== null && $this->groupManager->isAdmin($user->getUID());
+		$isSystemAdmin = $this->access->isGlobalAdmin($user->getUID());
 		$requestedOrgId = $this->request->getParam('organizationId');
 
 		if ($isSystemAdmin) {
 			if ($requestedOrgId !== null && $requestedOrgId !== '' && (is_int($requestedOrgId) || (is_string($requestedOrgId) && ctype_digit($requestedOrgId))) && (int)$requestedOrgId > 0) {
 				return (int)$requestedOrgId;
 			}
-			$membership = $this->organizationUserMapper->getOrganizationMembership($user->getUID());
+			$membership = $this->access->getOrganizationMembership($user->getUID());
 			if ($membership !== null) {
 				return (int)$membership['organization_id'];
 			}
 			throw new OCSBadRequestException('organizationId is required for system administrators');
 		}
 
-		$membership = $this->organizationUserMapper->getOrganizationMembership($user->getUID());
+		$membership = $this->access->getOrganizationMembership($user->getUID());
 		if ($membership === null || ($membership['role'] ?? null) !== 'admin') {
 			throw new OCSForbiddenException('Organization administrator access required');
 		}
