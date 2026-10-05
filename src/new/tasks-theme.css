@@ -11,6 +11,9 @@
 	font-size: 13px;
 }
 
+/* The board's wrapper is a grid item; without this the card rules' wide table
+ * stretched the whole tab (and the table above it) past the page. */
+.pc-new .pc-tasks-theme.deck-board > div { min-width: 0; }
 .pc-new .pc-tasks-theme.deck-board .deck-board__title-text { font-size: 20px; font-weight: 650; }
 .pc-new .pc-tasks-theme.deck-board .deck-board__badge { font-size: 11px; font-weight: 500; border-radius: var(--border-radius-element); }
 .pc-new .pc-tasks-theme.deck-board .deck-board__subtitle { font-size: 12px; margin-top: 6px; }
@@ -34,6 +37,10 @@
 /* The new layout draws its own counts and process progress above the board
  * (TaskProgress.vue), so Deck's dashboard row is not shown twice. */
 .pc-new .pc-tasks-theme.deck-board .reporting-dashboard { display: none; }
+
+/* Likewise its own line and table on who can do what (BoardAccessLine.vue,
+ * MemberAccess.vue) take the place of Deck's Permissions Overview. */
+.pc-new .pc-tasks-theme.deck-board .project-member-access { display: none !important; }
 
 /* Do not change drag handles, transforms, card colors, compact visibility or
  * the horizontal/vertical scroll containers managed by vue-smooth-dnd. */

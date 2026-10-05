@@ -29,6 +29,8 @@ export const api = {
 	updateProject: (id, payload) => send('put', `projects/${id}`, payload),
 	requestExport: id => send('post', `projects/${id}/download`, {}),
 	deleteProject: async id => (await axios.delete(generateUrl(`/apps/projectcreatoraio/api/v1/projects/${id}`))).data,
+	// How many of the board's cards each member may view, move, verify and sign.
+	boardAccess: id => get(`projects/${id}/deck-access-summary`),
 	// Deck's own read of a board's columns with their cards (labels, dates, dependencies).
 	deckStacks: async boardId => (await axios.get(generateUrl(`/apps/deck/stacks/${boardId}`))).data,
 }

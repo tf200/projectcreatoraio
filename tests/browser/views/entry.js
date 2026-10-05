@@ -9,6 +9,9 @@ import TaskProgress from '/app/src/new/TaskProgress.vue'
 import NewCalendar from '/app/src/new/NewCalendar.vue'
 import NewCreate from '/app/src/new/NewCreate.vue'
 import ProjectActions from '/app/src/new/ProjectActions.vue'
+import BoardAccessLine from '/app/src/new/BoardAccessLine.vue'
+import MemberAccess from '/app/src/new/MemberAccess.vue'
+import { accessOf } from '/app/src/new/board-access.js'
 import '/app/src/new/new-ui.css'
 import '/app/src/new/documents-theme.css'
 
@@ -39,6 +42,26 @@ const overview = {
 	files: { loading: false, error: '', data: { shared: [], private: [] } },
 }
 
+// Who can do what on a 5-card board, as deck-access-summary returns it: the
+// owner on every card, Thomas left out of two, Lotte read only. Thomas on his
+// own sees a sixth card counted that he can't see.
+const accessCards = ['AVP', 'Blokkenschema', 'Verslag inpandig overleg', 'Situatie tekening', 'VO'].map((title, i) => ({ id: 70 + i, title }))
+const allowedOf = (...ids) => ({ allowed: ids.length, total: 5, allowedCards: accessCards.filter(card => ids.includes(card.id)) })
+const every = [70, 71, 72, 73, 74]
+const accessMember = (id, displayName, actions, extra = {}) => ({ id, displayName, isOwner: false, drascivsRoleLabels: [], functionalRoleLabels: [], boardAccess: 'edit', actions, ...extra })
+const accessTeam = {
+	boardId: 31,
+	totalCards: 5,
+	scope: 'team',
+	members: [
+		accessMember('emma', 'Emma de Vries', { view: allowedOf(...every), move: allowedOf(...every), verify: allowedOf(...every), sign: allowedOf(...every) }, { isOwner: true, drascivsRoleLabels: ['Driver', 'Accountable'], functionalRoleLabels: ['CPL', 'Grid operator (Elektra)'] }),
+		accessMember('thomas', 'Thomas Jansen', { view: allowedOf(...every), move: allowedOf(71, 72, 73, 74), verify: allowedOf(72, 73, 74), sign: allowedOf(72, 73, 74) }, { drascivsRoleLabels: ['Responsible'], functionalRoleLabels: ['Client/Developer'] }),
+		accessMember('lotte', 'Lotte Bakker', { view: allowedOf(...every), move: allowedOf(), verify: allowedOf(), sign: allowedOf() }, { boardAccess: 'read', drascivsRoleLabels: ['Consulted'] }),
+	],
+}
+const accessSelf = { ...accessTeam, totalCards: 6, scope: 'self', members: [accessTeam.members[1]] }
+window.accessOpened = 0
+
 Vue.mixin({ methods: { t: window.t, n: window.n } })
 
 const section = (h, id, tab, child) => h('section', { class: ['pc-module', 'pc-module--' + tab], attrs: { id } }, [child])
@@ -63,6 +86,12 @@ window.fixture = new Vue({
 			section(h, 'calendar-empty', 'agenda', h(NewCalendar, { props: { projectId: 21 } })),
 			section(h, 'calendar-failed', 'agenda', h(NewCalendar, { props: { projectId: 24 } })),
 			section(h, 'tasks-progress', 'tasks', h(TaskProgress, { props: { boardId: 31 } })),
+			section(h, 'access-line', 'tasks', h(BoardAccessLine, { props: { access: accessOf(accessTeam) }, on: { open: () => { window.accessOpened++ } } })),
+			section(h, 'access-line-self', 'tasks', h(BoardAccessLine, { props: { access: accessOf(accessSelf) } })),
+			section(h, 'access-line-failed', 'tasks', h(BoardAccessLine, { props: { access: null, error: 'You do not have access to this data.' } })),
+			section(h, 'access', 'tasks', h(MemberAccess, { props: { access: accessOf(accessTeam) } })),
+			section(h, 'access-self', 'tasks', h(MemberAccess, { props: { access: accessOf(accessSelf) } })),
+			section(h, 'access-failed', 'tasks', h(MemberAccess, { props: { access: null, error: 'You do not have access to this data.' } })),
 			section(h, 'wb-activity', 'whiteboard', h(NewWhiteboardActivity, { props: { projectId: 21 } })),
 			section(h, 'members', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'emma', organizationId: 4, canManage: true }, on: { 'open-direct-chat': member => { window.chatWith = member.id } } })),
 			section(h, 'members-readonly', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'thomas', canManage: false } })),

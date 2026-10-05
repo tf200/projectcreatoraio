@@ -40,7 +40,7 @@
 					<span>Task Board</span>
 				</button>
 				<button
-					v-if="!loading && !error && canManage"
+					v-if="!loading && !error"
 					class="deck-board__tab"
 					:class="{ 'deck-board__tab--active': activeTab === 'permissions' }"
 					@click="activeTab = 'permissions'">
@@ -58,6 +58,10 @@
 				</div>
 				<div v-else class="deck-board__embed">
 					<TaskProgress :board-id="Number(boardId)" :refresh-key="progressKey" />
+					<BoardAccessLine :access="access"
+						:error="accessError"
+						@open="openAccess"
+						@retry="loadAccess" />
 					<div v-if="embeddedError" class="deck-board__muted">
 						{{ embeddedError }}
 					</div>
@@ -68,8 +72,13 @@
 				</div>
 			</div>
 
-			<div v-if="activeTab === 'permissions' && !loading && !error && canManage" class="deck-board__tab-content">
+			<div v-if="activeTab === 'permissions' && !loading && !error" class="deck-board__tab-content">
+				<MemberAccess ref="access"
+					:access="access"
+					:error="accessError"
+					@retry="loadAccess" />
 				<DeckCardPolicyManager
+					v-if="canManage"
 					:board-id="boardId"
 					:members="projectMembers" />
 			</div>
@@ -80,6 +89,10 @@
 <script>
 import DeckBoard from '../components/ProjectDeck/DeckBoard.vue'
 import TaskProgress from './TaskProgress.vue'
+import BoardAccessLine from './BoardAccessLine.vue'
+import MemberAccess from './MemberAccess.vue'
+import { api, errorMessage } from './api.js'
+import { accessOf } from './board-access.js'
 
 // After the embedded board changes something, read the progress again once it
 // has settled, so a moved card is counted where it now is.
@@ -87,19 +100,46 @@ const SETTLE_MS = 800
 
 // The Tasks tab of the new layout: DeckBoard's header, embed and permissions,
 // with the new layout's own progress above the board in place of Deck's
-// dashboard row (hidden in tasks-theme.css). No styles here, so DeckBoard's
-// scoped styles keep applying to this template.
+// dashboard row, and its own line on who can do what in place of Deck's
+// Permissions Overview (both hidden in tasks-theme.css). The line leads to a
+// table in Card Permissions, which every member gets; the card rules below it
+// stay for those who manage the board. No styles here, so DeckBoard's scoped
+// styles keep applying to this template.
 export default {
 	name: 'NewTasks',
-	components: { TaskProgress },
+	components: { TaskProgress, BoardAccessLine, MemberAccess },
 	extends: DeckBoard,
 	data() {
-		return { progressKey: 0, progressTimer: null, unsubscribeBoard: null }
+		return { progressKey: 0, progressTimer: null, unsubscribeBoard: null, access: null, accessError: '', accessRequest: 0 }
+	},
+	watch: {
+		projectId: { immediate: true, handler() { this.access = null; this.loadAccess() } },
+		// Card rules may have changed in Card Permissions; read again on every switch.
+		activeTab() { this.loadAccess() },
 	},
 	beforeDestroy() {
 		this.stopFollowingBoard()
+		this.accessRequest++
 	},
 	methods: {
+		async loadAccess() {
+			const request = ++this.accessRequest
+			this.accessError = ''
+			if (!this.projectId) return
+			try {
+				const access = accessOf(await api.boardAccess(this.projectId))
+				if (request === this.accessRequest) this.access = access
+			} catch (e) {
+				if (request !== this.accessRequest) return
+				// A later read that fails keeps what is on screen and says so.
+				this.accessError = this.access ? 'Who can do what could not be refreshed.' : errorMessage(e)
+			}
+		},
+		async openAccess() {
+			this.activeTab = 'permissions'
+			await this.$nextTick()
+			this.$refs.access?.focus()
+		},
 		async mountEmbedded(options) {
 			this.stopFollowingBoard()
 			await DeckBoard.methods.mountEmbedded.call(this, options)
@@ -112,6 +152,7 @@ export default {
 		async reload() {
 			await DeckBoard.methods.reload.call(this)
 			this.progressKey++
+			this.loadAccess()
 		},
 		// The embed exposes no events; its Vuex store does, through subscribe.
 		followBoard() {

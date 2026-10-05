@@ -59,6 +59,23 @@ current interface is untouched — no file under `src/components/` changed.
   list scrolls inside a box of eight rows with a fade; on a narrow screen it runs full
   length with a column pill instead of the track.
 
+- **Who can do what** — Deck's Permissions Overview (`ProjectMemberAccessSummary` in the
+  Deck fork) is hidden in the new layout. In its place `BoardAccessLine.vue` puts one
+  line under the Progress panel that names who is limited ("Everyone can see all 20
+  cards. EMPLOYEE_ORG01 and test1 can't move, verify or sign every card."), and its
+  "Who can do what" opens Card Permissions at `MemberAccess.vue`: one row per member,
+  View/Move/Verify/Sign as "All 20", "19 of 20" or "None", and per member the cards
+  they can't act on. An action on no card at all (a read-only member) is said once
+  instead of on every card. Both read this app's `deck-access-summary`, once in
+  `NewTasks.vue`, again on every sub-tab switch (the card rules may have changed) and on
+  Reload; `board-access.js` holds the counts and sentences. Card Permissions is now
+  there for every member: the server gives someone who doesn't manage the project only
+  their own row ("You can see all 20 cards, move 19, verify 14 and sign 14."), and the
+  card rules below the table stay for those who manage the board. On a narrow screen
+  each member becomes a block with the four counts two by two. The board's wrapper gets
+  `min-width: 0` so the card rules' wide table scrolls inside its own frame instead of
+  stretching the tab past the page.
+
 - **Calendar** — `src/new/NewCalendar.vue` extends `ProjectCalendar` (its loading, Load
   older events paging and All / Proposals / Meetings filter, now `iz-tab`s with counts)
   with one agenda grouped by what needs doing (`calendar.js`): date proposals ("Needs a
