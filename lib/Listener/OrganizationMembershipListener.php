@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Listener;
 
+use OCA\Organization\Event\ExternalGrantActivatedEvent;
+use OCA\Organization\Event\ExternalGrantRevokedEvent;
 use OCA\Organization\Event\OrganizationMemberRemovedEvent;
 use OCA\Organization\Event\ProjectTeamChangedEvent;
 use OCA\Organization\Event\TeamDeletedEvent;
@@ -14,7 +16,8 @@ use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 
 /**
- * Keeps project membership in line with organization and team changes.
+ * Keeps project membership in line with organization, team and external
+ * collaborator changes.
  *
  * @template-implements IEventListener<Event>
  */
@@ -35,6 +38,15 @@ class OrganizationMembershipListener implements IEventListener {
 			$this->membershipService->removeTeamMember($event->getTeamId(), $event->getUserId());
 		} elseif ($event instanceof TeamDeletedEvent) {
 			$this->membershipService->removeTeam($event->getTeamId());
+		} elseif ($event instanceof ExternalGrantActivatedEvent) {
+			$this->membershipService->addExternalCollaborator(
+				$event->getProjectId(),
+				$event->getUserId(),
+				$event->getDrasciRoles(),
+				$event->getFunctionalRoleKeys(),
+			);
+		} elseif ($event instanceof ExternalGrantRevokedEvent) {
+			$this->membershipService->removeExternalCollaborator($event->getProjectId(), $event->getUserId());
 		}
 	}
 }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Tests\Unit\Service;
 
+use OCA\Organization\Db\ExternalGrant;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCA\Organization\Service\ExternalCollaboratorService;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
@@ -34,6 +36,14 @@ final class ProjectAccessServiceTest extends TestCase {
 	private ProjectMapper $projectMapper;
 	private IGroupManager $groupManager;
 	private OrganizationUserMapper $organizationUserMapper;
+	private ExternalCollaboratorService $externals;
+
+	/** @var array<string,array<int,int>> user => [project ID => organization ID] */
+	private array $grants = [
+		'external' => [39 => self::ORG],
+		'wrongorggrant' => [39 => self::OTHER_ORG],
+		'elsewhere' => [77 => self::ORG],
+	];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -48,6 +58,19 @@ final class ProjectAccessServiceTest extends TestCase {
 		$this->organizationUserMapper->method('getOrganizationMembership')->willReturnCallback(
 			fn (string $uid): ?array => $this->memberships[$uid] ?? null,
 		);
+		$this->externals = $this->createMock(ExternalCollaboratorService::class);
+		$this->externals->method('getUsableGrants')->willReturnCallback(function (string $uid): array {
+			$grants = [];
+			foreach ($this->grants[$uid] ?? [] as $projectId => $organizationId) {
+				$grant = new ExternalGrant();
+				$grant->setProjectId($projectId);
+				$grant->setOrganizationId($organizationId);
+				$grant->setUserUid($uid);
+				$grant->setStatus(ExternalGrant::STATUS_ACTIVE);
+				$grants[] = $grant;
+			}
+			return $grants;
+		});
 	}
 
 	private function service(bool $withOrganizationApp = true): ProjectAccessService {
@@ -55,6 +78,7 @@ final class ProjectAccessServiceTest extends TestCase {
 			$this->projectMapper,
 			$this->groupManager,
 			$withOrganizationApp ? $this->organizationUserMapper : null,
+			$withOrganizationApp ? $this->externals : null,
 		);
 	}
 
@@ -75,6 +99,9 @@ final class ProjectAccessServiceTest extends TestCase {
 			'admin of another org' => ['foreignadmin', false],
 			'other-org user in the project group' => ['foreignmember', false],
 			'user without organization' => ['nobody', false],
+			'external with a grant on the project' => ['external', true],
+			'external whose grant names another organization' => ['wrongorggrant', false],
+			'external with a grant on another project' => ['elsewhere', false],
 		];
 	}
 
@@ -97,6 +124,37 @@ final class ProjectAccessServiceTest extends TestCase {
 	public function testAssertCanViewHidesProjectFromNonMembers(): void {
 		$this->expectException(OCSNotFoundException::class);
 		$this->service()->assertCanView('outsider', $this->project());
+	}
+
+	public function testExternalWithoutThisProjectGetsNotFound(): void {
+		$this->expectException(OCSNotFoundException::class);
+		$this->service()->assertCanView('elsewhere', $this->project());
+	}
+
+	public function testExternalNeverAdministers(): void {
+		$this->assertFalse($this->service()->canAdminister('external', $this->project()));
+	}
+
+	public function testExternalIsEligibleOnlyForGrantedProject(): void {
+		$service = $this->service();
+
+		$this->assertTrue($service->isEligibleProjectMember('external', $this->project()));
+		$this->assertFalse($service->isEligibleProjectMember('elsewhere', $this->project()));
+	}
+
+	public function testAccessibleProjectsForExternalAreTheGrantedOnes(): void {
+		$this->projectMapper->expects($this->once())->method('find')->with(39)->willReturn($this->project());
+
+		$projects = $this->service()->getAccessibleProjects('external');
+
+		$this->assertCount(1, $projects);
+		$this->assertSame(39, $projects[0]->getId());
+	}
+
+	public function testAccessibleProjectsSkipGrantsWhoseProjectMovedOrganization(): void {
+		$this->projectMapper->method('find')->willReturn($this->project());
+
+		$this->assertSame([], $this->service()->getAccessibleProjects('wrongorggrant'));
 	}
 
 	public function testProjectWithoutGroupIsVisibleOnlyToAdmins(): void {

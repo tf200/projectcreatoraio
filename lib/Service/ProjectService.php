@@ -1263,6 +1263,25 @@ class ProjectService {
 	 * @param mixed[] $roleKeys
 	 * @return array<string, BoardPolicyRole>
 	 */
+	/**
+	 * Checks roles before they are stored for later, e.g. on an external
+	 * collaborator's invitation, so they cannot fail when applied.
+	 *
+	 * @param string[] $drasciRoles
+	 * @param string[] $functionalRoleKeys
+	 * @return array{drasciRoles: string[], functionalRoleKeys: string[]}
+	 */
+	public function validateMemberRoles(Project $project, array $drasciRoles, array $functionalRoleKeys): array {
+		$functionalRoles = $functionalRoleKeys === []
+			? []
+			: $this->resolveFunctionalRoles($project, $functionalRoleKeys, true);
+
+		return [
+			'drasciRoles' => $this->normalizeDrasciRoles($drasciRoles),
+			'functionalRoleKeys' => array_keys($functionalRoles),
+		];
+	}
+
 	private function resolveFunctionalRoles(Project $project, array $roleKeys, bool $requireOne): array {
 		$normalizedKeys = [];
 		foreach ($roleKeys as $roleKey) {

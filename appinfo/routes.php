@@ -81,6 +81,21 @@ return [
             "verb" => "POST",
         ],
         [
+            "name" => "external_api#index",
+            "url" => "/api/v1/projects/{projectId}/externals",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "external_api#invite",
+            "url" => "/api/v1/projects/{projectId}/externals",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "external_api#revoke",
+            "url" => "/api/v1/projects/{projectId}/externals/{userId}",
+            "verb" => "DELETE",
+        ],
+        [
             "name" => "project_api#addMembersBulk",
             "url" => "/api/v1/projects/{projectId}/members/bulk",
             "verb" => "POST",

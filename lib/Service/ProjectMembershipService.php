@@ -205,6 +205,45 @@ class ProjectMembershipService {
 		}
 	}
 
+	/**
+	 * An external collaborator's grant became active: give them the project
+	 * group, private folder, conversation and the roles chosen at invitation.
+	 *
+	 * @param string[] $drasciRoles
+	 * @param string[] $functionalRoleKeys
+	 */
+	public function addExternalCollaborator(int $projectId, string $userId, array $drasciRoles, array $functionalRoleKeys): void {
+		try {
+			$this->projectService->addMemberToProject(
+				$projectId,
+				$userId,
+				$drasciRoles,
+				$functionalRoleKeys === [] ? null : $functionalRoleKeys,
+			);
+		} catch (Throwable $e) {
+			$this->logger->error('Failed to add an external collaborator to a project', [
+				'projectId' => $projectId,
+				'userId' => $userId,
+				'exception' => $e,
+			]);
+		}
+	}
+
+	/**
+	 * An external collaborator's grant was revoked or expired.
+	 */
+	public function removeExternalCollaborator(int $projectId, string $userId): void {
+		try {
+			$this->removeMember($projectId, $userId);
+		} catch (Throwable $e) {
+			$this->logger->error('Failed to remove an external collaborator from a project', [
+				'projectId' => $projectId,
+				'userId' => $userId,
+				'exception' => $e,
+			]);
+		}
+	}
+
 	/** @param ?string[] $onlyUserIds */
 	private function addTeamMembers(int $projectId, int $teamId, ?array $onlyUserIds): bool {
 		try {

@@ -109,9 +109,12 @@ use OCA\GroupFolders\Folder\FolderManager;
 use OCA\GroupFolders\Mount\FolderStorageManager;
 use OCA\Organization\Db\OrganizationMapper;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCA\Organization\Service\ExternalCollaboratorService;
 use OCA\Organization\Db\SubscriptionMapper;
 use OCA\Organization\Db\PlanMapper;
 use OCA\Organization\Event\EntitlementsChangedEvent;
+use OCA\Organization\Event\ExternalGrantActivatedEvent;
+use OCA\Organization\Event\ExternalGrantRevokedEvent;
 use OCA\Organization\Event\OrganizationMemberRemovedEvent;
 use OCA\Organization\Event\ProjectTeamChangedEvent;
 use OCA\Organization\Event\TeamDeletedEvent;
@@ -126,6 +129,7 @@ use OCA\ProjectCreatorAIO\Db\CardPolicyMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyOverrideMapper;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
+use OCA\ProjectCreatorAIO\Controller\ExternalApiController;
 use OCA\ProjectCreatorAIO\Controller\PolicyApiController;
 use OCA\ProjectCreatorAIO\Controller\BoardPermissionProfileApiController;
 use OCA\ProjectCreatorAIO\Db\BoardPermissionProfileMapper;
@@ -151,6 +155,8 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(TeamMemberAddedEvent::class, OrganizationMembershipListener::class);
 		$context->registerEventListener(TeamMemberRemovedEvent::class, OrganizationMembershipListener::class);
 		$context->registerEventListener(TeamDeletedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(ExternalGrantActivatedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(ExternalGrantRevokedEvent::class, OrganizationMembershipListener::class);
 
 		// Only register Deck event listeners if Deck app is active
 		if (class_exists(BoardCreatedEvent::class)) {
@@ -325,10 +331,28 @@ class Application extends App implements IBootstrap {
 			$appManager = $c->get(IAppManager::class);
 			$organizationEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(OrganizationUserMapper::class);
 
+			$externalsEnabled = $organizationEnabled && class_exists(ExternalCollaboratorService::class);
+
 			return new ProjectAccessService(
 				$c->get(ProjectMapper::class),
 				$c->get(IGroupManager::class),
 				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null,
+				$externalsEnabled ? $c->get(ExternalCollaboratorService::class) : null,
+			);
+		});
+
+		$context->registerService(ExternalApiController::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$externalsEnabled = $appManager->isEnabledForAnyone('organization') && class_exists(ExternalCollaboratorService::class);
+
+			return new ExternalApiController(
+				self::APP_ID,
+				$c->get(\OCP\IRequest::class),
+				$c->get(IUserSession::class),
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectService::class),
+				$c->get(ProjectAccessService::class),
+				$externalsEnabled ? $c->get(ExternalCollaboratorService::class) : null,
 			);
 		});
 

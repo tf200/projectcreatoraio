@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Service;
 
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCA\Organization\Service\ExternalCollaboratorService;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCP\AppFramework\OCS\OCSForbiddenException;
@@ -23,7 +24,32 @@ class ProjectAccessService {
 		private ProjectMapper $projectMapper,
 		private IGroupManager $groupManager,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
+		private ?ExternalCollaboratorService $externals = null,
 	) {
+	}
+
+	/**
+	 * Projects an external collaborator may open right now, keyed by project ID
+	 * with the granting organization as value.
+	 *
+	 * @return array<int,int>
+	 */
+	public function getExternalProjectGrants(string $userId): array {
+		if ($this->externals === null) {
+			return [];
+		}
+
+		$grants = [];
+		foreach ($this->externals->getUsableGrants($userId) as $grant) {
+			$grants[$grant->getProjectId()] = $grant->getOrganizationId();
+		}
+		return $grants;
+	}
+
+	public function hasExternalGrant(string $userId, Project $project): bool {
+		$grants = $this->getExternalProjectGrants($userId);
+		$projectId = (int)$project->getId();
+		return isset($grants[$projectId]) && $grants[$projectId] === (int)$project->getOrganizationId();
 	}
 
 	public function hasOrganizations(): bool {
@@ -67,14 +93,16 @@ class ProjectAccessService {
 
 	/**
 	 * Whether the user may hold a seat in the project. Without the organization app
-	 * anyone may; otherwise only members of the project's organization.
+	 * anyone may; otherwise members of the project's organization and external
+	 * collaborators with a grant on the project.
 	 */
 	public function isEligibleProjectMember(string $userId, Project $project): bool {
 		if ($this->organizationUserMapper === null) {
 			return true;
 		}
 
-		return $this->belongsToOrganization($userId, (int)$project->getOrganizationId());
+		return $this->belongsToOrganization($userId, (int)$project->getOrganizationId())
+			|| $this->hasExternalGrant($userId, $project);
 	}
 
 	public function isProjectGroupMember(string $userId, Project $project): bool {
@@ -103,8 +131,9 @@ class ProjectAccessService {
 	}
 
 	/**
-	 * Global admin; organization admin of the project's organization; or a member of
-	 * the project's organization who is in the project group.
+	 * Global admin; organization admin of the project's organization; a member of
+	 * the project's organization who is in the project group; or an external
+	 * collaborator with an active grant on the project.
 	 *
 	 * @throws OCSForbiddenException when the user has no organization
 	 * @throws OCSNotFoundException when the project is hidden from the user
@@ -123,7 +152,14 @@ class ProjectAccessService {
 
 		$membership = $this->getOrganizationMembership($userId);
 		if ($membership === null) {
-			throw new OCSForbiddenException('You are not assigned to an organization');
+			$externalGrants = $this->getExternalProjectGrants($userId);
+			if ($externalGrants === []) {
+				throw new OCSForbiddenException('You are not assigned to an organization');
+			}
+			if (($externalGrants[(int)$project->getId()] ?? null) !== (int)$project->getOrganizationId()) {
+				throw new OCSNotFoundException('Project not found');
+			}
+			return;
 		}
 
 		if ($membership['organization_id'] !== (int)$project->getOrganizationId()) {
@@ -170,10 +206,11 @@ class ProjectAccessService {
 
 	/**
 	 * Projects the user can open: all projects for a global admin, all organization
-	 * projects for an organization admin, otherwise the projects they are a member of.
+	 * projects for an organization admin, the granted projects for an external
+	 * collaborator, otherwise the projects they are a member of.
 	 *
 	 * @return Project[]
-	 * @throws OCSForbiddenException when the user has no organization
+	 * @throws OCSForbiddenException when the user has no organization and no grant
 	 */
 	public function getAccessibleProjects(string $userId): array {
 		if ($this->isGlobalAdmin($userId)) {
@@ -182,7 +219,19 @@ class ProjectAccessService {
 
 		$membership = $this->getOrganizationMembership($userId);
 		if ($membership === null) {
-			throw new OCSForbiddenException('You are not assigned to an organization');
+			$externalGrants = $this->getExternalProjectGrants($userId);
+			if ($externalGrants === []) {
+				throw new OCSForbiddenException('You are not assigned to an organization');
+			}
+
+			$projects = [];
+			foreach ($externalGrants as $projectId => $organizationId) {
+				$project = $this->projectMapper->find($projectId);
+				if ($project !== null && (int)$project->getOrganizationId() === $organizationId) {
+					$projects[] = $project;
+				}
+			}
+			return $projects;
 		}
 
 		if ($membership['role'] === 'admin') {
