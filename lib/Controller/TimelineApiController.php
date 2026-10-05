@@ -75,7 +75,7 @@ class TimelineApiController extends Controller
 			$summary = $this->planningService->buildSummary($project, $hierarchy['phases']);
             $summary['phases'] = $hierarchy['phases'];
             $summary['dependencies'] = $hierarchy['dependencies'];
-            $summary['delayAnalysis'] = $this->impactService->analyzeProjectDelays($project);
+            $summary['delayAnalysis'] = $this->impactService->analyzeProjectDelays($project, $hierarchy['phases']);
 
             return new JSONResponse($summary);
         } catch (\Throwable $e) {
@@ -106,38 +106,6 @@ class TimelineApiController extends Controller
             $this->assertCanAccessProject($project);
 
             return new JSONResponse($this->impactService->analyzeProjectDelays($project));
-        } catch (\Throwable $e) {
-            return $this->errorResponse($e);
-        }
-    }
-
-    #[NoAdminRequired]
-    public function impact(int $projectId): JSONResponse
-    {
-        try {
-            $project = $this->requireProject($projectId);
-            $this->assertCanAccessProject($project);
-
-            $params = $this->request->getParams();
-            $taskId = $params['taskId'] ?? $params['task_id'] ?? 'Permits';
-            $delayDays = (int)($params['delayDays'] ?? $params['delay_days'] ?? 28);
-            $newExpectedEndDate = isset($params['newExpectedEndDate']) ? (string)$params['newExpectedEndDate'] : null;
-
-            return new JSONResponse($this->impactService->calculateTaskImpact($project, $taskId, $delayDays, $newExpectedEndDate));
-        } catch (\Throwable $e) {
-            return $this->errorResponse($e);
-        }
-    }
-
-    #[NoAdminRequired]
-    public function simulate(int $projectId): JSONResponse
-    {
-        try {
-            $project = $this->requireProject($projectId);
-            $this->assertCanAccessProject($project);
-
-            $params = $this->request->getParams();
-            return new JSONResponse($this->impactService->simulateScenario($project, $params));
         } catch (\Throwable $e) {
             return $this->errorResponse($e);
         }
@@ -201,23 +169,6 @@ class TimelineApiController extends Controller
             throw new \InvalidArgumentException('Scenario changes must be a list');
         }
         return $changes;
-    }
-
-    #[NoAdminRequired]
-    public function applyRecovery(int $projectId): JSONResponse
-    {
-        try {
-            $project = $this->requireProject($projectId);
-            $this->assertCanManageTimelineProject($project);
-
-            $params = $this->request->getParams();
-            $strategy = (string)($params['strategy'] ?? 'shift_everything');
-            $user = $this->userSession->getUser();
-
-            return new JSONResponse($this->impactService->applyRecoveryStrategy($project, $strategy, $params, $user));
-        } catch (\Throwable $e) {
-            return $this->errorResponse($e);
-        }
     }
 
     #[NoAdminRequired]

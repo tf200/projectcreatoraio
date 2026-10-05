@@ -4,290 +4,47 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Tests\Unit\Service;
 
-use DateTime;
 use OCA\ProjectCreatorAIO\Db\Project;
-use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
-use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
-use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
-use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
-use OCP\IDBConnection;
-use OCP\IUserSession;
 use PHPUnit\Framework\TestCase;
 
 final class TimelineImpactServiceTest extends TestCase
 {
-	private function createTestProject(): Project
+	public function testListsDelayedAndAtRiskTasksWithTheirPhase(): void
 	{
-		$project = new Project();
-		$project->setId(101);
-		$project->setType(0);
-		$project->setCreatedAt(new DateTime('2026-09-07 09:00:00'));
-		$project->setDesiredStartDate(new DateTime('2026-12-14 00:00:00'));
-		$project->setRequiredPreparationWeeks(7);
-		return $project;
-	}
+		$phaseService = $this->createMock(TimelinePhaseService::class);
+		$phaseService->expects($this->never())->method('getProjectPhaseHierarchy');
 
-	private function createImpactService(
-		?IDBConnection $db = null,
-		?TimelineItemMapper $itemMapper = null,
-		?ProjectActivityService $activityService = null
-	): array {
-		$db ??= $this->createMock(IDBConnection::class);
-		$itemMapper ??= $this->createMock(TimelineItemMapper::class);
-		$activityService ??= $this->createMock(ProjectActivityService::class);
-		$userSession = $this->createMock(IUserSession::class);
-		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
-		$deckCardScheduleService = $this->createMock(DeckCardScheduleService::class);
-
-		$itemMapper->method('findByProject')->willReturn([]);
-
-		$phaseService = $this->getMockBuilder(TimelinePhaseService::class)
-			->disableOriginalConstructor()
-			->onlyMethods(['getProjectPhaseHierarchy'])
-			->getMock();
-		$phaseService->method('getProjectPhaseHierarchy')->willReturn([
-			'phases' => [
-				[
-					'id' => 1,
-					'order' => 2,
-					'name' => 'Initiation Phase',
-					'category' => 'initiation',
-					'color' => '#10b981',
-					'startDate' => '2026-09-07',
-					'endDate' => '2026-10-18',
-					'status' => 'on_track',
-					'milestone' => ['label' => 'Initiation ready', 'date' => '2026-10-18', 'status' => 'on_track'],
-					'tasks' => [
-						[
-							'id' => 10,
-							'deckCardId' => 10,
-							'label' => 'Permits',
-							'startDate' => '2026-09-07',
-							'endDate' => '2026-09-20',
-							'plannedEndDate' => '2026-09-20',
-							'durationDays' => 14,
-							'delayDays' => 0,
-							'isDelayed' => false,
-							'status' => 'on_track',
-							'isDone' => false,
-							'predecessorIds' => [],
-							'successorIds' => [11],
-						],
-						[
-							'id' => 11,
-							'deckCardId' => 11,
-							'label' => 'VO',
-							'startDate' => '2026-09-21',
-							'endDate' => '2026-10-18',
-							'plannedEndDate' => '2026-10-18',
-							'durationDays' => 28,
-							'delayDays' => 0,
-							'isDelayed' => false,
-							'status' => 'on_track',
-							'isDone' => false,
-							'predecessorIds' => [10],
-							'successorIds' => [],
-						],
-					],
-				],
+		$result = (new TimelineImpactService($phaseService))->analyzeProjectDelays(new Project(), [[
+			'category' => 'initiation',
+			'name' => 'Initiation Phase',
+			'tasks' => [
+				['id' => 1, 'label' => 'Permits', 'isDelayed' => true, 'status' => 'on_track'],
+				['id' => 2, 'label' => 'VO', 'isDelayed' => false, 'status' => 'behind_at_risk'],
+				['id' => 3, 'label' => 'DO', 'isDelayed' => false, 'status' => 'on_track'],
 			],
-			'dependencies' => [['predecessorId' => 10, 'successorId' => 11, 'type' => 'FS']],
-		]);
-		$planningService = new TimelinePlanningService($db, $logger);
+		]]);
 
-		$impactService = new TimelineImpactService(
-			$phaseService,
-			$planningService,
-			$itemMapper,
-			$activityService,
-			$userSession,
-			$db,
-			$deckCardScheduleService,
-		);
-
-		return [$impactService, $db, $itemMapper, $activityService];
+		$this->assertTrue($result['hasActiveDelays']);
+		$this->assertSame([1, 2], array_column($result['delayedTasks'], 'id'));
+		$this->assertSame('initiation', $result['delayedTasks'][0]['phaseCategory']);
+		$this->assertSame('Initiation Phase', $result['delayedTasks'][1]['phaseName']);
 	}
 
-	public function testCalculateTaskImpactReturnsExpectedImpactAndOptions(): void
+	public function testLoadsTheHierarchyWhenNotGivenOne(): void
 	{
-		[$impactService] = $this->createImpactService();
-		$project = $this->createTestProject();
-
-		// Calculate impact for 28-day (4-week) delay on "Permits"
-		$impact = $impactService->calculateTaskImpact($project, 'Permits', 28);
-
-		$this->assertArrayHasKey('task', $impact);
-		$this->assertSame(28, $impact['task']['delayDays']);
-		$this->assertSame(4, $impact['task']['delayWeeks']);
-		$this->assertSame('high', $impact['severity']);
-
-		$this->assertNotEmpty($impact['unmitigatedImpacts']);
-		$this->assertNotEmpty($impact['recoveryOptions']);
-		$this->assertCount(6, $impact['recoveryOptions']);
-
-		// Verify Options A to F
-		$options = $impact['recoveryOptions'];
-		$this->assertSame('A', $options[0]['letter']);
-		$this->assertSame('shift_everything', $options[0]['id']);
-		$this->assertSame('B', $options[1]['letter']);
-		$this->assertSame('use_float', $options[1]['id']);
-		$this->assertFalse($options[1]['available']);
-		$this->assertSame('C', $options[2]['letter']);
-		$this->assertSame('execute_in_parallel', $options[2]['id']);
-		$this->assertSame('D', $options[3]['letter']);
-		$this->assertSame('accelerate', $options[3]['id']);
-		$this->assertSame('E', $options[4]['letter']);
-		$this->assertSame('keep_date', $options[4]['id']);
-		$this->assertSame('F', $options[5]['letter']);
-		$this->assertSame('new_baseline', $options[5]['id']);
-	}
-
-	public function testSimulateScenarioAccelerateReducesImpact(): void
-	{
-		[$impactService] = $this->createImpactService();
-		$project = $this->createTestProject();
-
-		// Simulate scenario: Accelerate subsequent task by 14 days (2 weeks)
-		$simulation = $impactService->simulateScenario($project, [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 28,
-			'strategy' => 'accelerate',
-			'accelerateDays' => 14,
+		$phaseService = $this->createMock(TimelinePhaseService::class);
+		$phaseService->expects($this->once())->method('getProjectPhaseHierarchy')->willReturn([
+			'phases' => [['category' => 'initiation', 'name' => 'Initiation Phase', 'tasks' => [
+				['id' => 1, 'label' => 'Permits', 'isDelayed' => false, 'status' => 'on_track'],
+			]]],
+			'dependencies' => [],
 		]);
 
-		$this->assertArrayHasKey('scenario', $simulation);
-		$this->assertArrayHasKey('simulatedPhases', $simulation);
-		$this->assertSame('accelerate', $simulation['scenario']['strategy']);
-		$this->assertStringContainsString('Accelerate', $simulation['scenario']['description']);
-		$this->assertStringContainsString('+2 weeks', $simulation['scenario']['scenarioResult']);
-		$this->assertFalse($simulation['scenario']['isAchievable']);
-		$this->assertNotEmpty($simulation['application']['overrides']);
-	}
+		$result = (new TimelineImpactService($phaseService))->analyzeProjectDelays(new Project());
 
-	public function testSimulateScenarioShiftEverythingMovesAllTasks(): void
-	{
-		[$impactService] = $this->createImpactService();
-		$project = $this->createTestProject();
-
-		$simulation = $impactService->simulateScenario($project, [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 28,
-			'strategy' => 'shift_everything',
-		]);
-
-		$this->assertSame('shift_everything', $simulation['scenario']['strategy']);
-		$this->assertStringContainsString('Shift all downstream tasks by +4 weeks', $simulation['scenario']['description']);
-		$this->assertStringContainsString('+4 weeks', $simulation['scenario']['scenarioResult']);
-		$this->assertFalse($simulation['scenario']['isAchievable']);
-		$this->assertNotEmpty($simulation['simulatedPhases']);
-	}
-
-	public function testSimulateScenarioExecuteInParallelAppliesOverlap(): void
-	{
-		[$impactService] = $this->createImpactService();
-		$project = $this->createTestProject();
-
-		$simulation = $impactService->simulateScenario($project, [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 28,
-			'strategy' => 'execute_in_parallel',
-		]);
-
-		$this->assertSame('execute_in_parallel', $simulation['scenario']['strategy']);
-		$this->assertStringContainsString('parallel', $simulation['scenario']['description']);
-		$this->assertStringContainsString('+2 weeks', $simulation['scenario']['scenarioResult']);
-		$this->assertNotEmpty($simulation['application']['overrides']);
-	}
-
-	public function testSimulateScenarioUseFloatAbsorbsDelayWhenFloatAvailable(): void
-	{
-		[$impactService] = $this->createImpactService();
-		// Create project with plenty of float
-		$project = new Project();
-		$project->setId(102);
-		$project->setType(0);
-		$project->setCreatedAt(new DateTime('2026-09-07 09:00:00'));
-		$project->setDesiredStartDate(new DateTime('2027-06-01 00:00:00'));
-		$project->setRequiredPreparationWeeks(2);
-
-		$simulation = $impactService->simulateScenario($project, [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 14,
-			'strategy' => 'use_float',
-		]);
-
-		$this->assertSame('use_float', $simulation['scenario']['strategy']);
-		$this->assertStringContainsString('float buffer', $simulation['scenario']['description']);
-		$this->assertTrue($simulation['scenario']['isAchievable']);
-		$this->assertSame('On track', $simulation['scenario']['scenarioStatus']);
-	}
-
-	public function testSimulateScenarioKeepDatePreservesTargetAndFlagsRisk(): void
-	{
-		[$impactService] = $this->createImpactService();
-		$project = $this->createTestProject();
-
-		$simulation = $impactService->simulateScenario($project, [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 21,
-			'strategy' => 'keep_date',
-		]);
-
-		$this->assertSame('keep_date', $simulation['scenario']['strategy']);
-		$this->assertStringContainsString('Maintain deadline', $simulation['scenario']['description']);
-		$this->assertSame('At risk', $simulation['scenario']['scenarioStatus']);
-		$this->assertFalse($simulation['scenario']['isAchievable']);
-	}
-
-	public function testSimulateScenarioNewBaselineEstablishesDurableBaseline(): void
-	{
-		[$impactService] = $this->createImpactService();
-		$project = $this->createTestProject();
-
-		$simulation = $impactService->simulateScenario($project, [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 28,
-			'strategy' => 'new_baseline',
-		]);
-
-		$this->assertSame('new_baseline', $simulation['scenario']['strategy']);
-		$this->assertStringContainsString('official schedule baseline', $simulation['scenario']['description']);
-		$this->assertSame('New baseline active', $simulation['scenario']['scenarioStatus']);
-		$this->assertTrue($simulation['scenario']['isAchievable']);
-		$this->assertNotEmpty($simulation['application']['overrides']);
-	}
-
-	public function testApplyRecoveryStrategyPersistsOverridesAndLogsActivity(): void
-	{
-		$db = $this->createMock(IDBConnection::class);
-		$db->expects($this->once())->method('beginTransaction');
-		$db->expects($this->once())->method('commit');
-
-		$itemMapper = $this->createMock(TimelineItemMapper::class);
-		$itemMapper->method('findByProjectAndSystemKey')->willReturn(null);
-		$itemMapper->expects($this->never())->method('createItem');
-
-		$activityService = $this->createMock(ProjectActivityService::class);
-		$activityService->expects($this->once())->method('record');
-
-		[$impactService] = $this->createImpactService($db, $itemMapper, $activityService);
-		$project = $this->createTestProject();
-
-		$user = $this->createMock(\OCP\IUser::class);
-		$user->method('getDisplayName')->willReturn('Lead Engineer');
-
-		$result = $impactService->applyRecoveryStrategy($project, 'accelerate', [
-			'rootTaskId' => 'Permits',
-			'delayDays' => 28,
-			'accelerateDays' => 14,
-		], $user);
-
-		$this->assertTrue($result['success']);
-		$this->assertSame('accelerate', $result['strategy']);
-		$this->assertStringContainsString('Accelerate', $result['message']);
-		$this->assertArrayHasKey('summary', $result);
-		$this->assertArrayHasKey('hierarchy', $result);
+		$this->assertFalse($result['hasActiveDelays']);
+		$this->assertSame([], $result['delayedTasks']);
 	}
 }

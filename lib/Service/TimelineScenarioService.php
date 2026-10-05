@@ -253,6 +253,7 @@ class TimelineScenarioService
 			'changes' => $normalized['changes'],
 			'phases' => $phases,
 			'dependencies' => $scenario['dependencies'],
+			'summary' => $scenarioSummary,
 			'impact' => [
 				'planning' => $this->comparePlanning($baselineSummary, $scenarioSummary),
 				'milestones' => $this->compareMilestones($baseline['phases'], $scenario['phases']),

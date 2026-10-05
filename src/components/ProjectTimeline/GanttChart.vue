@@ -4,23 +4,12 @@
 		<TimelineKpiBar
 			v-if="kpisData"
 			:kpis="kpisData"
-			:can-edit="isAdmin"
+			:can-edit="isAdmin && !whatIf.active"
 			:saving="savingDesiredDate"
 			@save-desired-date="onSaveDesiredDate"
 			@save-actual-date="onSaveActualDate"
 			@save-handover-date="onSaveHandoverDate"
 			@save-prep-weeks="onSavePrepWeeks" />
-
-		<!-- What-If Simulation Banner (Step 3) -->
-		<TimelineSimulationBanner
-			v-if="isSimulationMode"
-			:scenario="simulationScenario"
-			:active-strategy="simulationScenario?.strategy || 'accelerate'"
-			:recovery-options="activeImpactAnalysis?.recoveryOptions"
-			:applying="applyingScenario"
-			@switch-strategy="switchSimulationStrategy"
-			@apply="applyWhatIfScenario"
-			@cancel="exitWhatIf" />
 
 		<header class="timeline-v2__header">
 			<div class="timeline-v2__title-group">
@@ -69,25 +58,11 @@
 					</NcButton>
 				</div>
 
-				<!-- Schedule Impact Advisor Button (Mockup) -->
 				<NcButton
+					v-if="!whatIf.active"
 					type="secondary"
-					class="advisor-btn"
-					:class="{ 'advisor-btn--alert': hasActiveDelays }"
-					title="Schedule Impact & Recovery"
-					@click="openImpactDrawer()">
-					<template #icon>
-						<AlertCircleOutline :size="18" />
-					</template>
-					Impact Advisor
-				</NcButton>
-
-				<!-- What-If Mode Toggle Button (Mockup) -->
-				<NcButton
-					v-if="!isSimulationMode"
-					type="tertiary"
 					class="whatif-btn"
-					title="Test schedule scenarios without changing official plan"
+					title="Try delays and fixes on a copy of the plan"
 					@click="startWhatIf()">
 					<template #icon>
 						<FlaskOutline :size="18" />
@@ -95,7 +70,7 @@
 					What-If Mode
 				</NcButton>
 
-				<NcButton v-if="isAdmin" type="primary" @click="openAddModal">
+				<NcButton v-if="isAdmin && !whatIf.active" type="primary" @click="openAddModal">
 					<template #icon>
 						<Plus :size="18" />
 					</template>
@@ -119,452 +94,488 @@
 				</NcButton>
 			</div>
 
-			<!-- The grid is its own scroll box, so the date header and side columns stay pinned -->
-			<div
-				v-else
-				ref="scrollEl"
-				class="gantt-v2"
-				:class="{ 'gantt-v2--admin': isAdmin, 'gantt-v2--simulating': isSimulationMode }">
-				<!-- Column 1: Sidebar (WBS Hierarchy) -->
-				<div ref="sidebarEl" class="gantt-v2__sidebar">
-					<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
-						Timeline details
-					</div>
-
-					<!-- Row 1: System Planning (Calculated) -->
-					<div v-if="systemPlanningData" class="phase-row phase-row--system-planning" title="System Planning (calculated)">
-						<div class="sp-sidebar-badge">1</div>
-						<div class="sp-sidebar-icon">
-							<Cog :size="16" />
-						</div>
-						<div class="phase-row__content">
-							<div class="phase-row__top">
-								<span class="phase-row__name">System Planning</span>
-								<span class="phase-row__duration">{{ systemPlanningDurationBadge }}</span>
-							</div>
-							<div class="phase-row__dates">{{ systemPlanningDatesText }}</div>
-						</div>
-					</div>
-
-					<!-- Visible Hierarchical Rows -->
-					<div
-						v-for="row in visibleRows"
-						:key="'sidebar-' + row.id"
-						class="phase-row"
-						:class="{
-							'phase-row--phase-header': row.type === 'phase',
-							'phase-row--task-child': row.type === 'task',
-							'phase-row--custom-item': row.type === 'item',
-						}"
-						:style="{ height: row.height + 'px', borderLeftColor: row.type === 'phase' ? row.phase.color : undefined }"
-						@click="row.type === 'phase' ? togglePhase(row.phase.category || row.phase.id) : null">
-						<!-- Phase Header Row -->
-						<template v-if="row.type === 'phase'">
-							<button
-								class="phase-toggle-btn"
-								:aria-label="row.isExpanded ? 'Collapse phase' : 'Expand phase'"
-								@click.stop="togglePhase(row.phase.category || row.phase.id)">
-								<ChevronDown v-if="row.isExpanded" :size="16" />
-								<ChevronRight v-else :size="16" />
-							</button>
-							<div class="phase-order-badge" :style="{ backgroundColor: row.phase.color }">
-								{{ row.phase.order }}
-							</div>
-							<div class="phase-row__content">
-								<div class="phase-row__top">
-									<span class="phase-row__name" :title="row.phase.name">{{ row.phase.name }}</span>
-									<span v-if="hasPhaseSchedule(row.phase)" class="phase-row__duration">{{ formatPhaseDuration(row.phase) }}</span>
-								</div>
-								<div v-if="hasPhaseSchedule(row.phase)" class="phase-row__dates">
-									{{ formatDate(row.phase.startDate) }} – {{ formatDate(row.phase.endDate) }}
-								</div>
-								<div v-else class="phase-row__dates">
-									No tasks scheduled
-								</div>
-							</div>
-						</template>
-
-						<!-- Task Child Row -->
-						<template v-else-if="row.type === 'task'">
-							<div class="task-tree-indicator">
-								<div class="tree-line-v" />
-								<div class="tree-line-h" />
-							</div>
-							<div v-if="row.task.deckCardId" class="task-deck-icon" title="Deck Card">
-								<CardsVariant :size="14" />
-							</div>
-							<div class="phase-row__content">
-								<div class="phase-row__top">
-									<span
-										class="task-name"
-										:class="{
-											'task-name--done': row.task.isDone,
-											'task-name--delayed': row.task.isDelayed,
-										}"
-										:title="row.task.label">
-										{{ row.task.label }}
-									</span>
-									<span v-if="row.task.delayDays > 0" class="task-delay-tag">
-										+{{ formatDelayBadge(row.task.delayDays) }}
-									</span>
-									<span v-else class="phase-row__duration">{{ row.task.durationDays }}d</span>
-								</div>
-								<div class="phase-row__dates">
-									{{ formatDate(row.task.startDate) }} – {{ formatDate(row.task.endDate) }}
-								</div>
-							</div>
-						</template>
-
-						<!-- Custom User Item -->
-						<template v-else>
-							<div v-if="isAdmin" class="drag-handle" title="Custom timeline item">
-								<DragVariant :size="16" />
-							</div>
-							<div class="phase-row__content">
-								<div class="phase-row__top">
-									<span class="phase-row__name">{{ row.item.label }}</span>
-									<span class="phase-row__duration">{{ formatItemBadge(row.item) }}</span>
-								</div>
-								<div class="phase-row__dates">{{ formatItemDates(row.item) }}</div>
-							</div>
-						</template>
-					</div>
-				</div>
-
-				<!-- Column 2: Timeline Canvas (Bars, Connectors & Grid) -->
+			<div v-else class="timeline-v2__workspace">
+				<!-- The grid is its own scroll box, so the date header and side columns stay pinned -->
 				<div
-					ref="mainEl"
-					class="gantt-v2__main"
-					:class="{ 'gantt-v2__main--dragging': isDragging }"
-					@pointerdown="onPointerDown"
-					@pointermove="onPointerMove"
-					@pointerup="onPointerUp"
-					@pointercancel="onPointerUp"
-					@pointerleave="onPointerLeave">
-					<div ref="timelineEl" class="gantt-v2__timeline" :style="{ width: totalTimelineWidth + 'px' }">
-						<TimelineHoverGuide
-							ref="hoverGuide"
-							:timeline-start="timelineRange.start"
-							:day-width="dayWidth"
-							:total-days="totalDays"
-							:header-height="timelineHeaderHeight" />
+					ref="scrollEl"
+					class="gantt-v2"
+					:class="{ 'gantt-v2--admin': isAdmin, 'gantt-v2--simulating': whatIf.active }">
+					<!-- Column 1: Sidebar (WBS Hierarchy) -->
+					<div ref="sidebarEl" class="gantt-v2__sidebar">
+						<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
+							Timeline details
+						</div>
 
-						<!-- Timeline Header -->
-						<div class="gantt-v2__timeline-header" :style="{ height: timelineHeaderHeight + 'px' }">
-							<div v-if="spanMultipleYears" class="year-row">
-								<span
-									v-for="year in visibleYears"
-									:key="year.key"
-									class="year-label"
-									:style="{ width: year.width + 'px' }">{{ year.label }}</span>
+						<!-- Row 1: System Planning (Calculated) -->
+						<div v-if="systemPlanningData" class="phase-row phase-row--system-planning" title="System Planning (calculated)">
+							<div class="sp-sidebar-badge">1</div>
+							<div class="sp-sidebar-icon">
+								<Cog :size="16" />
 							</div>
-							<div class="month-row">
-								<span
-									v-for="month in visibleMonths"
-									:key="month.key"
-									class="month-label"
-									:class="{ compact: month.width < 60 }"
-									:style="{ width: month.width + 'px' }">
-									{{ month.width < 40 ? '' : month.label }}
-								</span>
-							</div>
-							<div class="week-row">
-								<span
-									v-for="week in visibleIsoWeeks"
-									:key="week.key"
-									class="week-label"
-									:style="{ width: week.width + 'px' }"
-									:title="week.tooltip">
-									{{ week.width < 16 ? '' : week.label }}
-								</span>
+							<div class="phase-row__content">
+								<div class="phase-row__top">
+									<span class="phase-row__name">System Planning</span>
+									<span class="phase-row__duration">{{ systemPlanningDurationBadge }}</span>
+								</div>
+								<div class="phase-row__dates">{{ systemPlanningDatesText }}</div>
 							</div>
 						</div>
 
-						<!-- Content Area -->
-						<div class="gantt-v2__content">
-							<!-- Grid Lines Background -->
-							<div v-if="showWeekendShading" class="gantt-v2__weekend-shading" :style="weekendShadingStyle" />
-							<div v-if="showWeekGrid" class="gantt-v2__week-lines" :style="weekLinesStyle" />
-							<div class="gantt-v2__grid-lines">
-								<div
-									v-for="month in visibleMonths"
-									:key="'grid-' + month.key"
-									class="grid-column"
-									:style="{ width: month.width + 'px' }" />
-							</div>
-
-							<!-- SVG Dependency Connectors Layer -->
-							<svg
-								class="timeline-dependencies-svg"
-								:style="{ width: totalTimelineWidth + 'px', height: canvasRowsHeight + 'px' }">
-								<defs>
-									<marker
-										id="dep-arrow"
-										markerWidth="6"
-										markerHeight="6"
-										refX="5"
-										refY="3"
-										orient="auto">
-										<path d="M 0 0 L 6 3 L 0 6 z" fill="#94a3b8" />
-									</marker>
-									<marker
-										id="dep-arrow-active"
-										markerWidth="6"
-										markerHeight="6"
-										refX="5"
-										refY="3"
-										orient="auto">
-										<path d="M 0 0 L 6 3 L 0 6 z" fill="#3b82f6" />
-									</marker>
-									<marker
-										id="dep-arrow-delayed"
-										markerWidth="6"
-										markerHeight="6"
-										refX="5"
-										refY="3"
-										orient="auto">
-										<path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" />
-									</marker>
-								</defs>
-								<path
-									v-for="dep in visibleDependencyPaths"
-									:key="dep.key"
-									:d="dep.d"
-									class="dependency-line"
-									:class="{
-										'dependency-line--active': dep.isActive,
-										'dependency-line--delayed': dep.isDelayed,
-									}"
-									:marker-end="dep.isDelayed ? 'url(#dep-arrow-delayed)' : (dep.isActive ? 'url(#dep-arrow-active)' : 'url(#dep-arrow)')" />
-							</svg>
-
-							<!-- Today Marker -->
-							<div class="today-marker" :style="{ left: todayOffset + 'px' }">
-								<div class="today-line" />
-								<div class="today-badge">
-									Today
+						<!-- Visible Hierarchical Rows -->
+						<div
+							v-for="row in visibleRows"
+							:key="'sidebar-' + row.id"
+							class="phase-row"
+							:class="{
+								'phase-row--phase-header': row.type === 'phase',
+								'phase-row--task-child': row.type === 'task',
+								'phase-row--custom-item': row.type === 'item',
+							}"
+							:style="{ height: row.height + 'px', borderLeftColor: row.type === 'phase' ? row.phase.color : undefined }"
+							@click="row.type === 'phase' ? togglePhase(row.phase.category || row.phase.id) : null">
+							<!-- Phase Header Row -->
+							<template v-if="row.type === 'phase'">
+								<button
+									class="phase-toggle-btn"
+									:aria-label="row.isExpanded ? 'Collapse phase' : 'Expand phase'"
+									@click.stop="togglePhase(row.phase.category || row.phase.id)">
+									<ChevronDown v-if="row.isExpanded" :size="16" />
+									<ChevronRight v-else :size="16" />
+								</button>
+								<div class="phase-order-badge" :style="{ backgroundColor: row.phase.color }">
+									{{ row.phase.order }}
 								</div>
-							</div>
-
-							<!-- Full-Height Guide Lines for System Planning -->
-							<div
-								v-for="marker in guideMarkers"
-								:key="marker.key"
-								class="timeline-guide-marker"
-								:class="'timeline-guide-marker--' + marker.key"
-								:style="{ left: marker.offset + 'px' }">
-								<div class="timeline-guide-line" :class="'timeline-guide-line--' + marker.key" />
-								<div class="timeline-guide-flag" :style="{ top: (36 + marker.level * 20) + 'px' }">
-									{{ marker.label }} · {{ formatDate(marker.date) }}
+								<div class="phase-row__content">
+									<div class="phase-row__top">
+										<span class="phase-row__name" :title="row.phase.name">{{ row.phase.name }}</span>
+										<span v-if="hasPhaseSchedule(row.phase)" class="phase-row__duration">{{ formatPhaseDuration(row.phase) }}</span>
+									</div>
+									<div v-if="hasPhaseSchedule(row.phase)" class="phase-row__dates">
+										{{ formatDate(row.phase.startDate) }} – {{ formatDate(row.phase.endDate) }}
+									</div>
+									<div v-else class="phase-row__dates">
+										No tasks scheduled
+									</div>
 								</div>
-							</div>
+							</template>
 
-							<!-- Row 1: System Planning Row -->
-							<SystemPlanningRow
-								v-if="systemPlanningData"
-								:system-planning="systemPlanningData"
-								:timeline-start="timelineRange.start"
-								:day-width="dayWidth" />
-
-							<!-- Canvas Visible Rows -->
-							<div
-								v-for="row in visibleRows"
-								:key="'canvas-' + row.id"
-								class="timeline-row"
-								:class="{
-									'timeline-row--phase-header': row.type === 'phase',
-									'timeline-row--task-child': row.type === 'task',
-									'timeline-row--custom-item': row.type === 'item',
-								}"
-								:style="{ height: row.height + 'px' }">
-								<!-- Phase Row Canvas: Summary Bar & Milestone Diamond -->
-								<template v-if="row.type === 'phase'">
-									<div
-										v-if="hasPhaseSchedule(row.phase)"
-										class="phase-summary-bar"
-										:style="getPhaseBarStyle(row.phase)"
-										:title="`${row.phase.name}: ${formatDate(row.phase.startDate)} – ${formatDate(row.phase.endDate)}`">
-										<span v-if="getPhaseDurationDays(row.phase) * dayWidth > 90" class="phase-summary-bar__label">
-											{{ row.phase.name }}
-										</span>
-									</div>
-									<div
-										v-if="row.phase.milestone"
-										class="phase-milestone-marker"
-										:style="getPhaseMilestoneStyle(row.phase)"
-										:title="`Milestone: ${row.phase.milestone.label} (${formatDate(row.phase.milestone.date)})`">
-										<div class="phase-milestone-diamond" :style="{ backgroundColor: row.phase.color }" />
-										<span class="phase-milestone-label">{{ row.phase.milestone.label }}</span>
-									</div>
-								</template>
-
-								<!-- Task Child Row Canvas: Sequential Task Bar -->
-								<template v-else-if="row.type === 'task'">
-									<!-- Ghost Bar for Baseline if task has slipped -->
-									<div
-										v-if="hasGhostBar(row.task)"
-										class="timeline-bar timeline-bar--ghost"
-										:style="getTaskGhostBarStyle(row.task)"
-										title="Original baseline schedule" />
-
-									<div
-										class="timeline-bar timeline-bar--task"
-										:class="{
-											'timeline-bar--task-done': row.task.isDone,
-											'timeline-bar--task-at-risk': row.task.status === 'behind_at_risk' || row.task.isDelayed,
-											'timeline-bar--simulated': isSimulationMode,
-										}"
-										:style="getTaskBarStyle(row.task, row.phase)"
-										:title="getTaskBarTitle(row.task)"
-										@click="onTaskClick(row.task)">
-										<Check v-if="row.task.isDone" :size="14" class="task-done-icon" />
-										<span v-if="row.task.durationDays * dayWidth > 40" class="timeline-bar__label">
+							<!-- Task Child Row -->
+							<template v-else-if="row.type === 'task'">
+								<div class="task-tree-indicator">
+									<div class="tree-line-v" />
+									<div class="tree-line-h" />
+								</div>
+								<div v-if="row.task.deckCardId" class="task-deck-icon" title="Deck Card">
+									<CardsVariant :size="14" />
+								</div>
+								<div class="phase-row__content">
+									<div class="phase-row__top">
+										<span
+											class="task-name"
+											:class="{
+												'task-name--done': row.task.isDone,
+												'task-name--delayed': row.task.isDelayed,
+											}"
+											:title="row.task.label">
 											{{ row.task.label }}
 										</span>
-										<span v-if="row.task.delayDays > 0" class="task-delay-badge" title="Schedule slippage">
+										<span
+											v-if="whatIf.active && row.task.whatIf && row.task.whatIf.endShiftDays"
+											class="task-shift-tag"
+											:class="row.task.whatIf.endShiftDays > 0 ? 'task-shift-tag--later' : 'task-shift-tag--earlier'"
+											:title="`Ends ${formatDays(row.task.whatIf.endShiftDays)} ${row.task.whatIf.endShiftDays > 0 ? 'later' : 'earlier'} than in the live plan`">
+											{{ formatShiftBadge(row.task.whatIf.endShiftDays) }}
+										</span>
+										<span v-else-if="!whatIf.active && row.task.delayDays > 0" class="task-delay-tag">
 											+{{ formatDelayBadge(row.task.delayDays) }}
 										</span>
+										<span v-else class="phase-row__duration">{{ row.task.durationDays }}d</span>
 									</div>
-								</template>
+									<div class="phase-row__dates">
+										{{ formatDate(row.task.startDate) }} – {{ formatDate(row.task.endDate) }}
+									</div>
+								</div>
+							</template>
 
-								<!-- Custom User Item Canvas -->
-								<template v-else>
-									<div
-										v-if="isMilestone(row.item)"
-										class="timeline-milestone"
-										:style="getMilestoneStyle(row.item)"
-										:title="`${row.item.label}: ${formatDate(row.item.startDate)}`" />
-									<div
-										v-else
-										class="timeline-bar"
-										:class="{ 'timeline-bar--ongoing': isOngoing(row.item), 'timeline-bar--readonly': !canEditItem(row.item) }"
-										:style="getBarStyle(row.item)"
-										:title="barTitle(row.item)"
-										@click="isAdmin && canEditItem(row.item) ? openEditModal(row.item) : null">
-										<span v-if="getDurationDays(row.item) * dayWidth > 60" class="timeline-bar__label">
-											{{ row.item.label }}
-										</span>
+							<!-- Custom User Item -->
+							<template v-else>
+								<div v-if="isAdmin" class="drag-handle" title="Custom timeline item">
+									<DragVariant :size="16" />
+								</div>
+								<div class="phase-row__content">
+									<div class="phase-row__top">
+										<span class="phase-row__name">{{ row.item.label }}</span>
+										<span class="phase-row__duration">{{ formatItemBadge(row.item) }}</span>
 									</div>
-								</template>
+									<div class="phase-row__dates">{{ formatItemDates(row.item) }}</div>
+								</div>
+							</template>
+						</div>
+					</div>
+
+					<!-- Column 2: Timeline Canvas (Bars, Connectors & Grid) -->
+					<div
+						ref="mainEl"
+						class="gantt-v2__main"
+						:class="{ 'gantt-v2__main--dragging': isDragging }"
+						@pointerdown="onPointerDown"
+						@pointermove="onPointerMove"
+						@pointerup="onPointerUp"
+						@pointercancel="onPointerUp"
+						@pointerleave="onPointerLeave">
+						<div ref="timelineEl" class="gantt-v2__timeline" :style="{ width: totalTimelineWidth + 'px' }">
+							<TimelineHoverGuide
+								ref="hoverGuide"
+								:timeline-start="timelineRange.start"
+								:day-width="dayWidth"
+								:total-days="totalDays"
+								:header-height="timelineHeaderHeight" />
+
+							<!-- Timeline Header -->
+							<div class="gantt-v2__timeline-header" :style="{ height: timelineHeaderHeight + 'px' }">
+								<div v-if="spanMultipleYears" class="year-row">
+									<span
+										v-for="year in visibleYears"
+										:key="year.key"
+										class="year-label"
+										:style="{ width: year.width + 'px' }">{{ year.label }}</span>
+								</div>
+								<div class="month-row">
+									<span
+										v-for="month in visibleMonths"
+										:key="month.key"
+										class="month-label"
+										:class="{ compact: month.width < 60 }"
+										:style="{ width: month.width + 'px' }">
+										{{ month.width < 40 ? '' : month.label }}
+									</span>
+								</div>
+								<div class="week-row">
+									<span
+										v-for="week in visibleIsoWeeks"
+										:key="week.key"
+										class="week-label"
+										:style="{ width: week.width + 'px' }"
+										:title="week.tooltip">
+										{{ week.width < 16 ? '' : week.label }}
+									</span>
+								</div>
 							</div>
+
+							<!-- Content Area -->
+							<div class="gantt-v2__content">
+								<!-- Grid Lines Background -->
+								<div v-if="showWeekendShading" class="gantt-v2__weekend-shading" :style="weekendShadingStyle" />
+								<div v-if="showWeekGrid" class="gantt-v2__week-lines" :style="weekLinesStyle" />
+								<div class="gantt-v2__grid-lines">
+									<div
+										v-for="month in visibleMonths"
+										:key="'grid-' + month.key"
+										class="grid-column"
+										:style="{ width: month.width + 'px' }" />
+								</div>
+
+								<!-- SVG Dependency Connectors Layer -->
+								<svg
+									class="timeline-dependencies-svg"
+									:style="{ width: totalTimelineWidth + 'px', height: canvasRowsHeight + 'px' }">
+									<defs>
+										<marker
+											id="dep-arrow"
+											markerWidth="6"
+											markerHeight="6"
+											refX="5"
+											refY="3"
+											orient="auto">
+											<path d="M 0 0 L 6 3 L 0 6 z" fill="#94a3b8" />
+										</marker>
+										<marker
+											id="dep-arrow-active"
+											markerWidth="6"
+											markerHeight="6"
+											refX="5"
+											refY="3"
+											orient="auto">
+											<path d="M 0 0 L 6 3 L 0 6 z" fill="#3b82f6" />
+										</marker>
+										<marker
+											id="dep-arrow-delayed"
+											markerWidth="6"
+											markerHeight="6"
+											refX="5"
+											refY="3"
+											orient="auto">
+											<path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" />
+										</marker>
+									</defs>
+									<path
+										v-for="dep in visibleDependencyPaths"
+										:key="dep.key"
+										:d="dep.d"
+										class="dependency-line"
+										:class="{
+											'dependency-line--active': dep.isActive,
+											'dependency-line--delayed': dep.isDelayed,
+										}"
+										:marker-end="dep.isDelayed ? 'url(#dep-arrow-delayed)' : (dep.isActive ? 'url(#dep-arrow-active)' : 'url(#dep-arrow)')" />
+								</svg>
+
+								<!-- Today Marker -->
+								<div class="today-marker" :style="{ left: todayOffset + 'px' }">
+									<div class="today-line" />
+									<div class="today-badge">
+										Today
+									</div>
+								</div>
+
+								<!-- Full-Height Guide Lines for System Planning -->
+								<div
+									v-for="marker in guideMarkers"
+									:key="marker.key"
+									class="timeline-guide-marker"
+									:class="'timeline-guide-marker--' + marker.key"
+									:style="{ left: marker.offset + 'px' }">
+									<div class="timeline-guide-line" :class="'timeline-guide-line--' + marker.key" />
+									<div class="timeline-guide-flag" :style="{ top: (36 + marker.level * 20) + 'px' }">
+										{{ marker.label }} · {{ formatDate(marker.date) }}
+									</div>
+								</div>
+
+								<!-- Row 1: System Planning Row -->
+								<SystemPlanningRow
+									v-if="systemPlanningData"
+									:system-planning="systemPlanningData"
+									:timeline-start="timelineRange.start"
+									:day-width="dayWidth" />
+
+								<!-- Canvas Visible Rows -->
+								<div
+									v-for="row in visibleRows"
+									:key="'canvas-' + row.id"
+									class="timeline-row"
+									:class="{
+										'timeline-row--phase-header': row.type === 'phase',
+										'timeline-row--task-child': row.type === 'task',
+										'timeline-row--custom-item': row.type === 'item',
+									}"
+									:style="{ height: row.height + 'px' }">
+									<!-- Phase Row Canvas: Summary Bar & Milestone Diamond -->
+									<template v-if="row.type === 'phase'">
+										<div
+											v-if="hasPhaseSchedule(row.phase)"
+											class="phase-summary-bar"
+											:style="getPhaseBarStyle(row.phase)"
+											:title="`${row.phase.name}: ${formatDate(row.phase.startDate)} – ${formatDate(row.phase.endDate)}`">
+											<span v-if="getPhaseDurationDays(row.phase) * dayWidth > 90" class="phase-summary-bar__label">
+												{{ row.phase.name }}
+											</span>
+										</div>
+										<div
+											v-if="row.phase.milestone"
+											class="phase-milestone-marker"
+											:style="getPhaseMilestoneStyle(row.phase)"
+											:title="`Milestone: ${row.phase.milestone.label} (${formatDate(row.phase.milestone.date)})`">
+											<div class="phase-milestone-diamond" :style="{ backgroundColor: row.phase.color }" />
+											<span class="phase-milestone-label">{{ row.phase.milestone.label }}</span>
+										</div>
+									</template>
+
+									<!-- Task Child Row Canvas: Sequential Task Bar -->
+									<template v-else-if="row.type === 'task'">
+										<!-- Ghost bar: the planned end, or in What-If where the card sits in the live plan -->
+										<div
+											v-if="hasGhostBar(row.task)"
+											class="timeline-bar timeline-bar--ghost"
+											:style="getTaskGhostBarStyle(row.task)"
+											:title="whatIf.active ? `Live plan: ${formatDate(row.task.whatIf.baselineStartDate)} – ${formatDate(row.task.whatIf.baselineEndDate)}` : 'Original baseline schedule'" />
+
+										<div
+											class="timeline-bar timeline-bar--task"
+											:class="{
+												'timeline-bar--task-done': row.task.isDone,
+												'timeline-bar--task-at-risk': !whatIf.active && (row.task.status === 'behind_at_risk' || row.task.isDelayed),
+												'timeline-bar--whatif': whatIf.active,
+												'timeline-bar--critical': whatIf.active && row.task.whatIf && row.task.whatIf.isCritical,
+												'timeline-bar--changed': whatIf.active && row.task.whatIf && row.task.whatIf.changedDirectly,
+											}"
+											:style="getTaskBarStyle(row.task, row.phase)"
+											:title="getTaskBarTitle(row.task)"
+											:role="whatIf.active ? 'button' : undefined"
+											:tabindex="whatIf.active ? 0 : undefined"
+											@click="onTaskClick(row.task)"
+											@keydown.enter="onTaskClick(row.task)">
+											<Check v-if="row.task.isDone" :size="14" class="task-done-icon" />
+											<span v-if="row.task.durationDays * dayWidth > 40" class="timeline-bar__label">
+												{{ row.task.label }}
+											</span>
+											<span
+												v-if="whatIf.active && row.task.whatIf && row.task.whatIf.endShiftDays"
+												class="task-delay-badge"
+												:class="{ 'task-delay-badge--earlier': row.task.whatIf.endShiftDays < 0 }">
+												{{ formatShiftBadge(row.task.whatIf.endShiftDays) }}
+											</span>
+											<span v-else-if="!whatIf.active && row.task.delayDays > 0" class="task-delay-badge" title="Schedule slippage">
+												+{{ formatDelayBadge(row.task.delayDays) }}
+											</span>
+										</div>
+									</template>
+
+									<!-- Custom User Item Canvas -->
+									<template v-else>
+										<div
+											v-if="isMilestone(row.item)"
+											class="timeline-milestone"
+											:style="getMilestoneStyle(row.item)"
+											:title="`${row.item.label}: ${formatDate(row.item.startDate)}`" />
+										<div
+											v-else
+											class="timeline-bar"
+											:class="{ 'timeline-bar--ongoing': isOngoing(row.item), 'timeline-bar--readonly': !canEditItem(row.item) }"
+											:style="getBarStyle(row.item)"
+											:title="barTitle(row.item)"
+											@click="isAdmin && canEditItem(row.item) ? openEditModal(row.item) : null">
+											<span v-if="getDurationDays(row.item) * dayWidth > 60" class="timeline-bar__label">
+												{{ row.item.label }}
+											</span>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Column 3: STATUS Column (Right-Hand Traffic Light) -->
+					<div ref="statusEl" class="gantt-v2__status">
+						<div class="gantt-v2__header-cell gantt-v2__header-cell--center" :style="{ height: timelineHeaderHeight + 'px' }">
+							Status
+						</div>
+
+						<!-- System Planning Status Row -->
+						<div v-if="systemPlanningData" class="status-row status-row--system-planning">
+							<span class="status-pill" :class="getStatusClass(systemPlanningStatus)">
+								<span class="status-dot" />
+								<span class="status-text">{{ systemPlanningStatusLabel }}</span>
+							</span>
+						</div>
+
+						<!-- Visible Rows Status -->
+						<div
+							v-for="row in visibleRows"
+							:key="'status-' + row.id"
+							class="status-row"
+							:class="{
+								'status-row--phase-header': row.type === 'phase',
+								'status-row--task-child': row.type === 'task',
+								'status-row--custom-item': row.type === 'item',
+							}"
+							:style="{ height: row.height + 'px' }">
+							<span
+								v-if="row.type === 'phase'"
+								class="status-pill status-pill--phase"
+								:class="getStatusClass(row.phase.status)">
+								<span class="status-dot" />
+								<span class="status-text">{{ getStatusLabel(row.phase.status) }}</span>
+							</span>
+							<span
+								v-else-if="row.type === 'task'"
+								class="status-pill status-pill--task"
+								:class="getStatusClass(row.task.status, row.task.isDone)">
+								<span class="status-dot" />
+								<span class="status-text">{{ getTaskStatusLabel(row.task) }}</span>
+							</span>
+							<span
+								v-else
+								class="status-pill status-pill--item"
+								:class="getStatusClass(row.item.status || 'on_track')">
+								<span class="status-dot" />
+								<span class="status-text">{{ getStatusLabel(row.item.status || 'on_track') }}</span>
+							</span>
+						</div>
+					</div>
+
+					<!-- Column 4: Actions Column (Admin only) -->
+					<div v-if="isAdmin" ref="actionsEl" class="gantt-v2__actions">
+						<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
+							Actions
+						</div>
+						<!-- System Planning Action Placeholder -->
+						<div v-if="systemPlanningData" class="action-row action-row--system-planning" title="System calculated planning row">
+							<span class="action-row__locked-hint">
+								<Lock :size="14" />
+							</span>
+						</div>
+						<div
+							v-for="row in visibleRows"
+							:key="'actions-' + row.id"
+							class="action-row"
+							:class="{
+								'action-row--phase-header': row.type === 'phase',
+								'action-row--task-child': row.type === 'task',
+								'action-row--custom-item': row.type === 'item',
+							}"
+							:style="{ height: row.height + 'px' }">
+							<template v-if="row.type === 'phase'">
+								<span class="action-row__locked-hint" title="System defined lifecycle phase">
+									<Lock :size="14" />
+								</span>
+							</template>
+							<template v-else-if="row.type === 'task'">
+								<NcButton
+									v-if="row.task.deckCardId && !row.task.isDone"
+									type="tertiary"
+									:title="whatIf.active ? 'Change this card in the scenario' : 'Edit Deck card schedule'"
+									@click="whatIf.active ? openWhatIfEditor(row.task) : openDeckTaskModal(row.task)">
+									<template #icon>
+										<Pencil :size="16" />
+									</template>
+								</NcButton>
+								<span v-else-if="row.task.deckCardId" class="action-row__locked-hint" title="Completed Deck card">
+									<Lock :size="14" />
+								</span>
+								<span v-else class="action-row__locked-hint" title="Phase Task">
+									<Lock :size="14" />
+								</span>
+							</template>
+							<template v-else>
+								<NcButton
+									v-if="canEditItem(row.item)"
+									type="tertiary"
+									title="Edit item"
+									@click="openEditModal(row.item)">
+									<template #icon>
+										<Pencil :size="16" />
+									</template>
+								</NcButton>
+								<NcButton
+									v-if="!isSystemItem(row.item)"
+									type="error"
+									title="Delete item"
+									@click="confirmDelete(row.item)">
+									<template #icon>
+										<Delete :size="16" />
+									</template>
+								</NcButton>
+							</template>
 						</div>
 					</div>
 				</div>
 
-				<!-- Column 3: STATUS Column (Right-Hand Traffic Light) -->
-				<div ref="statusEl" class="gantt-v2__status">
-					<div class="gantt-v2__header-cell gantt-v2__header-cell--center" :style="{ height: timelineHeaderHeight + 'px' }">
-						Status
-					</div>
-
-					<!-- System Planning Status Row -->
-					<div v-if="systemPlanningData" class="status-row status-row--system-planning">
-						<span class="status-pill" :class="getStatusClass(systemPlanningStatus)">
-							<span class="status-dot" />
-							<span class="status-text">{{ systemPlanningStatusLabel }}</span>
-						</span>
-					</div>
-
-					<!-- Visible Rows Status -->
-					<div
-						v-for="row in visibleRows"
-						:key="'status-' + row.id"
-						class="status-row"
-						:class="{
-							'status-row--phase-header': row.type === 'phase',
-							'status-row--task-child': row.type === 'task',
-							'status-row--custom-item': row.type === 'item',
-						}"
-						:style="{ height: row.height + 'px' }">
-						<span
-							v-if="row.type === 'phase'"
-							class="status-pill status-pill--phase"
-							:class="getStatusClass(row.phase.status)">
-							<span class="status-dot" />
-							<span class="status-text">{{ getStatusLabel(row.phase.status) }}</span>
-						</span>
-						<span
-							v-else-if="row.type === 'task'"
-							class="status-pill status-pill--task"
-							:class="getStatusClass(row.task.status, row.task.isDone)">
-							<span class="status-dot" />
-							<span class="status-text">{{ getTaskStatusLabel(row.task) }}</span>
-						</span>
-						<span
-							v-else
-							class="status-pill status-pill--item"
-							:class="getStatusClass(row.item.status || 'on_track')">
-							<span class="status-dot" />
-							<span class="status-text">{{ getStatusLabel(row.item.status || 'on_track') }}</span>
-						</span>
-					</div>
-				</div>
-
-				<!-- Column 4: Actions Column (Admin only) -->
-				<div v-if="isAdmin" ref="actionsEl" class="gantt-v2__actions">
-					<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
-						Actions
-					</div>
-					<!-- System Planning Action Placeholder -->
-					<div v-if="systemPlanningData" class="action-row action-row--system-planning" title="System calculated planning row">
-						<span class="action-row__locked-hint">
-							<Lock :size="14" />
-						</span>
-					</div>
-					<div
-						v-for="row in visibleRows"
-						:key="'actions-' + row.id"
-						class="action-row"
-						:class="{
-							'action-row--phase-header': row.type === 'phase',
-							'action-row--task-child': row.type === 'task',
-							'action-row--custom-item': row.type === 'item',
-						}"
-						:style="{ height: row.height + 'px' }">
-						<template v-if="row.type === 'phase'">
-							<span class="action-row__locked-hint" title="System defined lifecycle phase">
-								<Lock :size="14" />
-							</span>
-						</template>
-						<template v-else-if="row.type === 'task'">
-							<NcButton
-								v-if="row.task.deckCardId && !row.task.isDone"
-								type="tertiary"
-								title="Edit Deck card schedule"
-								@click="openDeckTaskModal(row.task)">
-								<template #icon>
-									<Pencil :size="16" />
-								</template>
-							</NcButton>
-							<span v-else-if="row.task.deckCardId" class="action-row__locked-hint" title="Completed Deck card">
-								<Lock :size="14" />
-							</span>
-							<span v-else class="action-row__locked-hint" title="Phase Task">
-								<Lock :size="14" />
-							</span>
-						</template>
-						<template v-else>
-							<NcButton
-								v-if="canEditItem(row.item)"
-								type="tertiary"
-								title="Edit item"
-								@click="openEditModal(row.item)">
-								<template #icon>
-									<Pencil :size="16" />
-								</template>
-							</NcButton>
-							<NcButton
-								v-if="!isSystemItem(row.item)"
-								type="error"
-								title="Delete item"
-								@click="confirmDelete(row.item)">
-								<template #icon>
-									<Delete :size="16" />
-								</template>
-							</NcButton>
-						</template>
-					</div>
-				</div>
+				<WhatIfPanel
+					v-if="whatIf.active"
+					:result="whatIf.result"
+					:changes="whatIf.changes"
+					:fixes="whatIf.fixes"
+					:loading="whatIf.loading"
+					:suggestions-loading="whatIf.fixesLoading"
+					:error="whatIf.error"
+					:can-apply="isAdmin"
+					:label-of="taskLabel"
+					:format-date="formatDate"
+					@remove-change="removeWhatIfChange"
+					@add-change="addWhatIfChange"
+					@add-fix="addWhatIfFix"
+					@apply="whatIf.confirmingApply = true"
+					@discard="exitWhatIf" />
 			</div>
 
 			<!-- Footer: Phase Jumper -->
@@ -592,13 +603,24 @@
 			</footer>
 		</div>
 
-		<!-- Schedule Impact & Recovery Drawer (Step 3) -->
-		<TimelineImpactDrawer
-			v-if="showImpactDrawer"
-			:analysis="activeImpactAnalysis"
-			@select-option="onOptionSelected"
-			@open-whatif="startWhatIf"
-			@close="closeImpactDrawer" />
+		<WhatIfTaskEditor
+			v-if="whatIfEditorTask"
+			:key="whatIfEditorTask.id"
+			:task="whatIfEditorTask"
+			:predecessors="whatIfEditorPredecessors"
+			:format-date="formatDate"
+			@add-change="addWhatIfChange"
+			@close="whatIf.editorTaskId = null" />
+
+		<WhatIfApplyDialog
+			v-if="whatIf.confirmingApply && whatIf.result"
+			:changes="whatIf.changes"
+			:card-updates="whatIf.result.impact.deckCardUpdates"
+			:applying="whatIf.applying"
+			:label-of="taskLabel"
+			:format-date="formatDate"
+			@confirm="applyWhatIf"
+			@close="whatIf.confirmingApply = false" />
 
 		<!-- Modal for Add/Edit Timeline Item -->
 		<NcModal v-if="showModal" size="normal" @close="closeModal">
@@ -685,13 +707,13 @@
 </template>
 
 <script>
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess, showWarning } from '@nextcloud/dialogs'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import { NcButton, NcLoadingIcon, NcModal, NcTextField } from '@nextcloud/vue'
 
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
-import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
+
 import CardsVariant from 'vue-material-design-icons/CardsVariant.vue'
 import ChartGantt from 'vue-material-design-icons/ChartGantt.vue'
 import Check from 'vue-material-design-icons/Check.vue'
@@ -709,11 +731,15 @@ import Pencil from 'vue-material-design-icons/Pencil.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 
 import TimelineKpiBar from './header/TimelineKpiBar.vue'
-import TimelineSimulationBanner from './header/TimelineSimulationBanner.vue'
 import SystemPlanningRow from './rows/SystemPlanningRow.vue'
-import TimelineImpactDrawer from './drawer/TimelineImpactDrawer.vue'
 import TimelineHoverGuide from './overlays/TimelineHoverGuide.vue'
+import WhatIfApplyDialog from './whatIf/WhatIfApplyDialog.vue'
+import WhatIfPanel from './whatIf/WhatIfPanel.vue'
+import WhatIfTaskEditor from './whatIf/WhatIfTaskEditor.vue'
+import { addChange, formatDays, formatShiftBadge } from './whatIf/whatIfChanges.js'
 import { DAY_MS, daysSinceMonday, formatShortDate, getIsoWeekInfo } from './timelineDates.js'
+
+const DRAG_THRESHOLD_PX = 4
 
 export default {
 	name: 'GanttChart',
@@ -723,7 +749,6 @@ export default {
 		NcModal,
 		NcTextField,
 		AlertCircle,
-		AlertCircleOutline,
 		CardsVariant,
 		ChartGantt,
 		Check,
@@ -740,10 +765,11 @@ export default {
 		Pencil,
 		Plus,
 		TimelineKpiBar,
-		TimelineSimulationBanner,
 		SystemPlanningRow,
-		TimelineImpactDrawer,
 		TimelineHoverGuide,
+		WhatIfApplyDialog,
+		WhatIfPanel,
+		WhatIfTaskEditor,
 	},
 	props: {
 		projectId: {
@@ -779,6 +805,7 @@ export default {
 			],
 			dayWidth: 4,
 			isDragging: false,
+			dragPointerId: null,
 			dragStartX: 0,
 			dragStartScrollLeft: 0,
 			expandedPhases: {
@@ -787,33 +814,46 @@ export default {
 				execution: true,
 				handover: true,
 			},
-			// Step 3 What-If Simulation & Impact State
-			isSimulationMode: false,
-			simulationScenario: null,
-			simulationApplication: null,
-			simulatedPhases: null,
-			applyingScenario: false,
-			showImpactDrawer: false,
-			activeImpactAnalysis: null,
+			// What-If: a list of changes the server lays over the live plan; nothing is saved until applied
+			whatIf: {
+				active: false,
+				changes: [],
+				result: null,
+				loading: false,
+				error: '',
+				fixes: null,
+				fixesLoading: false,
+				editorTaskId: null,
+				confirmingApply: false,
+				applying: false,
+			},
+			whatIfRequest: 0,
 		}
 	},
 	computed: {
+		/** The planning summary on screen: the scenario's while in What-If */
+		activeSummary() {
+			if (this.whatIf.active && this.whatIf.result?.summary) {
+				return this.whatIf.result.summary
+			}
+			return this.timelineSummary
+		},
 		systemPlanningData() {
-			return this.timelineSummary?.systemPlanning || null
+			return this.activeSummary?.systemPlanning || null
 		},
 		kpisData() {
-			if (!this.timelineSummary) {
+			if (!this.activeSummary) {
 				return null
 			}
-			const kpis = this.timelineSummary.kpis || {}
-			const processCompleted = this.timelineSummary.processCompleted || kpis.processCompleted || {
+			const kpis = this.activeSummary.kpis || {}
+			const processCompleted = this.activeSummary.processCompleted || kpis.processCompleted || {
 				status: 'incomplete',
 				date: null,
 				doneCount: 0,
 				totalRequired: 0,
 				missingTitles: [],
 			}
-			const coordinationPendingPeriod = this.timelineSummary.coordinationPendingPeriod || kpis.coordinationPendingPeriod || null
+			const coordinationPendingPeriod = this.activeSummary.coordinationPendingPeriod || kpis.coordinationPendingPeriod || null
 			return {
 				...kpis,
 				processCompleted,
@@ -824,10 +864,25 @@ export default {
 			return this.timelineSummary?.phases || []
 		},
 		effectivePhases() {
-			if (this.isSimulationMode && this.simulatedPhases && this.simulatedPhases.length > 0) {
-				return this.simulatedPhases
+			if (this.whatIf.active && this.whatIf.result?.phases) {
+				return this.whatIf.result.phases
 			}
 			return this.phases
+		},
+		effectiveTasks() {
+			return this.effectivePhases.flatMap(phase => phase.tasks || [])
+		},
+		whatIfEditorTask() {
+			if (this.whatIf.editorTaskId === null) return null
+			return this.effectiveTasks.find(task => String(task.id) === String(this.whatIf.editorTaskId)) || null
+		},
+		whatIfEditorPredecessors() {
+			const task = this.whatIfEditorTask
+			if (!task) return []
+			const dependencies = this.whatIf.result?.dependencies || []
+			return dependencies
+				.filter(dep => String(dep.successorId) === String(task.id))
+				.map(dep => ({ id: dep.predecessorId, label: this.taskLabel(dep.predecessorId), overlapDays: dep.overlapDays || 0 }))
 		},
 		hasActiveDelays() {
 			return !!(this.timelineSummary?.delayAnalysis?.hasActiveDelays)
@@ -913,7 +968,7 @@ export default {
 			return Math.max(200, total)
 		},
 		visibleDependencyPaths() {
-			const deps = this.timelineSummary?.dependencies
+			const deps = this.whatIf.active && this.whatIf.result ? this.whatIf.result.dependencies : this.timelineSummary?.dependencies
 			if (!deps || deps.length === 0) {
 				return []
 			}
@@ -974,8 +1029,9 @@ export default {
 				paths.push({
 					key: `dep-${dep.predecessorId}-${dep.successorId}`,
 					d,
-					isActive: !pred.task.isDone,
-					isDelayed: !!pred.task.isDelayed,
+					// In What-If the critical chain is highlighted and links into a card that moved later are flagged
+					isActive: this.whatIf.active ? !!(pred.task.whatIf?.isCritical && succ.task.whatIf?.isCritical) : !pred.task.isDone,
+					isDelayed: this.whatIf.active ? (succ.task.whatIf?.startShiftDays || 0) > 0 : !!pred.task.isDelayed,
 				})
 			}
 			return paths
@@ -1208,6 +1264,7 @@ export default {
 				{ key: 'desired-start', label: 'Desired start', date: d.desiredStart?.date, offset: this.desiredStartOffset },
 				{ key: 'actual-start', label: 'Actual start', date: d.actualStart?.date, offset: this.actualStartOffset },
 				{ key: 'handover', label: 'Handover', date: d.actualHandover?.date, offset: this.actualHandoverOffset },
+				{ key: 'min-start-plan', label: 'Min start (live plan)', date: this.whatIfBaselineMinStart, offset: this.dateOffset(this.whatIfBaselineMinStart) },
 			].filter(m => m.offset !== null)
 				.sort((a, b) => a.offset - b.offset)
 			// Stack flags that would overlap their left neighbour
@@ -1219,6 +1276,11 @@ export default {
 				levelEnds[level] = marker.offset + flagWidth
 				return { ...marker, level }
 			})
+		},
+		/** Where the minimum start sits in the live plan, while a scenario moves it */
+		whatIfBaselineMinStart() {
+			const planning = this.whatIf.active ? this.whatIf.result?.impact?.planning : null
+			return planning && planning.minimumStartShiftDays ? planning.baselineMinimumStartDate : null
 		},
 		todayOffset() {
 			const { start } = this.timelineRange
@@ -1279,13 +1341,16 @@ export default {
 			}
 		},
 		hasGhostBar(task) {
+			if (this.whatIf.active) {
+				return !!(task?.whatIf && (task.whatIf.startShiftDays || task.whatIf.endShiftDays))
+			}
 			if (!task?.plannedEndDate || !task?.endDate) return false
 			return task.plannedEndDate !== task.endDate
 		},
 		getTaskGhostBarStyle(task) {
 			const { start } = this.timelineRange
-			const tStart = this.parseDateOnly(task.startDate)
-			const tPlannedEnd = this.parseDateOnly(task.plannedEndDate)
+			const tStart = this.parseDateOnly(this.whatIf.active ? task.whatIf.baselineStartDate : task.startDate)
+			const tPlannedEnd = this.parseDateOnly(this.whatIf.active ? task.whatIf.baselineEndDate : task.plannedEndDate)
 			const offsetDays = Math.floor((tStart - start) / (1000 * 60 * 60 * 24))
 			const durationDays = Math.max(1, Math.floor((tPlannedEnd - tStart) / (1000 * 60 * 60 * 24)) + 1)
 			const leftPx = offsetDays * this.dayWidth
@@ -1299,96 +1364,129 @@ export default {
 			const w = Math.round(days / 7)
 			return w >= 1 ? `${w}w` : `${days}d`
 		},
-		async openImpactDrawer(task = null) {
-			const targetTaskId = task ? task.id : (this.activeDelayedTasks[0]?.id || 'Permits')
-			const delayDays = task ? (task.delayDays || 28) : 28
-			try {
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/impact`)
-				const res = await axios.post(url, {
-					taskId: targetTaskId,
-					delayDays,
-				})
-				this.activeImpactAnalysis = res.data
-			} catch (e) {
-				console.error('Error fetching impact analysis:', e)
-				this.activeImpactAnalysis = this.timelineSummary?.delayAnalysis?.defaultAnalysis || null
-			}
-			this.showImpactDrawer = true
+		formatDays,
+		formatShiftBadge,
+		dateOffset(dateStr) {
+			if (!dateStr) return null
+			return Math.floor((this.parseDateOnly(dateStr) - this.timelineRange.start) / (1000 * 60 * 60 * 24)) * this.dayWidth
 		},
-		closeImpactDrawer() {
-			this.showImpactDrawer = false
+		taskLabel(id) {
+			const task = this.effectiveTasks.find(t => String(t.id) === String(id))
+			return task ? task.label : `#${id}`
 		},
-		onOptionSelected(option) {
-			// Triggered when an option is highlighted in drawer
+		whatIfUrl(path = '') {
+			return generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/scenario${path}`)
 		},
-		async startWhatIf(option = null) {
-			this.showImpactDrawer = false
-			this.isSimulationMode = true
-			try {
-				const targetTaskId = this.activeImpactAnalysis?.task?.id || 'Permits'
-				const delayDays = this.activeImpactAnalysis?.task?.delayDays || 28
-				const strategy = option?.id || 'accelerate'
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/simulate`)
-				const res = await axios.post(url, {
-					rootTaskId: targetTaskId,
-					delayDays,
-					strategy,
-					accelerateDays: option?.shortenDays || 14,
-				})
-				this.simulationScenario = res.data.scenario
-				this.simulationApplication = res.data.application || null
-				this.simulatedPhases = res.data.simulatedPhases
-			} catch (e) {
-				console.error('Error starting what-if simulation:', e)
-			}
+		startWhatIf() {
+			this.whatIf = { ...this.whatIf, active: true, changes: [], result: null, error: '', fixes: null, editorTaskId: null, confirmingApply: false }
+			this.runWhatIf()
 		},
 		exitWhatIf() {
-			this.isSimulationMode = false
-			this.simulationScenario = null
-			this.simulationApplication = null
-			this.simulatedPhases = null
-		},
-		async switchSimulationStrategy(strategyId) {
-			const targetTaskId = this.simulationApplication?.rootTaskId || this.activeImpactAnalysis?.task?.id || 'Permits'
-			const delayDays = this.simulationApplication?.delayDays || this.activeImpactAnalysis?.task?.delayDays || 28
-			const opt = (this.activeImpactAnalysis?.recoveryOptions || []).find(o => o.id === strategyId)
-			try {
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/simulate`)
-				const res = await axios.post(url, {
-					rootTaskId: targetTaskId,
-					delayDays,
-					strategy: strategyId,
-					accelerateDays: opt?.shortenDays || 14,
-				})
-				this.simulationScenario = res.data.scenario
-				this.simulationApplication = res.data.application || null
-				this.simulatedPhases = res.data.simulatedPhases
-			} catch (e) {
-				console.error('Error switching what-if strategy:', e)
-			}
-		},
-		async applyWhatIfScenario() {
-			this.applyingScenario = true
-			try {
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/apply-recovery`)
-				const strategy = this.simulationScenario?.strategy || 'accelerate'
-				await axios.post(url, {
-					strategy,
-					rootTaskId: this.simulationApplication?.rootTaskId,
-					delayDays: this.simulationApplication?.delayDays,
-					accelerateDays: this.simulationApplication?.accelerateDays || 14,
-				})
-				this.exitWhatIf()
-				await this.loadItems()
-			} catch (e) {
-				console.error('Error applying recovery strategy:', e)
-			} finally {
-				this.applyingScenario = false
-			}
+			this.whatIfRequest++
+			this.whatIf = { ...this.whatIf, active: false, changes: [], result: null, loading: false, error: '', fixes: null, fixesLoading: false, editorTaskId: null, confirmingApply: false }
 		},
 		onTaskClick(task) {
-			if (task.isDelayed || this.isSimulationMode || !task.deckCardId) {
-				this.openImpactDrawer(task)
+			if (this.whatIf.active) {
+				this.openWhatIfEditor(task)
+			}
+		},
+		openWhatIfEditor(task) {
+			this.whatIf.editorTaskId = task.id
+		},
+		addWhatIfChange(change) {
+			this.setWhatIfChanges(addChange(this.whatIf.changes, change))
+		},
+		addWhatIfFix(fix) {
+			let changes = this.whatIf.changes
+			for (const change of fix.changes) {
+				changes = addChange(changes, change, { mergeDelays: false })
+			}
+			this.setWhatIfChanges(changes)
+		},
+		removeWhatIfChange(index) {
+			this.setWhatIfChanges(this.whatIf.changes.filter((_, i) => i !== index))
+		},
+		setWhatIfChanges(changes) {
+			const previous = this.whatIf.changes
+			this.whatIf.changes = changes
+			this.runWhatIf(previous)
+		},
+		/**
+		 * Recalculate the scenario. A change the server rejects is taken back, so the list
+		 * always matches what is shown. Only the latest request updates the screen.
+		 * @param {Array|null} previousChanges the list to go back to when the server rejects the new one
+		 */
+		async runWhatIf(previousChanges = null) {
+			const request = ++this.whatIfRequest
+			this.whatIf.loading = true
+			this.whatIf.error = ''
+			try {
+				const { data } = await axios.post(this.whatIfUrl(), { changes: this.whatIf.changes })
+				if (request !== this.whatIfRequest) return
+				this.whatIf.result = data
+				this.loadWhatIfFixes(request, data)
+			} catch (error) {
+				if (request !== this.whatIfRequest) return
+				const message = error.response?.data?.error || 'The scenario could not be calculated.'
+				if (error.response?.status === 400 && previousChanges) {
+					this.whatIf.changes = previousChanges
+					showError(message)
+				} else {
+					this.whatIf.error = message
+				}
+			} finally {
+				if (request === this.whatIfRequest) {
+					this.whatIf.loading = false
+				}
+			}
+		},
+		async loadWhatIfFixes(request, result) {
+			const slip = result.impact?.planning?.minimumStartShiftDays || 0
+			if (slip <= 0) {
+				this.whatIf.fixes = { slipDays: slip, suggestions: [] }
+				return
+			}
+			this.whatIf.fixesLoading = true
+			try {
+				const { data } = await axios.post(this.whatIfUrl('/suggestions'), { changes: this.whatIf.changes })
+				if (request === this.whatIfRequest) {
+					this.whatIf.fixes = data
+				}
+			} catch (error) {
+				if (request === this.whatIfRequest) {
+					this.whatIf.fixes = { slipDays: slip, suggestions: [] }
+				}
+			} finally {
+				if (request === this.whatIfRequest) {
+					this.whatIf.fixesLoading = false
+				}
+			}
+		},
+		async applyWhatIf() {
+			this.whatIf.applying = true
+			try {
+				const { data } = await axios.post(this.whatIfUrl('/apply'), {
+					changes: this.whatIf.changes,
+					expectedDeckCardUpdates: this.whatIf.result.impact.deckCardUpdates,
+				})
+				this.whatIf.confirmingApply = false
+				this.exitWhatIf()
+				if (data.mismatches?.length) {
+					showWarning(`Scenario applied, but ${data.mismatches.length} ${data.mismatches.length === 1 ? 'card does' : 'cards do'} not match the preview. Please check the timeline.`)
+				} else {
+					showSuccess(data.deckCardsUpdated
+						? `Scenario applied: ${data.deckCardsUpdated} Deck ${data.deckCardsUpdated === 1 ? 'card' : 'cards'} updated`
+						: 'Scenario applied')
+				}
+				await this.loadItems()
+			} catch (error) {
+				this.whatIf.confirmingApply = false
+				showError(error.response?.data?.error || 'The scenario could not be applied.')
+				if (error.response?.status === 409) {
+					this.runWhatIf()
+				}
+			} finally {
+				this.whatIf.applying = false
 			}
 		},
 		getStatusLabel(status) {
@@ -1483,9 +1581,26 @@ export default {
 			}
 		},
 		getTaskBarTitle(task) {
+			const dates = `${task.label}: ${this.formatDate(task.startDate)} – ${this.formatDate(task.endDate)} (${task.durationDays}d)`
+			if (this.whatIf.active && task.whatIf) {
+				const info = task.whatIf
+				const parts = [dates]
+				if (info.startShiftDays || info.endShiftDays) {
+					parts.push(`Live plan: ${this.formatDate(info.baselineStartDate)} – ${this.formatDate(info.baselineEndDate)}`)
+				}
+				if (info.isCritical) {
+					parts.push('On the critical path')
+				} else if (info.floatDays !== null) {
+					parts.push(`Can slip ${formatDays(info.floatDays)}`)
+				}
+				if (!task.isDone) {
+					parts.push('Click to change it in the scenario')
+				}
+				return parts.join(' • ')
+			}
 			const status = this.getTaskStatusLabel(task)
 			const delay = task.delayDays > 0 ? ` • Delayed by +${this.formatDelayBadge(task.delayDays)}` : ''
-			return `${task.label}: ${this.formatDate(task.startDate)} – ${this.formatDate(task.endDate)} (${task.durationDays}d) • ${status}${delay}`
+			return `${dates} • ${status}${delay}`
 		},
 		isSystemItem(item) {
 			return !!(item && item.systemKey)
@@ -1520,7 +1635,6 @@ export default {
 				])
 				this.allItems = timelineRes.data || []
 				this.timelineSummary = summaryRes.data || null
-				this.activeImpactAnalysis = this.timelineSummary?.delayAnalysis?.defaultAnalysis || null
 			} catch (error) {
 				console.error('Error loading timeline data:', error)
 			} finally {
@@ -1874,27 +1988,33 @@ export default {
 			if (e.button !== undefined && e.button !== 0) return
 			const el = this.getTimelineScroller()?.el
 			if (!el) return
-			this.isDragging = true
-			this.$refs.hoverGuide?.clear()
+			// Dragging starts once the pointer moves, so a plain click still reaches the bar under it
+			this.dragPointerId = e.pointerId
 			this.dragStartX = e.clientX
 			this.dragStartScrollLeft = el.scrollLeft
-			try {
-				e.currentTarget.setPointerCapture(e.pointerId)
-			} catch (err) {
-				// ignore
-			}
 		},
 		onPointerMove(e) {
 			this.updateHoverGuide(e)
-			if (!this.isDragging) return
+			if (this.dragPointerId !== e.pointerId) return
 			const el = this.getTimelineScroller()?.el
 			if (!el) return
-			e.preventDefault()
 			const dx = e.clientX - this.dragStartX
+			if (!this.isDragging) {
+				if (Math.abs(dx) < DRAG_THRESHOLD_PX) return
+				this.isDragging = true
+				this.$refs.hoverGuide?.clear()
+				try {
+					e.currentTarget.setPointerCapture(e.pointerId)
+				} catch (err) {
+					// ignore
+				}
+			}
+			e.preventDefault()
 			el.scrollLeft = Math.max(0, this.dragStartScrollLeft - dx)
 		},
 		onPointerUp() {
 			this.isDragging = false
+			this.dragPointerId = null
 		},
 		onPointerLeave() {
 			this.onPointerUp()
@@ -1969,15 +2089,6 @@ export default {
 	flex-wrap: wrap;
 }
 
-.advisor-btn {
-	font-weight: 700;
-}
-
-.advisor-btn--alert {
-	border-color: #ef4444 !important;
-	color: #dc2626 !important;
-}
-
 .whatif-btn {
 	font-weight: 700;
 	color: #3b82f6 !important;
@@ -2035,6 +2146,17 @@ export default {
 
 .empty-icon {
 	color: var(--color-background-darker);
+}
+
+/* The grid, with the What-If panel beside it while a scenario is open */
+.timeline-v2__workspace {
+	display: flex;
+	align-items: stretch;
+}
+
+.timeline-v2__workspace > .gantt-v2 {
+	flex: 1;
+	min-width: 0;
 }
 
 /* Gantt V2 Grid Layout */
@@ -2262,7 +2384,8 @@ export default {
 	font-weight: 700;
 }
 
-.task-delay-tag {
+.task-delay-tag,
+.task-shift-tag {
 	font-size: 10px;
 	font-weight: 800;
 	background: #ef4444;
@@ -2270,6 +2393,10 @@ export default {
 	padding: 1px 6px;
 	border-radius: 99px;
 	white-space: nowrap;
+}
+
+.task-shift-tag--earlier {
+	background: #059669;
 }
 
 .drag-handle {
@@ -2570,8 +2697,24 @@ export default {
 	box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
 }
 
-.timeline-bar--simulated {
-	box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.6), 0 2px 8px rgba(0, 0, 0, 0.15);
+/* What-If: cards can be clicked to change them; the critical path and changed cards stand out */
+.timeline-bar--whatif:focus-visible {
+	outline: 2px solid var(--color-primary-element);
+	outline-offset: 2px;
+}
+
+.timeline-bar--critical {
+	box-shadow: 0 0 0 2px #f59e0b, 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.timeline-bar--changed {
+	outline: 2px dashed #2563eb;
+	outline-offset: 2px;
+}
+
+.task-delay-badge--earlier {
+	background: #059669;
+	box-shadow: 0 1px 3px rgba(5, 150, 105, 0.4);
 }
 
 .task-delay-badge {
@@ -2693,6 +2836,11 @@ export default {
 	opacity: 0.8;
 }
 
+.timeline-guide-line--min-start-plan {
+	border-left: 2px dotted #64748b;
+	opacity: 0.8;
+}
+
 .timeline-guide-flag {
 	--guide-color: var(--color-success);
 	position: absolute;
@@ -2711,6 +2859,7 @@ export default {
 .timeline-guide-marker--min-start .timeline-guide-flag { --guide-color: #7c3aed; }
 .timeline-guide-marker--desired-start .timeline-guide-flag { --guide-color: #4f46e5; }
 .timeline-guide-marker--actual-start .timeline-guide-flag { --guide-color: #059669; }
+.timeline-guide-marker--min-start-plan .timeline-guide-flag { --guide-color: #64748b; }
 
 /* Column 3: Status Column */
 .gantt-v2__status {
@@ -2987,6 +3136,9 @@ export default {
 }
 
 @media (max-width: 900px) {
+	.timeline-v2__workspace {
+		flex-direction: column;
+	}
 	.gantt-v2, .gantt-v2--admin {
 		grid-template-columns: 1fr;
 		max-height: none;

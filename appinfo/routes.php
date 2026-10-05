@@ -319,16 +319,6 @@ return [
             "verb" => "GET",
         ],
         [
-            "name" => "timeline_api#impact",
-            "url" => "/api/v1/projects/{projectId}/timeline/impact",
-            "verb" => "POST",
-        ],
-        [
-            "name" => "timeline_api#simulate",
-            "url" => "/api/v1/projects/{projectId}/timeline/simulate",
-            "verb" => "POST",
-        ],
-        [
             "name" => "timeline_api#scenario",
             "url" => "/api/v1/projects/{projectId}/timeline/scenario",
             "verb" => "POST",
@@ -341,11 +331,6 @@ return [
         [
             "name" => "timeline_api#applyScenario",
             "url" => "/api/v1/projects/{projectId}/timeline/scenario/apply",
-            "verb" => "POST",
-        ],
-        [
-            "name" => "timeline_api#applyRecovery",
-            "url" => "/api/v1/projects/{projectId}/timeline/apply-recovery",
             "verb" => "POST",
         ],
         [
