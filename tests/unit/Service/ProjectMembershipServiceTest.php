@@ -186,6 +186,14 @@ final class ProjectMembershipServiceTest extends TestCase {
 		$this->service->syncProjectTeam(42, 3, 4);
 	}
 
+	public function testAFailedSwitchKeepsTheOldTeam(): void {
+		$this->projectService->method('addMembersToProjectBulk')->willThrowException(new \RuntimeException('boom'));
+		$this->memberSourceMapper->expects($this->never())->method('removeSource');
+		$this->group->expects($this->never())->method('removeUser');
+
+		$this->service->syncProjectTeam(42, 3, 4);
+	}
+
 	public function testLeavingTheOrganizationSkipsOwnedProjects(): void {
 		$owned = $this->project();
 		$owned->setOwnerId('bob');

@@ -181,6 +181,38 @@ final class CardPolicyServiceTest extends TestCase {
 		$this->assertFalse($this->service->assertActionLogic($this->card(30), 10, 'sign', 'alice'));
 	}
 
+	public function testV2MovingOutOfDoneRequiresVerify(): void {
+		$this->assertSame('verify', $this->requiredActionForMove(fromStack: 6, toStack: 3));
+	}
+
+	public function testV2MovingOutOfApprovedRequiresSign(): void {
+		$this->assertSame('sign', $this->requiredActionForMove(fromStack: 5, toStack: 3));
+	}
+
+	public function testV2OrdinaryMoveRequiresMove(): void {
+		$this->assertSame('move', $this->requiredActionForMove(fromStack: 2, toStack: 3));
+	}
+
+	public function testHiddenCardCannotBeEditedEither(): void {
+		$this->configureV2Board();
+		$this->cardPolicyMapper->method('findByCard')->willReturn(null);
+		$this->memberRoleMapper->method('findByProjectAndUser')->willReturn([]);
+		$cardMapper = $this->getMockBuilder(\OCA\Deck\Db\CardMapper::class)
+			->disableOriginalConstructor()
+			->onlyMethods(['findBoardId', 'find'])
+			->getMock();
+		$cardMapper->method('findBoardId')->willReturn(10);
+		$card = new \OCA\Deck\Db\Card();
+		$card->setId(30);
+		$cardMapper->method('find')->willReturn($card);
+		$service = $this->serviceWithCardMapper($cardMapper);
+
+		// 0 = read, 1 = edit, 3 = manage
+		foreach ([0, 1, 3] as $permission) {
+			$this->assertFalse($service->checkPermission($cardMapper, 30, $permission, 'alice'));
+		}
+	}
+
 	public function testCapabilitiesDefaultToAllowedWithoutPolicy(): void {
 		$this->assertSame([
 			'canMove' => true,
@@ -285,6 +317,79 @@ final class CardPolicyServiceTest extends TestCase {
 				$override->getCardPolicyId() === 40 && $override->getAction() === 'move'));
 
 		$this->service->preserveLegacyCardPolicyOverrides(10);
+	}
+
+	private function requiredActionForMove(int $fromStack, int $toStack): string {
+		$settings = new BoardPolicySetting();
+		$settings->setPermissionMode('card_policy');
+		$settings->setPolicyVersion(2);
+		$settings->setApprovedStackId(5);
+		$settings->setDoneStackId(6);
+		$this->settingMapper->method('findByBoard')->with(10)->willReturn($settings);
+		$project = new Project();
+		$project->setId(20);
+		$project->setOwnerId('owner');
+		$this->projectMapper->method('findByBoardId')->with(10)->willReturn($project);
+		$this->cardPolicyMapper->method('findByCard')->willReturn(null);
+
+		$asked = [];
+		$this->defaultDrasciMapper->method('findByBoardAndAction')
+			->willReturnCallback(static function (int $boardId, string $action) use (&$asked): array {
+				$asked[] = $action;
+				return [];
+			});
+		$role = new ProjectMemberRole();
+		$role->setDrasciRole('driver');
+		$this->memberRoleMapper->method('findByProjectAndUser')->willReturn([$role]);
+
+		$card = new class($fromStack) {
+			public function __construct(private readonly int $stackId) {
+			}
+
+			public function getId(): int {
+				return 30;
+			}
+
+			public function getStackId(): int {
+				return $this->stackId;
+			}
+
+			public function getRelatedBoard(): object {
+				return new class {
+					public function getId(): int {
+						return 10;
+					}
+				};
+			}
+		};
+
+		try {
+			$this->service->assertTransition($card, $toStack, 'alice');
+		} catch (\Throwable) {
+		}
+
+		return $asked[0] ?? '';
+	}
+
+	private function serviceWithCardMapper(object $cardMapper): CardPolicyService {
+		return new CardPolicyService(
+			$this->settingMapper,
+			$this->roleMapper,
+			$this->membershipMapper,
+			$this->defaultDrasciMapper,
+			$this->createMock(BoardPolicyDefaultRoleMapper::class),
+			$this->cardPolicyMapper,
+			$this->overrideMapper,
+			$this->cardPolicyRoleMapper,
+			$this->projectMapper,
+			$this->memberRoleMapper,
+			$this->createMock(IDBConnection::class),
+			$this->groupManager,
+			$this->createMock(IUserManager::class),
+			$cardMapper,
+			null,
+			null,
+		);
 	}
 
 	private function configureV2Board(): void {

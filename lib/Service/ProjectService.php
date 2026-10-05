@@ -238,6 +238,12 @@ class ProjectService {
 			$createdProject = $project;
 			$this->administratorAccessService?->syncProject($project);
 			$this->memberRoleMapper->replaceRoles((int)$project->getId(), $owner->getUID(), ['accountable']);
+			// Everyone with project access sees the cards; Informed is the
+			// lowest role that does, the same default team members get.
+			$this->memberRoleMapper->insertBulk((int)$project->getId(), array_map(
+				static fn (string $uid): array => ['userId' => $uid, 'role' => 'informed'],
+				array_values(array_diff($memberIds, [$owner->getUID()])),
+			));
 			$this->memberSourceMapper?->addSources((int)$project->getId(), $memberIds);
 
 			$seededCards = [];

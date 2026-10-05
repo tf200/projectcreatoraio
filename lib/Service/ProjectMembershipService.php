@@ -140,8 +140,15 @@ class ProjectMembershipService {
 	 * A project's team was assigned, switched or unassigned.
 	 */
 	public function syncProjectTeam(int $projectId, ?int $previousTeamId, ?int $teamId): void {
-		if ($teamId !== null && $teamId > 0) {
-			$this->addTeamMembers($projectId, $teamId, null);
+		if ($teamId !== null && $teamId > 0 && !$this->addTeamMembers($projectId, $teamId, null)) {
+			// The new team's members were not recorded, so releasing the old team
+			// would also drop people who are in both teams. Keep the old access.
+			$this->logger->error('Kept the previous team on the project because the new team could not be added', [
+				'projectId' => $projectId,
+				'previousTeamId' => $previousTeamId,
+				'teamId' => $teamId,
+			]);
+			return;
 		}
 
 		if ($previousTeamId === null || $previousTeamId <= 0 || $previousTeamId === $teamId) {
@@ -199,7 +206,7 @@ class ProjectMembershipService {
 	}
 
 	/** @param ?string[] $onlyUserIds */
-	private function addTeamMembers(int $projectId, int $teamId, ?array $onlyUserIds): void {
+	private function addTeamMembers(int $projectId, int $teamId, ?array $onlyUserIds): bool {
 		try {
 			$result = $this->projectService->addMembersToProjectBulk($projectId, [], [], null, $teamId, $onlyUserIds);
 			if ($result['rejected'] !== []) {
@@ -209,12 +216,14 @@ class ProjectMembershipService {
 					'rejected' => $result['rejected'],
 				]);
 			}
+			return true;
 		} catch (Throwable $e) {
 			$this->logger->error('Failed to add team members to a project', [
 				'projectId' => $projectId,
 				'teamId' => $teamId,
 				'exception' => $e,
 			]);
+			return false;
 		}
 	}
 

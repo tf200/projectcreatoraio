@@ -79,12 +79,9 @@ class CardPolicyService {
 			return true;
 		}
 
-		// Deck's ACL permission constants are indexes; read is zero.
-		if ($permission === 0) {
-			return $this->assertActionLogic($card, $boardId, 'view', $userId);
-		}
-
-		return true;
+		// Every Deck permission on a card (read, edit, ...) requires seeing it:
+		// a card hidden by policy cannot be edited through the API either.
+		return $this->assertActionLogic($card, $boardId, 'view', $userId);
 	}
 
 	public function hasFullBoardAccess(int $boardId, ?string $userId): bool {
@@ -123,9 +120,11 @@ class CardPolicyService {
 		$doneStackId = $settings->getDoneStackId();
 
 		if ($targetStackId !== $stackId && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
-			if ($doneStackId !== null && $targetStackId === $doneStackId) {
+			// Leaving Done or Approved undoes a verification or signature, so it
+			// needs the same right as entering it.
+			if ($doneStackId !== null && ($targetStackId === $doneStackId || $stackId === $doneStackId)) {
 				$action = 'verify';
-			} elseif ($approvedStackId !== null && $targetStackId === $approvedStackId) {
+			} elseif ($approvedStackId !== null && ($targetStackId === $approvedStackId || $stackId === $approvedStackId)) {
 				$action = 'sign';
 			}
 		} elseif ($targetStackId !== $stackId) {

@@ -142,13 +142,14 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(NodeWrittenEvent::class, WhiteboardWrittenListener::class);
 		$context->registerEventListener(NodeWrittenEvent::class, FileProcessingWrittenListener::class);
 		$context->registerEventListener(EntitlementsChangedEvent::class, EntitlementsChangedListener::class);
-		if (class_exists(TeamMemberAddedEvent::class)) {
-			$context->registerEventListener(OrganizationMemberRemovedEvent::class, OrganizationMembershipListener::class);
-			$context->registerEventListener(ProjectTeamChangedEvent::class, OrganizationMembershipListener::class);
-			$context->registerEventListener(TeamMemberAddedEvent::class, OrganizationMembershipListener::class);
-			$context->registerEventListener(TeamMemberRemovedEvent::class, OrganizationMembershipListener::class);
-			$context->registerEventListener(TeamDeletedEvent::class, OrganizationMembershipListener::class);
-		}
+		// No class_exists() guard: apps register one by one, so the organization
+		// app's classes may not be autoloadable yet. Listening by name is harmless
+		// when the organization app is absent.
+		$context->registerEventListener(OrganizationMemberRemovedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(ProjectTeamChangedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(TeamMemberAddedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(TeamMemberRemovedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(TeamDeletedEvent::class, OrganizationMembershipListener::class);
 
 		// Only register Deck event listeners if Deck app is active
 		if (class_exists(BoardCreatedEvent::class)) {
