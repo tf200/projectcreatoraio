@@ -119,9 +119,14 @@
 				</NcButton>
 			</div>
 
-			<div v-else class="gantt-v2" :class="{ 'gantt-v2--admin': isAdmin, 'gantt-v2--simulating': isSimulationMode }">
+			<!-- The grid is its own scroll box, so the date header and side columns stay pinned -->
+			<div
+				v-else
+				ref="scrollEl"
+				class="gantt-v2"
+				:class="{ 'gantt-v2--admin': isAdmin, 'gantt-v2--simulating': isSimulationMode }">
 				<!-- Column 1: Sidebar (WBS Hierarchy) -->
-				<div class="gantt-v2__sidebar">
+				<div ref="sidebarEl" class="gantt-v2__sidebar">
 					<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
 						Timeline details
 					</div>
@@ -228,7 +233,7 @@
 
 				<!-- Column 2: Timeline Canvas (Bars, Connectors & Grid) -->
 				<div
-					ref="scrollEl"
+					ref="mainEl"
 					class="gantt-v2__main"
 					:class="{ 'gantt-v2__main--dragging': isDragging }"
 					@pointerdown="onPointerDown"
@@ -447,7 +452,7 @@
 				</div>
 
 				<!-- Column 3: STATUS Column (Right-Hand Traffic Light) -->
-				<div class="gantt-v2__status">
+				<div ref="statusEl" class="gantt-v2__status">
 					<div class="gantt-v2__header-cell gantt-v2__header-cell--center" :style="{ height: timelineHeaderHeight + 'px' }">
 						Status
 					</div>
@@ -496,7 +501,7 @@
 				</div>
 
 				<!-- Column 4: Actions Column (Admin only) -->
-				<div v-if="isAdmin" class="gantt-v2__actions">
+				<div v-if="isAdmin" ref="actionsEl" class="gantt-v2__actions">
 					<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
 						Actions
 					</div>
@@ -1795,12 +1800,28 @@ export default {
 			const monthPx = 30 * this.dayWidth
 			this.scrollBy(monthPx)
 		},
+		/**
+		 * The element that scrolls the dates sideways, and the width of the date
+		 * area that is visible between the pinned columns.
+		 */
+		getTimelineScroller() {
+			const grid = this.$refs.scrollEl
+			const main = this.$refs.mainEl
+			if (!grid || !main) return null
+			// Narrow screens stack the columns and the date column scrolls by itself
+			if (getComputedStyle(main).overflowX === 'auto') {
+				return { el: main, width: main.clientWidth }
+			}
+			const pinned = ['sidebarEl', 'statusEl', 'actionsEl']
+				.reduce((sum, ref) => sum + (this.$refs[ref]?.offsetWidth || 0), 0)
+			return { el: grid, width: Math.max(0, grid.clientWidth - pinned) }
+		},
 		navigateToday() {
-			const el = this.$refs.scrollEl
-			if (!el) return
-			const containerWidth = el.clientWidth || 400
+			const scroller = this.getTimelineScroller()
+			if (!scroller) return
+			const containerWidth = scroller.width || 400
 			const target = Math.max(0, this.todayOffset - containerWidth / 2)
-			el.scrollLeft = target
+			scroller.el.scrollLeft = target
 		},
 		navigateToDate(dateStr) {
 			if (!dateStr) return
@@ -1808,7 +1829,7 @@ export default {
 			const d = this.parseDateOnly(dateStr)
 			const offsetDays = Math.floor((d - start) / (1000 * 60 * 60 * 24))
 			const offsetPx = offsetDays * this.dayWidth
-			const el = this.$refs.scrollEl
+			const el = this.getTimelineScroller()?.el
 			if (!el) return
 			try {
 				el.scrollTo({ left: Math.max(0, offsetPx - 60), behavior: 'smooth' })
@@ -1817,22 +1838,23 @@ export default {
 			}
 		},
 		scrollBy(px) {
-			const el = this.$refs.scrollEl
+			const el = this.getTimelineScroller()?.el
 			if (!el) return
 			el.scrollLeft = Math.max(0, el.scrollLeft + px)
 		},
 		setZoom(nextDayWidth) {
-			const el = this.$refs.scrollEl
-			if (!el) {
+			const scroller = this.getTimelineScroller()
+			if (!scroller) {
 				this.dayWidth = nextDayWidth
 				return
 			}
+			const { el, width } = scroller
 			const oldDayWidth = this.dayWidth
-			const centerPx = el.scrollLeft + el.clientWidth / 2
+			const centerPx = el.scrollLeft + width / 2
 			const centerDays = oldDayWidth > 0 ? centerPx / oldDayWidth : 0
 			this.dayWidth = nextDayWidth
 			this.$nextTick(() => {
-				const target = Math.max(0, centerDays * this.dayWidth - el.clientWidth / 2)
+				const target = Math.max(0, centerDays * this.dayWidth - width / 2)
 				el.scrollLeft = target
 			})
 		},
@@ -1850,7 +1872,7 @@ export default {
 		},
 		onPointerDown(e) {
 			if (e.button !== undefined && e.button !== 0) return
-			const el = this.$refs.scrollEl
+			const el = this.getTimelineScroller()?.el
 			if (!el) return
 			this.isDragging = true
 			this.$refs.hoverGuide?.clear()
@@ -1865,7 +1887,7 @@ export default {
 		onPointerMove(e) {
 			this.updateHoverGuide(e)
 			if (!this.isDragging) return
-			const el = this.$refs.scrollEl
+			const el = this.getTimelineScroller()?.el
 			if (!el) return
 			e.preventDefault()
 			const dx = e.clientX - this.dragStartX
@@ -2018,13 +2040,40 @@ export default {
 /* Gantt V2 Grid Layout */
 .gantt-v2 {
 	display: grid;
-	grid-template-columns: 280px 1fr 110px;
+	/* The date column is as wide as the timeline; the grid scrolls in both directions */
+	grid-template-columns: 280px minmax(max-content, 1fr) 110px;
+	max-height: calc(100vh - var(--header-height, 50px) - 24px);
+	overflow: auto;
 	border-bottom: 1px solid var(--color-border);
 	transition: background 0.2s ease;
 }
 
 .gantt-v2--admin {
-	grid-template-columns: 280px 1fr 110px 80px;
+	grid-template-columns: 280px minmax(max-content, 1fr) 110px 80px;
+}
+
+/* Side columns stay pinned while the dates scroll sideways */
+.gantt-v2__sidebar,
+.gantt-v2__status,
+.gantt-v2__actions {
+	position: sticky;
+	z-index: 30;
+}
+
+.gantt-v2__sidebar {
+	left: 0;
+}
+
+.gantt-v2__status {
+	right: 0;
+}
+
+.gantt-v2--admin .gantt-v2__status {
+	right: 80px;
+}
+
+.gantt-v2__actions {
+	right: 0;
 }
 
 .gantt-v2--simulating {
@@ -2032,6 +2081,9 @@ export default {
 }
 
 .gantt-v2__header-cell {
+	position: sticky;
+	top: 0;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	padding: 0 16px;
@@ -2267,8 +2319,6 @@ export default {
 
 /* Timeline / Main Area */
 .gantt-v2__main {
-	overflow-x: auto;
-	overflow-y: hidden;
 	cursor: grab;
 	background-color: var(--color-main-background);
 }
@@ -2758,7 +2808,8 @@ export default {
 /* Column 4: Actions Column */
 .gantt-v2__actions {
 	border-left: 1px solid var(--color-border);
-	background: rgba(0, 0, 0, 0.01);
+	/* Opaque, so bars scrolling underneath don't show through */
+	background: linear-gradient(rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0.01)), var(--color-main-background);
 }
 
 .action-row {
@@ -2938,9 +2989,23 @@ export default {
 @media (max-width: 900px) {
 	.gantt-v2, .gantt-v2--admin {
 		grid-template-columns: 1fr;
+		max-height: none;
+		overflow: visible;
 	}
+	.gantt-v2__main { overflow-x: auto; }
+	.gantt-v2__sidebar,
+	.gantt-v2__status,
+	.gantt-v2__actions,
+	.gantt-v2__header-cell { position: static; }
 	.gantt-v2__sidebar { border-right: none; }
 	.gantt-v2__status { border-left: none; }
 	.gantt-v2__actions { border-left: none; }
+}
+
+@media print {
+	.gantt-v2 {
+		max-height: none;
+		overflow: visible;
+	}
 }
 </style>

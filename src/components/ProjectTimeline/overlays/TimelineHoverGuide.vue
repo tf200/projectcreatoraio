@@ -1,27 +1,30 @@
 <template>
 	<div v-if="dayIndex !== null" class="hover-guide" aria-hidden="true">
-		<!-- Hovered ISO week highlight in the header week row -->
-		<div
-			class="hover-guide__week"
-			:style="{
-				left: weekLeft + 'px',
-				width: weekWidth + 'px',
-				top: (headerHeight - weekRowHeight) + 'px',
-				height: weekRowHeight + 'px',
-			}" />
-
 		<!-- Vertical line through the header week row and all rows -->
 		<div
 			class="hover-guide__line"
 			:style="{ left: lineX + 'px', top: (headerHeight - weekRowHeight) + 'px' }" />
 
-		<!-- Date chip above the week row -->
-		<div
-			class="hover-guide__chip"
-			:style="{ left: chipX + 'px', top: Math.max(2, headerHeight - weekRowHeight - 24) + 'px' }">
-			<span class="hover-guide__date">{{ dateLabel }}</span>
-			<span class="hover-guide__week-tag">W{{ weekInfo.isoWeek }}</span>
-			<span class="hover-guide__relative">{{ relativeLabel }}</span>
+		<!-- Pinned with the sticky timeline header while the rows scroll -->
+		<div class="hover-guide__head">
+			<!-- Hovered ISO week highlight in the header week row -->
+			<div
+				class="hover-guide__week"
+				:style="{
+					left: weekLeft + 'px',
+					width: weekWidth + 'px',
+					top: (headerHeight - weekRowHeight) + 'px',
+					height: weekRowHeight + 'px',
+				}" />
+
+			<!-- Date chip above the week row -->
+			<div
+				class="hover-guide__chip"
+				:style="{ left: chipX + 'px', top: Math.max(2, headerHeight - weekRowHeight - 24) + 'px' }">
+				<span class="hover-guide__date">{{ dateLabel }}</span>
+				<span class="hover-guide__week-tag">W{{ weekInfo.isoWeek }}</span>
+				<span class="hover-guide__relative">{{ relativeLabel }}</span>
+			</div>
 		</div>
 	</div>
 </template>
@@ -125,6 +128,12 @@ export default {
 	inset: 0;
 	pointer-events: none;
 	z-index: 21;
+}
+
+.hover-guide__head {
+	position: sticky;
+	top: 0;
+	height: 0;
 }
 
 .hover-guide__week {
