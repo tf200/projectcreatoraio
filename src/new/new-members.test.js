@@ -125,3 +125,26 @@ test('the current user gets no chat button with themselves', () => {
 	assert.equal(v.isSelf({ id: 'thomas' }), false)
 	assert.equal(v.memberMeta({ id: 'emma' }), 'emma · you')
 })
+
+test('removing a member asks first, then drops them from the list', async () => {
+	const calls = []
+	const v = view({ removeMember: async (...args) => { calls.push(args); return { removed: true } } })
+	v.members = team.members.map(member => ({ ...member }))
+	v.startRemove(v.members[1])
+	assert.equal(v.removingId, 'thomas')
+	await v.remove(v.members[1])
+	assert.equal(JSON.stringify(calls[0]), JSON.stringify([21, 'thomas']))
+	assert.deepEqual(v.members.map(member => member.id), ['emma'])
+	assert.equal(v.removingId, null)
+	assert.equal(v.notice, 'Thomas Jansen was removed from the project.')
+})
+
+test('a refused removal keeps the member and shows why', async () => {
+	const v = view({ removeMember: async () => { const e = new Error('no'); e.response = { data: { message: 'The project owner cannot be removed.' } }; throw e } })
+	v.members = team.members.map(member => ({ ...member }))
+	v.startRemove(v.members[0])
+	await v.remove(v.members[0])
+	assert.equal(v.members.length, 2)
+	assert.equal(v.removingId, 'emma')
+	assert.equal(v.removeError, 'The project owner cannot be removed.')
+})

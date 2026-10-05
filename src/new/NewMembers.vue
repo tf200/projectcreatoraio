@@ -220,6 +220,20 @@
 										{{ editSaving ? 'Saving…' : 'Save' }}
 									</button>
 								</template>
+								<template v-else-if="removingId === member.id">
+									<button type="button"
+										class="iz-btn iz-btn--ghost iz-btn--sm"
+										:disabled="removeSaving"
+										@click="cancelRemove">
+										Cancel
+									</button>
+									<button type="button"
+										class="iz-btn iz-btn--danger iz-btn--sm"
+										:disabled="removeSaving"
+										@click="remove(member)">
+										{{ removeSaving ? 'Removing…' : 'Remove' }}
+									</button>
+								</template>
 								<template v-else>
 									<button v-if="!isSelf(member)"
 										type="button"
@@ -237,8 +251,26 @@
 										@click="startEdit(member)">
 										Edit
 									</button>
+									<button v-if="canManage && !member.isOwner"
+										type="button"
+										class="iz-btn iz-btn--ghost iz-btn--sm pc-icon-btn"
+										:disabled="editingId !== null"
+										:title="'Remove ' + (member.displayName || member.id) + ' from the project'"
+										:aria-label="'Remove ' + (member.displayName || member.id) + ' from the project'"
+										@click="startRemove(member)">
+										<AccountRemoveOutline :size="16" />
+									</button>
 								</template>
 							</div>
+						</div>
+						<div v-if="removingId === member.id" class="pc-member__editor" role="alert">
+							<p class="pc-member-problem">
+								<InformationOutline :size="15" />
+								{{ member.displayName || member.id }} loses access to the board, files and chat of this project. Their private project files move to the project owner.
+							</p>
+							<p v-if="removeError" class="pc-member-problem pc-member-problem--error">
+								{{ removeError }}
+							</p>
 						</div>
 						<div v-if="editingId === member.id" class="pc-member__editor">
 							<p class="pc-member__editor-hint">
@@ -293,6 +325,7 @@ import CheckCircle from 'vue-material-design-icons/CheckCircle.vue'
 import ChatOutline from 'vue-material-design-icons/ChatOutline.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import Check from 'vue-material-design-icons/Check.vue'
+import AccountRemoveOutline from 'vue-material-design-icons/AccountRemoveOutline.vue'
 import RoleChips from './RoleChips.vue'
 import { api, errorMessage, actionMessage } from './api.js'
 import { DRASCIVS, rolesOf, drascivsLabel, projectRoleOptions, coverage, draftProblem, toggled } from './members.js'
@@ -302,7 +335,7 @@ import { DRASCIVS, rolesOf, drascivsLabel, projectRoleOptions, coverage, draftPr
 // strict reads, so a failure is shown instead of an empty team.
 export default {
 	name: 'NewMembers',
-	components: { NcAvatar, Plus, Close, CheckCircle, ChatOutline, InformationOutline, Check, RoleChips },
+	components: { NcAvatar, Plus, Close, CheckCircle, ChatOutline, InformationOutline, Check, AccountRemoveOutline, RoleChips },
 	props: {
 		projectId: { type: [String, Number], required: true },
 		currentUserId: { type: String, default: '' },
@@ -333,6 +366,9 @@ export default {
 			editDraft: { drascivs: [], functional: [] },
 			editSaving: false,
 			editError: '',
+			removingId: null,
+			removeSaving: false,
+			removeError: '',
 		}
 	},
 	computed: {
@@ -459,7 +495,32 @@ export default {
 				this.addSaving = false
 			}
 		},
+		startRemove(member) {
+			this.notice = ''
+			this.removingId = member.id
+			this.removeError = ''
+		},
+		cancelRemove() {
+			this.removingId = null
+			this.removeError = ''
+		},
+		async remove(member) {
+			if (this.removeSaving) return
+			this.removeSaving = true
+			this.removeError = ''
+			try {
+				await api.removeMember(this.projectId, member.id)
+				this.members = this.members.filter(existing => String(existing.id) !== String(member.id))
+				this.notice = `${member.displayName || member.id} was removed from the project.`
+				this.cancelRemove()
+			} catch (e) {
+				this.removeError = actionMessage(e, 'The member could not be removed.')
+			} finally {
+				this.removeSaving = false
+			}
+		},
 		startEdit(member) {
+			this.cancelRemove()
 			this.notice = ''
 			this.editingId = member.id
 			this.editDraft = { drascivs: [...rolesOf(member)], functional: [...(member.functionalRoleKeys || [])] }

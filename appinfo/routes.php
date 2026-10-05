@@ -90,6 +90,11 @@ return [
             "url" => "/api/v1/projects/{projectId}/members/{userId}/role",
             "verb" => "PUT",
         ],
+        [
+            "name" => "project_api#removeMember",
+            "url" => "/api/v1/projects/{projectId}/members/{userId}",
+            "verb" => "DELETE",
+        ],
         // Legacy single-note endpoints (for backward compatibility)
         [
             "name" => "project_api#updateNotes",

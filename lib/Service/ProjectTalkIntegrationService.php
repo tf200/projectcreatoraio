@@ -28,6 +28,7 @@ class ProjectTalkIntegrationService {
 	private const SPREED_ROOM_SERVICE_CLASS = 'OCA\\Talk\\Service\\RoomService';
 	private const TALK_ACTOR_USERS = 'users';
 	private const TALK_PARTICIPANT_USER = 3;
+	private const TALK_REMOVAL_REASON = 'remove';
 	private const TALK_HUMAN_MESSAGE_VERBS = ['comment', 'object_shared'];
 
 	public function __construct(
@@ -214,6 +215,24 @@ class ProjectTalkIntegrationService {
 			$this->logger->warning('Failed to add users to project Talk conversation', [
 				'token' => $conversationToken,
 				'count' => count($users),
+				'exception' => $e,
+			]);
+		}
+	}
+
+	public function removeUserFromConversation(string $conversationToken, IUser $user): void {
+		$conversationToken = trim($conversationToken);
+		if ($conversationToken === '' || !$this->isAvailable()) {
+			return;
+		}
+
+		try {
+			$room = $this->getTalkManager()->getRoomByToken($conversationToken);
+			$this->getParticipantService()->removeUser($room, $user, self::TALK_REMOVAL_REASON);
+		} catch (Throwable $e) {
+			$this->logger->warning('Failed to remove user from project Talk conversation', [
+				'token' => $conversationToken,
+				'userId' => $user->getUID(),
 				'exception' => $e,
 			]);
 		}

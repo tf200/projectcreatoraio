@@ -32,6 +32,7 @@ use OCA\ProjectCreatorAIO\Listener\DeckEventListener;
 use OCA\ProjectCreatorAIO\Listener\FileEventListener;
 use OCA\ProjectCreatorAIO\Listener\FileProcessingWrittenListener;
 use OCA\ProjectCreatorAIO\Listener\EntitlementsChangedListener;
+use OCA\ProjectCreatorAIO\Listener\OrganizationMembershipListener;
 use OCA\ProjectCreatorAIO\Listener\TalkEventListener;
 use OCA\ProjectCreatorAIO\Listener\WhiteboardWrittenListener;
 use OCA\ProjectCreatorAIO\Notification\Notifier;
@@ -93,6 +94,7 @@ use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberSourceMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Service\ProjectMemberResolver;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
@@ -109,6 +111,11 @@ use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\Organization\Db\SubscriptionMapper;
 use OCA\Organization\Db\PlanMapper;
 use OCA\Organization\Event\EntitlementsChangedEvent;
+use OCA\Organization\Event\OrganizationMemberRemovedEvent;
+use OCA\Organization\Event\ProjectTeamChangedEvent;
+use OCA\Organization\Event\TeamDeletedEvent;
+use OCA\Organization\Event\TeamMemberAddedEvent;
+use OCA\Organization\Event\TeamMemberRemovedEvent;
 use OCA\ProjectCreatorAIO\Db\BoardPolicySettingMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
@@ -135,6 +142,13 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(NodeWrittenEvent::class, WhiteboardWrittenListener::class);
 		$context->registerEventListener(NodeWrittenEvent::class, FileProcessingWrittenListener::class);
 		$context->registerEventListener(EntitlementsChangedEvent::class, EntitlementsChangedListener::class);
+		if (class_exists(TeamMemberAddedEvent::class)) {
+			$context->registerEventListener(OrganizationMemberRemovedEvent::class, OrganizationMembershipListener::class);
+			$context->registerEventListener(ProjectTeamChangedEvent::class, OrganizationMembershipListener::class);
+			$context->registerEventListener(TeamMemberAddedEvent::class, OrganizationMembershipListener::class);
+			$context->registerEventListener(TeamMemberRemovedEvent::class, OrganizationMembershipListener::class);
+			$context->registerEventListener(TeamDeletedEvent::class, OrganizationMembershipListener::class);
+		}
 
 		// Only register Deck event listeners if Deck app is active
 		if (class_exists(BoardCreatedEvent::class)) {
@@ -257,6 +271,7 @@ class Application extends App implements IBootstrap {
 				$c->get(ProjectAdministratorAccessService::class),
 				$c->get(ProjectDirectChatMapper::class),
 				$c->get(ProjectMemberResolver::class),
+				$c->get(ProjectMemberSourceMapper::class),
 			);
 		});
 

@@ -13,6 +13,7 @@ use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityAggregationService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
+use OCA\ProjectCreatorAIO\Service\ProjectMembershipService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\ProjectService;
@@ -56,6 +57,7 @@ class ProjectApiController extends Controller {
 		private IJobList $jobList,
 		private readonly IAppManager $appManager,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
+		private ?ProjectMembershipService $membershipService = null,
 	) {
 		parent::__construct($appName, $request);
 		$this->request = $request;
@@ -286,6 +288,24 @@ class ProjectApiController extends Controller {
 		$result = $this->projectService->updateProjectMemberRoles($projectId, $userId, $drasciRoles, $functionalRoleKeys);
 
 		return new DataResponse($result);
+	}
+
+	#[NoAdminRequired]
+	public function removeMember(int $projectId, string $userId): DataResponse {
+		$project = $this->projectMapper->find($projectId);
+		if ($project === null) {
+			throw new OCSNotFoundException("Project with ID $projectId not found");
+		}
+
+		$this->assertCanAccessProject($project);
+		if (!$this->canEditPreparationWeeks($project)) {
+			throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+		}
+		if ($this->membershipService === null) {
+			throw new OCSForbiddenException('Member removal is unavailable.');
+		}
+
+		return new DataResponse($this->membershipService->removeMember($projectId, $userId));
 	}
 
 	#[NoCSRFRequired]

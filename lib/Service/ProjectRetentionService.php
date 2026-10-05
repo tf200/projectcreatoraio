@@ -14,6 +14,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectDigestCursorMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberSourceMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -116,6 +117,7 @@ class ProjectRetentionService {
 			$this->memberRoleMapper?->deleteByProject($projectId);
 			$this->deleteDeckDoneSyncRows($projectId);
 			$this->deleteProjectTeamAssignment($projectId);
+			$this->deleteMemberSources($projectId);
 			$this->privateFolderLinkMapper->deleteByProject($projectId);
 			$this->directChatMapper?->deleteByProject($projectId);
 			$this->projectMapper->deleteProject($project);
@@ -317,6 +319,21 @@ class ProjectRetentionService {
 		}
 
 		$qb->delete('project_deck_done_sync')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
+			->executeStatement();
+	}
+
+	private function deleteMemberSources(int $projectId): void {
+		if ($this->db === null) {
+			return;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		if ($qb === null) {
+			return;
+		}
+
+		$qb->delete(ProjectMemberSourceMapper::TABLE_NAME)
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
 			->executeStatement();
 	}

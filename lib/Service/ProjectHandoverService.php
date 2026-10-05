@@ -3,36 +3,67 @@
 namespace OCA\ProjectCreatorAIO\Service;
 
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyMembership;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyMembershipMapper;
+use OCA\ProjectCreatorAIO\Db\BoardPolicyRoleMapper;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberSourceMapper;
 use OCP\AppFramework\OCS\OCSException;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
+use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUserManager;
+use OCP\Server;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 class ProjectHandoverService
 {
+    private const DECK_ACL_TYPE_USER = 0;
+
     public function __construct(
         private readonly ProjectMapper $projectMapper,
         private readonly IUserManager $userManager,
         private readonly IGroupManager $groupManager,
         private readonly IRootFolder $rootFolder,
+        private readonly ProjectMemberRoleMapper $memberRoleMapper,
+        private readonly ProjectMemberSourceMapper $memberSourceMapper,
+        private readonly BoardPolicyRoleMapper $policyRoleMapper,
+        private readonly BoardPolicyMembershipMapper $policyMembershipMapper,
+        private readonly ProjectMembershipService $membershipService,
+        private readonly ProjectTalkIntegrationService $talkIntegrationService,
+        private readonly IDBConnection $db,
+        private readonly LoggerInterface $logger,
+        private readonly ?ProjectAdministratorAccessService $administratorAccessService = null,
         private readonly ?OrganizationUserMapper $organizationUserMapper = null,
     ) {
     }
 
     /**
+     * Gives the target user everything the source user has in the organization's
+     * projects: membership, DRASCIVS and functional roles, project and Deck board
+     * ownership. With $removeSourceFromGroups the source user then loses all
+     * access to those projects.
+     *
      * @return array{
      *   projectsOwnedTransferred: int,
+     *   deckBoardsTransferred: int,
      *   projectMembershipsAdded: int,
      *   projectMembershipsRemoved: int,
      *   privateFoldersProvisioned: int
      * }
      */
-    public function handoverUserInOrganization(string $sourceUserId, string $targetUserId, int $organizationId, bool $removeSourceFromGroups = false): array
-    {
+    public function handoverUserInOrganization(
+        string $sourceUserId,
+        string $targetUserId,
+        int $organizationId,
+        bool $removeSourceFromGroups = false,
+        bool $remapDeckContent = false,
+    ): array {
         $sourceUserId = trim($sourceUserId);
         $targetUserId = trim($targetUserId);
 
@@ -72,36 +103,31 @@ class ProjectHandoverService
         $projectMembershipsAdded = 0;
         $projectMembershipsRemoved = 0;
         $privateFoldersProvisioned = 0;
-        $processedGroups = [];
+        $deckBoardsTransferred = 0;
 
-        foreach ($projects as $project) {
+        foreach ($projects as $projectId => $project) {
             $groupGid = trim((string) ($project->getProjectGroupGid() ?? ''));
-            if ($groupGid !== '' && !isset($processedGroups[$groupGid])) {
-                if (!$this->groupManager->isInGroup($targetUserId, $groupGid)) {
-                    $group = $this->groupManager->get($groupGid);
-                    if ($group === null) {
-                        throw new OCSException(sprintf('Project group "%s" was not found.', $groupGid), 404);
-                    }
-
-                    $group->addUser($targetUser);
-                    $projectMembershipsAdded++;
+            if ($groupGid !== '' && !$this->groupManager->isInGroup($targetUserId, $groupGid)) {
+                $group = $this->groupManager->get($groupGid);
+                if ($group === null) {
+                    throw new OCSException(sprintf('Project group "%s" was not found.', $groupGid), 404);
                 }
 
-                if ($removeSourceFromGroups && $this->groupManager->isInGroup($sourceUserId, $groupGid)) {
-                    $group = $this->groupManager->get($groupGid);
-                    if ($group !== null) {
-                        $group->removeUser($sourceUser);
-                        $projectMembershipsRemoved++;
-                    }
-                }
-
-                $processedGroups[$groupGid] = true;
+                $group->addUser($targetUser);
+                $this->talkIntegrationService->addUserToConversation((string) ($project->getTalkConversationToken() ?? ''), $targetUser);
+                $projectMembershipsAdded++;
             }
 
-            $projectId = (int) ($project->getId() ?? 0);
-            if ($projectId > 0 && $this->projectMapper->findPrivateFolderForUser($projectId, $targetUserId) === null) {
+            if ($this->projectMapper->findPrivateFolderForUser($projectId, $targetUserId) === null) {
                 $this->provisionPrivateFolderForUser($project, $targetUserId);
+                $this->administratorAccessService?->syncProject($project);
                 $privateFoldersProvisioned++;
+            }
+
+            $this->copyMemberAccess($project, $sourceUserId, $targetUserId);
+
+            if ($this->transferDeckBoard((int) ($project->getBoardId() ?? 0), $sourceUserId, $targetUserId, $remapDeckContent)) {
+                $deckBoardsTransferred++;
             }
         }
 
@@ -111,12 +137,126 @@ class ProjectHandoverService
             $organizationId,
         );
 
+        if ($removeSourceFromGroups) {
+            foreach (array_keys($projects) as $projectId) {
+                try {
+                    $this->membershipService->removeMember($projectId, $sourceUserId);
+                    $projectMembershipsRemoved++;
+                } catch (OCSException $e) {
+                    if ($e->getCode() !== 404) {
+                        throw $e;
+                    }
+                }
+            }
+        }
+
         return [
             'projectsOwnedTransferred' => $projectsOwnedTransferred,
+            'deckBoardsTransferred' => $deckBoardsTransferred,
             'projectMembershipsAdded' => $projectMembershipsAdded,
             'projectMembershipsRemoved' => $projectMembershipsRemoved,
             'privateFoldersProvisioned' => $privateFoldersProvisioned,
         ];
+    }
+
+    /**
+     * The target inherits the source's DRASCIVS roles, functional (card policy)
+     * roles and membership origins on top of what they already have.
+     */
+    private function copyMemberAccess(Project $project, string $sourceUserId, string $targetUserId): void
+    {
+        $projectId = (int) $project->getId();
+
+        $this->db->beginTransaction();
+        try {
+            $roles = static fn (array $rows): array => array_map(
+                static fn (ProjectMemberRole $role): string => (string) $role->getDrasciRole(),
+                $rows,
+            );
+            $targetRoles = $roles($this->memberRoleMapper->findByProjectAndUser($projectId, $targetUserId));
+            $mergedRoles = array_values(array_unique(array_merge(
+                $targetRoles,
+                $roles($this->memberRoleMapper->findByProjectAndUser($projectId, $sourceUserId)),
+            )));
+            if ($mergedRoles !== [] && count($mergedRoles) !== count($targetRoles)) {
+                $this->memberRoleMapper->replaceRoles($projectId, $targetUserId, $mergedRoles);
+            }
+
+            $boardId = (int) ($project->getBoardId() ?? 0);
+            if ($boardId > 0) {
+                foreach ($this->policyRoleMapper->findByBoard($boardId) as $role) {
+                    $roleId = (int) $role->getId();
+                    if ($this->policyMembershipMapper->findUnique($roleId, 'user', $sourceUserId) === null
+                        || $this->policyMembershipMapper->findUnique($roleId, 'user', $targetUserId) !== null) {
+                        continue;
+                    }
+
+                    $membership = new BoardPolicyMembership();
+                    $membership->setRoleId($roleId);
+                    $membership->setParticipantType('user');
+                    $membership->setParticipantId($targetUserId);
+                    $this->policyMembershipMapper->insert($membership);
+                }
+            }
+
+            $sources = $this->memberSourceMapper->findSources($projectId, $sourceUserId);
+            foreach ($sources === [] ? [ProjectMemberSourceMapper::MANUAL] : $sources as $teamId) {
+                $this->memberSourceMapper->addSource($projectId, $targetUserId, $teamId);
+            }
+
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Moves Deck board ownership like Deck's own transfer, minus its
+     * permission check (handover runs as a background job) and without
+     * granting the previous owner a personal ACL: if they stay on the
+     * project, the project group still gives them access.
+     */
+    private function transferDeckBoard(int $boardId, string $sourceUserId, string $targetUserId, bool $remapDeckContent): bool
+    {
+        if ($boardId <= 0 || !class_exists('OCA\Deck\Db\BoardMapper')) {
+            return false;
+        }
+
+        $boardMapper = Server::get('OCA\Deck\Db\BoardMapper');
+        try {
+            $board = $boardMapper->find($boardId);
+        } catch (Throwable) {
+            return false;
+        }
+        if ($board->getOwner() !== $sourceUserId) {
+            return false;
+        }
+
+        $aclMapper = Server::get('OCA\Deck\Db\AclMapper');
+        $this->db->beginTransaction();
+        try {
+            $aclMapper->deleteParticipantFromBoard($boardId, self::DECK_ACL_TYPE_USER, $targetUserId);
+            $aclMapper->deleteParticipantFromBoard($boardId, self::DECK_ACL_TYPE_USER, $sourceUserId);
+            $boardMapper->transferOwnership($sourceUserId, $targetUserId, $boardId);
+            if ($remapDeckContent) {
+                Server::get('OCA\Deck\Db\AssignmentMapper')->remapAssignedUser($boardId, $sourceUserId, $targetUserId);
+                Server::get('OCA\Deck\Db\CardMapper')->remapCardOwner($boardId, $sourceUserId, $targetUserId);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        $boardMapper->flushCache($boardId);
+        try {
+            Server::get('OCA\Deck\Db\ChangeHelper')->boardChanged($boardId);
+        } catch (Throwable $e) {
+            $this->logger->debug('Could not invalidate Deck board cache after handover', ['exception' => $e]);
+        }
+
+        return true;
     }
 
     private function assertUserBelongsToOrganization(string $userId, int $organizationId, string $label): void

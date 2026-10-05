@@ -20,6 +20,7 @@ export const api = {
 	members: id => get(`projects/${id}/members`),
 	addMember: (id, userId, drascivsRoles, functionalRoleKeys) => send('post', `projects/${id}/members`, { userId, drascivsRoles, functionalRoleKeys }),
 	updateMemberRoles: (id, userId, drascivsRoles, functionalRoleKeys) => send('put', `projects/${id}/members/${encodeURIComponent(userId)}/role`, { drascivsRoles, functionalRoleKeys }),
+	removeMember: (id, userId) => send('delete', `projects/${id}/members/${encodeURIComponent(userId)}`),
 	searchUsers: (search, organizationId) => get('users/search', organizationId ? { search, organizationId } : { search }),
 	// The plan limit a new project counts against, and the create request itself.
 	allowance: organizationId => get('projects/allowance', organizationId ? { organizationId } : undefined),

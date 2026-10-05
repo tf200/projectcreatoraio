@@ -18,6 +18,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRole;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
+use OCA\ProjectCreatorAIO\Db\ProjectMemberSourceMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\ProjectStatus;
@@ -93,6 +94,7 @@ class ProjectService {
 		private readonly ?ProjectAdministratorAccessService $administratorAccessService = null,
 		private readonly ?ProjectDirectChatMapper $directChatMapper = null,
 		private readonly ?ProjectMemberResolver $projectMemberResolver = null,
+		private readonly ?ProjectMemberSourceMapper $memberSourceMapper = null,
 	) {
 	}
 
@@ -236,6 +238,7 @@ class ProjectService {
 			$createdProject = $project;
 			$this->administratorAccessService?->syncProject($project);
 			$this->memberRoleMapper->replaceRoles((int)$project->getId(), $owner->getUID(), ['accountable']);
+			$this->memberSourceMapper?->addSources((int)$project->getId(), $memberIds);
 
 			$seededCards = [];
 			if ($this->deckDefaultCardsService !== null && $createdBoard !== null) {
@@ -716,6 +719,7 @@ class ProjectService {
 			} else {
 				$this->cardPolicyService->syncLegacyProjectMemberRole((int)($project->getBoardId() ?? 0), $userId, $drasciRoles);
 			}
+			$this->memberSourceMapper?->addSource($projectId, $userId);
 			$this->db->commit();
 		} catch (Throwable $e) {
 			$this->db->rollBack();
@@ -771,6 +775,7 @@ class ProjectService {
 	 *
 	 * @param string[] $userIds
 	 * @param string[] $drasciRoles
+	 * @param ?string[] $onlyTeamUserIds limits the team members that are added, e.g. to a single new team member
 	 * @return array{added: string[], alreadyMembers: string[], rejected: array<int, array{userId: string, reason: string}>, teamId: ?int}
 	 */
 	public function addMembersToProjectBulk(
@@ -779,6 +784,7 @@ class ProjectService {
 		array $drasciRoles = [],
 		?array $functionalRoleKeys = null,
 		?int $teamId = null,
+		?array $onlyTeamUserIds = null,
 	): array {
 		if ($drasciRoles === []) {
 			$drasciRoles = ['informed'];
@@ -805,11 +811,16 @@ class ProjectService {
 			static fn (string $uid): bool => $uid !== '',
 		)));
 
+		$manualUserIds = array_fill_keys($candidates, true);
+		$teamUserIds = [];
 		$resolvedTeamId = null;
 		if ($teamId !== null && $teamId > 0) {
-			$teamUserIds = $this->resolveTeamUserIds($teamId, $organizationId);
+			$teamUserIds = array_fill_keys($this->resolveTeamUserIds($teamId, $organizationId), true);
+			if ($onlyTeamUserIds !== null) {
+				$teamUserIds = array_intersect_key($teamUserIds, array_fill_keys($onlyTeamUserIds, true));
+			}
 			$resolvedTeamId = $teamId;
-			$candidates = array_values(array_unique(array_merge($candidates, $teamUserIds)));
+			$candidates = array_values(array_unique(array_merge($candidates, array_keys($teamUserIds))));
 		}
 
 		$candidates = array_slice($candidates, 0, 100);
@@ -837,6 +848,7 @@ class ProjectService {
 		$existingSet = array_fill_keys($existingMembers, true);
 		$alreadyMembers = array_values(array_filter($validCandidates, static fn (string $uid): bool => isset($existingSet[$uid])));
 		$toAdd = array_values(array_filter($validCandidates, static fn (string $uid): bool => !isset($existingSet[$uid])));
+		$this->recordMemberSources($projectId, $alreadyMembers, $manualUserIds, $teamUserIds, $resolvedTeamId);
 
 		if ($toAdd === []) {
 			return ['added' => [], 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
@@ -911,6 +923,7 @@ class ProjectService {
 				}
 			}
 			$this->memberRoleMapper->insertBulk($projectId, $rows);
+			$this->recordMemberSources($projectId, $provisionedUids, $manualUserIds, $teamUserIds, $resolvedTeamId);
 			foreach ($provisionedUids as $uid) {
 				if ($functionalRoles !== null) {
 					$this->replaceFunctionalRoleMemberships($project, $uid, $functionalRoles);
@@ -958,6 +971,26 @@ class ProjectService {
 		}
 
 		return ['added' => $provisionedUids, 'alreadyMembers' => $alreadyMembers, 'rejected' => $rejected, 'teamId' => $resolvedTeamId];
+	}
+
+	/**
+	 * @param string[] $userIds
+	 * @param array<string, true> $manualUserIds
+	 * @param array<string, true> $teamUserIds
+	 */
+	private function recordMemberSources(int $projectId, array $userIds, array $manualUserIds, array $teamUserIds, ?int $teamId): void {
+		if ($this->memberSourceMapper === null) {
+			return;
+		}
+
+		foreach ($userIds as $uid) {
+			if (isset($manualUserIds[$uid])) {
+				$this->memberSourceMapper->addSource($projectId, $uid);
+			}
+			if ($teamId !== null && isset($teamUserIds[$uid])) {
+				$this->memberSourceMapper->addSource($projectId, $uid, $teamId);
+			}
+		}
 	}
 
 	/**
