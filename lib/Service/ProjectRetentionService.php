@@ -17,6 +17,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMemberRoleMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectMemberSourceMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
+use OCA\ProjectCreatorAIO\Db\TimelineScenarioMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Files\IRootFolder;
 use OCP\IDBConnection;
@@ -118,6 +119,7 @@ class ProjectRetentionService {
 			$this->deleteDeckDoneSyncRows($projectId);
 			$this->deleteProjectTeamAssignment($projectId);
 			$this->deleteMemberSources($projectId);
+			$this->deleteSavedScenarios($projectId);
 			$this->privateFolderLinkMapper->deleteByProject($projectId);
 			$this->directChatMapper?->deleteByProject($projectId);
 			$this->projectMapper->deleteProject($project);
@@ -319,6 +321,21 @@ class ProjectRetentionService {
 		}
 
 		$qb->delete('project_deck_done_sync')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
+			->executeStatement();
+	}
+
+	private function deleteSavedScenarios(int $projectId): void {
+		if ($this->db === null) {
+			return;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		if ($qb === null) {
+			return;
+		}
+
+		$qb->delete(TimelineScenarioMapper::TABLE_NAME)
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)))
 			->executeStatement();
 	}

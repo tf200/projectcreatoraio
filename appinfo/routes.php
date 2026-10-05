@@ -334,6 +334,26 @@ return [
             "verb" => "POST",
         ],
         [
+            "name" => "timeline_api#savedScenarios",
+            "url" => "/api/v1/projects/{projectId}/timeline/scenarios",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "timeline_api#saveScenario",
+            "url" => "/api/v1/projects/{projectId}/timeline/scenarios",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "timeline_api#updateSavedScenario",
+            "url" => "/api/v1/projects/{projectId}/timeline/scenarios/{scenarioId}",
+            "verb" => "PUT",
+        ],
+        [
+            "name" => "timeline_api#deleteSavedScenario",
+            "url" => "/api/v1/projects/{projectId}/timeline/scenarios/{scenarioId}",
+            "verb" => "DELETE",
+        ],
+        [
             "name" => "timeline_api#updatePlanning",
             "url" => "/api/v1/projects/{projectId}/timeline/planning",
             "verb" => "PUT",

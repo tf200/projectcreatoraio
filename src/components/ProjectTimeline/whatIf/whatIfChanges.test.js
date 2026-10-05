@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { addChange, describeChange, formatDays, formatShiftBadge } from './whatIfChanges.js'
+import { addChange, changeForResize, changesForMove, daysBetween, describeChange, formatDays, formatShiftBadge, shiftDate } from './whatIfChanges.js'
 
 const labels = { 1: 'Permits', 2: 'Preparation' }
 const describe = change => describeChange(change, id => labels[id], date => date.split('-').reverse().join('/'))
@@ -66,4 +66,48 @@ test('changes are described in plain words', () => {
 	assert.equal(describe({ type: 'overlap', predecessorId: 1, successorId: 2, days: 5 }), '“Preparation” starts 5 days before “Permits” ends')
 	assert.equal(describe({ type: 'overlap', predecessorId: 1, successorId: 2, days: 0 }), '“Preparation” waits for “Permits” to finish')
 	assert.equal(describe({ type: 'planning', desiredStartDate: '2026-05-01', requiredPreparationWeeks: 2 }), 'Desired start on 01/05/2026 · Preparation takes 2 weeks')
+})
+
+test('dates shift by whole days across daylight saving changes', () => {
+	assert.equal(shiftDate('2026-03-28', 2), '2026-03-30')
+	assert.equal(shiftDate('2026-10-24', 2), '2026-10-26')
+	assert.equal(shiftDate('2026-01-01', -1), '2025-12-31')
+	assert.equal(daysBetween('2026-03-28', '2026-03-30'), 2)
+	assert.equal(daysBetween('2026-03-30', '2026-03-28'), -2)
+})
+
+const card = { id: 3, label: 'Preparation', startDate: '2026-02-01', durationDays: 10, startNotBefore: null }
+const afterPermits = [{ predecessorId: 1, predecessorEndDate: '2026-01-31', overlapDays: 0 }]
+
+test('dragging a card later sets the day it can start', () => {
+	assert.deepEqual(changesForMove(card, 5, afterPermits).changes, [{ type: 'startNotBefore', taskId: 3, date: '2026-02-06' }])
+	assert.deepEqual(changesForMove(card, 0, afterPermits), { changes: [], reason: '' })
+})
+
+test('dragging a card earlier overlaps it with the card before it', () => {
+	assert.deepEqual(changesForMove(card, -4, afterPermits).changes, [{ type: 'overlap', predecessorId: 1, successorId: 3, days: 4 }])
+	// Already overlapping 6 days: dragging 4 days earlier asks for 10
+	const overlapping = { ...card, startDate: '2026-01-26' }
+	assert.deepEqual(changesForMove(overlapping, -4, [{ ...afterPermits[0], overlapDays: 6 }]).changes, [{ type: 'overlap', predecessorId: 1, successorId: 3, days: 10 }])
+})
+
+test('dragging earlier lowers a start limit that holds the card back', () => {
+	const limited = { ...card, startDate: '2026-02-20', startNotBefore: '2026-02-20' }
+	assert.deepEqual(changesForMove(limited, -10, afterPermits).changes, [{ type: 'startNotBefore', taskId: 3, date: '2026-02-10' }])
+	assert.deepEqual(changesForMove(limited, -25, afterPermits).changes, [
+		{ type: 'startNotBefore', taskId: 3, date: '2026-01-26' },
+		{ type: 'overlap', predecessorId: 1, successorId: 3, days: 6 },
+	])
+})
+
+test('a card that waits for nothing cannot be dragged earlier', () => {
+	const result = changesForMove({ ...card, label: 'Intake' }, -3, [])
+	assert.deepEqual(result.changes, [])
+	assert.match(result.reason, /doesn’t wait for another card/)
+})
+
+test('dragging the end changes the length, never below one day', () => {
+	assert.deepEqual(changeForResize(card, 4), { type: 'duration', taskId: 3, days: 14 })
+	assert.deepEqual(changeForResize(card, -30), { type: 'duration', taskId: 3, days: 1 })
+	assert.equal(changeForResize(card, 0), null)
 })

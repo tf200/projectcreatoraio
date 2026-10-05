@@ -15,6 +15,7 @@ use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
 use OCA\ProjectCreatorAIO\Service\TimelineScenarioApplyService;
 use OCA\ProjectCreatorAIO\Service\TimelineScenarioConflictException;
+use OCA\ProjectCreatorAIO\Service\TimelineScenarioLibraryService;
 use OCA\ProjectCreatorAIO\Service\TimelineScenarioService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -42,6 +43,7 @@ class TimelineApiController extends Controller
 		private DeckCardScheduleService $deckCardScheduleService,
 		private TimelineScenarioService $scenarioService,
 		private TimelineScenarioApplyService $scenarioApplyService,
+		private TimelineScenarioLibraryService $scenarioLibrary,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
@@ -159,6 +161,76 @@ class TimelineApiController extends Controller
         } catch (\Throwable $e) {
             return $this->errorResponse($e);
         }
+    }
+
+    #[NoAdminRequired]
+    public function savedScenarios(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            return new JSONResponse($this->scenarioLibrary->list($project, $this->userSession->getUser()));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function saveScenario(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            return new JSONResponse(
+                $this->scenarioLibrary->save($project, $this->requireUser(), $this->request->getParam('name'), $this->scenarioChanges()),
+                Http::STATUS_CREATED,
+            );
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function updateSavedScenario(int $projectId, int $scenarioId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            $changes = $this->request->getParam('changes');
+            if ($changes !== null && !is_array($changes)) {
+                throw new \InvalidArgumentException('Scenario changes must be a list');
+            }
+
+            return new JSONResponse($this->scenarioLibrary->update($project, $this->requireUser(), $scenarioId, $this->request->getParam('name'), $changes));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function deleteSavedScenario(int $projectId, int $scenarioId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            $this->scenarioLibrary->delete($project, $this->requireUser(), $scenarioId);
+            return new JSONResponse(['deleted' => true]);
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    private function requireUser(): \OCP\IUser
+    {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            throw new OCSForbiddenException('Not logged in');
+        }
+        return $user;
     }
 
     /** @return array<int, mixed> */

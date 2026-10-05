@@ -395,6 +395,7 @@
 												'timeline-bar--task-done': row.task.isDone,
 												'timeline-bar--task-at-risk': !whatIf.active && (row.task.status === 'behind_at_risk' || row.task.isDelayed),
 												'timeline-bar--whatif': whatIf.active,
+												'timeline-bar--whatif-movable': whatIf.active && !row.task.isDone,
 												'timeline-bar--critical': whatIf.active && row.task.whatIf && row.task.whatIf.isCritical,
 												'timeline-bar--changed': whatIf.active && row.task.whatIf && row.task.whatIf.changedDirectly,
 											}"
@@ -403,8 +404,22 @@
 											:role="whatIf.active ? 'button' : undefined"
 											:tabindex="whatIf.active ? 0 : undefined"
 											@click="onTaskClick(row.task)"
-											@keydown.enter="onTaskClick(row.task)">
+											@keydown.enter="onTaskClick(row.task)"
+											@pointerdown="onBarPointerDown($event, row.task, 'move')"
+											@pointermove="onBarPointerMove"
+											@pointerup="onBarPointerUp"
+											@pointercancel="barDrag = null">
 											<Check v-if="row.task.isDone" :size="14" class="task-done-icon" />
+											<span
+												v-if="barDrag && barDrag.moved && String(barDrag.taskId) === String(row.task.id)"
+												class="timeline-bar__drag-hint">
+												{{ barDragHint(row.task) }}
+											</span>
+											<span
+												v-if="whatIf.active && !row.task.isDone"
+												class="timeline-bar__resize"
+												title="Drag to change the length"
+												@pointerdown.stop="onBarPointerDown($event, row.task, 'resize')" />
 											<span v-if="row.task.durationDays * dayWidth > 40" class="timeline-bar__label">
 												{{ row.task.label }}
 											</span>
@@ -575,7 +590,23 @@
 					@add-change="addWhatIfChange"
 					@add-fix="addWhatIfFix"
 					@apply="whatIf.confirmingApply = true"
-					@discard="exitWhatIf" />
+					@discard="exitWhatIf">
+					<template #saved>
+						<WhatIfSavedScenarios
+							:scenarios="savedScenarios.list"
+							:active-id="savedScenarios.activeId"
+							:has-changes="whatIf.changes.length > 0"
+							:active-modified="whatIfModified"
+							:loading="savedScenarios.loading"
+							:saving="savedScenarios.saving"
+							:format-date="formatDate"
+							@save="saveScenario"
+							@update="updateSavedScenario"
+							@load="openSavedScenario"
+							@delete="deleteSavedScenario"
+							@compare="savedScenarios.comparing = true" />
+					</template>
+				</WhatIfPanel>
 			</div>
 
 			<!-- Footer: Phase Jumper -->
@@ -611,6 +642,15 @@
 			:format-date="formatDate"
 			@add-change="addWhatIfChange"
 			@close="whatIf.editorTaskId = null" />
+
+		<WhatIfCompareDialog
+			v-if="savedScenarios.comparing"
+			:live-plan="savedScenarios.livePlan"
+			:current="whatIfModified ? whatIfHeadline : null"
+			:scenarios="savedScenarios.list"
+			:format-date="formatDate"
+			@load="openSavedScenario"
+			@close="savedScenarios.comparing = false" />
 
 		<WhatIfApplyDialog
 			v-if="whatIf.confirmingApply && whatIf.result"
@@ -734,9 +774,11 @@ import TimelineKpiBar from './header/TimelineKpiBar.vue'
 import SystemPlanningRow from './rows/SystemPlanningRow.vue'
 import TimelineHoverGuide from './overlays/TimelineHoverGuide.vue'
 import WhatIfApplyDialog from './whatIf/WhatIfApplyDialog.vue'
+import WhatIfCompareDialog from './whatIf/WhatIfCompareDialog.vue'
 import WhatIfPanel from './whatIf/WhatIfPanel.vue'
+import WhatIfSavedScenarios from './whatIf/WhatIfSavedScenarios.vue'
 import WhatIfTaskEditor from './whatIf/WhatIfTaskEditor.vue'
-import { addChange, formatDays, formatShiftBadge } from './whatIf/whatIfChanges.js'
+import { addChange, changeForResize, changesForMove, formatDays, formatShiftBadge, shiftDate } from './whatIf/whatIfChanges.js'
 import { DAY_MS, daysSinceMonday, formatShortDate, getIsoWeekInfo } from './timelineDates.js'
 
 const DRAG_THRESHOLD_PX = 4
@@ -768,7 +810,9 @@ export default {
 		SystemPlanningRow,
 		TimelineHoverGuide,
 		WhatIfApplyDialog,
+		WhatIfCompareDialog,
 		WhatIfPanel,
+		WhatIfSavedScenarios,
 		WhatIfTaskEditor,
 	},
 	props: {
@@ -828,6 +872,11 @@ export default {
 				applying: false,
 			},
 			whatIfRequest: 0,
+			// Named scenarios saved on the project, with their headline numbers next to the live plan's
+			savedScenarios: { list: [], livePlan: null, loading: false, saving: false, activeId: null, comparing: false },
+			// A card being dragged in What-If: { taskId, mode: 'move' | 'resize', pointerId, startX, deltaDays, moved }
+			barDrag: null,
+			suppressTaskClick: false,
 		}
 	},
 	computed: {
@@ -871,6 +920,28 @@ export default {
 		},
 		effectiveTasks() {
 			return this.effectivePhases.flatMap(phase => phase.tasks || [])
+		},
+		/** Whether the open changes differ from the saved scenario they were opened from */
+		whatIfModified() {
+			const saved = this.savedScenarios.list.find(scenario => scenario.id === this.savedScenarios.activeId)
+			return !saved || JSON.stringify(saved.changes) !== JSON.stringify(this.whatIf.changes)
+		},
+		/** The open scenario's headline numbers, in the shape the comparison uses for saved ones */
+		whatIfHeadline() {
+			const result = this.whatIf.result
+			if (!result || !this.whatIf.changes.length) return null
+			const planning = result.impact.planning
+			return {
+				minimumStartDate: planning.minimumStartDate,
+				minimumStartShiftDays: planning.minimumStartShiftDays,
+				desiredStartDate: planning.desiredStartDate,
+				preparationWeeks: planning.preparationWeeks,
+				floatDays: planning.floatDays,
+				desiredStartAchievable: planning.desiredStartAchievable,
+				movedTaskCount: result.impact.movedTaskCount,
+				deckCardUpdateCount: result.impact.deckCardUpdates.length,
+				changeCount: result.changes.length,
+			}
 		},
 		whatIfEditorTask() {
 			if (this.whatIf.editorTaskId === null) return null
@@ -1379,16 +1450,141 @@ export default {
 		},
 		startWhatIf() {
 			this.whatIf = { ...this.whatIf, active: true, changes: [], result: null, error: '', fixes: null, editorTaskId: null, confirmingApply: false }
+			this.savedScenarios = { ...this.savedScenarios, activeId: null, comparing: false }
 			this.runWhatIf()
+			this.loadSavedScenarios()
+		},
+		savedScenariosUrl(id = null) {
+			return generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/scenarios${id === null ? '' : `/${id}`}`)
+		},
+		async loadSavedScenarios() {
+			this.savedScenarios.loading = true
+			try {
+				const { data } = await axios.get(this.savedScenariosUrl())
+				this.savedScenarios.list = data.scenarios || []
+				this.savedScenarios.livePlan = data.livePlan || null
+			} catch (error) {
+				showError(error.response?.data?.error || 'Saved scenarios could not be loaded.')
+			} finally {
+				this.savedScenarios.loading = false
+			}
+		},
+		async saveScenario(name) {
+			this.savedScenarios.saving = true
+			try {
+				const { data } = await axios.post(this.savedScenariosUrl(), { name, changes: this.whatIf.changes })
+				this.savedScenarios.activeId = data.id
+				showSuccess(`Saved “${data.name}”`)
+				await this.loadSavedScenarios()
+			} catch (error) {
+				showError(error.response?.data?.error || 'The scenario could not be saved.')
+			} finally {
+				this.savedScenarios.saving = false
+			}
+		},
+		async updateSavedScenario(scenario) {
+			this.savedScenarios.saving = true
+			try {
+				await axios.put(this.savedScenariosUrl(scenario.id), { changes: this.whatIf.changes })
+				showSuccess(`Saved changes to “${scenario.name}”`)
+				await this.loadSavedScenarios()
+			} catch (error) {
+				showError(error.response?.data?.error || 'The scenario could not be saved.')
+			} finally {
+				this.savedScenarios.saving = false
+			}
+		},
+		openSavedScenario(scenario) {
+			this.savedScenarios.comparing = false
+			this.savedScenarios.activeId = scenario.id
+			this.setWhatIfChanges(scenario.changes.slice())
+		},
+		async deleteSavedScenario(scenario) {
+			try {
+				await axios.delete(this.savedScenariosUrl(scenario.id))
+				if (this.savedScenarios.activeId === scenario.id) {
+					this.savedScenarios.activeId = null
+				}
+				await this.loadSavedScenarios()
+			} catch (error) {
+				showError(error.response?.data?.error || 'The scenario could not be deleted.')
+			}
 		},
 		exitWhatIf() {
 			this.whatIfRequest++
 			this.whatIf = { ...this.whatIf, active: false, changes: [], result: null, loading: false, error: '', fixes: null, fixesLoading: false, editorTaskId: null, confirmingApply: false }
 		},
 		onTaskClick(task) {
+			if (this.suppressTaskClick) {
+				this.suppressTaskClick = false
+				return
+			}
 			if (this.whatIf.active) {
 				this.openWhatIfEditor(task)
 			}
+		},
+		onBarPointerDown(e, task, mode) {
+			if (!this.whatIf.active || task.isDone || (e.button !== undefined && e.button !== 0)) return
+			// The card takes the pointer, so the timeline does not scroll underneath it
+			e.stopPropagation()
+			this.barDrag = { taskId: task.id, mode, pointerId: e.pointerId, startX: e.clientX, deltaDays: 0, moved: false }
+			try {
+				e.currentTarget.setPointerCapture(e.pointerId)
+			} catch (err) {
+				// ignore
+			}
+		},
+		onBarPointerMove(e) {
+			const drag = this.barDrag
+			if (!drag || drag.pointerId !== e.pointerId) return
+			const dx = e.clientX - drag.startX
+			if (!drag.moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return
+			drag.moved = true
+			drag.deltaDays = Math.round(dx / this.dayWidth)
+		},
+		onBarPointerUp(e) {
+			const drag = this.barDrag
+			if (!drag || drag.pointerId !== e.pointerId) return
+			this.barDrag = null
+			if (!drag.moved) return
+			// A drag is not a click: keep the editor closed
+			this.suppressTaskClick = true
+			setTimeout(() => { this.suppressTaskClick = false }, 0)
+
+			const task = this.effectiveTasks.find(t => String(t.id) === String(drag.taskId))
+			if (!task || !drag.deltaDays) return
+			let changes = []
+			if (drag.mode === 'resize') {
+				const change = changeForResize(task, drag.deltaDays)
+				changes = change ? [change] : []
+			} else {
+				const result = changesForMove(task, drag.deltaDays, this.incomingDependencies(task))
+				if (result.reason) {
+					showWarning(result.reason)
+					return
+				}
+				changes = result.changes
+			}
+			if (changes.length) {
+				this.setWhatIfChanges(changes.reduce((list, change) => addChange(list, change), this.whatIf.changes))
+			}
+		},
+		incomingDependencies(task) {
+			return (this.whatIf.result?.dependencies || [])
+				.filter(dep => String(dep.successorId) === String(task.id))
+				.map(dep => {
+					const predecessor = this.effectiveTasks.find(t => String(t.id) === String(dep.predecessorId))
+					return predecessor ? { predecessorId: dep.predecessorId, predecessorEndDate: predecessor.endDate, overlapDays: dep.overlapDays || 0 } : null
+				})
+				.filter(Boolean)
+		},
+		barDragHint(task) {
+			const drag = this.barDrag
+			if (drag.mode === 'resize') {
+				const length = Math.max(1, task.durationDays + drag.deltaDays)
+				return `Ends ${this.formatDate(shiftDate(task.startDate, length - 1))} · ${formatDays(length)}`
+			}
+			return `Starts ${this.formatDate(shiftDate(task.startDate, drag.deltaDays))} (${formatShiftBadge(drag.deltaDays)})`
 		},
 		openWhatIfEditor(task) {
 			this.whatIf.editorTaskId = task.id
@@ -1568,8 +1764,16 @@ export default {
 			const { start } = this.timelineRange
 			const tStart = this.parseDateOnly(task.startDate)
 			const tEnd = this.parseDateOnly(task.endDate)
-			const offsetDays = Math.floor((tStart - start) / (1000 * 60 * 60 * 24))
-			const durationDays = Math.max(1, Math.floor((tEnd - tStart) / (1000 * 60 * 60 * 24)) + 1)
+			let offsetDays = Math.floor((tStart - start) / (1000 * 60 * 60 * 24))
+			let durationDays = Math.max(1, Math.floor((tEnd - tStart) / (1000 * 60 * 60 * 24)) + 1)
+			// Follow the pointer while the card is dragged; the scenario recalculates on release
+			if (this.barDrag && String(this.barDrag.taskId) === String(task.id)) {
+				if (this.barDrag.mode === 'move') {
+					offsetDays += this.barDrag.deltaDays
+				} else {
+					durationDays = Math.max(1, durationDays + this.barDrag.deltaDays)
+				}
+			}
 			const leftPx = offsetDays * this.dayWidth
 			const widthPx = durationDays * this.dayWidth
 			const color = phase?.color || '#3b82f6'
@@ -2701,6 +2905,34 @@ export default {
 .timeline-bar--whatif:focus-visible {
 	outline: 2px solid var(--color-primary-element);
 	outline-offset: 2px;
+}
+
+.timeline-bar--whatif-movable {
+	cursor: grab;
+	touch-action: none;
+}
+
+.timeline-bar__resize {
+	position: absolute;
+	top: 0;
+	right: -3px;
+	bottom: 0;
+	width: 10px;
+	cursor: ew-resize;
+}
+
+.timeline-bar__drag-hint {
+	position: absolute;
+	bottom: calc(100% + 6px);
+	left: 0;
+	padding: 2px 8px;
+	border-radius: 6px;
+	background: var(--color-main-text);
+	color: var(--color-main-background);
+	font-size: 11px;
+	font-weight: 700;
+	white-space: nowrap;
+	pointer-events: none;
 }
 
 .timeline-bar--critical {

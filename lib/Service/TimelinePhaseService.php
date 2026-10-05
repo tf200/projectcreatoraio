@@ -272,6 +272,7 @@ class TimelinePhaseService
 						'isDelayed' => $delayDays > 0,
 						'status' => $status,
 						'isDone' => false,
+						'startNotBefore' => $override['startNotBefore'] ?? null,
 						'predecessorIds' => $prevTaskId ? [$prevTaskId] : [],
 						'successorIds' => [],
 					];
@@ -331,6 +332,7 @@ class TimelinePhaseService
 						'isDelayed' => $delayDays > 0,
 						'status' => $status,
 						'isDone' => $isDone,
+						'startNotBefore' => $isDone ? null : ($override['startNotBefore'] ?? null),
 						'predecessorIds' => $predecessors,
 						'successorIds' => [],
 					];

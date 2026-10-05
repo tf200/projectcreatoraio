@@ -40,6 +40,51 @@ class TimelineScenarioService
 	}
 
 	/**
+	 * The headline numbers of several scenarios, side by side with the live plan. A scenario
+	 * that no longer fits the plan (a card was completed or removed) reports why instead.
+	 *
+	 * @param array<int|string, array<int, mixed>> $changeLists Keyed by whatever the caller uses to tell them apart
+	 * @return array{livePlan: array<string, mixed>, scenarios: array<int|string, array{impact: array<string, mixed>|null, error: string|null}>}
+	 */
+	public function compare(Project $project, array $changeLists): array
+	{
+		$baseline = $this->loadBaseline($project);
+		$scenarios = [];
+		foreach ($changeLists as $key => $changes) {
+			try {
+				$scenarios[$key] = ['impact' => $this->headline($this->run($project, $changes, $baseline)), 'error' => null];
+			} catch (\InvalidArgumentException $e) {
+				$scenarios[$key] = ['impact' => null, 'error' => $e->getMessage()];
+			}
+		}
+		return [
+			'livePlan' => $this->headline($this->run($project, [], $baseline)),
+			'scenarios' => $scenarios,
+		];
+	}
+
+	/**
+	 * @param array<string, mixed> $result From run()
+	 * @return array<string, mixed>
+	 */
+	private function headline(array $result): array
+	{
+		$planning = $result['impact']['planning'];
+		return [
+			'minimumStartDate' => $planning['minimumStartDate'],
+			'minimumStartShiftDays' => $planning['minimumStartShiftDays'],
+			'desiredStartDate' => $planning['desiredStartDate'],
+			'preparationWeeks' => $planning['preparationWeeks'],
+			'floatDays' => $planning['floatDays'],
+			'desiredStartAchievable' => $planning['desiredStartAchievable'],
+			'movedTaskCount' => $result['impact']['movedTaskCount'],
+			'deckCardUpdateCount' => count($result['impact']['deckCardUpdates']),
+			'changeCount' => count($result['changes']),
+			'milestones' => $result['impact']['milestones'],
+		];
+	}
+
+	/**
 	 * Fixes for the slip a scenario causes in the earliest construction start, each one
 	 * checked by running it through the engine: shortening critical cards, overlapping
 	 * critical dependencies, cutting preparation, and a combination when no single fix is enough.

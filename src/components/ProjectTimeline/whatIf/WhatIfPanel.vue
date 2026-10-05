@@ -105,6 +105,8 @@
 				</details>
 			</section>
 
+			<slot name="saved" />
+
 			<!-- Fixes -->
 			<section v-if="slipDays > 0" class="whatif-section">
 				<h5>Ways to win back {{ formatDays(slipDays) }}</h5>

@@ -196,6 +196,23 @@ final class TimelineScenarioServiceTest extends TestCase
 		$this->assertSame([], $result['suggestions']);
 	}
 
+	public function testCompareSummarisesScenariosAndReportsOnesThatNoLongerFit(): void
+	{
+		$result = $this->service()->compare($this->project(), [
+			'late' => [['type' => 'delay', 'taskId' => 1, 'days' => 14]],
+			'stale' => [['type' => 'delay', 'taskId' => 5, 'days' => 3]],
+		]);
+
+		$this->assertSame('2026-03-06', $result['livePlan']['minimumStartDate']);
+		$this->assertSame(0, $result['livePlan']['changeCount']);
+		$this->assertSame('2026-03-20', $result['scenarios']['late']['impact']['minimumStartDate']);
+		$this->assertSame(14, $result['scenarios']['late']['impact']['minimumStartShiftDays']);
+		$this->assertSame(3, $result['scenarios']['late']['impact']['deckCardUpdateCount']);
+		$this->assertFalse($result['scenarios']['late']['impact']['desiredStartAchievable']);
+		$this->assertNull($result['scenarios']['stale']['impact']);
+		$this->assertStringContainsString('already completed', $result['scenarios']['stale']['error']);
+	}
+
 	/** @dataProvider invalidChanges */
 	public function testInvalidChangesAreRejected(array $changes, string $message): void
 	{
