@@ -256,6 +256,72 @@ final class TimelinePhaseServiceTest extends TestCase
 	}
 
 	/** @return array{id: int, title: string, startdate: ?DateTime, duedate: ?DateTime, done: ?DateTime} */
+	public function testOverlapLetsSuccessorStartBeforePredecessorEndsButNotBeforeItStarts(): void
+	{
+		$service = $this->scheduleService();
+		$cards = [
+			1 => $this->card(1, 'Permits', '2026-01-01', '2026-01-31'),
+			2 => $this->card(2, 'Preparation', '2026-02-01', '2026-02-10'),
+		];
+
+		$schedules = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [], ['1>2' => 7]);
+		$this->assertSame('2026-01-25', $schedules[2]['start']->format('Y-m-d'));
+		$this->assertSame('2026-02-03', $schedules[2]['end']->format('Y-m-d'));
+		$this->assertSame([1 => 7], $schedules[2]['overlaps']);
+
+		$schedules = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [], ['1>2' => 90]);
+		$this->assertSame('2026-01-01', $schedules[2]['start']->format('Y-m-d'));
+	}
+
+	public function testOverlapOnlyAppliesToItsOwnDependency(): void
+	{
+		$service = $this->scheduleService();
+		$cards = [
+			1 => $this->card(1, 'Short', '2026-01-01', '2026-01-10'),
+			2 => $this->card(2, 'Long', '2026-01-01', '2026-01-31'),
+			3 => $this->card(3, 'Successor', '2026-02-01', '2026-02-10'),
+		];
+
+		$schedules = $service->calculateDeckCardSchedules($cards, [3 => [1, 2]], new DateTime('2026-01-01'), [], [], ['1>3' => 5]);
+		$this->assertSame('2026-02-01', $schedules[3]['start']->format('Y-m-d'));
+	}
+
+	public function testAdjustDaysEndDateAndStartNotBeforeReshapeACardAndMoveItsSuccessors(): void
+	{
+		$service = $this->scheduleService();
+		$cards = [
+			1 => $this->card(1, 'Root', '2026-01-01', '2026-01-10'),
+			2 => $this->card(2, 'Successor', '2026-01-11', '2026-01-20'),
+		];
+
+		$delayed = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [1 => ['adjustDays' => 14]]);
+		$this->assertSame('2026-01-24', $delayed[1]['end']->format('Y-m-d'));
+		$this->assertSame('2026-01-25', $delayed[2]['start']->format('Y-m-d'));
+
+		$shortened = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [1 => ['adjustDays' => -50]]);
+		$this->assertSame('2026-01-01', $shortened[1]['end']->format('Y-m-d'));
+
+		$endDate = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [1 => ['endDate' => '2026-01-05', 'adjustDays' => 2]]);
+		$this->assertSame('2026-01-07', $endDate[1]['end']->format('Y-m-d'));
+		$this->assertSame('2026-01-08', $endDate[2]['start']->format('Y-m-d'));
+
+		$pinned = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [2 => ['startNotBefore' => '2026-02-01']]);
+		$this->assertSame('2026-02-01', $pinned[2]['start']->format('Y-m-d'));
+		$this->assertSame('2026-02-10', $pinned[2]['end']->format('Y-m-d'));
+
+		$notBinding = $service->calculateDeckCardSchedules($cards, [2 => [1]], new DateTime('2026-01-01'), [], [2 => ['startNotBefore' => '2026-01-05']]);
+		$this->assertSame('2026-01-11', $notBinding[2]['start']->format('Y-m-d'));
+	}
+
+	private function scheduleService(): TimelinePhaseService
+	{
+		return new TimelinePhaseService(
+			$this->createMock(IDBConnection::class),
+			$this->createMock(TimelinePhaseMapper::class),
+			$this->createMock(TimelineItemMapper::class),
+		);
+	}
+
 	private function card(int $id, string $title, ?string $start = null, ?string $end = null, ?string $done = null): array
 	{
 		return [

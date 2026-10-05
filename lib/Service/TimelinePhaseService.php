@@ -127,6 +127,7 @@ class TimelinePhaseService
 		$requestDate = $this->calculateRequestDate($project);
 		$today = (new DateTime('today'))->setTime(0, 0, 0);
 		$taskOverrides = $overrides['taskOverrides'] ?? [];
+		$dependencyOverlaps = $overrides['dependencyOverlaps'] ?? [];
 
 		$cardIdByTitle = [];
 		foreach ($deckCards as $c) {
@@ -152,7 +153,7 @@ class TimelinePhaseService
 				break;
 			}
 		}
-		$deckSchedules = $this->calculateDeckCardSchedules($deckCards, $deckDeps, $requestDate, $persistedOverrides, $taskOverrides);
+		$deckSchedules = $this->calculateDeckCardSchedules($deckCards, $deckDeps, $requestDate, $persistedOverrides, $taskOverrides, $dependencyOverlaps);
 		$resultPhases = [];
 		$allDependencies = [];
 		$previousPhaseLastEnd = clone $requestDate;
@@ -197,14 +198,29 @@ class TimelinePhaseService
 					if ($override && isset($override['delayDays'])) {
 						$duration += (int) $override['delayDays'];
 					}
+					if (isset($override['adjustDays'])) {
+						$duration = max(1, $duration + (int) $override['adjustDays']);
+					}
 
 					$taskStart = clone $cursorStart;
 					if (!empty($override['startDate'])) {
 						$taskStart = new DateTime((string) $override['startDate']);
 					}
-					if ($override && isset($override['overlapDays']) && $prevTaskId !== null) {
-						$overlap = max(0, (int) $override['overlapDays']);
+					$overlap = $prevTaskId !== null
+						? (int) ($dependencyOverlaps[self::dependencyKey($prevTaskId, $taskId)] ?? $override['overlapDays'] ?? 0)
+						: 0;
+					if ($overlap > 0) {
 						$taskStart->modify('-' . $overlap . ' days');
+					}
+					if (!empty($override['startNotBefore'])) {
+						$notBefore = (new DateTime((string) $override['startNotBefore']))->setTime(0, 0);
+						if ($notBefore > $taskStart) {
+							$taskStart = $notBefore;
+						}
+					}
+					if (!empty($override['endDate'])) {
+						$requestedEnd = (new DateTime((string) $override['endDate']))->setTime(0, 0);
+						$duration = $requestedEnd < $taskStart ? 1 : (int) $taskStart->diff($requestedEnd)->days + 1;
 					}
 					$taskEnd = clone $taskStart;
 					$taskEnd->modify('+' . ($duration - 1) . ' days');
@@ -245,6 +261,7 @@ class TimelinePhaseService
 							'predecessorId' => $prevTaskId,
 							'successorId' => $taskId,
 							'type' => 'FS',
+							'overlapDays' => max(0, $overlap),
 						];
 					}
 
@@ -304,6 +321,7 @@ class TimelinePhaseService
 								'predecessorId' => $predId,
 								'successorId' => $cardId,
 								'type' => 'FS',
+								'overlapDays' => $schedule['overlaps'][$predId] ?? 0,
 							];
 						}
 					}
@@ -367,7 +385,8 @@ class TimelinePhaseService
 	 * @param array<int, int[]> $dependencies
 	 * @param array<string, array<string, mixed>> $persistedOverrides
 	 * @param array<int|string, array<string, mixed>> $taskOverrides
-	 * @return array<int, array{start: DateTime, end: DateTime, plannedEnd: DateTime, durationDays: int, delayDays: int, isDone: bool, predecessors: int[]}>
+	 * @param array<string, int> $dependencyOverlaps Days a successor may start before its predecessor ends, keyed by dependencyKey()
+	 * @return array<int, array{start: DateTime, end: DateTime, plannedEnd: DateTime, durationDays: int, delayDays: int, isDone: bool, predecessors: int[], overlaps: array<int, int>}>
 	 */
 	public function calculateDeckCardSchedules(
 		array $cards,
@@ -375,11 +394,12 @@ class TimelinePhaseService
 		DateTime $requestDate,
 		array $persistedOverrides,
 		array $taskOverrides,
+		array $dependencyOverlaps = [],
 	): array {
 		$schedules = [];
 		$visiting = [];
 
-		$schedule = function (int $cardId) use (&$schedule, &$schedules, &$visiting, $cards, $dependencies, $requestDate, $persistedOverrides, $taskOverrides): array {
+		$schedule = function (int $cardId) use (&$schedule, &$schedules, &$visiting, $cards, $dependencies, $requestDate, $persistedOverrides, $taskOverrides, $dependencyOverlaps): array {
 			if (isset($schedules[$cardId])) {
 				return $schedules[$cardId];
 			}
@@ -394,9 +414,20 @@ class TimelinePhaseService
 				static fn (int $predecessorId): bool => isset($cards[$predecessorId]),
 			));
 			$earliestStart = clone $requestDate;
+			$overlaps = [];
 			foreach ($predecessors as $predecessorId) {
-				$predecessorEnd = clone $schedule($predecessorId)['end'];
+				$predecessorSchedule = $schedule($predecessorId);
+				$predecessorEnd = clone $predecessorSchedule['end'];
 				$predecessorEnd->modify('+1 day');
+				$overlap = max(0, (int)($dependencyOverlaps[self::dependencyKey($predecessorId, $cardId)] ?? 0));
+				if ($overlap > 0) {
+					// An overlap never lets the successor start before its predecessor does.
+					$predecessorEnd->modify('-' . $overlap . ' days');
+					if ($predecessorEnd < $predecessorSchedule['start']) {
+						$predecessorEnd = clone $predecessorSchedule['start'];
+					}
+					$overlaps[$predecessorId] = $overlap;
+				}
 				if ($predecessorEnd > $earliestStart) {
 					$earliestStart = $predecessorEnd;
 				}
@@ -424,6 +455,12 @@ class TimelinePhaseService
 				$cardStart = clone $requestedStart;
 				$cardStart->setTime(0, 0);
 			}
+			if (!$isDone && !empty($override['startNotBefore'])) {
+				$notBefore = (new DateTime((string)$override['startNotBefore']))->setTime(0, 0);
+				if ($notBefore > $cardStart) {
+					$cardStart = $notBefore;
+				}
+			}
 
 			if ($isDone) {
 				$cardEnd = clone $card['done'];
@@ -435,7 +472,10 @@ class TimelinePhaseService
 				$plannedEnd = clone $cardEnd;
 				$delayDays = 0;
 			} else {
-				if (isset($override['durationDays'])) {
+				if (!empty($override['endDate'])) {
+					$requestedEnd = (new DateTime((string)$override['endDate']))->setTime(0, 0);
+					$durationDays = $requestedEnd < $cardStart ? 1 : (int)$cardStart->diff($requestedEnd)->days + 1;
+				} elseif (isset($override['durationDays'])) {
 					$durationDays = max(1, (int)$override['durationDays']);
 				} elseif (
 					$card['startdate'] instanceof DateTime
@@ -446,6 +486,9 @@ class TimelinePhaseService
 				} else {
 					$defaultEnd = (clone $cardStart)->add(new DateInterval(self::DECK_CARD_DURATION));
 					$durationDays = (int)$cardStart->diff($defaultEnd)->days + 1;
+				}
+				if (isset($override['adjustDays'])) {
+					$durationDays = max(1, $durationDays + (int)$override['adjustDays']);
 				}
 				$cardEnd = (clone $cardStart)->modify('+' . ($durationDays - 1) . ' days');
 				$plannedEnd = clone $cardEnd;
@@ -471,6 +514,7 @@ class TimelinePhaseService
 				'delayDays' => $delayDays,
 				'isDone' => $isDone,
 				'predecessors' => $predecessors,
+				'overlaps' => $overlaps,
 			];
 		};
 
@@ -479,6 +523,11 @@ class TimelinePhaseService
 		}
 
 		return $schedules;
+	}
+
+	public static function dependencyKey(int|string $predecessorId, int|string $successorId): string
+	{
+		return $predecessorId . '>' . $successorId;
 	}
 
 	/**

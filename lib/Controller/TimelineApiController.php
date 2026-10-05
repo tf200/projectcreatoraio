@@ -13,6 +13,7 @@ use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
+use OCA\ProjectCreatorAIO\Service\TimelineScenarioService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -37,6 +38,7 @@ class TimelineApiController extends Controller
 		private TimelinePhaseService $phaseService,
 		private TimelineImpactService $impactService,
 		private DeckCardScheduleService $deckCardScheduleService,
+		private TimelineScenarioService $scenarioService,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
@@ -133,6 +135,24 @@ class TimelineApiController extends Controller
 
             $params = $this->request->getParams();
             return new JSONResponse($this->impactService->simulateScenario($project, $params));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function scenario(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            $changes = $this->request->getParam('changes', []);
+            if (!is_array($changes)) {
+                throw new \InvalidArgumentException('Scenario changes must be a list');
+            }
+
+            return new JSONResponse($this->scenarioService->simulate($project, $changes));
         } catch (\Throwable $e) {
             return $this->errorResponse($e);
         }
