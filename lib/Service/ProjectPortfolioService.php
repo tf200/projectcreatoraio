@@ -156,12 +156,13 @@ class ProjectPortfolioService {
 
 		$projects = $this->loadCapacityProjects($organizationId, $teamId);
 		$cards = $this->loadCardsForProjects($projects);
-		$eligible = $this->deriveEligibleCapacityProjects($projects, $requestedMonday, $cards);
+		$eligible = $this->deriveEligibleCapacityProjects($projects);
 		[$planningGaps, $scheduleIssues] = $this->findPlanningGaps($projects, $cards, [$teamId => (string)$team['name']], $requestedMonday);
 
 		$unassigned = $this->loadUnassignedProjects($organizationId);
 		$result = $this->summarizeCapacity($team, $requestedMonday->format('Y-m-d'), $eligible, $planningGaps, $unassigned);
-		$result['scheduleIssues'] = $scheduleIssues;
+		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($eligible));
+		$result['toSchedule'] = $this->findProjectsToSchedule($projects);
 		return $result;
 	}
 
@@ -178,7 +179,7 @@ class ProjectPortfolioService {
 		$projects = $this->applyMemberFilter($this->loadAllCapacityProjects($organizationId), $memberUid);
 		$gapProjects = array_merge($projects, $this->applyMemberFilter($this->loadUnassignedCapacityProjects($organizationId), $memberUid));
 		$cards = $this->loadCardsForProjects($gapProjects);
-		$eligible = $this->deriveEligibleCapacityProjects($projects, $requestedMonday, $cards);
+		$eligible = $this->deriveEligibleCapacityProjects($projects);
 		if ($memberUid !== null) {
 			$teamRows = $this->loadInvolvedTeams($organizationId, $projects);
 			$allRow = $this->buildAllTeamsRow($teamRows, $organizationId, 'My teams');
@@ -194,9 +195,10 @@ class ProjectPortfolioService {
 
 		$unassigned = $this->applyMemberFilter($this->loadUnassignedProjects($organizationId), $memberUid);
 		$result = $this->summarizeCapacity($allRow, $weekStartDate, $eligible, $planningGaps, $unassigned);
-		$result['scheduleIssues'] = $scheduleIssues;
+		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($eligible));
+		$result['toSchedule'] = $this->findProjectsToSchedule($projects);
 		$result['teams'] = $this->summarizeTeams($teamRows);
-		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $requestedMonday, $weekStartDate));
+		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $weekStartDate));
 		return $result;
 	}
 
@@ -662,29 +664,84 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Shared eligibility pipeline: derives dates from Deck cards, keeps
-	 * capacity-status projects plus in-period historical completions, and
-	 * selects projects that contribute to the capacity strip.
+	 * A team is busy with a project while it works on site: from the actual
+	 * start until handover. Projects without an actual start are not planned
+	 * yet and are listed by findProjectsToSchedule() instead.
 	 *
-	 * @param array<int,array<string,mixed>> $projects Raw project rows with boardId keys
-	 * @param array<int,array<int,array<string,mixed>>>|null $cards Preloaded cards by board, loaded when null
+	 * @param array<int,array<string,mixed>> $projects Raw project rows with execution date keys
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function deriveEligibleCapacityProjects(array $projects, DateTimeImmutable $periodStart, ?array $cards = null): array {
-		$periodEnd = $periodStart->modify('+41 days');
-		$cards ??= $this->loadCardsForProjects($projects);
+	private function deriveEligibleCapacityProjects(array $projects): array {
 		$eligible = [];
 		foreach ($projects as $project) {
-			$dates = $this->deriveCapacityDates($project, $cards[(int)$project['boardId']] ?? []);
-			$project = array_merge($project, $dates);
-			$actual = $project['actualEnd'];
-			$isHistoricalCompletion = $actual !== null && $actual >= $periodStart->format('Y-m-d') && $actual <= $periodEnd->format('Y-m-d');
-			if (!in_array((int)$project['status'], self::CAPACITY_STATUSES, true) && !$isHistoricalCompletion) {
+			$window = $this->deriveExecutionWindow($project);
+			if ($window === null) {
 				continue;
 			}
-			$eligible[] = $project;
+			// An archived project that never got an end would stay busy forever.
+			if ((int)$project['status'] === ProjectStatus::ARCHIVED && $window['end'] === null) {
+				continue;
+			}
+			$eligible[] = array_merge($project, $window);
 		}
 		return $eligible;
+	}
+
+	/**
+	 * Execution window: actual start until the recorded handover, or until
+	 * actual start + execution weeks. Without either end it stays open.
+	 *
+	 * @param array<string,mixed> $project
+	 * @return array{start:string,end:?string,actualEnd:?string}|null
+	 */
+	private function deriveExecutionWindow(array $project): ?array {
+		$start = $this->calendarDay($project['actualStartDate'] ?? null);
+		if ($start === null) {
+			return null;
+		}
+		$actualEnd = $this->calendarDay($project['actualHandoverDate'] ?? null);
+		$weeks = $project['executionWeeks'] ?? null;
+		$end = TimelinePlanningService::plannedHandoverDate($start, $weeks === null ? null : (int)$weeks, $actualEnd);
+		return ['start' => $start, 'end' => $end, 'actualEnd' => $actualEnd];
+	}
+
+	/**
+	 * Live projects that the team still has to plan in: no actual start yet.
+	 *
+	 * @param array<int,array<string,mixed>> $projects
+	 * @return array<int,array{id:int,name:string,desiredStartDate:?string}>
+	 */
+	private function findProjectsToSchedule(array $projects): array {
+		$out = [];
+		foreach ($projects as $project) {
+			if (!in_array((int)$project['status'], self::CAPACITY_STATUSES, true) || $this->calendarDay($project['actualStartDate'] ?? null) !== null) {
+				continue;
+			}
+			$out[(int)$project['id']] = [
+				'id' => (int)$project['id'],
+				'name' => (string)$project['name'],
+				'desiredStartDate' => $this->calendarDay($project['desiredStartDate'] ?? null),
+			];
+		}
+		$out = array_values($out);
+		usort($out, static fn (array $a, array $b): int => [$a['desiredStartDate'] ?? '9999-12-31', $a['name']] <=> [$b['desiredStartDate'] ?? '9999-12-31', $b['name']]);
+		return $out;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $eligible Projects with execution windows
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function findExecutionIssues(array $eligible): array {
+		$issues = [];
+		foreach ($eligible as $project) {
+			if ($project['end'] === null) {
+				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Started but no handover planned: set weeks on site'];
+			} elseif ($project['end'] < $project['start']) {
+				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Handover before actual start'];
+			}
+		}
+		return $issues;
 	}
 
 	/**
@@ -694,7 +751,7 @@ class ProjectPortfolioService {
 	 * @param array<int,array<string,mixed>> $teamRows
 	 * @return array<int,array{id:int,name:string,weeks:array<int,array<string,mixed>>}>
 	 */
-	private function summarizeTeamsInPeriod(int $organizationId, array $teamRows, DateTimeImmutable $periodStart, string $weekStart): array {
+	private function summarizeTeamsInPeriod(int $organizationId, array $teamRows, string $weekStart): array {
 		$summaries = [];
 		foreach ($teamRows as $row) {
 			$team = [
@@ -705,7 +762,7 @@ class ProjectPortfolioService {
 				'projectsPerFte' => (float)$row['projects_per_fte'],
 			];
 			$projects = $this->loadCapacityProjects($organizationId, $team['id']);
-			$eligible = $this->deriveEligibleCapacityProjects($projects, $periodStart);
+			$eligible = $this->deriveEligibleCapacityProjects($projects);
 			$summary = $this->summarizeCapacity($team, $weekStart, $eligible);
 			$summaries[] = ['id' => $team['id'], 'name' => $team['name'], 'weeks' => $summary['weeks']];
 		}
@@ -713,9 +770,9 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Each project's 'end' is its actual completion date when all cards are
-	 * done (done flag or done stack), otherwise the planned end, so Ending
-	 * lands in the actual done week even when it differs from the plan.
+	 * Each project's 'end' is its recorded handover when there is one,
+	 * otherwise its planned handover, so Ending lands in the week the team
+	 * really finished even when it differs from the plan.
 	 *
 	 * @param array<string,mixed> $team
 	 * @param array<int,array<string,mixed>> $projects
@@ -845,7 +902,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadCapacityProjects(int $organizationId, int $teamId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -858,7 +915,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadAllCapacityProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -896,6 +953,9 @@ class ProjectPortfolioService {
 			'boardId' => (string)($row['board_id'] ?? ''),
 			'createdAt' => (string)($row['created_at'] ?? ''),
 			'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
+			'actualStartDate' => ($row['actual_start_date'] ?? null) === null ? null : (string)$row['actual_start_date'],
+			'actualHandoverDate' => ($row['actual_handover_date'] ?? null) === null ? null : (string)$row['actual_handover_date'],
+			'executionWeeks' => ($row['execution_weeks'] ?? null) === null ? null : (int)$row['execution_weeks'],
 			'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
 			'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
 			'teamIds' => isset($row['team_id']) && (int)$row['team_id'] > 0 ? [(int)$row['team_id']] : [],
@@ -1019,7 +1079,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadUnassignedCapacityProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.owner_id', 'p.project_group_gid')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid')
 			->from('custom_projects', 'p')
 			->leftJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -1154,6 +1214,18 @@ class ProjectPortfolioService {
 		return ($zone === null ? $date : $date->setTimezone($zone))->format('Y-m-d');
 	}
 
+	/**
+	 * Planning dates are stored as plain days; some databases append a
+	 * midnight time, which must not be shifted into another time zone.
+	 */
+	private function calendarDay(mixed $value): ?string {
+		if (!is_string($value)) {
+			return null;
+		}
+		$day = substr(trim($value), 0, 10);
+		return self::isIsoDate($day) ? $day : null;
+	}
+
 	/** @param array<int,array<string,mixed>> $projects */
 	private function loadCardsForProjects(array $projects): array {
 		$boardIds = [];
@@ -1167,8 +1239,10 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Finds inclusive calendar-day gaps from Deck schedules. The complete gap is
-	 * returned when it intersects the selected six-week window.
+	 * Finds inclusive calendar-day gaps. Internal gaps sit between a project's
+	 * initiation cards; between-project gaps are days a team has no execution
+	 * work. The complete gap is returned when it intersects the selected
+	 * six-week window.
 	 *
 	 * @param array<int,array<string,mixed>> $projects Projects with teamIds
 	 * @param array<int,array<int,array<string,mixed>>> $cardsByBoard
@@ -1234,17 +1308,25 @@ class ProjectPortfolioService {
 				$gap['projectIds'] = [$projectId];
 				$gap['before'] = $merged[$i - 1]['card'];
 				$gap['after'] = $merged[$i]['card'];
-				$gap['note'] = 'Inside project · ' . $gap['startDate'] . ' – ' . $gap['endDate'];
+				$gap['note'] = 'Between initiation cards · ' . $gap['startDate'] . ' – ' . $gap['endDate'];
 				$gaps[] = $gap;
 			}
+		}
 
+		// Between projects means the team has no work on site: only the
+		// execution windows (actual start until handover) fill its time.
+		foreach ($this->deriveEligibleCapacityProjects($projects) as $project) {
+			if ($project['end'] !== null && $project['end'] < $project['start']) {
+				continue;
+			}
 			foreach (($project['teamIds'] ?? []) as $teamId) {
 				$teamId = (int)$teamId;
 				if ($teamId > 0 && isset($teamNames[$teamId])) {
 					$teamProjects[$teamId][] = [
-						'start' => $merged[0]['start'],
-						'end' => $merged[count($merged) - 1]['end'],
-						'project' => ['id' => $projectId, 'name' => (string)$project['name']],
+						'start' => $project['start'],
+						// Without a planned handover the team stays busy from here on.
+						'end' => $project['end'] ?? '9999-12-31',
+						'project' => ['id' => (int)$project['id'], 'name' => (string)$project['name']],
 					];
 				}
 			}

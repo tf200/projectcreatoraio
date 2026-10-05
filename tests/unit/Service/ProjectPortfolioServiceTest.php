@@ -632,6 +632,84 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertFalse($open['projects'][0]['isLeadingDesiredWeek']);
 	}
 
+	public function testCapacityCountsProjectsFromActualStartUntilHandover(): void {
+		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
+			$this->executionProject(1, 1, '2026-09-21', 2, null),
+			$this->executionProject(2, 1, null, 6, null),
+			$this->executionProject(3, 4, '2026-09-14', 1, '2026-09-30'),
+		]]);
+
+		self::assertSame([1, 3], array_column($eligible, 'id'));
+		self::assertSame(['2026-09-21', '2026-10-05', null], [$eligible[0]['start'], $eligible[0]['end'], $eligible[0]['actualEnd']]);
+		// A recorded handover wins over start + weeks.
+		self::assertSame(['2026-09-14', '2026-09-30', '2026-09-30'], [$eligible[1]['start'], $eligible[1]['end'], $eligible[1]['actualEnd']]);
+
+		$result = $this->service->summarizeCapacity($this->team(1, 1), '2026-09-14', $eligible);
+		self::assertSame([1, 2, 2, 1, 0, 0], array_column($result['weeks'], 'totalActive'));
+		self::assertSame([1, 1, 1, 1, 0, 0], array_map(static fn (array $w): int => $w['starting'] + $w['ending'], $result['weeks']));
+		self::assertTrue($result['weeks'][1]['overCapacity']);
+	}
+
+	public function testCapacitySkipsArchivedProjectsThatNeverGotAnEnd(): void {
+		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
+			$this->executionProject(1, 0, '2026-09-21', null, null),
+			$this->executionProject(2, 0, '2026-09-21', 2, null),
+			$this->executionProject(3, 1, '2026-09-21', null, null),
+		]]);
+
+		self::assertSame([2, 3], array_column($eligible, 'id'));
+		self::assertNull($eligible[1]['end']);
+	}
+
+	public function testUnstartedLiveProjectsAreListedToScheduleByDesiredStart(): void {
+		$later = $this->executionProject(1, 1, null, 4, null);
+		$later['desiredStartDate'] = '2027-03-01';
+		$sooner = $this->executionProject(2, 2, null, 4, null);
+		$sooner['desiredStartDate'] = '2027-01-04';
+		$undated = $this->executionProject(3, 3, null, null, null);
+
+		$toSchedule = $this->invokePrivate('findProjectsToSchedule', [[
+			$later,
+			$undated,
+			$sooner,
+			$this->executionProject(4, 1, '2026-09-21', 2, null),
+			$this->executionProject(5, 4, null, 2, null),
+		]]);
+
+		self::assertSame([2, 1, 3], array_column($toSchedule, 'id'));
+		self::assertSame('2027-01-04', $toSchedule[0]['desiredStartDate']);
+	}
+
+	public function testStartedProjectsWithoutHandoverPlanAreScheduleIssues(): void {
+		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
+			$this->executionProject(1, 1, '2026-09-21', null, null),
+			$this->executionProject(2, 1, '2026-09-21', 2, null),
+			$this->executionProject(3, 1, '2026-09-21', null, '2026-09-01'),
+		]]);
+
+		$issues = $this->invokePrivate('findExecutionIssues', [$eligible]);
+
+		self::assertSame([1, 3], array_column($issues, 'projectId'));
+		self::assertSame('Handover before actual start', $issues[1]['note']);
+	}
+
+	private function invokePrivate(string $name, array $args): mixed {
+		$method = new \ReflectionMethod(ProjectPortfolioService::class, $name);
+		return $method->invokeArgs($this->service, $args);
+	}
+
+	private function executionProject(int $id, int $status, ?string $actualStart, ?int $weeks, ?string $handover): array {
+		return [
+			'id' => $id,
+			'name' => 'Project ' . $id,
+			'status' => $status,
+			'desiredStartDate' => null,
+			'actualStartDate' => $actualStart,
+			'actualHandoverDate' => $handover,
+			'executionWeeks' => $weeks,
+		];
+	}
+
 	private function deriveDates(array $project, array $cards): array {
 		$method = new \ReflectionMethod(ProjectPortfolioService::class, 'deriveCapacityDates');
 		return $method->invoke($this->service, $project, $cards);

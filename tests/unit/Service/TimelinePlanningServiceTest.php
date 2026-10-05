@@ -34,6 +34,36 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertNull($project->jsonSerialize()['actual_handover_date']);
 	}
 
+	public function testPlannedHandoverIsActualStartPlusExecutionWeeksUntilHandoverIsRecorded(): void {
+		$service = new TimelinePlanningService($this->createMock(IDBConnection::class), $this->createMock(LoggerInterface::class));
+		$project = new Project();
+		$project->setType(-1);
+		$project->setCreatedAt(new DateTime('2026-09-07'));
+		$project->setExecutionWeeks(6);
+
+		$noStart = $service->buildSummary($project);
+		$this->assertSame(6, $noStart['kpis']['executionWeeks']);
+		$this->assertNull($noStart['kpis']['plannedHandoverDate']);
+
+		$project->setActualStartDate(new DateTime('2027-09-06'));
+		$planned = $service->buildSummary($project);
+		$this->assertSame('2027-10-18', $planned['plannedHandoverDate']);
+		$this->assertSame('2027-10-18', $planned['kpis']['plannedHandoverDate']);
+		$this->assertSame(['label' => 'Execution', 'startDate' => '2027-09-06', 'endDate' => '2027-10-18', 'weeks' => 6], $planned['systemPlanning']['execution']);
+		$this->assertSame(6, $project->jsonSerialize()['execution_weeks']);
+
+		$project->setActualHandoverDate(new DateTime('2027-11-01'));
+		$this->assertSame('2027-11-01', $service->buildSummary($project)['plannedHandoverDate']);
+	}
+
+	public function testPlannedHandoverDateNeedsStartAndWeeksOrARecordedHandover(): void {
+		$this->assertNull(TimelinePlanningService::plannedHandoverDate(null, 4, null));
+		$this->assertNull(TimelinePlanningService::plannedHandoverDate('2027-09-06', null, null));
+		$this->assertSame('2027-09-06', TimelinePlanningService::plannedHandoverDate('2027-09-06', 0, null));
+		$this->assertSame('2027-10-04', TimelinePlanningService::plannedHandoverDate('2027-09-06 00:00:00', 4, null));
+		$this->assertSame('2027-12-01', TimelinePlanningService::plannedHandoverDate(null, null, '2027-12-01'));
+	}
+
 	public function testBuildSummaryIncludesPlanningMetricsAndKpis(): void {
 		$db = $this->createMock(IDBConnection::class);
 		$logger = $this->createMock(LoggerInterface::class);

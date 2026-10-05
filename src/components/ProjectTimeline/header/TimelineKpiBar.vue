@@ -440,6 +440,36 @@
 								</div>
 							</div>
 
+							<div class="prep-input-row">
+								<div class="prep-input-wrap" title="Weeks the team works on site, from actual start to handover">
+									<input
+										id="execution-weeks-kpi-input"
+										v-model.number="localExecutionWeeks"
+										type="number"
+										min="0"
+										max="520"
+										placeholder="–"
+										class="prep-number-field"
+										:disabled="!canEdit || saving"
+										@keydown.enter.prevent="saveExecutionWeeks"
+										@keydown.esc.prevent="resetExecutionWeeks" />
+									<label for="execution-weeks-kpi-input" class="prep-unit-suffix">Weeks on site</label>
+								</div>
+
+								<transition name="fade">
+									<NcButton
+										v-if="canEdit && isExecutionWeeksDirty"
+										type="primary"
+										size="small"
+										class="prep-save-btn"
+										title="Save execution weeks"
+										:disabled="saving || (localExecutionWeeks !== '' && localExecutionWeeks < 0)"
+										@click="saveExecutionWeeks">
+										{{ saving ? '...' : 'Save' }}
+									</NcButton>
+								</transition>
+							</div>
+
 							<div class="kpi-card__subtext" :title="handoverSubtext">
 								{{ handoverSubtext }}
 							</div>
@@ -501,6 +531,8 @@ export default {
 				desiredStartDate: null,
 				actualStartDate: null,
 				actualHandoverDate: null,
+				executionWeeks: null,
+				plannedHandoverDate: null,
 				deckTasksWeeks: 0,
 				preparationWeeks: 0,
 				overallFloatWeeks: null,
@@ -520,6 +552,7 @@ export default {
 	data() {
 		return {
 			localPrepWeeks: Number(this.kpis?.preparationWeeks ?? 0),
+			localExecutionWeeks: this.kpis?.executionWeeks ?? '',
 		}
 	},
 	watch: {
@@ -531,11 +564,18 @@ export default {
 				}
 			},
 		},
+		'kpis.executionWeeks'(newVal) {
+			this.localExecutionWeeks = newVal ?? ''
+		},
 	},
 	computed: {
 		isPrepWeeksDirty() {
 			const current = Number(this.kpis?.preparationWeeks ?? 0)
 			return this.localPrepWeeks !== null && this.localPrepWeeks !== undefined && Number(this.localPrepWeeks) !== current
+		},
+		isExecutionWeeksDirty() {
+			const current = this.kpis?.executionWeeks ?? ''
+			return String(this.localExecutionWeeks ?? '') !== String(current)
 		},
 		processCompletedData() {
 			return this.kpis?.processCompleted || {}
@@ -675,7 +715,13 @@ export default {
 		handoverSubtext() {
 			const handover = this.kpis?.actualHandoverDate
 			if (!handover) {
-				return 'Awaiting handover'
+				if (this.kpis?.plannedHandoverDate) {
+					return `Planned ${this.formatDisplayDate(this.kpis.plannedHandoverDate)}`
+				}
+				if (!this.kpis?.actualStartDate) {
+					return 'Set actual start to plan handover'
+				}
+				return 'Set weeks on site to plan handover'
 			}
 			const start = this.kpis?.actualStartDate
 			if (!start) {
@@ -788,6 +834,18 @@ export default {
 		savePrepWeeks() {
 			if (this.localPrepWeeks === null || this.localPrepWeeks === undefined || this.localPrepWeeks < 0) return
 			this.$emit('save-prep-weeks', Math.round(this.localPrepWeeks))
+		},
+		saveExecutionWeeks() {
+			const value = this.localExecutionWeeks
+			if (value === '' || value === null || value === undefined) {
+				this.$emit('save-execution-weeks', null)
+				return
+			}
+			if (value < 0) return
+			this.$emit('save-execution-weeks', Math.round(value))
+		},
+		resetExecutionWeeks() {
+			this.localExecutionWeeks = this.kpis?.executionWeeks ?? ''
 		},
 		resetPrepWeeks() {
 			this.localPrepWeeks = Number(this.kpis?.preparationWeeks ?? 0)

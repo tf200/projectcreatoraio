@@ -47,6 +47,7 @@ class Project extends Entity implements JsonSerializable {
     protected DateTime|null $actualStartDate = null;
     protected DateTime|null $actualHandoverDate = null;
     protected int|null $requiredPreparationWeeks = null;
+    protected int|null $executionWeeks = null;
     protected int|null $cvObjectOwnership = null;
     protected int|null $cvTraceOwnership = null;
     protected int|null $cvBuildingType = null;
@@ -92,6 +93,7 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('actualStartDate', Types::DATE);
         $this->addType('actualHandoverDate', Types::DATE);
         $this->addType('requiredPreparationWeeks', Types::INTEGER);
+        $this->addType('executionWeeks', Types::INTEGER);
         $this->addType('cvObjectOwnership', Types::SMALLINT);
         $this->addType('cvTraceOwnership', Types::SMALLINT);
         $this->addType('cvBuildingType', Types::SMALLINT);
@@ -172,6 +174,7 @@ class Project extends Entity implements JsonSerializable {
             'actual_start_date' => $this->actualStartDate instanceof DateTime ? $this->actualStartDate->format('Y-m-d') : null,
             'actual_handover_date' => $this->actualHandoverDate instanceof DateTime ? $this->actualHandoverDate->format('Y-m-d') : null,
             'required_preparation_weeks' => $this->requiredPreparationWeeks,
+            'execution_weeks' => $this->executionWeeks,
             'cv_object_ownership' => $this->cvObjectOwnership,
             'cv_trace_ownership' => $this->cvTraceOwnership,
             'cv_building_type' => $this->cvBuildingType,

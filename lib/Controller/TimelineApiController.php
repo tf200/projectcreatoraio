@@ -269,6 +269,17 @@ class TimelineApiController extends Controller
                 $requiredPreparationWeeks = (int) $params['requiredPreparationWeeks'];
             }
 
+            if (array_key_exists('execution_weeks', $params)) {
+                $value = $params['execution_weeks'];
+                if ($value === null || $value === '') {
+                    $project->setExecutionWeeks(null);
+                } elseif (is_numeric($value) && (int) $value == $value && (int) $value >= 0 && (int) $value <= 520) {
+                    $project->setExecutionWeeks((int) $value);
+                } else {
+                    throw new \InvalidArgumentException('Execution weeks must be a whole number between 0 and 520');
+                }
+            }
+
             if (array_key_exists('actual_handover_date', $params)) {
                 $value = $params['actual_handover_date'];
                 if ($value === null || $value === '') {

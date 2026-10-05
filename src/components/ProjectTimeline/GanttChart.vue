@@ -9,7 +9,8 @@
 			@save-desired-date="onSaveDesiredDate"
 			@save-actual-date="onSaveActualDate"
 			@save-handover-date="onSaveHandoverDate"
-			@save-prep-weeks="onSavePrepWeeks" />
+			@save-prep-weeks="onSavePrepWeeks"
+			@save-execution-weeks="onSaveExecutionWeeks" />
 
 		<header class="timeline-v2__header">
 			<div class="timeline-v2__title-group">
@@ -1890,6 +1891,19 @@ export default {
 			} catch (error) {
 				console.error('Error updating actual handover date:', error)
 				showError('Could not save actual handover date. Please try again.')
+			} finally {
+				this.savingDesiredDate = false
+			}
+		},
+		async onSaveExecutionWeeks(weeks) {
+			this.savingDesiredDate = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
+				await axios.put(url, { execution_weeks: weeks })
+				await this.loadItems()
+			} catch (error) {
+				console.error('Error updating execution weeks:', error)
+				showError('Could not save weeks on site. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}

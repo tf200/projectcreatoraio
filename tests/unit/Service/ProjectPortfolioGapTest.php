@@ -36,17 +36,42 @@ final class ProjectPortfolioGapTest extends TestCase {
 
 	public function testBetweenProjectGapIsPerTeamAndOneDayQualifies(): void {
 		[$gaps] = $this->service->findPlanningGaps(
-			[$this->project(1, [7, 8]), $this->project(2, [7]), $this->project(3, [8])],
 			[
-				101 => [$this->card(1, 'A', '2026-09-21', '2026-09-21')],
-				102 => [$this->card(2, 'B', '2026-09-23', '2026-09-23')],
-				103 => [$this->card(3, 'C', '2026-09-22', '2026-09-23')],
+				$this->executing(1, [7, 8], '2026-09-14', '2026-09-21'),
+				$this->executing(2, [7], '2026-09-23', '2026-10-30'),
+				$this->executing(3, [8], '2026-09-22', '2026-10-30'),
 			],
+			[],
 			[7 => 'Design', 8 => 'Build'],
 			new DateTimeImmutable('2026-09-21'),
 		);
 		self::assertCount(1, $gaps);
 		self::assertSame(['between', 7, '2026-09-22', 1, [1, 2]], [$gaps[0]['type'], $gaps[0]['teamId'], $gaps[0]['startDate'], $gaps[0]['days'], $gaps[0]['projectIds']]);
+	}
+
+	public function testBetweenProjectGapsIgnoreInitiationCards(): void {
+		[$gaps] = $this->service->findPlanningGaps(
+			[$this->project(1, [7]), $this->project(2, [7])],
+			[
+				101 => [$this->card(1, 'A', '2026-09-21', '2026-09-21')],
+				102 => [$this->card(2, 'B', '2026-09-28', '2026-09-28')],
+			],
+			[7 => 'Design'],
+			new DateTimeImmutable('2026-09-21'),
+		);
+		self::assertSame([], array_values(array_filter($gaps, static fn (array $gap): bool => $gap['type'] === 'between')));
+	}
+
+	public function testBetweenGapUsesStartPlusWeeksAndOpenEndedWorkFillsTheRest(): void {
+		$planned = $this->executing(1, [7], '2026-09-07', null);
+		$planned['executionWeeks'] = 2; // planned handover 2026-09-21
+		$openEnded = $this->executing(2, [7], '2026-09-28', null);
+		$archived = $this->executing(3, [7], '2026-10-12', '2026-10-16');
+		$archived['status'] = 0;
+		[$gaps] = $this->service->findPlanningGaps([$planned, $openEnded, $archived], [], [7 => 'Design'], new DateTimeImmutable('2026-09-21'));
+
+		self::assertCount(1, $gaps);
+		self::assertSame(['2026-09-22', '2026-09-27', [1, 2]], [$gaps[0]['startDate'], $gaps[0]['endDate'], $gaps[0]['projectIds']]);
 	}
 
 	public function testIncompleteCardsAreIssuesAndOneKnownDateIsOneDayWork(): void {
@@ -81,14 +106,11 @@ final class ProjectPortfolioGapTest extends TestCase {
 	}
 
 	public function testBetweenGapCrossesYearAndTableLinksBothProjects(): void {
-		$first = $this->project(1, [7]);
+		$first = $this->executing(1, [7], '2026-11-02', '2026-12-31');
 		$first['status'] = 4;
 		[$gaps] = $this->service->findPlanningGaps(
-			[$first, $this->project(2, [7])],
-			[
-				101 => [$this->card(1, 'Finish', '2026-12-31', '2026-12-31')],
-				102 => [$this->card(2, 'Start', '2027-01-02', '2027-01-02')],
-			],
+			[$first, $this->executing(2, [7], '2027-01-02', '2027-02-26')],
+			[],
 			[7 => 'Design'],
 			new DateTimeImmutable('2026-12-28'),
 		);
@@ -176,6 +198,14 @@ final class ProjectPortfolioGapTest extends TestCase {
 
 	private function project(int $id, array $teamIds): array {
 		return ['id' => $id, 'name' => 'Project ' . $id, 'status' => 1, 'boardId' => (string)(100 + $id), 'teamIds' => $teamIds];
+	}
+
+	private function executing(int $id, array $teamIds, string $actualStart, ?string $handover): array {
+		return $this->project($id, $teamIds) + [
+			'actualStartDate' => $actualStart,
+			'actualHandoverDate' => $handover,
+			'executionWeeks' => null,
+		];
 	}
 
 	private function card(int $id, string $title, ?string $start, ?string $end): array {

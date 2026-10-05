@@ -27,7 +27,44 @@ class TimelinePlanningService
 		$summary['actualHandoverDate'] = $dateString;
 		$summary['kpis']['actualHandoverDate'] = $dateString;
 		$summary['systemPlanning']['actualHandover'] = ['date' => $dateString];
+
+		$executionWeeks = $project->getExecutionWeeks();
+		$start = $project->getActualStartDate();
+		$plannedHandover = self::plannedHandoverDate(
+			$start instanceof DateTime ? $start->format('Y-m-d') : null,
+			$executionWeeks,
+			$dateString,
+		);
+		$summary['executionWeeks'] = $executionWeeks;
+		$summary['plannedHandoverDate'] = $plannedHandover;
+		$summary['kpis']['executionWeeks'] = $executionWeeks;
+		$summary['kpis']['plannedHandoverDate'] = $plannedHandover;
+		$summary['systemPlanning']['execution'] = [
+			'label' => 'Execution',
+			'startDate' => $summary['actualStartDate'] ?? null,
+			'endDate' => $plannedHandover,
+			'weeks' => $executionWeeks,
+		];
 		return $summary;
+	}
+
+	/**
+	 * The team works on site from actual start until handover. A recorded
+	 * handover wins; otherwise actual start + execution weeks plans it.
+	 */
+	public static function plannedHandoverDate(?string $actualStartDate, ?int $executionWeeks, ?string $actualHandoverDate): ?string
+	{
+		if ($actualHandoverDate !== null && $actualHandoverDate !== '') {
+			return substr($actualHandoverDate, 0, 10);
+		}
+		if ($actualStartDate === null || $actualStartDate === '' || $executionWeeks === null) {
+			return null;
+		}
+		$start = DateTime::createFromFormat('!Y-m-d', substr($actualStartDate, 0, 10));
+		if ($start === false) {
+			return null;
+		}
+		return $start->modify('+' . (7 * max(0, $executionWeeks)) . ' days')->format('Y-m-d');
 	}
 
 	/** @param null|array<int, array<string, mixed>> $phases */
