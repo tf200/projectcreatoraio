@@ -334,6 +334,16 @@ return [
             "verb" => "POST",
         ],
         [
+            "name" => "timeline_api#scenarioSuggestions",
+            "url" => "/api/v1/projects/{projectId}/timeline/scenario/suggestions",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "timeline_api#applyScenario",
+            "url" => "/api/v1/projects/{projectId}/timeline/scenario/apply",
+            "verb" => "POST",
+        ],
+        [
             "name" => "timeline_api#applyRecovery",
             "url" => "/api/v1/projects/{projectId}/timeline/apply-recovery",
             "verb" => "POST",

@@ -17,6 +17,11 @@ class TimelineScenarioService
 	private const MAX_DAYS = 3650;
 	private const MAX_PREPARATION_WEEKS = 520;
 	private const TASK_CHANGE_TYPES = ['delay', 'duration', 'endDate', 'startNotBefore'];
+	private const MAX_SUGGESTIONS = 5;
+	private const MAX_COMBINED_FIXES = 3;
+
+	/** @var array<string, string> Task labels of the plan last loaded, for describing suggestions */
+	private array $taskLabels = [];
 
 	public function __construct(
 		private readonly TimelinePhaseService $phaseService,
@@ -31,8 +36,119 @@ class TimelineScenarioService
 	 */
 	public function simulate(Project $project, array $changes): array
 	{
-		$baseline = $this->phaseService->getProjectPhaseHierarchy($project);
-		$baselineTasks = $this->indexTasks($baseline['phases']);
+		return $this->run($project, $changes, $this->loadBaseline($project));
+	}
+
+	/**
+	 * Fixes for the slip a scenario causes in the earliest construction start, each one
+	 * checked by running it through the engine: shortening critical cards, overlapping
+	 * critical dependencies, cutting preparation, and a combination when no single fix is enough.
+	 *
+	 * @param array<int, mixed> $changes
+	 * @return array{slipDays: int, suggestions: array<int, array<string, mixed>>}
+	 */
+	public function suggestFixes(Project $project, array $changes): array
+	{
+		$baseline = $this->loadBaseline($project);
+		$current = $this->run($project, $changes, $baseline);
+		$slip = (int)$current['impact']['planning']['minimumStartShiftDays'];
+		if ($slip <= 0) {
+			return ['slipDays' => $slip, 'suggestions' => []];
+		}
+
+		$levers = $this->findLevers($current);
+		$evaluate = function (array $extra) use ($project, $current, $baseline, $slip): array {
+			$result = $this->run($project, array_merge($current['changes'], $extra), $baseline);
+			$planning = $result['impact']['planning'];
+			return [
+				'changes' => $extra,
+				'slipDays' => (int)$planning['minimumStartShiftDays'],
+				'recoveredDays' => $slip - (int)$planning['minimumStartShiftDays'],
+				'minimumStartDate' => $planning['minimumStartDate'],
+				'floatDays' => $planning['floatDays'],
+				'desiredStartAchievable' => $planning['desiredStartAchievable'],
+			];
+		};
+
+		$singles = [];
+		foreach ($levers as $lever) {
+			$change = $lever['build']($slip);
+			if ($change === null) {
+				continue;
+			}
+			$outcome = $evaluate([$change]);
+			if ($outcome['recoveredDays'] > 0) {
+				$singles[] = $outcome + ['lever' => $lever['id']];
+			}
+		}
+		usort($singles, fn (array $a, array $b): int => $this->compareOutcomes($a, $b));
+		// Lead with the best fix of each kind, so one kind of lever does not crowd out the others.
+		$leaders = [];
+		foreach ($singles as $index => $outcome) {
+			$leaders[strstr($outcome['lever'], ':', true) ?: $outcome['lever']] ??= $index;
+		}
+		$singles = array_merge(
+			array_values(array_intersect_key($singles, array_flip($leaders))),
+			array_values(array_diff_key($singles, array_flip($leaders))),
+		);
+
+		$suggestions = array_map(fn (array $outcome): array => $this->describe($outcome, $slip), array_slice($singles, 0, self::MAX_SUGGESTIONS));
+
+		// No single fix recovers everything: stack the best ones, each sized to what is still missing.
+		if ($singles !== [] && $singles[0]['slipDays'] > 0) {
+			$best = ['changes' => [], 'slipDays' => $slip];
+			$used = [];
+			for ($round = 0; $round < self::MAX_COMBINED_FIXES && $best['slipDays'] > 0; $round++) {
+				$roundBest = null;
+				foreach ($levers as $lever) {
+					if (isset($used[$lever['id']]) || ($change = $lever['build']($best['slipDays'])) === null) {
+						continue;
+					}
+					$outcome = $evaluate(array_merge($best['changes'], [$change]));
+					if ($outcome['slipDays'] < $best['slipDays'] && ($roundBest === null || $this->compareOutcomes($outcome, $roundBest) < 0)) {
+						$roundBest = $outcome + ['lever' => $lever['id']];
+					}
+				}
+				if ($roundBest === null) {
+					break;
+				}
+				$used[$roundBest['lever']] = true;
+				$best = $roundBest;
+			}
+			if (count($best['changes']) > 1) {
+				array_unshift($suggestions, $this->describe($best, $slip));
+			}
+		}
+
+		return ['slipDays' => $slip, 'suggestions' => $suggestions];
+	}
+
+	/**
+	 * @return array{hierarchy: array<string, mixed>, tasks: array<string, array<string, mixed>>, summary: array<string, mixed>, analysis: array<string, array<string, mixed>>}
+	 */
+	private function loadBaseline(Project $project): array
+	{
+		$hierarchy = $this->phaseService->getProjectPhaseHierarchy($project);
+		$tasks = $this->indexTasks($hierarchy['phases']);
+		$this->taskLabels = array_map(static fn (array $task): string => (string)$task['label'], $tasks);
+		$summary = $this->planningService->buildSummary($project, $hierarchy['phases']);
+		return [
+			'hierarchy' => $hierarchy,
+			'tasks' => $tasks,
+			'summary' => $summary,
+			'analysis' => $this->criticalPath->analyze($tasks, $this->overlapsFrom($hierarchy['dependencies']), $this->deadline($summary)),
+		];
+	}
+
+	/**
+	 * @param array<int, mixed> $changes
+	 * @param array<string, mixed> $base From loadBaseline()
+	 * @return array<string, mixed>
+	 */
+	private function run(Project $project, array $changes, array $base): array
+	{
+		$baseline = $base['hierarchy'];
+		$baselineTasks = $base['tasks'];
 		$normalized = $this->normalizeChanges($changes, $baselineTasks, $baseline['dependencies']);
 
 		$scenarioProject = clone $project;
@@ -52,21 +168,19 @@ class TimelineScenarioService
 			]);
 		$scenarioTasks = $this->indexTasks($scenario['phases']);
 
-		$baselineSummary = $this->planningService->buildSummary($project, $baseline['phases']);
+		$baselineSummary = $base['summary'];
 		$scenarioSummary = $normalized['changes'] === []
 			? $baselineSummary
 			: $this->planningService->buildSummary($scenarioProject, $scenario['phases']);
 
-		$baselineAnalysis = $this->criticalPath->analyze(
-			$baselineTasks,
-			$this->overlapsFrom($baseline['dependencies']),
-			$this->deadline($baselineSummary),
-		);
-		$scenarioAnalysis = $this->criticalPath->analyze(
-			$scenarioTasks,
-			$this->overlapsFrom($scenario['dependencies']),
-			$this->deadline($scenarioSummary),
-		);
+		$baselineAnalysis = $base['analysis'];
+		$scenarioAnalysis = $normalized['changes'] === []
+			? $baselineAnalysis
+			: $this->criticalPath->analyze(
+				$scenarioTasks,
+				$this->overlapsFrom($scenario['dependencies']),
+				$this->deadline($scenarioSummary),
+			);
 
 		$changedTaskIds = [];
 		foreach ($normalized['changes'] as $change) {
@@ -215,11 +329,8 @@ class TimelineScenarioService
 					break;
 				case 'startNotBefore':
 					$date = ($change['date'] ?? null) === null ? null : $this->requireDate($change['date'], $position);
-					if ($date === null) {
-						unset($override['startNotBefore']);
-					} else {
-						$override['startNotBefore'] = $date;
-					}
+					// null clears the limit, including one saved on the live plan.
+					$override['startNotBefore'] = $date;
 					$entry['date'] = $date;
 					break;
 				}
@@ -275,6 +386,140 @@ class TimelineScenarioService
 			'dependencyOverlaps' => $dependencyOverlaps,
 			'planning' => $planning,
 		];
+	}
+
+	/**
+	 * What can be pulled to win time back: every open card on the critical path can be
+	 * shortened, every critical dependency can overlap, and preparation can be cut.
+	 * Shortening and overlapping are capped at half the card's length.
+	 *
+	 * @param array<string, mixed> $scenario
+	 * @return array<int, array{id: string, build: callable(int): ?array}>
+	 */
+	private function findLevers(array $scenario): array
+	{
+		$tasks = [];
+		foreach ($scenario['phases'] as $phase) {
+			foreach ($phase['tasks'] as $task) {
+				$tasks[(string)$task['id']] = $task;
+			}
+		}
+		$isOpenCritical = static fn (?array $task): bool => $task !== null && empty($task['isDone']) && $task['whatIf']['isCritical'];
+
+		$levers = [];
+		foreach ($tasks as $id => $task) {
+			$maxCut = intdiv((int)$task['durationDays'], 2);
+			if (!$isOpenCritical($task) || $maxCut < 1) {
+				continue;
+			}
+			$levers[] = [
+				'id' => 'shorten:' . $id,
+				'build' => static fn (int $needed): array => ['type' => 'delay', 'taskId' => $task['id'], 'days' => -min($needed, $maxCut)],
+			];
+		}
+
+		foreach ($scenario['dependencies'] as $dependency) {
+			$predecessor = $tasks[(string)$dependency['predecessorId']] ?? null;
+			$successor = $tasks[(string)$dependency['successorId']] ?? null;
+			if (!$isOpenCritical($predecessor) || !$isOpenCritical($successor)) {
+				continue;
+			}
+			$current = (int)($dependency['overlapDays'] ?? 0);
+			$room = intdiv((int)$predecessor['durationDays'], 2) - $current;
+			if ($room < 1) {
+				continue;
+			}
+			$levers[] = [
+				'id' => 'overlap:' . TimelinePhaseService::dependencyKey($predecessor['id'], $successor['id']),
+				'build' => static fn (int $needed): array => [
+					'type' => 'overlap',
+					'predecessorId' => $predecessor['id'],
+					'successorId' => $successor['id'],
+					'days' => $current + min($needed, $room),
+				],
+			];
+		}
+
+		$weeks = (int)$scenario['impact']['planning']['preparationWeeks'];
+		if ($weeks > 0) {
+			$levers[] = [
+				'id' => 'preparation',
+				'build' => static fn (int $needed): array => [
+					'type' => 'planning',
+					'requiredPreparationWeeks' => max(0, $weeks - (int)ceil($needed / 7)),
+				],
+			];
+		}
+
+		return $levers;
+	}
+
+	/**
+	 * Full recoveries first, then fewer changes, then the most days won back.
+	 *
+	 * @param array<string, mixed> $a
+	 * @param array<string, mixed> $b
+	 */
+	private function compareOutcomes(array $a, array $b): int
+	{
+		return [$a['slipDays'] > 0, count($a['changes']), -$a['recoveredDays']]
+			<=> [$b['slipDays'] > 0, count($b['changes']), -$b['recoveredDays']];
+	}
+
+	/**
+	 * @param array<string, mixed> $outcome
+	 * @return array<string, mixed>
+	 */
+	private function describe(array $outcome, int $slip): array
+	{
+		$changes = array_map(fn (array $change): array => $this->labelChange($change), $outcome['changes']);
+		return [
+			'kind' => count($changes) > 1 ? 'combined' : $changes[0]['kind'],
+			'title' => implode(' + ', array_column($changes, 'title')),
+			'changes' => array_map(static function (array $change): array {
+				unset($change['kind'], $change['title']);
+				return $change;
+			}, $changes),
+			'recoveredDays' => $outcome['recoveredDays'],
+			'remainingSlipDays' => $outcome['slipDays'],
+			'recoversFully' => $outcome['slipDays'] <= 0,
+			'minimumStartDate' => $outcome['minimumStartDate'],
+			'floatDays' => $outcome['floatDays'],
+			'desiredStartAchievable' => $outcome['desiredStartAchievable'],
+		];
+	}
+
+	/**
+	 * @param array<string, mixed> $change
+	 * @return array<string, mixed>
+	 */
+	private function labelChange(array $change): array
+	{
+		$labels = $this->taskLabels;
+		return match ($change['type']) {
+			'delay' => $change + [
+				'kind' => 'shorten',
+				'title' => sprintf('Shorten "%s" by %s', $labels[(string)$change['taskId']] ?? $change['taskId'], $this->days(-$change['days'])),
+			],
+			'overlap' => $change + [
+				'kind' => 'overlap',
+				'title' => sprintf(
+					'Start "%s" %s before "%s" ends',
+					$labels[(string)$change['successorId']] ?? $change['successorId'],
+					$this->days($change['days']),
+					$labels[(string)$change['predecessorId']] ?? $change['predecessorId'],
+				),
+			],
+			'planning' => $change + [
+				'kind' => 'preparation',
+				'title' => sprintf('Cut preparation to %d %s', $change['requiredPreparationWeeks'], $change['requiredPreparationWeeks'] === 1 ? 'week' : 'weeks'),
+			],
+		};
+	}
+
+	private function days(int $days): string
+	{
+		return $days === 1 ? '1 day' : "{$days} days";
 	}
 
 	/**

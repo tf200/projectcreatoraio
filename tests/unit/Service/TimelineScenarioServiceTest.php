@@ -144,6 +144,58 @@ final class TimelineScenarioServiceTest extends TestCase
 		$this->assertSame(0, $undated['durationChangeDays']);
 	}
 
+	public function testSuggestionsAreRealFixesCheckedByTheEngine(): void
+	{
+		$result = $this->service()->suggestFixes($this->project(), [
+			['type' => 'delay', 'taskId' => 1, 'days' => 14],
+		]);
+
+		$this->assertSame(14, $result['slipDays']);
+		$this->assertSame([
+			'Shorten "Permits" by 14 days',
+			'Start "Preparation" 14 days before "Permits" ends',
+			'Cut preparation to 0 weeks',
+			'Shorten "Preparation" by 5 days',
+			'Shorten "Earthworks" by 5 days',
+		], array_column($result['suggestions'], 'title'));
+
+		$first = $result['suggestions'][0];
+		$this->assertTrue($first['recoversFully']);
+		$this->assertSame(14, $first['recoveredDays']);
+		$this->assertSame('2026-03-06', $first['minimumStartDate']);
+		$this->assertSame([['type' => 'delay', 'taskId' => 1, 'days' => -14]], $first['changes']);
+
+		// Earthworks can only lose half its 10 days.
+		$this->assertFalse($result['suggestions'][4]['recoversFully']);
+		$this->assertSame(9, $result['suggestions'][4]['remainingSlipDays']);
+	}
+
+	public function testSuggestionsCombineFixesWhenNoSingleFixIsEnough(): void
+	{
+		$result = $this->service()->suggestFixes($this->project(), [
+			['type' => 'planning', 'requiredPreparationWeeks' => 0],
+			['type' => 'delay', 'taskId' => 4, 'days' => 60],
+		]);
+
+		$this->assertSame(46, $result['slipDays']);
+		$combined = $result['suggestions'][0];
+		$this->assertSame('combined', $combined['kind']);
+		$this->assertTrue($combined['recoversFully']);
+		$this->assertSame('Shorten "Earthworks" by 35 days + Shorten "Permits" by 11 days', $combined['title']);
+		$this->assertSame('Shorten "Earthworks" by 35 days', $result['suggestions'][1]['title']);
+		$this->assertFalse($result['suggestions'][1]['recoversFully']);
+	}
+
+	public function testNoSuggestionsWhenNothingSlips(): void
+	{
+		$result = $this->service()->suggestFixes($this->project(), [
+			['type' => 'delay', 'taskId' => 2, 'days' => 10],
+		]);
+
+		$this->assertSame(0, $result['slipDays']);
+		$this->assertSame([], $result['suggestions']);
+	}
+
 	/** @dataProvider invalidChanges */
 	public function testInvalidChangesAreRejected(array $changes, string $message): void
 	{

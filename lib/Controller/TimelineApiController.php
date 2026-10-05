@@ -13,6 +13,8 @@ use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
+use OCA\ProjectCreatorAIO\Service\TimelineScenarioApplyService;
+use OCA\ProjectCreatorAIO\Service\TimelineScenarioConflictException;
 use OCA\ProjectCreatorAIO\Service\TimelineScenarioService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -39,6 +41,7 @@ class TimelineApiController extends Controller
 		private TimelineImpactService $impactService,
 		private DeckCardScheduleService $deckCardScheduleService,
 		private TimelineScenarioService $scenarioService,
+		private TimelineScenarioApplyService $scenarioApplyService,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
 	) {
 		parent::__construct($appName, $request);
@@ -147,15 +150,57 @@ class TimelineApiController extends Controller
             $project = $this->requireProject($projectId);
             $this->assertCanAccessProject($project);
 
-            $changes = $this->request->getParam('changes', []);
-            if (!is_array($changes)) {
-                throw new \InvalidArgumentException('Scenario changes must be a list');
-            }
-
-            return new JSONResponse($this->scenarioService->simulate($project, $changes));
+            return new JSONResponse($this->scenarioService->simulate($project, $this->scenarioChanges()));
         } catch (\Throwable $e) {
             return $this->errorResponse($e);
         }
+    }
+
+    #[NoAdminRequired]
+    public function scenarioSuggestions(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanAccessProject($project);
+
+            return new JSONResponse($this->scenarioService->suggestFixes($project, $this->scenarioChanges()));
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    #[NoAdminRequired]
+    public function applyScenario(int $projectId): JSONResponse
+    {
+        try {
+            $project = $this->requireProject($projectId);
+            $this->assertCanManageTimelineProject($project);
+
+            $expected = $this->request->getParam('expectedDeckCardUpdates');
+            if ($expected !== null && !is_array($expected)) {
+                throw new \InvalidArgumentException('Expected Deck card updates must be a list');
+            }
+
+            $result = $this->scenarioApplyService->apply($project, $this->scenarioChanges(), $expected, $this->userSession->getUser());
+            if ($result['planningChanged']) {
+                $this->syncSystemTimelineItems($project);
+            }
+            $result['summary'] = $this->planningService->buildSummary($project);
+
+            return new JSONResponse($result);
+        } catch (\Throwable $e) {
+            return $this->errorResponse($e);
+        }
+    }
+
+    /** @return array<int, mixed> */
+    private function scenarioChanges(): array
+    {
+        $changes = $this->request->getParam('changes', []);
+        if (!is_array($changes)) {
+            throw new \InvalidArgumentException('Scenario changes must be a list');
+        }
+        return $changes;
     }
 
     #[NoAdminRequired]
@@ -709,6 +754,10 @@ class TimelineApiController extends Controller
         if ($e instanceof OCSNotFoundException) {
             return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
         }
+
+		if ($e instanceof TimelineScenarioConflictException) {
+			return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_CONFLICT);
+		}
 
 		if ($e instanceof \InvalidArgumentException) {
 			return new JSONResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);

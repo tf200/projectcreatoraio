@@ -17,6 +17,10 @@ use OCP\IDBConnection;
 class TimelinePhaseService
 {
 	private const DECK_CARD_DURATION = 'P3M';
+	/** Saved overlap between two dependent tasks: label is the dependency key, durationDays the overlap. */
+	public const OVERLAP_KEY_PREFIX = 'schedule_override:overlap:';
+	/** Saved "cannot start before" date: label is the task id, startDate the date. */
+	public const START_LIMIT_KEY_PREFIX = 'schedule_override:not_before:';
 
 	public function __construct(
 		private readonly IDBConnection $db,
@@ -106,8 +110,21 @@ class TimelinePhaseService
 		// 3. Load custom timeline items
 		$customItems = $this->itemMapper->findByProject((int) $project->getId());
 		$persistedOverrides = [];
+		$persistedOverlaps = [];
+		$persistedStartLimits = [];
 		foreach ($customItems as $item) {
-			if (!str_starts_with((string) $item->getSystemKey(), 'schedule_override:')) {
+			$systemKey = (string) $item->getSystemKey();
+			if (str_starts_with($systemKey, self::OVERLAP_KEY_PREFIX)) {
+				$persistedOverlaps[(string) $item->getLabel()] = max(0, (int) $item->getDurationDays());
+				continue;
+			}
+			if (str_starts_with($systemKey, self::START_LIMIT_KEY_PREFIX)) {
+				if ($item->getStartDate() !== null) {
+					$persistedStartLimits[(string) $item->getLabel()] = $item->getStartDate()->format('Y-m-d');
+				}
+				continue;
+			}
+			if (!str_starts_with($systemKey, 'schedule_override:')) {
 				continue;
 			}
 			$persistedOverrides[(string) $item->getLabel()] = array_filter([
@@ -116,6 +133,9 @@ class TimelinePhaseService
 				'plannedEndDate' => $item->getPlannedEndDate()?->format('Y-m-d'),
 				'status' => $item->getStatus(),
 			], static fn (mixed $value): bool => $value !== null && $value !== '');
+		}
+		foreach ($persistedStartLimits as $taskId => $date) {
+			$persistedOverrides[$taskId]['startNotBefore'] = $date;
 		}
 
 		// 4. Map phases into structured hierarchy
@@ -127,7 +147,7 @@ class TimelinePhaseService
 		$requestDate = $this->calculateRequestDate($project);
 		$today = (new DateTime('today'))->setTime(0, 0, 0);
 		$taskOverrides = $overrides['taskOverrides'] ?? [];
-		$dependencyOverlaps = $overrides['dependencyOverlaps'] ?? [];
+		$dependencyOverlaps = array_replace($persistedOverlaps, $overrides['dependencyOverlaps'] ?? []);
 
 		$cardIdByTitle = [];
 		foreach ($deckCards as $c) {
