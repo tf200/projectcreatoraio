@@ -312,6 +312,14 @@ class ProjectApiController extends Controller {
 		}
 
 		$result = $this->projectService->updateProjectMemberRoles($projectId, $userId, $drasciRoles, $functionalRoleKeys);
+		$member = $result['member'] ?? [];
+		$this->access->syncExternalRoles(
+			$project,
+			$userId,
+			array_values((array)($member['functionalRoleKeys'] ?? [])),
+			array_values((array)($member['drascivsRoles'] ?? [])),
+			(string)$this->userSession->getUser()?->getUID(),
+		);
 
 		return new DataResponse($result);
 	}

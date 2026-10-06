@@ -142,6 +142,7 @@ class ExternalApiController extends Controller {
 				(int)$project->getId(),
 				$userId,
 				$this->resolveEndDate($project, $expiresAt),
+				$this->currentUserId(),
 			);
 
 			return new DataResponse(['grant' => $grant]);

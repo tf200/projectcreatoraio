@@ -78,6 +78,29 @@ class ProjectAccessService {
 		return $externals;
 	}
 
+	/**
+	 * Copies an external's new project roles onto their grant, which also
+	 * records the change in the organization's audit log. Members who are not
+	 * externals are left alone.
+	 *
+	 * @param string[] $functionalRoleKeys
+	 * @param string[] $drasciRoles
+	 */
+	public function syncExternalRoles(Project $project, string $userId, array $functionalRoleKeys, array $drasciRoles, string $changedBy): void {
+		if ($this->externals === null || !isset($this->getOpenProjectExternals($project)[$userId])) {
+			return;
+		}
+
+		$this->externals->changeRoles(
+			(int)$project->getOrganizationId(),
+			(int)$project->getId(),
+			$userId,
+			$functionalRoleKeys,
+			$drasciRoles,
+			$changedBy,
+		);
+	}
+
 	public function hasExternalGrant(string $userId, Project $project): bool {
 		$grants = $this->getExternalProjectGrants($userId);
 		$projectId = (int)$project->getId();
