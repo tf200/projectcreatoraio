@@ -244,6 +244,21 @@ class ProjectMembershipService {
 		}
 	}
 
+	/**
+	 * Makes sure a former external's private folder reached the project owner.
+	 * Removal normally hands it over already; this retries when that failed.
+	 * True when nothing is left in the external's home.
+	 */
+	public function releasePrivateFolder(int $projectId, string $userId): bool {
+		$project = $this->projectMapper->find($projectId);
+		if ($project === null) {
+			return true;
+		}
+
+		$displayName = $this->userManager->get($userId)?->getDisplayName() ?: $userId;
+		return $this->handOverPrivateFolder($project, $userId, $displayName) !== self::PRIVATE_FOLDER_FAILED;
+	}
+
 	/** @param ?string[] $onlyUserIds */
 	private function addTeamMembers(int $projectId, int $teamId, ?array $onlyUserIds): bool {
 		try {

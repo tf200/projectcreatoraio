@@ -115,6 +115,7 @@ use OCA\Organization\Db\PlanMapper;
 use OCA\Organization\Event\EntitlementsChangedEvent;
 use OCA\Organization\Event\ExternalGrantActivatedEvent;
 use OCA\Organization\Event\ExternalGrantRevokedEvent;
+use OCA\Organization\Event\ExternalPrivateFolderReleaseEvent;
 use OCA\Organization\Event\OrganizationMemberRemovedEvent;
 use OCA\Organization\Event\ProjectTeamChangedEvent;
 use OCA\Organization\Event\TeamDeletedEvent;
@@ -157,6 +158,7 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(TeamDeletedEvent::class, OrganizationMembershipListener::class);
 		$context->registerEventListener(ExternalGrantActivatedEvent::class, OrganizationMembershipListener::class);
 		$context->registerEventListener(ExternalGrantRevokedEvent::class, OrganizationMembershipListener::class);
+		$context->registerEventListener(ExternalPrivateFolderReleaseEvent::class, OrganizationMembershipListener::class);
 
 		// Only register Deck event listeners if Deck app is active
 		if (class_exists(BoardCreatedEvent::class)) {

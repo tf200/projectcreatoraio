@@ -6,6 +6,7 @@ namespace OCA\ProjectCreatorAIO\Listener;
 
 use OCA\Organization\Event\ExternalGrantActivatedEvent;
 use OCA\Organization\Event\ExternalGrantRevokedEvent;
+use OCA\Organization\Event\ExternalPrivateFolderReleaseEvent;
 use OCA\Organization\Event\OrganizationMemberRemovedEvent;
 use OCA\Organization\Event\ProjectTeamChangedEvent;
 use OCA\Organization\Event\TeamDeletedEvent;
@@ -47,6 +48,10 @@ class OrganizationMembershipListener implements IEventListener {
 			);
 		} elseif ($event instanceof ExternalGrantRevokedEvent) {
 			$this->membershipService->removeExternalCollaborator($event->getProjectId(), $event->getUserId());
+		} elseif ($event instanceof ExternalPrivateFolderReleaseEvent) {
+			if ($this->membershipService->releasePrivateFolder($event->getProjectId(), $event->getUserId())) {
+				$event->markReleased();
+			}
 		}
 	}
 }
