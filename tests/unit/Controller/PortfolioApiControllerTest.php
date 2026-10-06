@@ -175,6 +175,98 @@ final class PortfolioApiControllerTest extends TestCase {
 		(new PortfolioApiController('projectcreatoraio', $request, $userSession, $this->access($userMapper), $service))->table();
 	}
 
+	public function testMemberMineCompletionUsesSessionIdentity(): void {
+		[$request, $session, $mapper, $service] = $this->memberMocks('mine');
+		$service->expects($this->once())->method('getCompletion')->with(42, 'member')->willReturn(['trackedProjects' => 1]);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+		self::assertSame(['trackedProjects' => 1], $controller->completion()->getData());
+	}
+
+	public function testMemberMineCapacityUsesSessionIdentity(): void {
+		[$request, $session, $mapper, $service] = $this->memberMocks('mine');
+		$service->expects($this->once())->method('getCapacityForAll')->with(42, '2026-10-05', 'member')->willReturn(['weeks' => []]);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+		self::assertSame(['weeks' => []], $controller->capacity()->getData());
+	}
+
+	public function testMemberMineTableUsesSessionIdentity(): void {
+		[$request, $session, $mapper, $service] = $this->memberMocks('mine');
+		$service->expects($this->once())->method('getTableOverview')->with(42, '2026-10-05', null, 'mine', 'member')->willReturn(['projects' => []]);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+		self::assertSame(['projects' => []], $controller->table()->getData());
+	}
+
+	public function testMembersCannotEscalatePortfolioScope(): void {
+		foreach (['completion', 'capacity', 'table'] as $endpoint) {
+			foreach ([null, '', 'all', 'team'] as $scope) {
+				[$request, $session, $mapper, $service] = $this->memberMocks($scope);
+				$service->expects($this->never())->method('getCompletion');
+				$service->expects($this->never())->method('getCapacityForAll');
+				$service->expects($this->never())->method('getTableOverview');
+				$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+				try {
+					$controller->$endpoint();
+					self::fail('Member was allowed a broader portfolio scope');
+				} catch (OCSForbiddenException $e) {
+					self::assertSame('Organization administrator access required', $e->getMessage());
+				}
+			}
+		}
+	}
+
+	public function testMembersCannotRequestAnotherOrganization(): void {
+		foreach (['completion', 'capacity', 'table'] as $endpoint) {
+			[$request, $session, $mapper, $service] = $this->memberMocks('mine', 99);
+			$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+			try {
+				$controller->$endpoint();
+				self::fail('Member was allowed another organization');
+			} catch (OCSForbiddenException $e) {
+				self::assertSame('Access denied to other organizations', $e->getMessage());
+			}
+		}
+	}
+
+	public function testMineRequiresAuthenticationAndOrganizationMembership(): void {
+		foreach (['completion', 'capacity', 'table'] as $endpoint) {
+			foreach ([false, true] as $authenticated) {
+				$request = $this->createMock(IRequest::class);
+				$request->method('getParam')->willReturnMap([['scope', null, 'mine']]);
+				$session = $this->createMock(IUserSession::class);
+				if ($authenticated) {
+					$user = $this->createMock(IUser::class);
+					$user->method('getUID')->willReturn('removed-member');
+					$session->method('getUser')->willReturn($user);
+				}
+				$mapper = $this->createMock(OrganizationUserMapper::class);
+				$service = $this->createMock(ProjectPortfolioService::class);
+				$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+				try {
+					$controller->$endpoint();
+					self::fail('Unauthenticated or removed member was allowed access');
+				} catch (OCSForbiddenException $e) {
+					self::assertSame($authenticated ? 'Organization membership required' : 'Authentication required', $e->getMessage());
+				}
+			}
+		}
+	}
+
+	private function memberMocks(?string $scope, int $organizationId = 42): array {
+		[$request, $session, $mapper, $service] = $this->adminMocks([
+			['scope', null, $scope],
+			['organizationId', null, $organizationId],
+			['weekStart', null, '2026-10-05'],
+			['userId', null, 'another-user'],
+		]);
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('member');
+		$session = $this->createMock(IUserSession::class);
+		$session->method('getUser')->willReturn($user);
+		$mapper = $this->createMock(OrganizationUserMapper::class);
+		$mapper->method('getOrganizationMembership')->willReturn(['organization_id' => 42, 'role' => 'member']);
+		return [$request, $session, $mapper, $service];
+	}
+
 	/**
 	 * @param array<int,array{0:string,1:mixed,2:mixed}> $params
 	 * @return array{0:IRequest,1:IUserSession,2:OrganizationUserMapper,3:ProjectPortfolioService}

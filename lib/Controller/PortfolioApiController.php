@@ -29,7 +29,7 @@ class PortfolioApiController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function completion(): DataResponse {
-		$organizationId = $this->requireOrganizationAdmin();
+		$organizationId = $this->requirePortfolioOrganization();
 		$scope = $this->request->getParam('scope');
 		if ($scope === null || $scope === '') {
 			return new DataResponse($this->portfolioService->getCompletion($organizationId));
@@ -55,7 +55,7 @@ class PortfolioApiController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function capacity(): DataResponse {
-		$organizationId = $this->requireOrganizationAdmin();
+		$organizationId = $this->requirePortfolioOrganization();
 		$weekStart = $this->request->getParam('weekStart');
 		if ($weekStart !== null && (!is_string($weekStart) || !ProjectPortfolioService::isIsoDate($weekStart))) {
 			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
@@ -90,7 +90,7 @@ class PortfolioApiController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function table(): DataResponse {
-		$organizationId = $this->requireOrganizationAdmin();
+		$organizationId = $this->requirePortfolioOrganization();
 		$weekStart = $this->request->getParam('weekStart');
 		if ($weekStart !== null && (!is_string($weekStart) || !ProjectPortfolioService::isIsoDate($weekStart))) {
 			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
@@ -126,6 +126,32 @@ class PortfolioApiController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			throw new OCSBadRequestException($e->getMessage());
 		}
+	}
+
+	/** Members may only request their own projects; admin scopes stay unchanged. */
+	private function requirePortfolioOrganization(): int {
+		if ($this->request->getParam('scope') !== 'mine') {
+			return $this->requireOrganizationAdmin();
+		}
+
+		$uid = $this->requireUid();
+		if ($this->access->isGlobalAdmin($uid)) {
+			return $this->requireOrganizationAdmin();
+		}
+		$membership = $this->access->getOrganizationMembership($uid);
+		if ($membership === null || (int)$membership['organization_id'] < 1) {
+			throw new OCSForbiddenException('Organization membership required');
+		}
+		$organizationId = (int)$membership['organization_id'];
+		$requestedOrgId = $this->request->getParam('organizationId');
+		if ($requestedOrgId !== null && $requestedOrgId !== '' &&
+			(!is_int($requestedOrgId) && (!is_string($requestedOrgId) || !ctype_digit($requestedOrgId)))) {
+			throw new OCSBadRequestException('organizationId must be a positive integer');
+		}
+		if ($requestedOrgId !== null && $requestedOrgId !== '' && (int)$requestedOrgId !== $organizationId) {
+			throw new OCSForbiddenException('Access denied to other organizations');
+		}
+		return $organizationId;
 	}
 
 	private function requireOrganizationAdmin(): int {

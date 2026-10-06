@@ -198,7 +198,7 @@ class ProjectPortfolioService {
 		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($eligible));
 		$result['toSchedule'] = $this->findProjectsToSchedule($projects);
 		$result['teams'] = $this->summarizeTeams($teamRows);
-		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $weekStartDate));
+		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $weekStartDate, $memberUid));
 		return $result;
 	}
 
@@ -751,7 +751,7 @@ class ProjectPortfolioService {
 	 * @param array<int,array<string,mixed>> $teamRows
 	 * @return array<int,array{id:int,name:string,weeks:array<int,array<string,mixed>>}>
 	 */
-	private function summarizeTeamsInPeriod(int $organizationId, array $teamRows, string $weekStart): array {
+	private function summarizeTeamsInPeriod(int $organizationId, array $teamRows, string $weekStart, ?string $memberUid = null): array {
 		$summaries = [];
 		foreach ($teamRows as $row) {
 			$team = [
@@ -761,7 +761,7 @@ class ProjectPortfolioService {
 				'fte' => (float)$row['fte'],
 				'projectsPerFte' => (float)$row['projects_per_fte'],
 			];
-			$projects = $this->loadCapacityProjects($organizationId, $team['id']);
+			$projects = $this->applyMemberFilter($this->loadCapacityProjects($organizationId, $team['id']), $memberUid);
 			$eligible = $this->deriveEligibleCapacityProjects($projects);
 			$summary = $this->summarizeCapacity($team, $weekStart, $eligible);
 			$summaries[] = ['id' => $team['id'], 'name' => $team['name'], 'weeks' => $summary['weeks']];
