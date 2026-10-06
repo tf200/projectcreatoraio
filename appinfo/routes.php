@@ -96,6 +96,16 @@ return [
             "verb" => "DELETE",
         ],
         [
+            "name" => "external_api#update",
+            "url" => "/api/v1/projects/{projectId}/externals/{userId}",
+            "verb" => "PUT",
+        ],
+        [
+            "name" => "external_api#resend",
+            "url" => "/api/v1/projects/{projectId}/externals/{userId}/resend",
+            "verb" => "POST",
+        ],
+        [
             "name" => "project_api#addMembersBulk",
             "url" => "/api/v1/projects/{projectId}/members/bulk",
             "verb" => "POST",

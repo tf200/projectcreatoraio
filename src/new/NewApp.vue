@@ -16,7 +16,8 @@
      <p>{{ t('projectcreatoraio', 'Ask your administrator for access to an organization.') }}</p>
     </section>
     <template v-else>
-     <ProjectShelf ref="shelf" :projects="projects" :selected-id="route.projectId" :selected-name="project ? project.name : ''" :loading="listLoading" :error="listError" :filters="filters" :base="base" :is-global-admin="context.isGlobalAdmin" :is-organization-admin="context.organizationRole === 'admin' && !context.isGlobalAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" @filter="setFilter" @open="navigate($event, route.tab)" @retry="retryList" @create="openCreate" />
+     <p v-if="isExternal" class="pc-guest-banner" role="note">{{ guestOf ? t('projectcreatoraio', 'Guest of {organizations}', { organizations: guestOf }) : t('projectcreatoraio', 'Guest') }} · {{ t('projectcreatoraio', 'You see only the projects you were invited to.') }}</p>
+     <ProjectShelf ref="shelf" :projects="projects" :selected-id="route.projectId" :selected-name="project ? project.name : ''" :loading="listLoading" :error="listError" :filters="filters" :base="base" :is-global-admin="context.isGlobalAdmin" :is-organization-admin="context.organizationRole === 'admin' && !context.isGlobalAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" :can-create="!isExternal" @filter="setFilter" @open="navigate($event, route.tab)" @retry="retryList" @create="openCreate" />
     <p v-if="deletedNotice" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ deletedNotice }}</p>
     <NewCreate v-if="route.create" :context="context" :back-label="returnLabel" :back-href="returnHref" @cancel="cancelCreate" @created="onCreated" />
     <template v-else-if="route.projectId">
@@ -38,8 +39,9 @@
     </template>
     <section v-else-if="!listLoading && !listError" class="pc-state">
      <h1>{{ t('projectcreatoraio', 'Your project workspace') }}</h1>
-     <p>{{ t('projectcreatoraio', 'Create a project to get started. Your projects will appear in the shelf above.') }}</p>
-     <a class="pc-button" :href="base + '/new/create'" @click.prevent="openCreate">{{ t('projectcreatoraio', 'New project') }}</a>
+     <p v-if="isExternal">{{ t('projectcreatoraio', 'Choose a project from the shelf above.') }}</p>
+     <p v-else>{{ t('projectcreatoraio', 'Create a project to get started. Your projects will appear in the shelf above.') }}</p>
+     <a v-if="!isExternal" class="pc-button" :href="base + '/new/create'" @click.prevent="openCreate">{{ t('projectcreatoraio', 'New project') }}</a>
     </section>
     </template>
    </main>
@@ -68,7 +70,10 @@ export default {
   return { base: generateUrl('/apps/projectcreatoraio'), route: readRoute(location.pathname, location.search), context: null, contextLoading: true, contextError: '', projects: [], myProjectIds: [], recentProjectIds: [], listLoaded: false, listLoading: false, listError: '', project: null, projectLoading: false, projectError: '', filters: { query: '', status: 'all', sort: 'recent', organization: 'all', scope: 'all', client: '' }, moduleError: false, directChatUser: null, returnRoute: null, createdNotice: null, deletedNotice: '', requestVersion: 0, listVersion: 0, contextVersion: 0 }
  },
  computed: {
-  hasAccess() { return !!(this.context?.isGlobalAdmin || this.context?.organizationId) },
+  hasAccess() { return !!(this.context?.isGlobalAdmin || this.context?.organizationId || this.context?.isExternal) },
+  isExternal() { return !!this.context?.isExternal },
+  // External collaborators see whose guest they are, and cannot create projects.
+  guestOf() { return (this.context?.hostOrganizations || []).map(o => o.name).filter(Boolean).join(', ') },
   legacyUrl() { return interfaceUrl(this.base, this.route, false) },
   tabLabel() { return this.route.tab },
   // The New project page leads back to the project it was opened from.

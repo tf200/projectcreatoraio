@@ -36,3 +36,14 @@ test('the server’s role rules are explained before a request is sent', () => {
 	assert.deepEqual(toggled(['a', 'b'], 'a'), ['b'])
 	assert.deepEqual(toggled(['a'], 'b'), ['a', 'b'])
 })
+
+test('externals are labelled with their company and warned of a near end', async () => {
+	const { externalLabel, endsSoon, isoDay } = await import('./members.js')
+	assert.equal(externalLabel({ company: ' Klant BV ' }), 'External · Klant BV')
+	assert.equal(externalLabel({ company: null }), 'External')
+	const now = Date.parse('2026-10-06T12:00:00Z')
+	assert.equal(endsSoon({ expiresAt: '2026-10-10T23:59:59Z' }, now), true)
+	assert.equal(endsSoon({ expiresAt: '2026-12-31T23:59:59Z' }, now), false)
+	assert.equal(endsSoon({ expiresAt: null }, now), false)
+	assert.equal(isoDay(new Date(2026, 0, 5)), '2026-01-05')
+})

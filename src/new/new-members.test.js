@@ -148,3 +148,68 @@ test('a refused removal keeps the member and shows why', async () => {
 	assert.equal(v.removingId, 'emma')
 	assert.equal(v.removeError, 'The project owner cannot be removed.')
 })
+
+const klaas = { userId: 'ext_k', displayName: 'Klaas Klant', company: 'Klant BV', email: 'klaas@klant.nl', status: 'active', expiresAt: '2027-01-31T23:59:59+00:00' }
+const piet = { userId: 'ext_p', displayName: 'Piet Net', company: null, email: 'piet@net.nl', status: 'pending', invitedAt: '2026-10-01T09:00:00+00:00', expiresAt: null }
+
+test('externals who have not accepted yet are read apart from the team', async () => {
+	const v = view({ members: async () => ({ members: [{ id: 'ext_k', displayName: 'Klaas Klant', external: klaas }], invitedExternals: [piet], functionalRoles: [] }) })
+	await v.load()
+	assert.equal(v.members[0].external.company, 'Klant BV')
+	assert.deepEqual(v.invited.map(person => person.userId), ['ext_p'])
+	assert.equal(v.memberMeta(v.members[0]), 'klaas@klant.nl')
+})
+
+test('inviting needs an email, a name and a DRASCIVS role, and sends the form', async () => {
+	const calls = []
+	const v = view({
+		inviteExternal: async (...args) => { calls.push(args); return { activated: false, emailSent: true, inviteUrl: null } },
+		members: async () => ({ members: [], invitedExternals: [piet], functionalRoles: [] }),
+	})
+	v.openInvite()
+	assert.equal(v.inviteProblem, 'Enter the email address of the person to invite.')
+	Object.assign(v.inviteDraft, { email: ' piet@net.nl ', name: 'Piet Net', company: '', expiresAt: '2027-02-28' })
+	assert.equal(v.inviteProblem, 'Choose at least one DRASCIVS role.')
+	v.inviteDraft.drascivs = ['informed']
+	assert.equal(v.inviteProblem, '')
+	await v.invite()
+	assert.equal(JSON.stringify(calls[0]), JSON.stringify([21, { email: 'piet@net.nl', displayName: 'Piet Net', company: null, expiresAt: '2027-02-28', drascivsRoles: ['informed'], functionalRoleKeys: [] }]))
+	assert.equal(v.inviting, false)
+	assert.equal(v.notice, 'An invitation was sent to Piet Net.')
+	assert.equal(v.invited.length, 1)
+})
+
+test('when the invitation email fails, the link is offered to pass on', async () => {
+	const v = view({
+		resendExternal: async () => ({ emailSent: false, inviteUrl: 'https://cloud.test/invite/abc' }),
+	})
+	v.invited = [piet]
+	await v.resend(piet)
+	assert.equal(v.notice, '')
+	assert.equal(JSON.stringify(v.inviteLink), JSON.stringify({ name: 'Piet Net', url: 'https://cloud.test/invite/abc' }))
+})
+
+test('an external is revoked, not removed from the group', async () => {
+	const calls = []
+	const v = view({
+		revokeExternal: async (...args) => { calls.push(['revoke', ...args]); return {} },
+		removeMember: async (...args) => { calls.push(['remove', ...args]); return {} },
+	})
+	v.members = [{ id: 'ext_k', displayName: 'Klaas Klant', external: klaas }]
+	assert.equal(v.removeLabel(v.members[0]), 'Revoke the access of Klaas Klant')
+	v.startRemove(v.members[0])
+	await v.remove(v.members[0])
+	assert.equal(JSON.stringify(calls), JSON.stringify([['revoke', 21, 'ext_k']]))
+	assert.equal(v.notice, 'The access of Klaas Klant was revoked.')
+})
+
+test('changing the end date updates the row it belongs to', async () => {
+	const v = view({ changeExternalEndDate: async (id, userId, date) => ({ grant: { expiresAt: date + 'T23:59:59+00:00' } }) })
+	v.members = [{ id: 'ext_k', displayName: 'Klaas Klant', external: { ...klaas } }]
+	v.startEndDate(v.members[0].external)
+	assert.equal(v.endDateDraft, '2027-01-31')
+	v.endDateDraft = '2027-03-31'
+	await v.saveEndDate(v.members[0].external, 'Klaas Klant')
+	assert.equal(v.members[0].external.expiresAt, '2027-03-31T23:59:59+00:00')
+	assert.equal(v.endDateId, null)
+})

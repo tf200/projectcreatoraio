@@ -46,6 +46,38 @@ class ProjectAccessService {
 		return $grants;
 	}
 
+	public function isExternal(string $userId): bool {
+		return $this->externals !== null && $this->externals->isExternal($userId);
+	}
+
+	/**
+	 * The organizations an external collaborator is a guest of right now.
+	 *
+	 * @return array<int,array{id:int,name:string}>
+	 */
+	public function getHostOrganizations(string $userId): array {
+		return $this->externals === null ? [] : $this->externals->getHostOrganizations($userId);
+	}
+
+	/**
+	 * Pending and active external collaborators of the project, keyed by user ID.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	public function getOpenProjectExternals(Project $project): array {
+		if ($this->externals === null) {
+			return [];
+		}
+
+		$externals = [];
+		foreach ($this->externals->listForProject((int)$project->getId()) as $row) {
+			if (in_array($row['status'] ?? null, ['pending', 'active'], true)) {
+				$externals[(string)$row['userId']] = $row;
+			}
+		}
+		return $externals;
+	}
+
 	public function hasExternalGrant(string $userId, Project $project): bool {
 		$grants = $this->getExternalProjectGrants($userId);
 		$projectId = (int)$project->getId();

@@ -21,6 +21,11 @@ export const api = {
 	addMember: (id, userId, drascivsRoles, functionalRoleKeys) => send('post', `projects/${id}/members`, { userId, drascivsRoles, functionalRoleKeys }),
 	updateMemberRoles: (id, userId, drascivsRoles, functionalRoleKeys) => send('put', `projects/${id}/members/${encodeURIComponent(userId)}/role`, { drascivsRoles, functionalRoleKeys }),
 	removeMember: (id, userId) => send('delete', `projects/${id}/members/${encodeURIComponent(userId)}`),
+	// External collaborators: invite, send the link again, move the end date, revoke.
+	inviteExternal: (id, payload) => send('post', `projects/${id}/externals`, payload),
+	resendExternal: (id, userId) => send('post', `projects/${id}/externals/${encodeURIComponent(userId)}/resend`, {}),
+	changeExternalEndDate: (id, userId, expiresAt) => send('put', `projects/${id}/externals/${encodeURIComponent(userId)}`, { expiresAt }),
+	revokeExternal: (id, userId) => send('delete', `projects/${id}/externals/${encodeURIComponent(userId)}`),
 	searchUsers: (search, organizationId) => get('users/search', organizationId ? { search, organizationId } : { search }),
 	// The plan limit a new project counts against, and the create request itself.
 	allowance: organizationId => get('projects/allowance', organizationId ? { organizationId } : undefined),

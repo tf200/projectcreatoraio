@@ -60,7 +60,13 @@ export default {
     { id: 'members', label: t('projectcreatoraio', 'Members'), icon: AccountGroupOutline },
     { id: 'activity', label: t('projectcreatoraio', 'Activity'), icon: History },
     { id: 'agenda', label: t('projectcreatoraio', 'Calendar'), icon: CalendarMonthOutline },
-   ]
+   ].filter(item => !this.disabledTabs.includes(item.id))
+  },
+  // Sections whose app this person cannot use, e.g. Calendar for an external collaborator.
+  disabledTabs() {
+   const features = this.context.features || {}
+   return Object.entries({ tasks: 'deck', intake: 'deck', agenda: 'calendar', whiteboard: 'whiteboard' })
+    .filter(([, feature]) => features[feature] === false).map(([tab]) => tab)
   },
  },
  methods: { date: dateLabel, tabUrl(tab) { return interfaceUrl(this.base, { projectId: this.project.id, tab }) } },

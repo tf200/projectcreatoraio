@@ -104,6 +104,40 @@ class ExternalApiController extends Controller {
 		return new DataResponse(['grant' => $grant]);
 	}
 
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	public function resend(int $projectId, string $userId): DataResponse {
+		$project = $this->requireManageableProject($projectId);
+		$result = $this->externals()->resend(
+			(int)$project->getOrganizationId(),
+			(int)$project->getId(),
+			$userId,
+			$this->currentUserId(),
+		);
+
+		return new DataResponse($result);
+	}
+
+	/**
+	 * Changes when the external's access ends.
+	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	public function update(int $projectId, string $userId, ?string $expiresAt = null): DataResponse {
+		$project = $this->requireManageableProject($projectId);
+		if ($expiresAt === null || trim($expiresAt) === '') {
+			throw new OCSBadRequestException('An end date is required.');
+		}
+		$grant = $this->externals()->changeEndDate(
+			(int)$project->getOrganizationId(),
+			(int)$project->getId(),
+			$userId,
+			$this->resolveEndDate($project, $expiresAt),
+		);
+
+		return new DataResponse(['grant' => $grant]);
+	}
+
 	/**
 	 * Org admins of the project's organization and the project owner.
 	 */

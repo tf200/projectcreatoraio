@@ -1,6 +1,6 @@
 <template>
  <section>
-  <header class="pc-list-heading"><div><h2>{{ t('projectcreatoraio', 'Projects') }}</h2></div><a class="pc-button" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a></header>
+  <header class="pc-list-heading"><div><h2>{{ t('projectcreatoraio', 'Projects') }}</h2></div><a v-if="canCreate" class="pc-button" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a></header>
   <p class="pc-subtle">{{ t('projectcreatoraio', 'Project creation opens in the current interface for now.') }}</p>
   <div class="pc-list-surface">
    <div class="pc-filters">
@@ -26,7 +26,7 @@ import { PROJECT_STATUS_OPTIONS, getProjectStatusLabel } from '../constants/proj
 import { PROJECT_TYPES } from '../macros/project-types.js'
 import { filterProjects, interfaceUrl } from './navigation.js'
 export default {
- props: { projects: { type: Array, required: true }, selectedId: { type: Number, default: null }, loading: Boolean, error: { type: String, default: '' }, filters: { type: Object, required: true }, base: { type: String, required: true }, isGlobalAdmin: Boolean, isOrganizationAdmin: Boolean, myProjectIds: { type: Array, default: () => [] }, recentProjectIds: { type: Array, default: () => [] } },
+ props: { projects: { type: Array, required: true }, selectedId: { type: Number, default: null }, loading: Boolean, error: { type: String, default: '' }, filters: { type: Object, required: true }, base: { type: String, required: true }, isGlobalAdmin: Boolean, isOrganizationAdmin: Boolean, myProjectIds: { type: Array, default: () => [] }, recentProjectIds: { type: Array, default: () => [] }, canCreate: { type: Boolean, default: true } },
  computed: {
   statuses() { return PROJECT_STATUS_OPTIONS },
   organizations() { return [...new Set(this.projects.map(p => p.organization_id).filter(Boolean))] },

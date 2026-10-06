@@ -147,8 +147,34 @@ class ProjectApiController extends Controller {
 
 		$members = $this->projectService->getProjectMembers($projectId);
 
+		// External collaborators are marked on their row; those who have not
+		// accepted yet are not members, so they are listed apart. Only people who
+		// manage the project see their email addresses.
+		$showEmail = $this->canEditPreparationWeeks($project);
+		$externals = array_map(static fn (array $row): array => [
+			'userId' => (string)$row['userId'],
+			'displayName' => $row['displayName'] ?? null,
+			'company' => $row['company'] ?? null,
+			'email' => $showEmail ? ($row['email'] ?? null) : null,
+			'status' => $row['status'],
+			'expiresAt' => $row['expiresAt'] ?? null,
+			'invitedAt' => $row['invitedAt'] ?? null,
+			'drascivsRoles' => $row['drascivsRoles'] ?? [],
+			'functionalRoleKeys' => $row['functionalRoleKeys'] ?? [],
+		], $this->access->getOpenProjectExternals($project));
+
+		foreach ($members as &$member) {
+			$external = $externals[(string)($member['id'] ?? '')] ?? null;
+			if ($external !== null) {
+				$member['external'] = $external;
+				unset($externals[(string)$member['id']]);
+			}
+		}
+		unset($member);
+
 		return new DataResponse([
 			'members' => $members,
+			'invitedExternals' => array_values($externals),
 			'functionalRoles' => $this->projectService->getProjectFunctionalRoles($projectId),
 		]);
 	}
@@ -303,6 +329,10 @@ class ProjectApiController extends Controller {
 		}
 		if ($this->membershipService === null) {
 			throw new OCSForbiddenException('Member removal is unavailable.');
+		}
+		// Taking an external out of the group alone would leave their grant open.
+		if (isset($this->access->getOpenProjectExternals($project)[$userId])) {
+			throw new OCSBadRequestException('External collaborators leave a project when their access is revoked.');
 		}
 
 		return new DataResponse($this->membershipService->removeMember($projectId, $userId));
@@ -973,12 +1003,17 @@ class ProjectApiController extends Controller {
 		$userId = $currentUser->getUID();
 		$isGlobalAdmin = $this->iGroupManager->isAdmin($userId);
 		$membership = $this->access->getOrganizationMembership($userId);
+		$isExternal = $membership === null && !$isGlobalAdmin && $this->access->isExternal($userId);
 
 		return new DataResponse([
 			'userId' => $userId,
 			'isGlobalAdmin' => $isGlobalAdmin,
 			'organizationRole' => $membership['role'] ?? null,
 			'organizationId' => isset($membership['organization_id']) ? (int)$membership['organization_id'] : null,
+			// External collaborators belong to no organization; they are guests of
+			// the organizations whose projects they were invited to.
+			'isExternal' => $isExternal,
+			'hostOrganizations' => $isExternal ? $this->access->getHostOrganizations($userId) : [],
 			'features' => [
 				'deck' => $this->appManager->isEnabledForUser('deck'),
 				'talk' => $this->appManager->isEnabledForUser('spreed'),
@@ -1377,6 +1412,10 @@ class ProjectApiController extends Controller {
 		$canEditPreparationWeeks = $this->canEditPreparationWeeks($existingProject);
 		$isProjectOwner = false;
 		$currentUser = $this->userSession->getUser();
+		if (!$isAdminForProject && $currentUser !== null && $this->access->getOrganizationMembership($currentUser->getUID()) === null
+			&& $this->access->isExternal($currentUser->getUID())) {
+			throw new OCSForbiddenException('External collaborators cannot change the project details.');
+		}
 		if ($currentUser !== null) {
 			$ownerId = trim((string)$existingProject->getOwnerId());
 			$isProjectOwner = $ownerId !== '' && $ownerId === $currentUser->getUID();

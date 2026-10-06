@@ -6,7 +6,7 @@
    <input class="pc-shelf-search" type="search" :value="filters.query" :aria-label="t('projectcreatoraio', 'Search projects')" :placeholder="t('projectcreatoraio', 'Search projects…')" @input="$emit('filter', { key: 'query', value: $event.target.value })">
    <button ref="expand" class="pc-secondary pc-shelf-expand" aria-haspopup="dialog" @click="openPicker"><ArrowExpand :size="18" />{{ t('projectcreatoraio', 'Expand') }}</button>
    <button class="pc-secondary pc-shelf-toggle" :aria-expanded="String(!collapsed)" @click="collapsed = !collapsed">{{ collapsed ? t('projectcreatoraio', 'Show shelf') : t('projectcreatoraio', 'Hide') }}<component :is="collapsed ? 'ChevronDown' : 'ChevronUp'" :size="18" /></button>
-   <a class="pc-button pc-shelf-create" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a>
+   <a v-if="canCreate" class="pc-button pc-shelf-create" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a>
   </div>
   <div v-if="loading" class="pc-shelf-message" role="status">{{ t('projectcreatoraio', 'Loading projects…') }}</div>
   <div v-else-if="error" class="pc-shelf-message" role="alert"><span>{{ error }}</span><button class="pc-secondary" @click="$emit('retry')">{{ t('projectcreatoraio', 'Try again') }}</button></div>
@@ -22,7 +22,7 @@
   </div>
   <dialog ref="picker" class="pc-project-picker" :aria-label="t('projectcreatoraio', 'Choose a project')" @cancel.prevent="closePicker" @keydown.esc.prevent.stop="closePicker" @click="onBackdropClick">
    <div class="pc-picker-top"><span>{{ t('projectcreatoraio', 'Choose a project to return to your workspace.') }}</span><button class="pc-secondary" @click="closePicker"><Close :size="18" />{{ t('projectcreatoraio', 'Close') }}</button></div>
-   <ProjectList :projects="projects" :selected-id="selectedId" :loading="loading" :error="error" :filters="filters" :base="base" :is-global-admin="isGlobalAdmin" :is-organization-admin="isOrganizationAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" @filter="$emit('filter', $event)" @open="select" @retry="$emit('retry')" @create="$emit('create')" />
+   <ProjectList :projects="projects" :selected-id="selectedId" :loading="loading" :error="error" :filters="filters" :base="base" :is-global-admin="isGlobalAdmin" :is-organization-admin="isOrganizationAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" :can-create="canCreate" @filter="$emit('filter', $event)" @open="select" @retry="$emit('retry')" @create="$emit('create')" />
   </dialog>
  </section>
 </template>
@@ -41,7 +41,7 @@ export default {
  props: {
   projects: { type: Array, required: true }, selectedId: { type: Number, default: null }, selectedName: { type: String, default: '' },
   loading: Boolean, error: { type: String, default: '' }, filters: { type: Object, required: true }, base: { type: String, required: true },
-  isGlobalAdmin: Boolean, isOrganizationAdmin: Boolean, myProjectIds: { type: Array, default: () => [] }, recentProjectIds: { type: Array, default: () => [] },
+  isGlobalAdmin: Boolean, isOrganizationAdmin: Boolean, myProjectIds: { type: Array, default: () => [] }, recentProjectIds: { type: Array, default: () => [] }, canCreate: { type: Boolean, default: true },
  },
  data() { return { collapsed: false } },
  computed: {

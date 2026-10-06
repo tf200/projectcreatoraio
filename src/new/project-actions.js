@@ -4,7 +4,7 @@ import { normalizeClientRoles } from '../macros/client-roles.js'
 
 // Administrators of the project's organisation edit everything; the owner may
 // rename it, change its status and delete it; every member edits the client
-// and the address.
+// and the address. External collaborators change nothing.
 export function permissionsOf(project, context) {
 	const userId = String(context?.userId || '').trim()
 	const isAdmin = !!(context?.isGlobalAdmin
@@ -15,7 +15,7 @@ export function permissionsOf(project, context) {
 		describe: isAdmin,
 		status: isAdmin || isOwner,
 		delete: isAdmin || isOwner,
-		client: true,
+		client: !context?.isExternal,
 	}
 }
 
