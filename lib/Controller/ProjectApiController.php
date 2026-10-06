@@ -332,7 +332,7 @@ class ProjectApiController extends Controller {
 		}
 		// Taking an external out of the group alone would leave their grant open.
 		if (isset($this->access->getOpenProjectExternals($project)[$userId])) {
-			throw new OCSBadRequestException('External collaborators leave a project when their access is revoked.');
+			return new DataResponse(['message' => 'External collaborators leave a project when their access is revoked.'], 400);
 		}
 
 		return new DataResponse($this->membershipService->removeMember($projectId, $userId));

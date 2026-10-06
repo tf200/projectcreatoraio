@@ -45,8 +45,10 @@ class ExternalApiController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function index(int $projectId): DataResponse {
-		$project = $this->requireManageableProject($projectId);
-		return new DataResponse(['externals' => $this->externals()->listForProject((int)$project->getId())]);
+		return $this->respond(function () use ($projectId): DataResponse {
+			$project = $this->requireManageableProject($projectId);
+			return new DataResponse(['externals' => $this->externals()->listForProject((int)$project->getId())]);
+		});
 	}
 
 	/**
@@ -65,57 +67,63 @@ class ExternalApiController extends Controller {
 		array $drascivsRoles = [],
 		array $functionalRoleKeys = [],
 	): DataResponse {
-		$project = $this->requireManageableProject($projectId);
-		$roles = $this->projectService->validateMemberRoles($project, $drascivsRoles, $functionalRoleKeys);
+		return $this->respond(function () use ($projectId, $email, $displayName, $company, $phone, $expiresAt, $drascivsRoles, $functionalRoleKeys): DataResponse {
+			$project = $this->requireManageableProject($projectId);
+			$roles = $this->projectService->validateMemberRoles($project, $drascivsRoles, $functionalRoleKeys);
 
-		$result = $this->externals()->invite(
-			(int)$project->getOrganizationId(),
-			(int)$project->getId(),
-			$this->currentUserId(),
-			$email,
-			$displayName,
-			$company,
-			$phone,
-			$this->resolveEndDate($project, $expiresAt),
-			$roles['functionalRoleKeys'],
-			$roles['drasciRoles'],
-		);
+			$result = $this->externals()->invite(
+				(int)$project->getOrganizationId(),
+				(int)$project->getId(),
+				$this->currentUserId(),
+				$email,
+				$displayName,
+				$company,
+				$phone,
+				$this->resolveEndDate($project, $expiresAt),
+				$roles['functionalRoleKeys'],
+				$roles['drasciRoles'],
+			);
 
-		return new DataResponse([
-			'external' => $result['external'],
-			'grant' => $result['grant'],
-			'activated' => $result['activated'],
-			'emailSent' => $result['emailSent'],
-			'inviteUrl' => $result['inviteUrl'],
-		], 201);
+			return new DataResponse([
+				'external' => $result['external'],
+				'grant' => $result['grant'],
+				'activated' => $result['activated'],
+				'emailSent' => $result['emailSent'],
+				'inviteUrl' => $result['inviteUrl'],
+			], 201);
+		});
 	}
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function revoke(int $projectId, string $userId): DataResponse {
-		$project = $this->requireManageableProject($projectId);
-		$grant = $this->externals()->revoke(
-			(int)$project->getOrganizationId(),
-			(int)$project->getId(),
-			$userId,
-			$this->currentUserId(),
-		);
+		return $this->respond(function () use ($projectId, $userId): DataResponse {
+			$project = $this->requireManageableProject($projectId);
+			$grant = $this->externals()->revoke(
+				(int)$project->getOrganizationId(),
+				(int)$project->getId(),
+				$userId,
+				$this->currentUserId(),
+			);
 
-		return new DataResponse(['grant' => $grant]);
+			return new DataResponse(['grant' => $grant]);
+		});
 	}
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function resend(int $projectId, string $userId): DataResponse {
-		$project = $this->requireManageableProject($projectId);
-		$result = $this->externals()->resend(
-			(int)$project->getOrganizationId(),
-			(int)$project->getId(),
-			$userId,
-			$this->currentUserId(),
-		);
+		return $this->respond(function () use ($projectId, $userId): DataResponse {
+			$project = $this->requireManageableProject($projectId);
+			$result = $this->externals()->resend(
+				(int)$project->getOrganizationId(),
+				(int)$project->getId(),
+				$userId,
+				$this->currentUserId(),
+			);
 
-		return new DataResponse($result);
+			return new DataResponse($result);
+		});
 	}
 
 	/**
@@ -124,18 +132,35 @@ class ExternalApiController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function update(int $projectId, string $userId, ?string $expiresAt = null): DataResponse {
-		$project = $this->requireManageableProject($projectId);
-		if ($expiresAt === null || trim($expiresAt) === '') {
-			throw new OCSBadRequestException('An end date is required.');
-		}
-		$grant = $this->externals()->changeEndDate(
-			(int)$project->getOrganizationId(),
-			(int)$project->getId(),
-			$userId,
-			$this->resolveEndDate($project, $expiresAt),
-		);
+		return $this->respond(function () use ($projectId, $userId, $expiresAt): DataResponse {
+			$project = $this->requireManageableProject($projectId);
+			if ($expiresAt === null || trim($expiresAt) === '') {
+				throw new OCSBadRequestException('An end date is required.');
+			}
+			$grant = $this->externals()->changeEndDate(
+				(int)$project->getOrganizationId(),
+				(int)$project->getId(),
+				$userId,
+				$this->resolveEndDate($project, $expiresAt),
+			);
 
-		return new DataResponse(['grant' => $grant]);
+			return new DataResponse(['grant' => $grant]);
+		});
+	}
+
+	/**
+	 * This is not an OCS controller, so a refusal is turned into JSON here;
+	 * otherwise the page gets a server error instead of the reason.
+	 *
+	 * @param callable(): DataResponse $action
+	 */
+	private function respond(callable $action): DataResponse {
+		try {
+			return $action();
+		} catch (OCSException $e) {
+			$status = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+			return new DataResponse(['message' => $e->getMessage()], $status);
+		}
 	}
 
 	/**
