@@ -32,11 +32,15 @@ class ProjectPortfolioService {
 		['key' => '100', 'label' => '100%', 'min' => 100, 'max' => 100],
 	];
 
+	private MemberLoadService $memberLoad;
+
 	public function __construct(
 		private ProjectMapper $projectMapper,
 		private IDBConnection $db,
 		private ?IDateTimeZone $dateTimeZone = null,
+		?MemberLoadService $memberLoad = null,
 	) {
+		$this->memberLoad = $memberLoad ?? new MemberLoadService($db);
 	}
 
 	public function getCompletion(int $organizationId, ?string $memberUid = null, ?int $teamId = null): array {
@@ -146,10 +150,17 @@ class ProjectPortfolioService {
 	/**
 	 * Fetches the portfolio in batches. The card query deliberately returns done as text:
 	 * PostgreSQL Deck installations have used both datetime and date-like values there.
+	 * The people of the team carry their projects of other teams too.
 	 */
 	public function getCapacity(int $organizationId, int $teamId, ?string $weekStart = null): array {
 		$requestedMonday = $this->normalizeMonday($weekStart);
-		$team = $this->loadTeam($organizationId, $teamId);
+		$teamRows = $this->loadTeams($organizationId);
+		$team = null;
+		foreach ($teamRows as $teamRow) {
+			if ((int)$teamRow['id'] === $teamId) {
+				$team = $teamRow;
+			}
+		}
 		if ($team === null) {
 			throw new \InvalidArgumentException('Team does not belong to organization');
 		}
@@ -159,34 +170,48 @@ class ProjectPortfolioService {
 		$eligible = $this->deriveEligibleCapacityProjects($projects);
 		[$planningGaps, $scheduleIssues] = $this->findPlanningGaps($projects, $cards, [$teamId => (string)$team['name']], $requestedMonday);
 
+		$loads = $this->memberLoad->getLoads($organizationId, $requestedMonday);
+		$members = array_filter($loads['members'], static fn (array $member): bool => in_array($teamId, $member['teamIds'], true));
+
 		$unassigned = $this->loadUnassignedProjects($organizationId);
-		$result = $this->summarizeCapacity($team, $requestedMonday->format('Y-m-d'), $eligible, $planningGaps, $unassigned);
-		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($eligible));
+		$result = $this->summarizeCapacity($requestedMonday->format('Y-m-d'), $eligible, $planningGaps, $unassigned);
+		$result = $this->applyPeople($result, $members, $loads['projects'], $teamRows, true);
+		$result['scope'] = [
+			'type' => 'team',
+			'team' => ['id' => $teamId, 'name' => (string)$team['name'], 'memberCount' => count($members)],
+		];
+		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($projects));
 		$result['toSchedule'] = $this->findProjectsToSchedule($projects);
 		return $result;
 	}
 
 	/**
-	 * Aggregate capacity across all teams of the organization. The combined
-	 * strip reuses summarizeCapacity() with a synthetic team row whose
-	 * capacity is the sum of the teams' capacities; per-team over-capacity
-	 * weeks are reported separately so one team's overload cannot hide
-	 * behind another team's slack.
+	 * Capacity across all teams of the organization, or of one member. Every
+	 * person is counted once however many teams they are in, so one
+	 * person's overload cannot hide behind another team's slack.
 	 */
 	public function getCapacityForAll(int $organizationId, ?string $weekStart = null, ?string $memberUid = null): array {
 		$requestedMonday = $this->normalizeMonday($weekStart);
 		$weekStartDate = $requestedMonday->format('Y-m-d');
-		$projects = $this->applyMemberFilter($this->loadAllCapacityProjects($organizationId), $memberUid);
+		$loads = $this->memberLoad->getLoads($organizationId, $requestedMonday);
+		$allProjects = $this->loadAllCapacityProjects($organizationId);
+		$allTeams = $this->loadTeams($organizationId);
+
+		if ($memberUid !== null) {
+			$members = isset($loads['members'][$memberUid]) ? [$memberUid => $loads['members'][$memberUid]] : [];
+			$myTeamIds = $members[$memberUid]['teamIds'] ?? [];
+			$teamRows = array_values(array_filter($allTeams, static fn (array $team): bool => in_array((int)$team['id'], $myTeamIds, true)));
+			$stripProjects = array_values(array_filter($allProjects, static fn (array $project): bool => array_intersect($project['teamIds'], $myTeamIds) !== []));
+			$projects = $this->applyMemberFilter($allProjects, $memberUid);
+		} else {
+			$members = $loads['members'];
+			$teamRows = $allTeams;
+			$stripProjects = $allProjects;
+			$projects = $allProjects;
+		}
+
 		$gapProjects = array_merge($projects, $this->applyMemberFilter($this->loadUnassignedCapacityProjects($organizationId), $memberUid));
 		$cards = $this->loadCardsForProjects($gapProjects);
-		$eligible = $this->deriveEligibleCapacityProjects($projects);
-		if ($memberUid !== null) {
-			$teamRows = $this->loadInvolvedTeams($organizationId, $projects);
-			$allRow = $this->buildAllTeamsRow($teamRows, $organizationId, 'My teams');
-		} else {
-			$teamRows = $this->loadTeams($organizationId);
-			$allRow = $this->buildAllTeamsRow($teamRows, $organizationId);
-		}
 		$teamNames = [];
 		foreach ($teamRows as $teamRow) {
 			$teamNames[(int)$teamRow['id']] = (string)$teamRow['name'];
@@ -194,11 +219,12 @@ class ProjectPortfolioService {
 		[$planningGaps, $scheduleIssues] = $this->findPlanningGaps($gapProjects, $cards, $teamNames, $requestedMonday);
 
 		$unassigned = $this->applyMemberFilter($this->loadUnassignedProjects($organizationId), $memberUid);
-		$result = $this->summarizeCapacity($allRow, $weekStartDate, $eligible, $planningGaps, $unassigned);
-		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($eligible));
+		$result = $this->summarizeCapacity($weekStartDate, $this->deriveEligibleCapacityProjects($stripProjects), $planningGaps, $unassigned);
+		$result = $this->applyPeople($result, $members, $loads['projects'], $allTeams, $memberUid !== null);
+		$result['scope'] = ['type' => $memberUid !== null ? 'mine' : 'all', 'team' => null];
+		$result['scheduleIssues'] = array_merge($scheduleIssues, $this->findExecutionIssues($projects));
 		$result['toSchedule'] = $this->findProjectsToSchedule($projects);
-		$result['teams'] = $this->summarizeTeams($teamRows);
-		$result['teamWarnings'] = $this->buildTeamWarnings($this->summarizeTeamsInPeriod($organizationId, $teamRows, $weekStartDate, $memberUid));
+		$result['teams'] = $this->summarizeTeams($teamRows, $loads['members']);
 		return $result;
 	}
 
@@ -495,9 +521,12 @@ class ProjectPortfolioService {
 				'label' => $this->isoWeekLabel($currentMonday),
 				'date' => $currentMonday->format('Y-m-d'),
 			],
-			'team' => $capacitySummary['team'] ?? null,
+			'scope' => $capacitySummary['scope'] ?? null,
 			'teams' => $capacitySummary['teams'] ?? [],
-			'teamWarnings' => $capacitySummary['teamWarnings'] ?? [],
+			'maxProjectsPerMember' => $capacitySummary['maxProjectsPerMember'] ?? MemberLoadService::MAX_CONCURRENT_PROJECTS,
+			'people' => $capacitySummary['people'] ?? [],
+			'capacityProjects' => $capacitySummary['projects'] ?? [],
+			'overloadWarnings' => $capacitySummary['overloadWarnings'] ?? [],
 			'weeks' => $capacitySummary['weeks'] ?? [],
 			'totalProjects' => $totalProjects,
 			'planningGapCount' => $planningGapCount,
@@ -510,49 +539,139 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * @param array<int,array<string,mixed>> $teams Raw team rows with fte/projectsPerFte keys
-	 * @return array<int,array{id:int,name:string,capacity:float}>
+	 * @param array<int,array<string,mixed>> $teams Raw team rows
+	 * @param array<string,array{teamIds:int[]}> $members Member loads keyed by uid
+	 * @return array<int,array{id:int,name:string,memberCount:int}>
 	 */
-	public function summarizeTeams(array $teams): array {
+	public function summarizeTeams(array $teams, array $members): array {
 		$out = [];
 		foreach ($teams as $team) {
-			$projectsPerFte = (float)($team['projectsPerFte'] ?? $team['projects_per_fte'] ?? 1.0);
+			$teamId = (int)$team['id'];
 			$out[] = [
-				'id' => (int)$team['id'],
+				'id' => $teamId,
 				'name' => (string)$team['name'],
-				'capacity' => round((float)($team['fte'] ?? 0.0) * $projectsPerFte, 2),
+				'memberCount' => count(array_filter($members, static fn (array $member): bool => in_array($teamId, $member['teamIds'], true))),
 			];
 		}
 		return $out;
 	}
 
 	/**
-	 * @param array<int,array<string,mixed>> $teams Raw team rows with fte/projectsPerFte keys
-	 * @return array<string,mixed> Synthetic team row carrying the summed capacity
+	 * Builds the capacity view around people: one row per person with their
+	 * load in each week, overloaded people first. The week cards count the
+	 * people who are full or overloaded. Free slots are the projects the
+	 * people can still take without overloading anyone; they only mean
+	 * something for one team or one person.
+	 *
+	 * @param array<string,mixed> $summary Result of summarizeCapacity()
+	 * @param array<string,array{uid:string,displayName:string,teamIds:int[],weeks:array<int,array{load:int,projectIds:int[],state:string}>}> $members
+	 * @param array<int,array{id:int,name:string,teamId:int,start:string,end:?string}> $projects Team projects keyed by id
+	 * @param array<int,array<string,mixed>> $teams Team rows of the organization
+	 * @return array<string,mixed>
 	 */
-	public function buildAllTeamsRow(array $teams, int $organizationId, string $name = 'All teams'): array {
-		$total = 0.0;
-		foreach ($this->summarizeTeams($teams) as $summary) {
-			$total = round($total + $summary['capacity'], 2);
+	public function applyPeople(array $summary, array $members, array $projects, array $teams, bool $withFreeSlots): array {
+		$teamNames = [];
+		foreach ($teams as $team) {
+			$teamNames[(int)$team['id']] = (string)$team['name'];
 		}
-		return ['id' => 0, 'organizationId' => $organizationId, 'name' => $name, 'fte' => $total, 'projectsPerFte' => 1.0];
+
+		$people = [];
+		$referenced = [];
+		foreach ($members as $member) {
+			$peak = 0;
+			foreach ($member['weeks'] as $week) {
+				$peak = max($peak, $week['load']);
+				foreach ($week['projectIds'] as $projectId) {
+					$referenced[$projectId] = $projectId;
+				}
+			}
+			$memberTeams = [];
+			foreach ($member['teamIds'] as $teamId) {
+				$memberTeams[] = ['id' => $teamId, 'name' => $teamNames[$teamId] ?? ''];
+			}
+			$people[] = [
+				'uid' => $member['uid'],
+				'displayName' => $member['displayName'],
+				'teams' => $memberTeams,
+				'weeks' => $member['weeks'],
+				'peakLoad' => $peak,
+			];
+		}
+		usort($people, static fn (array $a, array $b): int => [$b['peakLoad'], $a['displayName'], $a['uid']] <=> [$a['peakLoad'], $b['displayName'], $b['uid']]);
+
+		foreach ($summary['weeks'] as $index => $week) {
+			$overloaded = $full = 0;
+			$minFree = null;
+			foreach ($people as $person) {
+				$load = $person['weeks'][$index]['load'];
+				$overloaded += $load > MemberLoadService::MAX_CONCURRENT_PROJECTS ? 1 : 0;
+				$full += $load === MemberLoadService::MAX_CONCURRENT_PROJECTS ? 1 : 0;
+				$free = MemberLoadService::MAX_CONCURRENT_PROJECTS - $load;
+				$minFree = $minFree === null ? $free : min($minFree, $free);
+			}
+			$week['overloadedPeople'] = $overloaded;
+			$week['fullPeople'] = $full;
+			$week['overCapacity'] = $overloaded > 0;
+			$week['freeSlots'] = $withFreeSlots && $minFree !== null ? max(0, $minFree) : null;
+			if ($week['overCapacity']) {
+				$week['message'] = $overloaded === 1 ? '1 person overloaded' : $overloaded . ' people overloaded';
+			}
+			$summary['weeks'][$index] = $week;
+		}
+
+		$projectList = [];
+		sort($referenced);
+		foreach ($referenced as $projectId) {
+			$project = $projects[$projectId];
+			$projectList[] = [
+				'id' => $project['id'],
+				'name' => $project['name'],
+				'teamId' => $project['teamId'],
+				'teamName' => $teamNames[$project['teamId']] ?? '',
+				'start' => $project['start'],
+				'end' => $project['end'],
+			];
+		}
+
+		$summary['maxProjectsPerMember'] = MemberLoadService::MAX_CONCURRENT_PROJECTS;
+		$summary['people'] = $people;
+		$summary['projects'] = $projectList;
+		$summary['overloadWarnings'] = $this->buildOverloadWarnings($people, $summary['weeks']);
+		return $summary;
 	}
 
 	/**
-	 * @param array<int,array{id:int,name:string,weeks:array<int,array<string,mixed>>}> $summaries
-	 * @return array<int,array{id:int,name:string,overWeeks:array<int,string>}>
+	 * Who is overloaded, in which weeks and through which projects.
+	 *
+	 * @param array<int,array{uid:string,displayName:string,weeks:array<int,array{load:int,projectIds:int[],state:string}>}> $people
+	 * @param array<int,array{label:string}> $weeks
+	 * @return array<int,array{uid:string,displayName:string,peakLoad:int,overWeeks:string[],projectIds:int[]}>
 	 */
-	public function buildTeamWarnings(array $summaries): array {
+	public function buildOverloadWarnings(array $people, array $weeks): array {
 		$warnings = [];
-		foreach ($summaries as $summary) {
+		foreach ($people as $person) {
 			$overWeeks = [];
-			foreach ($summary['weeks'] as $week) {
-				if (!empty($week['overCapacity'])) {
-					$overWeeks[] = $week['label'];
+			$projectIds = [];
+			$peak = 0;
+			foreach ($person['weeks'] as $index => $week) {
+				if ($week['state'] !== 'overloaded') {
+					continue;
+				}
+				$overWeeks[] = $weeks[$index]['label'];
+				$peak = max($peak, $week['load']);
+				foreach ($week['projectIds'] as $projectId) {
+					$projectIds[$projectId] = $projectId;
 				}
 			}
 			if ($overWeeks !== []) {
-				$warnings[] = ['id' => (int)$summary['id'], 'name' => (string)$summary['name'], 'overWeeks' => $overWeeks];
+				sort($projectIds);
+				$warnings[] = [
+					'uid' => $person['uid'],
+					'displayName' => $person['displayName'],
+					'peakLoad' => $peak,
+					'overWeeks' => $overWeeks,
+					'projectIds' => array_values($projectIds),
+				];
 			}
 		}
 		return $warnings;
@@ -627,46 +746,10 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Teams behind the given capacity projects (assignment table), used as
-	 * the Mine-mode capacity denominator and warning scope.
-	 *
-	 * @param array<int,array<string,mixed>> $projects Rows with id keys
-	 * @return array<int,array<string,mixed>> Raw team rows
-	 */
-	private function loadInvolvedTeams(int $organizationId, array $projects): array {
-		$projectIds = [];
-		foreach ($projects as $project) {
-			$projectIds[(int)$project['id']] = true;
-		}
-		if ($projectIds === []) {
-			return [];
-		}
-		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->selectDistinct('team_id')
-			->from('organization_project_teams')
-			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
-			->andWhere($qb->expr()->in('project_id', $qb->createNamedParameter(array_keys($projectIds), IQueryBuilder::PARAM_INT_ARRAY)))
-			->executeQuery()->fetchAllAssociative();
-		$teamIds = [];
-		foreach ($rows as $row) {
-			$teamIds[(int)$row['team_id']] = true;
-		}
-		if ($teamIds === []) {
-			return [];
-		}
-		$teamQb = $this->db->getQueryBuilder();
-		$rows = $teamQb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
-			->from('organization_teams')
-			->where($teamQb->expr()->eq('organization_id', $teamQb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
-			->andWhere($teamQb->expr()->in('id', $teamQb->createNamedParameter(array_keys($teamIds), IQueryBuilder::PARAM_INT_ARRAY)))
-			->executeQuery()->fetchAllAssociative();
-		return array_map([$this, 'mapTeamRow'], $rows);
-	}
-
-	/**
 	 * A team is busy with a project while it works on site: from the actual
-	 * start until handover. Projects without an actual start are not planned
-	 * yet and are listed by findProjectsToSchedule() instead.
+	 * start until handover (see MemberLoadService::busyWindow()). Projects
+	 * without an actual start are not planned yet and are listed by
+	 * findProjectsToSchedule() instead.
 	 *
 	 * @param array<int,array<string,mixed>> $projects Raw project rows with execution date keys
 	 * @return array<int,array<string,mixed>>
@@ -674,15 +757,11 @@ class ProjectPortfolioService {
 	private function deriveEligibleCapacityProjects(array $projects): array {
 		$eligible = [];
 		foreach ($projects as $project) {
-			$window = $this->deriveExecutionWindow($project);
+			$window = MemberLoadService::busyWindow($project);
 			if ($window === null) {
 				continue;
 			}
-			// An archived project that never got an end would stay busy forever.
-			if ((int)$project['status'] === ProjectStatus::ARCHIVED && $window['end'] === null) {
-				continue;
-			}
-			$eligible[] = array_merge($project, $window);
+			$eligible[] = array_merge($project, $window, ['actualEnd' => $this->calendarDay($project['actualHandoverDate'] ?? null)]);
 		}
 		return $eligible;
 	}
@@ -729,15 +808,25 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * @param array<int,array<string,mixed>> $eligible Projects with execution windows
+	 * Started projects whose execution window cannot be counted reliably.
+	 * Projects closed without a recorded handover are left alone.
+	 *
+	 * @param array<int,array<string,mixed>> $projects Raw project rows with execution date keys
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function findExecutionIssues(array $eligible): array {
+	private function findExecutionIssues(array $projects): array {
 		$issues = [];
-		foreach ($eligible as $project) {
-			if ($project['end'] === null) {
+		foreach ($projects as $project) {
+			$window = $this->deriveExecutionWindow($project);
+			if ($window === null) {
+				continue;
+			}
+			if ($window['actualEnd'] === null && in_array((int)$project['status'], [ProjectStatus::DONE, ProjectStatus::ARCHIVED], true)) {
+				continue;
+			}
+			if ($window['end'] === null) {
 				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Started but no handover planned: set weeks on site'];
-			} elseif ($project['end'] < $project['start']) {
+			} elseif ($window['end'] < $window['start']) {
 				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Handover before actual start'];
 			}
 		}
@@ -745,67 +834,27 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Per-team week summaries for the viewed period, used for All-teams
-	 * over-capacity warnings. Planning gaps are irrelevant here.
+	 * Counts the projects running in each of six weeks. Each project's 'end'
+	 * is its recorded handover when there is one, otherwise its planned
+	 * handover, so Ending lands in the week the team really finished even
+	 * when it differs from the plan. The people are added by applyPeople().
 	 *
-	 * @param array<int,array<string,mixed>> $teamRows
-	 * @return array<int,array{id:int,name:string,weeks:array<int,array<string,mixed>>}>
+	 * @param array<int,array<string,mixed>> $projects Projects with start/end keys
 	 */
-	private function summarizeTeamsInPeriod(int $organizationId, array $teamRows, string $weekStart, ?string $memberUid = null): array {
-		$summaries = [];
-		foreach ($teamRows as $row) {
-			$team = [
-				'id' => (int)$row['id'],
-				'organizationId' => $organizationId,
-				'name' => (string)$row['name'],
-				'fte' => (float)$row['fte'],
-				'projectsPerFte' => (float)$row['projects_per_fte'],
-			];
-			$projects = $this->applyMemberFilter($this->loadCapacityProjects($organizationId, $team['id']), $memberUid);
-			$eligible = $this->deriveEligibleCapacityProjects($projects);
-			$summary = $this->summarizeCapacity($team, $weekStart, $eligible);
-			$summaries[] = ['id' => $team['id'], 'name' => $team['name'], 'weeks' => $summary['weeks']];
-		}
-		return $summaries;
-	}
-
-	/**
-	 * Each project's 'end' is its recorded handover when there is one,
-	 * otherwise its planned handover, so Ending lands in the week the team
-	 * really finished even when it differs from the plan.
-	 *
-	 * @param array<string,mixed> $team
-	 * @param array<int,array<string,mixed>> $projects
-	 */
-	public function summarizeCapacity(array $team, string $weekStart, array $projects, array $planningGaps = [], array $unassigned = []): array {
+	public function summarizeCapacity(string $weekStart, array $projects, array $planningGaps = [], array $unassigned = []): array {
 		$monday = $this->normalizeMonday($weekStart);
-		$projectsPerFte = (float)($team['projectsPerFte'] ?? $team['projects_per_fte'] ?? 1.0);
-		$capacity = round((float)($team['fte'] ?? 0.0) * $projectsPerFte, 2);
-		$normalizedProjects = [];
-		foreach ($projects as $project) {
-			if ($project['end'] !== null && $project['end'] < $project['start']) {
-				$project['end'] = null;
-				$project['actualEnd'] = null;
-			}
-			$normalizedProjects[] = $project;
-		}
-
 		$weeks = [];
-		for ($i = 0; $i < 6; $i++) {
-			$start = $monday->modify('+' . ($i * 7) . ' days');
-			$end = $start->modify('+6 days');
+		foreach (MemberLoadService::weeks($monday, 6) as $week) {
 			$starting = $ending = $continuing = $total = 0;
-			foreach ($normalizedProjects as $project) {
+			foreach ($projects as $project) {
 				$from = $project['start'];
 				$to = $project['end'];
-				$weekStartDate = $start->format('Y-m-d');
-				$weekEndDate = $end->format('Y-m-d');
-				if ($from > $weekEndDate || ($to !== null && $to < $weekStartDate)) {
+				if ($from > $week['end'] || ($to !== null && $to < $week['start'])) {
 					continue;
 				}
 				$total++;
-				$starts = $from >= $weekStartDate && $from <= $weekEndDate;
-				$ends = $to !== null && $to >= $weekStartDate && $to <= $weekEndDate;
+				$starts = $from >= $week['start'] && $from <= $week['end'];
+				$ends = $to !== null && $to >= $week['start'] && $to <= $week['end'];
 				if ($starts) {
 					$starting++;
 				}
@@ -816,37 +865,16 @@ class ProjectPortfolioService {
 					$continuing++;
 				}
 			}
-			$remaining = round($capacity - $total, 2);
-			$message = 'Within capacity';
-			if ($remaining < 0) {
-				$message = 'Capacity exceeded';
-			} elseif ($total === 0) {
-				$message = 'No active projects';
-			}
-			$weeks[] = [
-				'label' => $start->format('o-\WW'),
-				'start' => $start->format('Y-m-d'),
-				'end' => $end->format('Y-m-d'),
+			$weeks[] = $week + [
 				'starting' => $starting,
 				'ending' => $ending,
 				'continuing' => $continuing,
 				'totalActive' => $total,
-				'capacity' => $capacity,
-				'remaining' => $remaining,
-				'overCapacity' => $remaining < 0,
-				'message' => $message,
+				'message' => $total === 0 ? 'No active projects' : 'Within capacity',
 			];
 		}
 
 		return [
-			'team' => [
-				'id' => (int)$team['id'],
-				'organizationId' => (int)$team['organizationId'],
-				'name' => (string)$team['name'],
-				'fte' => (float)$team['fte'],
-				'projectsPerFte' => (float)$team['projectsPerFte'],
-				'capacity' => $capacity,
-			],
 			'period' => [
 				'weekStart' => $monday->format('Y-m-d'),
 				'weekEnd' => $monday->modify('+41 days')->format('Y-m-d'),
@@ -863,21 +891,17 @@ class ProjectPortfolioService {
 	 * @return array<string,mixed>
 	 */
 	private function mapTeamRow(array $row): array {
-		$projectsPerFte = (float)($row['projects_per_fte'] ?? $row['projectsPerFte'] ?? 1.0);
 		return [
 			'id' => (int)$row['id'],
 			'organizationId' => (int)($row['organization_id'] ?? $row['organizationId'] ?? 0),
 			'name' => (string)$row['name'],
-			'fte' => (float)$row['fte'],
-			'projects_per_fte' => $projectsPerFte,
-			'projectsPerFte' => $projectsPerFte,
 		];
 	}
 
 	/** @return array<string,mixed>|null */
 	private function loadTeam(int $organizationId, int $teamId): ?array {
 		$qb = $this->db->getQueryBuilder();
-		$row = $qb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
+		$row = $qb->select('id', 'organization_id', 'name')
 			->from('organization_teams')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -892,7 +916,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadTeams(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('id', 'organization_id', 'name', 'fte', 'projects_per_fte')
+		$rows = $qb->select('id', 'organization_id', 'name')
 			->from('organization_teams')
 			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
 			->executeQuery()->fetchAllAssociative();
@@ -1316,9 +1340,6 @@ class ProjectPortfolioService {
 		// Between projects means the team has no work on site: only the
 		// execution windows (actual start until handover) fill its time.
 		foreach ($this->deriveEligibleCapacityProjects($projects) as $project) {
-			if ($project['end'] !== null && $project['end'] < $project['start']) {
-				continue;
-			}
 			foreach (($project['teamIds'] ?? []) as $teamId) {
 				$teamId = (int)$teamId;
 				if ($teamId > 0 && isset($teamNames[$teamId])) {

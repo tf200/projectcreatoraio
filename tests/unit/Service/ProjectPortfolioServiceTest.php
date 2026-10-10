@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Tests\Unit\Service;
 
 use OCA\ProjectCreatorAIO\Db\ProjectMapper;
+use OCA\ProjectCreatorAIO\Service\MemberLoadService;
 use OCA\ProjectCreatorAIO\Service\ProjectPortfolioService;
 use OCP\IDBConnection;
 use PHPUnit\Framework\TestCase;
@@ -92,9 +93,8 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame($explicit, $resultExplicit['statusCounts']);
 	}
 
-	public function testCapacityUsesInclusiveBoundariesAndRoundsCapacity(): void {
+	public function testCapacityUsesInclusiveBoundaries(): void {
 		$result = $this->service->summarizeCapacity(
-			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],
 			'2026-09-16',
 			[
 				['id' => 1, 'name' => 'Starts Monday', 'status' => 1, 'start' => '2026-09-14', 'end' => '2026-09-20', 'actualEnd' => null],
@@ -107,12 +107,10 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame(1, $result['weeks'][0]['starting']);
 		self::assertSame(1, $result['weeks'][0]['ending']);
 		self::assertSame(2, $result['weeks'][0]['totalActive']);
-		self::assertSame(3.5, $result['team']['capacity']);
 	}
 
 	public function testCapacityNormalizesRequestedDateToItsIsoMonday(): void {
 		$result = $this->service->summarizeCapacity(
-			$this->team(1, 1),
 			'2026-09-20',
 			[],
 		);
@@ -123,7 +121,6 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 	public function testCapacityKeepsOpenEndedProjectsActiveInAllLaterWeeks(): void {
 		$result = $this->service->summarizeCapacity(
-			$this->team(1, 1),
 			'2026-09-16',
 			[$this->capacityProject(1, '2026-09-14', null)],
 		);
@@ -136,7 +133,6 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 	public function testCapacityCountsSameWeekStartAndEndButNotContinuing(): void {
 		$result = $this->service->summarizeCapacity(
-			$this->team(2, 1),
 			'2026-09-14',
 			[$this->capacityProject(1, '2026-09-15', '2026-09-17')],
 		);
@@ -147,9 +143,8 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame(1, $result['weeks'][0]['totalActive']);
 	}
 
-	public function testCapacityFormatsIsoYearRolloverAndOverCapacity(): void {
+	public function testCapacityFormatsIsoYearRollover(): void {
 		$result = $this->service->summarizeCapacity(
-			$this->team(1, 1),
 			'2026-12-30',
 			[
 				$this->capacityProject(1, '2026-12-28', null),
@@ -159,85 +154,80 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 		self::assertSame('2026-W53', $result['weeks'][0]['label']);
 		self::assertSame('2027-W01', $result['weeks'][1]['label']);
-		self::assertTrue($result['weeks'][0]['overCapacity']);
-		self::assertSame(-1.0, $result['weeks'][0]['remaining']);
+		self::assertSame(2, $result['weeks'][0]['totalActive']);
 	}
 
-	public function testCapacityDoesNotCountAnEndBeforeStartAsIdleTime(): void {
-		$result = $this->service->summarizeCapacity(
-			$this->team(4, 1),
-			'2026-09-14',
-			[$this->capacityProject(7, '2026-09-20', '2026-09-19')],
+	public function testSummarizeTeamsCountsMembersOfEachTeam(): void {
+		$result = $this->service->summarizeTeams(
+			[['id' => 7, 'organization_id' => 42, 'name' => 'Design'], ['id' => 8, 'organization_id' => 42, 'name' => 'Build']],
+			['ada' => ['teamIds' => [7, 8]], 'bob' => ['teamIds' => [7]]],
 		);
 
-		self::assertCount(0, $result['planningGaps']);
-		self::assertSame([1, 1, 1, 1, 1, 1], array_column($result['weeks'], 'totalActive'));
-	}
-
-	public function testSummarizeTeamsListsPerTeamCapacity(): void {
-		$result = $this->service->summarizeTeams([
-			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],
-			['id' => 8, 'organizationId' => 42, 'name' => 'Build', 'fte' => 2.0, 'projectsPerFte' => 1.0],
-		]);
-
 		self::assertSame([
-			['id' => 7, 'name' => 'Design', 'capacity' => 3.5],
-			['id' => 8, 'name' => 'Build', 'capacity' => 2.0],
+			['id' => 7, 'name' => 'Design', 'memberCount' => 2],
+			['id' => 8, 'name' => 'Build', 'memberCount' => 1],
 		], $result);
 	}
 
-	public function testBuildAllTeamsRowSumsCapacities(): void {
-		$row = $this->service->buildAllTeamsRow([
-			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.333],
-			['id' => 8, 'organizationId' => 42, 'name' => 'Build', 'fte' => 2.0, 'projectsPerFte' => 1.0],
-		], 42);
+	public function testPeopleAreSortedByPeakLoadAndWeeksCountOverloadedAndFullPeople(): void {
+		$summary = $this->service->summarizeCapacity('2026-09-14', []);
+		$members = [
+			'bob' => $this->memberLoad('bob', [1, 1, 1, 0, 0, 0]),
+			'ada' => $this->memberLoad('ada', [3, 2, 1, 0, 0, 0]),
+			'cy' => $this->memberLoad('cy', [2, 0, 0, 0, 0, 0], [8]),
+		];
 
-		self::assertSame(0, $row['id']);
-		self::assertSame(42, $row['organizationId']);
-		self::assertSame('All teams', $row['name']);
-		self::assertSame(5.5, $row['fte'] * $row['projectsPerFte']);
+		$result = $this->service->applyPeople($summary, $members, $this->loadProjects(), $this->teams(), true);
+
+		self::assertSame(['ada', 'cy', 'bob'], array_column($result['people'], 'uid'));
+		self::assertSame([3, 2, 1], array_column($result['people'], 'peakLoad'));
+		self::assertSame([['id' => 8, 'name' => 'Build']], $result['people'][1]['teams']);
+		self::assertSame(['overloaded', 'full', 'free', 'free', 'free', 'free'], array_column($result['people'][0]['weeks'], 'state'));
+		self::assertSame([1, 0, 0, 0, 0, 0], array_column($result['weeks'], 'overloadedPeople'));
+		self::assertSame([1, 1, 0, 0, 0, 0], array_column($result['weeks'], 'fullPeople'));
+		self::assertSame([true, false, false, false, false, false], array_column($result['weeks'], 'overCapacity'));
+		self::assertSame([0, 0, 1, 2, 2, 2], array_column($result['weeks'], 'freeSlots'));
+		self::assertSame('1 person overloaded', $result['weeks'][0]['message']);
+		self::assertSame(2, $result['maxProjectsPerMember']);
 	}
 
-	public function testBuildAllTeamsRowSupportsDatabaseSnakeCaseKeys(): void {
-		$row = $this->service->buildAllTeamsRow([
-			['id' => 7, 'organization_id' => 42, 'name' => 'Design', 'fte' => 1.5, 'projects_per_fte' => 2.0],
-			['id' => 8, 'organization_id' => 42, 'name' => 'Build', 'fte' => 2.0, 'projects_per_fte' => 1.0],
-		], 42);
+	public function testPeopleExplainOverloadsWithTheirProjectsAndTeams(): void {
+		$summary = $this->service->summarizeCapacity('2026-09-14', []);
 
-		self::assertSame(5.0, $row['fte'] * $row['projectsPerFte']);
+		$result = $this->service->applyPeople($summary, ['ada' => $this->memberLoad('ada', [3, 3, 1, 0, 0, 0])], $this->loadProjects(), $this->teams(), true);
+
+		self::assertSame([[
+			'uid' => 'ada',
+			'displayName' => 'ADA',
+			'peakLoad' => 3,
+			'overWeeks' => ['2026-W38', '2026-W39'],
+			'projectIds' => [1, 2, 3],
+		]], $result['overloadWarnings']);
+		self::assertSame([
+			['id' => 1, 'name' => 'Project 1', 'teamId' => 7, 'teamName' => 'Design', 'start' => '2026-09-01', 'end' => null],
+			['id' => 2, 'name' => 'Project 2', 'teamId' => 7, 'teamName' => 'Design', 'start' => '2026-09-01', 'end' => null],
+			['id' => 3, 'name' => 'Project 3', 'teamId' => 8, 'teamName' => 'Build', 'start' => '2026-09-01', 'end' => null],
+		], $result['projects']);
 	}
 
-	public function testCapacityAllTeamsRowAggregatesLoadAcrossTeams(): void {
-		$row = $this->service->buildAllTeamsRow([
-			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.0, 'projectsPerFte' => 1.0],
-			['id' => 8, 'organizationId' => 42, 'name' => 'Build', 'fte' => 1.0, 'projectsPerFte' => 1.0],
-		], 42);
-		$result = $this->service->summarizeCapacity(
-			$row,
-			'2026-09-14',
-			[
-				['id' => 1, 'name' => 'Design project', 'status' => 1, 'start' => '2026-09-14', 'end' => '2026-09-20', 'actualEnd' => null],
-				['id' => 2, 'name' => 'Build project', 'status' => 1, 'start' => '2026-09-01', 'end' => null, 'actualEnd' => null],
-			],
-		);
+	public function testPeopleLeaveFreeSlotsOutAcrossTeams(): void {
+		$summary = $this->service->summarizeCapacity('2026-09-14', []);
 
-		self::assertSame(2.0, $result['team']['capacity']);
-		self::assertSame(2, $result['weeks'][0]['totalActive']);
+		$result = $this->service->applyPeople($summary, ['bob' => $this->memberLoad('bob', [2, 2, 2, 2, 2, 2])], $this->loadProjects(), $this->teams(), false);
+
+		self::assertSame([null, null, null, null, null, null], array_column($result['weeks'], 'freeSlots'));
+		self::assertSame([], $result['overloadWarnings']);
+	}
+
+	public function testPeopleOfATeamWithoutMembersHaveNoFreeSlots(): void {
+		$summary = $this->service->summarizeCapacity('2026-09-14', []);
+
+		$result = $this->service->applyPeople($summary, [], [], $this->teams(), true);
+
+		self::assertNull($result['weeks'][0]['freeSlots']);
 		self::assertFalse($result['weeks'][0]['overCapacity']);
-	}
-
-	public function testBuildTeamWarningsListsOnlyOverCapacityTeams(): void {
-		$warnings = $this->service->buildTeamWarnings([
-			['id' => 7, 'name' => 'Design', 'weeks' => [
-				['label' => '2026-W38', 'overCapacity' => true],
-				['label' => '2026-W39', 'overCapacity' => false],
-			]],
-			['id' => 8, 'name' => 'Build', 'weeks' => [
-				['label' => '2026-W38', 'overCapacity' => false],
-			]],
-		]);
-
-		self::assertSame([['id' => 7, 'name' => 'Design', 'overWeeks' => ['2026-W38']]], $warnings);
+		self::assertSame([], $result['people']);
+		self::assertSame([], $result['projects']);
 	}
 
 	public function testIsMemberProjectMatchesOwnerGroupMemberAndNeither(): void {
@@ -246,25 +236,6 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertFalse($this->service->isMemberProject(['ownerId' => 'bob', 'projectGroupGid' => 'g1'], 'ada', ['g2' => true]));
 		self::assertFalse($this->service->isMemberProject(['ownerId' => 'bob', 'projectGroupGid' => null], 'ada', []));
 		self::assertFalse($this->service->isMemberProject(['ownerId' => null, 'projectGroupGid' => ''], 'ada', ['g1' => true]));
-	}
-
-	public function testBuildAllTeamsRowUsesCustomNameAndSumsInvolvedTeamsOnly(): void {
-		$row = $this->service->buildAllTeamsRow([
-			['id' => 7, 'organizationId' => 42, 'name' => 'Design', 'fte' => 1.5, 'projectsPerFte' => 2.0],
-		], 42, 'My teams');
-
-		self::assertSame('My teams', $row['name']);
-		self::assertSame(3.0, $row['fte'] * $row['projectsPerFte']);
-
-		$result = $this->service->summarizeCapacity(
-			$row,
-			'2026-09-14',
-			[$this->capacityProject(1, '2026-09-14', '2026-09-20')],
-		);
-
-		self::assertSame('My teams', $result['team']['name']);
-		self::assertSame(3.0, $result['team']['capacity']);
-		self::assertSame(1, $result['weeks'][0]['totalActive']);
 	}
 
 	public function testCapacityDatesPreferActualDoneWeekOverPlannedHandoverWeek(): void {
@@ -294,7 +265,6 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('2026-09-18', $dates['end']);
 
 		$result = $this->service->summarizeCapacity(
-			$this->team(1, 1),
 			'2026-09-14',
 			[['id' => 1, 'name' => 'Done stack project', 'status' => 1, 'start' => '2026-09-01', 'end' => $dates['end'], 'actualEnd' => $dates['actualEnd']]],
 		);
@@ -391,7 +361,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 		$capacitySummary = [
 			'period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6],
-			'team' => ['id' => 7, 'name' => 'Team Alpha', 'fte' => 4.0, 'projectsPerFte' => 2.0, 'capacity' => 8.0],
+			'team' => ['id' => 7, 'organizationId' => 42, 'name' => 'Team Alpha'],
 			'weeks' => [],
 		];
 
@@ -640,25 +610,29 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		]]);
 
 		self::assertSame([1, 3], array_column($eligible, 'id'));
-		self::assertSame(['2026-09-21', '2026-10-05', null], [$eligible[0]['start'], $eligible[0]['end'], $eligible[0]['actualEnd']]);
+		// Two weeks on site from Monday end on the second Sunday.
+		self::assertSame(['2026-09-21', '2026-10-04', null], [$eligible[0]['start'], $eligible[0]['end'], $eligible[0]['actualEnd']]);
 		// A recorded handover wins over start + weeks.
 		self::assertSame(['2026-09-14', '2026-09-30', '2026-09-30'], [$eligible[1]['start'], $eligible[1]['end'], $eligible[1]['actualEnd']]);
 
-		$result = $this->service->summarizeCapacity($this->team(1, 1), '2026-09-14', $eligible);
-		self::assertSame([1, 2, 2, 1, 0, 0], array_column($result['weeks'], 'totalActive'));
-		self::assertSame([1, 1, 1, 1, 0, 0], array_map(static fn (array $w): int => $w['starting'] + $w['ending'], $result['weeks']));
-		self::assertTrue($result['weeks'][1]['overCapacity']);
+		$result = $this->service->summarizeCapacity('2026-09-14', $eligible);
+		self::assertSame([1, 2, 2, 0, 0, 0], array_column($result['weeks'], 'totalActive'));
+		self::assertSame([1, 1, 2, 0, 0, 0], array_map(static fn (array $w): int => $w['starting'] + $w['ending'], $result['weeks']));
 	}
 
-	public function testCapacitySkipsArchivedProjectsThatNeverGotAnEnd(): void {
+	public function testCapacitySkipsClosedProjectsWithoutRecordedHandoverAndEndsBeforeStart(): void {
 		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
 			$this->executionProject(1, 0, '2026-09-21', null, null),
 			$this->executionProject(2, 0, '2026-09-21', 2, null),
 			$this->executionProject(3, 1, '2026-09-21', null, null),
+			$this->executionProject(4, 4, '2026-09-21', 2, null),
+			$this->executionProject(5, 4, '2026-09-21', 2, '2026-09-25'),
+			$this->executionProject(6, 1, '2026-09-21', null, '2026-09-01'),
 		]]);
 
-		self::assertSame([2, 3], array_column($eligible, 'id'));
-		self::assertNull($eligible[1]['end']);
+		self::assertSame([3, 5], array_column($eligible, 'id'));
+		self::assertNull($eligible[0]['end']);
+		self::assertSame('2026-09-25', $eligible[1]['end']);
 	}
 
 	public function testUnstartedLiveProjectsAreListedToScheduleByDesiredStart(): void {
@@ -681,13 +655,12 @@ final class ProjectPortfolioServiceTest extends TestCase {
 	}
 
 	public function testStartedProjectsWithoutHandoverPlanAreScheduleIssues(): void {
-		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
+		$issues = $this->invokePrivate('findExecutionIssues', [[
 			$this->executionProject(1, 1, '2026-09-21', null, null),
 			$this->executionProject(2, 1, '2026-09-21', 2, null),
 			$this->executionProject(3, 1, '2026-09-21', null, '2026-09-01'),
+			$this->executionProject(4, 4, '2026-09-21', null, null),
 		]]);
-
-		$issues = $this->invokePrivate('findExecutionIssues', [$eligible]);
 
 		self::assertSame([1, 3], array_column($issues, 'projectId'));
 		self::assertSame('Handover before actual start', $issues[1]['note']);
@@ -731,13 +704,34 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		];
 	}
 
-	private function team(float $fte, float $projectsPerFte): array {
+	/** @return array<int,array<string,mixed>> */
+	private function teams(): array {
+		return [['id' => 7, 'organizationId' => 42, 'name' => 'Design'], ['id' => 8, 'organizationId' => 42, 'name' => 'Build']];
+	}
+
+	/** @return array<int,array<string,mixed>> Team projects keyed by id, as MemberLoadService::getLoads() returns them */
+	private function loadProjects(): array {
+		$projects = [];
+		foreach ([1 => 7, 2 => 7, 3 => 8] as $id => $teamId) {
+			$projects[$id] = ['id' => $id, 'name' => 'Project ' . $id, 'teamId' => $teamId, 'start' => '2026-09-01', 'end' => null];
+		}
+		return $projects;
+	}
+
+	/**
+	 * @param int[] $loads
+	 * @param int[] $teamIds
+	 */
+	private function memberLoad(string $uid, array $loads, array $teamIds = [7]): array {
 		return [
-			'id' => 7,
-			'organizationId' => 42,
-			'name' => 'Design',
-			'fte' => $fte,
-			'projectsPerFte' => $projectsPerFte,
+			'uid' => $uid,
+			'displayName' => strtoupper($uid),
+			'teamIds' => $teamIds,
+			'weeks' => array_map(static fn (int $load): array => [
+				'load' => $load,
+				'projectIds' => $load === 0 ? [] : range(1, $load),
+				'state' => MemberLoadService::state($load),
+			], $loads),
 		];
 	}
 

@@ -64,14 +64,14 @@ final class ProjectPortfolioGapTest extends TestCase {
 
 	public function testBetweenGapUsesStartPlusWeeksAndOpenEndedWorkFillsTheRest(): void {
 		$planned = $this->executing(1, [7], '2026-09-07', null);
-		$planned['executionWeeks'] = 2; // planned handover 2026-09-21
+		$planned['executionWeeks'] = 2; // busy until 2026-09-20
 		$openEnded = $this->executing(2, [7], '2026-09-28', null);
 		$archived = $this->executing(3, [7], '2026-10-12', '2026-10-16');
 		$archived['status'] = 0;
 		[$gaps] = $this->service->findPlanningGaps([$planned, $openEnded, $archived], [], [7 => 'Design'], new DateTimeImmutable('2026-09-21'));
 
 		self::assertCount(1, $gaps);
-		self::assertSame(['2026-09-22', '2026-09-27', [1, 2]], [$gaps[0]['startDate'], $gaps[0]['endDate'], $gaps[0]['projectIds']]);
+		self::assertSame(['2026-09-21', '2026-09-27', [1, 2]], [$gaps[0]['startDate'], $gaps[0]['endDate'], $gaps[0]['projectIds']]);
 	}
 
 	public function testIncompleteCardsAreIssuesAndOneKnownDateIsOneDayWork(): void {
