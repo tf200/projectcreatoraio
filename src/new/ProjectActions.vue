@@ -3,7 +3,7 @@
 		<div class="pc-actions__row">
 			<a v-if="chatUrl" class="iz-btn iz-btn--primary pc-actions__btn" :href="chatUrl">
 				<ChatOutline :size="16" />
-				Chat
+				Talk
 			</a>
 
 			<div class="pc-actions__anchor">
@@ -300,7 +300,7 @@ import { api } from './api.js'
 import { toggled } from './members.js'
 import { permissionsOf, detailsDraft, clientDraft, changesOf, detailsFields, CLIENT_FIELDS, messageOf } from './project-actions.js'
 
-// The project header's actions in the new layout: Chat, Contacts, and More,
+// The project header's actions in the new layout: Talk, Contacts, and More,
 // which holds what the current interface's project menu does (edit details,
 // client and address, status, export, delete) so nobody has to leave.
 export default {

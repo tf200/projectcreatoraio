@@ -275,7 +275,7 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		// Nextcloud core shows <dialog> elements; ours stay hidden until opened.
 		await page.addStyleTag({ content: 'dialog { display: block; }' })
 		assert.equal(await actions.locator('dialog').evaluateAll(list => list.filter(d => getComputedStyle(d).display !== 'none').length), 0, 'closed dialogs stay hidden')
-		assert.equal((await actions.locator('.pc-actions__row .pc-actions__btn').allInnerTexts()).map(t => t.trim()).join('|'), 'Chat|Contacts|More')
+		assert.equal((await actions.locator('.pc-actions__row .pc-actions__btn').allInnerTexts()).map(t => t.trim()).join('|'), 'Talk|Contacts|More')
 		assert.equal(await actions.locator('a.iz-btn--primary').getAttribute('href'), '/call/abc')
 		await actions.locator('.pc-actions__btn', { hasText: 'Contacts' }).click()
 		const contacts = await actions.locator('#pc-actions-contacts').innerText()
@@ -338,7 +338,7 @@ const css = (locator, pseudo) => locator.evaluate((node, p) => {
 		assert.equal(bodies.filter(b => b.method === 'DELETE').length, 1)
 		assert.ok((await page.evaluate(() => window.updates)) >= 3)
 		const member = page.locator('#actions-member')
-		assert.equal((await member.locator('.pc-actions__btn').allInnerTexts()).map(t => t.trim()).join('|'), 'Contacts|More', 'no Chat without a conversation')
+		assert.equal((await member.locator('.pc-actions__btn').allInnerTexts()).map(t => t.trim()).join('|'), 'Contacts|More', 'no Talk without a conversation')
 		await member.locator('.pc-actions__btn', { hasText: 'More' }).click()
 		assert.equal((await member.locator('#pc-actions-more .pc-actions__item').allInnerTexts()).map(t => t.split('\n')[0].trim()).join('|'), 'Edit client & address|Export project', 'a member edits client and address and exports, nothing else')
 		await page.keyboard.press('Escape')

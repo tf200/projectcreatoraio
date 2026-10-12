@@ -125,8 +125,8 @@ current interface is untouched — no file under `src/components/` changed.
   buttons open it in place; "Back to current interface" opens the old create form.
 
 - **Header actions** — `src/new/ProjectActions.vue` replaces the three tiles (Project
-  updates, Project contacts, Manage project) with `iz-btn`s: Chat (when the project has a
-  conversation), Contacts (the client's name, phone and address, View project team, Edit
+  updates, Project contacts, Manage project) with `iz-btn`s: Talk (the project's Talk
+  conversation, when it has one), Contacts (the client's name, phone and address, View project team, Edit
   client & address; no email) and More, which does in the new layout what Manage project used to
   leave for: edit details, client and address, status, export and delete (confirmed by
   typing the project's name). `project-actions.js` follows the server's rules: every
