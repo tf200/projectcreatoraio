@@ -92,3 +92,16 @@
 .pc-new .iz-chip:not(.iz-chip--active):hover{background:var(--iz-surface-inset)}
 .pc-new .pc-created-notice{margin:0 0 var(--iz-gap)}
 .pc-new .pc-guest-banner{margin:0 0 var(--iz-gap);padding:var(--iz-pad-cell);border-radius:var(--iz-radius);background:var(--iz-accent-bg);color:var(--iz-text);font-size:var(--iz-fs-sm)}
+/* Overview Timeline: the Planning tab's Initiation, Execution and Delivery in one panel beside Tasks. */
+.pc-new .pc-panel-timeline{grid-column:span 9;min-height:250px;container:pc-timeline/inline-size}.pc-new .pc-panel-timeline>footer{flex-wrap:wrap;gap:0 18px}
+.pc-new .pc-timeline-status{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:12px 0 14px;font-size:12px;color:var(--color-text-maxcontrast)}.pc-new .pc-timeline-status .iz-pill{text-transform:none;letter-spacing:normal}
+.pc-new .pc-timeline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.pc-new .pc-timeline-group{min-width:0;padding:0 16px;border-inline-start:1px solid var(--color-border)}.pc-new .pc-timeline-group:first-child{padding-inline-start:0;border:0}
+.pc-new .pc-timeline-group h3{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-maxcontrast)}.pc-new .pc-timeline-group h3 i{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--color-border-dark)}
+.pc-new .pc-timeline-group--done h3 i{background:var(--iz-success,var(--color-success))}.pc-new .pc-timeline-group--now h3 i{background:var(--color-primary-element);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-primary-element) 25%,transparent)}
+.pc-new .pc-timeline-group dl{display:flex;flex-direction:column;gap:12px;margin:0;padding:0}.pc-new .pc-timeline-group dl>div{display:block}.pc-new .pc-timeline-group dt,.pc-new .pc-timeline-group dd{display:block;width:auto;padding:0;text-align:left}
+.pc-new .pc-timeline-group dt{font-size:10px;color:var(--color-text-maxcontrast);margin:0 0 3px}.pc-new .pc-timeline-group dd{margin:0;font-size:14px;font-weight:600}.pc-new .pc-timeline-group small{display:block;margin-top:2px;font-size:10px;color:var(--color-text-maxcontrast)}
+.pc-new .pc-timeline-unset{color:var(--color-text-maxcontrast);font-weight:500}.pc-new .pc-timeline-group small.pc-timeline-warn{color:var(--iz-warning-text,var(--color-warning));font-weight:600}
+.pc-new .pc-timeline-meter{height:6px;margin:5px 0 2px;border-radius:3px;background:var(--color-background-dark);overflow:hidden}.pc-new .pc-timeline-meter>i{display:block;height:100%;border-radius:3px;background:var(--color-primary-element)}
+@container pc-timeline (max-width:560px){.pc-new .pc-timeline{grid-template-columns:minmax(0,1fr);gap:14px}.pc-new .pc-timeline-group{padding:14px 0 0;border-inline-start:0;border-top:1px solid var(--color-border)}.pc-new .pc-timeline-group:first-child{padding-top:0;border:0}}
+@media(max-width:1150px){.pc-new .pc-panel-timeline{grid-column:1/-1}}
+.pc-new .pc-discipline-list{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:0;list-style:none}.pc-new .pc-discipline-list .iz-pill{display:inline-flex;align-items:center;gap:4px;text-transform:none;letter-spacing:normal}

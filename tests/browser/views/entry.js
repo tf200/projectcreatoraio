@@ -38,7 +38,8 @@ const overview = {
 		{ title: 'To do', cards: [{ id: 1, title: 'Intake controleren', assignedUsers: mine }, { id: 2, title: 'Offerte opvragen' }, { id: 3, title: 'Oud werk', done: '2026-09-01' }] },
 		{ title: 'Review', cards: [{ id: 4, title: 'Situatieschets maken', assignedUsers: [{ type: 0, participant: 'thomas' }] }, { id: 5, title: 'Gearchiveerd', archived: true }] },
 	] },
-	planning: { loading: false, error: '', data: { processCompleted: { status: 'ok', doneCount: 1, totalRequired: 4 }, phases: [] } },
+	// A project past its process steps and started, a little behind its desired start.
+	planning: { loading: false, error: '', data: { requestDate: '2026-06-01', requiredPreparationWeeks: 3, processCompleted: { status: 'complete', date: '2026-09-14', doneCount: 10, totalRequired: 10, missingTitles: [] }, coordinationPendingPeriod: { weeks: 15 }, minimumStartDate: '2026-10-05', desiredStartDate: '2026-10-01', actualStartDate: '2026-10-12', overallFloatWeeks: -0.6, overallFloatDays: -4, planningStatus: 'behind_at_risk', executionWeeks: 6, plannedHandoverDate: '2026-11-23', actualHandoverDate: null, phases: [] } },
 	files: { loading: false, error: '', data: { shared: [], private: [] } },
 }
 
@@ -96,7 +97,7 @@ window.fixture = new Vue({
 			section(h, 'members', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'emma', organizationId: 4, canManage: true }, on: { 'open-direct-chat': member => { window.chatWith = member.id } } })),
 			section(h, 'members-readonly', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'thomas', canManage: false } })),
 			section(h, 'members-denied', 'members', h(NewMembers, { props: { projectId: 23, currentUserId: 'emma', canManage: true } })),
-			h('div', { attrs: { id: 'overview' } }, [h(NewOverview, { props: { project: { id: 21, description: '' }, context: { userId: 'emma' }, overview, legacyUrl: '#' } })]),
+			h('div', { attrs: { id: 'overview' } }, [h(NewOverview, { props: { project: { id: 21, description: '', disciplines: ['electricity', 'water', 'fiber_optic'] }, context: { userId: 'emma' }, overview, legacyUrl: '#' }, on: { navigate: tab => { window.overviewNav = tab } } })]),
 		]),
 		h('div', { attrs: { id: 'legacy-host' }, style: 'padding:22px;background:#fff' }, [
 			h(Files, { props: { projectId: 22, sharedRoots: roots, privateRoots: [], loading: false, error: '' } }),

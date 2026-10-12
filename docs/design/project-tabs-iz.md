@@ -31,6 +31,17 @@ current interface is untouched — no file under `src/components/` changed.
   done) and `assignedTasks` filters it, so My tasks is always a subset of All tasks.
   Both list the oldest cards first (Deck's `createdAt`, then id), wherever they sit on
   the board.
+- **Overview timeline** — Process progress and Planning are one "5. Timeline" panel
+  beside Tasks that follows the Planning tab's header: Initiation (request date, process
+  steps with a bar, then "n weeks since the request", missing cards, or the completion
+  date), Execution (minimum, desired and actual start) and Delivery (handover, recorded
+  or planned from actual start plus weeks on site, and the weeks on site). On top, the
+  server's planning status as a pill and the float in words; a dot marks done, current
+  and coming groups. `timelineOf` in `overview.js` reads the same `timeline/summary` as
+  before, with no extra call; the four-phase card count and the "next milestone" are gone
+  from the panel (the header badges still use them). "View process steps" opens Tasks,
+  where the steps are listed. "6. Project purpose & scope" shows the project's disciplines
+  as pills with their icons, or "None chosen yet".
 - **Members** — `src/new/NewMembers.vue`, a new view over the endpoints the current
   interface already calls (list, add, update roles, organisation search), read strictly
   so a failure is not shown as an empty team. The team is a DRASCIVS matrix: one column

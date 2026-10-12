@@ -20,18 +20,29 @@
     <ol v-else class="pc-task-summary"><li v-for="(task, index) in shownTasks.slice(0, 3)" :key="task.id"><span>{{ index + 1 }}</span><div><button @click="open('tasks')">{{ task.title }}</button><small>{{ task.stackTitle }}</small></div></li></ol>
    </div>
   </OverviewPanel>
-  <OverviewPanel name="progress" title="5. Process progress" icon="progress" link="View process details" :state="overview.planning" @open="open('planning')" @retry="retry('planning')">
-   <div class="pc-progress-layout"><div class="pc-progress-ring" :style="{ '--pc-progress': (progress.percent || 0) + '%' }" :aria-label="progress.percent === null ? 'Checklist not configured' : progress.percent + '% of required checklist completed'"><div><strong>{{ progress.percent === null ? '—' : progress.percent + '%' }}</strong><small>Required checklist</small></div></div><div class="pc-phase-area"><ol v-if="planning.phases.length" class="pc-phase-track"><li v-for="phase in planning.phases" :key="phase.id" :class="{ 'pc-phase-done': phase.tasks.length && phase.tasks.every(task => task.isDone) }"><span aria-hidden="true">{{ phase.tasks.length && phase.tasks.every(task => task.isDone) ? '✓' : '○' }}</span><small>{{ phase.name }}</small><strong>{{ phase.tasks.filter(task => task.isDone).length }} / {{ phase.tasks.length }}</strong></li></ol><p v-else class="pc-muted">No process phases configured.</p></div></div>
-   <p class="pc-summary-notice" :class="{ 'pc-tone-warning': progress.missing.length }"><InformationOutline :size="17" /><span v-if="progress.percent === null">The required checklist is not configured.</span><span v-else>{{ progress.done }} of {{ progress.total }} required steps completed.<template v-if="progress.missing.length"> {{ progress.missing.length }} required cards are missing.</template></span></p>
+  <OverviewPanel name="timeline" title="5. Timeline" icon="progress" :state="overview.planning" @retry="retry('planning')">
+   <p class="pc-timeline-status"><span class="iz-pill" :class="'iz-pill--' + timeline.status.tone">{{ timeline.status.label }}</span><span>{{ timeline.status.text }}</span></p>
+   <div class="pc-timeline">
+    <section class="pc-timeline-group" :class="stageClass(0)" aria-labelledby="pc-timeline-initiation"><h3 id="pc-timeline-initiation"><i aria-hidden="true" />Initiation<span class="pc-sr-only">{{ stageText(0) }}</span></h3><dl>
+     <div><dt>Request date</dt><dd>{{ date(timeline.initiation.requestDate) }}</dd></div>
+     <div><dt>Process steps</dt><dd>{{ timeline.initiation.configured ? timeline.initiation.done + ' of ' + timeline.initiation.total + ' done' : 'Not configured' }}</dd><div v-if="timeline.initiation.configured" class="pc-timeline-meter" role="progressbar" aria-label="Process steps done" aria-valuemin="0" :aria-valuemax="timeline.initiation.total" :aria-valuenow="timeline.initiation.done"><i :style="{ width: timeline.initiation.percent + '%' }" /></div><small :class="{ 'pc-timeline-warn': timeline.initiation.warn }">{{ timeline.initiation.note }}</small></div>
+    </dl></section>
+    <section class="pc-timeline-group" :class="stageClass(1)" aria-labelledby="pc-timeline-execution"><h3 id="pc-timeline-execution"><i aria-hidden="true" />Execution<span class="pc-sr-only">{{ stageText(1) }}</span></h3><dl>
+     <div><dt>Minimum start</dt><dd>{{ timeline.execution.minimumStart ? date(timeline.execution.minimumStart) : '—' }}</dd><small>{{ timeline.execution.note }}</small></div>
+     <div><dt>Desired start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.desired }">{{ date(timeline.execution.desired) }}</dd></div>
+     <div><dt>Actual start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.actual }">{{ date(timeline.execution.actual) }}</dd></div>
+    </dl></section>
+    <section class="pc-timeline-group" :class="stageClass(2)" aria-labelledby="pc-timeline-delivery"><h3 id="pc-timeline-delivery"><i aria-hidden="true" />Delivery<span class="pc-sr-only">{{ stageText(2) }}</span></h3><dl>
+     <div><dt>Handover</dt><dd :class="{ 'pc-timeline-unset': !timeline.delivery.handover }"><span v-if="timeline.delivery.planned" class="pc-timeline-unset">Planned </span>{{ date(timeline.delivery.handover) }}</dd><small>{{ timeline.delivery.note }}</small></div>
+     <div><dt>Weeks on site</dt><dd :class="{ 'pc-timeline-unset': timeline.delivery.weeks === null }">{{ timeline.delivery.weeks === null ? 'Not set' : timeline.delivery.weeks }}</dd></div>
+    </dl></section>
+   </div>
+   <template #footer><button class="pc-panel-action" @click="open('tasks')">View process steps <span aria-hidden="true">→</span></button><button class="pc-panel-action" @click="open('planning')">View full planning <span aria-hidden="true">→</span></button></template>
   </OverviewPanel>
-  <OverviewPanel name="planning" title="6. Planning" icon="calendar" link="View full planning" :state="overview.planning" @open="open('planning')" @retry="retry('planning')">
-   <dl class="pc-planning-grid"><div><dt>Request date</dt><dd>{{ date(summary.requestDate) }}</dd></div><div><dt>Desired start</dt><dd>{{ date(summary.desiredStartDate) }}</dd></div><div><dt>Earliest planned start</dt><dd>{{ date(summary.minimumStartDate) }}</dd></div><div><dt>Next pending milestone</dt><dd>{{ planning.milestone ? date(planning.milestone.date) : 'Not scheduled' }}</dd><small v-if="planning.milestone">{{ planning.milestone.label }}</small></div></dl>
-   <p class="pc-summary-notice" :class="{ 'pc-tone-danger': planning.conflict }"><InformationOutline :size="17" /><span>{{ planning.conflict === null ? 'Set a desired start date to check for a planning conflict.' : planning.conflict ? 'Planning conflict: the earliest start falls after the desired date.' : 'The desired start is within the current planning estimate.' }}</span></p>
+  <OverviewPanel name="scope" title="6. Project purpose & scope" icon="flag" link="View project details" @open="openDetails">
+   <div class="pc-scope-grid"><div><h3>Project purpose</h3><p>{{ project.description || 'No project purpose has been added yet.' }}</p></div><div><h3>Disciplines</h3><ul v-if="disciplines.length" class="pc-discipline-list"><li v-for="discipline in disciplines" :key="discipline.value" class="iz-pill"><component :is="discipline.icon" :size="14" />{{ discipline.label }}</li></ul><p v-else class="pc-muted">None chosen yet</p><h3>Scope & exclusions</h3><p class="pc-muted">Not recorded separately</p></div></div>
   </OverviewPanel>
-  <OverviewPanel name="scope" title="7. Project purpose & scope" icon="flag" link="View project details" @open="openDetails">
-   <div class="pc-scope-grid"><div><h3>Project purpose</h3><p>{{ project.description || 'No project purpose has been added yet.' }}</p></div><div><h3>Disciplines</h3><p class="pc-muted">Not recorded separately</p><h3>Scope & exclusions</h3><p class="pc-muted">Not recorded separately</p></div></div>
-  </OverviewPanel>
-  <OverviewPanel name="documents" title="8. Recent documents" icon="files" link="View all documents" :state="overview.files" @open="open('documents')" @retry="retry('files')">
+  <OverviewPanel name="documents" title="7. Recent documents" icon="files" link="View all documents" :state="overview.files" @open="open('documents')" @retry="retry('files')">
    <div v-if="!files.length" class="pc-panel-empty"><FolderOutline :size="28" /><strong>No documents available</strong><p>Upload documents from the Documents tab.</p></div>
    <ul v-else class="pc-summary-rows"><li v-for="file in files" :key="file.id"><span class="pc-row-icon"><FileDocumentOutline :size="22" /></span><div class="pc-row-content"><button @click="open('documents')">{{ file.name }}</button><small>{{ size(file.size) }} · {{ file.scope }}</small></div><time>{{ date(file.mtime) }}</time></li></ul>
   </OverviewPanel>
@@ -43,18 +54,17 @@ import FlagOutline from 'vue-material-design-icons/FlagOutline.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import History from 'vue-material-design-icons/History.vue'
 import ClipboardCheckOutline from 'vue-material-design-icons/ClipboardCheckOutline.vue'
-import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
-import { progressSummary, planningSummary, assignedTasks, openTasks, recentFiles, activityText, dateLabel, fileSize } from './overview.js'
+import { timelineOf, assignedTasks, openTasks, recentFiles, activityText, dateLabel, fileSize } from './overview.js'
+import { DISCIPLINE_OPTIONS } from './discipline-options.js'
 export default {
- components: { OverviewPanel, FlagOutline, EyeOutline, History, ClipboardCheckOutline, InformationOutline, FolderOutline, FileDocumentOutline },
+ components: { OverviewPanel, FlagOutline, EyeOutline, History, ClipboardCheckOutline, FolderOutline, FileDocumentOutline },
  props: { project: { type: Object, required: true }, context: { type: Object, required: true }, overview: { type: Object, required: true }, legacyUrl: String },
  data: () => ({ taskView: 'mine' }),
  computed: {
-  summary() { return this.overview.planning.data || {} },
-  progress() { return progressSummary(this.overview.planning.data) },
-  planning() { return planningSummary(this.overview.planning.data) },
+  timeline() { return timelineOf(this.overview.planning.data) },
+  disciplines() { return DISCIPLINE_OPTIONS.filter(option => (this.project.disciplines || []).includes(option.value)) },
   notes() { return this.overview.notes.data?.notes || [] },
   events() { return this.overview.activity.data || [] },
   tasks() { return assignedTasks(this.overview.tasks.data || [], this.context.userId) },
@@ -67,6 +77,8 @@ export default {
   activityText, date: dateLabel, size: fileSize,
   open(tab) { this.$emit('navigate', tab) }, retry(section) { this.$emit('retry', section) },
   openDetails() { window.location.assign(this.legacyUrl) },
+  stageClass(index) { return { 'pc-timeline-group--done': index < this.timeline.stage, 'pc-timeline-group--now': index === this.timeline.stage } },
+  stageText(index) { return index < this.timeline.stage ? ', done' : index === this.timeline.stage ? ', current' : '' },
   noteLabel(type) { return { decision: 'Decision', risk_blocker: 'Risk / blocker note', action_point: 'Action point' }[type] || 'Note' },
  },
 }

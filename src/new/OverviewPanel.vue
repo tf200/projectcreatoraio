@@ -6,7 +6,7 @@
    <div v-else-if="state && state.error" class="pc-panel-empty" role="alert"><component :is="icons.info" :size="25" /><p>{{ state.error }}</p><button class="pc-link" @click="$emit('retry')">Try again</button></div>
    <slot v-else />
   </div>
-  <footer v-if="link"><button class="pc-panel-action" @click="$emit('open')">{{ link }} <span aria-hidden="true">→</span></button></footer>
+  <footer v-if="link || $slots.footer"><slot name="footer"><button class="pc-panel-action" @click="$emit('open')">{{ link }} <span aria-hidden="true">→</span></button></slot></footer>
  </article>
 </template>
 <script>

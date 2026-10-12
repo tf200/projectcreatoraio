@@ -45,3 +45,51 @@ export function dateLabel(value) {
  return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 export function fileSize(value) { return value >= 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB` }
+
+// The overview's Timeline panel, in the Planning tab's three groups and words.
+// Everything comes from the timeline summary; the status is the server's own.
+const PLANNING_STATUS = { on_track: ['success', 'On track'], attention_needed: ['warning', 'Attention needed'], behind_at_risk: ['danger', 'Behind / at risk'] }
+const count = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
+const signedWeeks = weeks => `${weeks > 0 ? '+' : ''}${count(weeks, 'week')}`
+export function timelineOf(summary) {
+ const s = summary || {}
+ const process = s.processCompleted || {}
+ const total = Math.max(0, Number(process.totalRequired) || 0)
+ const done = Math.min(Math.max(0, Number(process.doneCount) || 0), total)
+ const configured = total > 0 && !['error', 'not_configured'].includes(process.status)
+ const stepsDone = configured && process.status === 'complete'
+ const desired = s.desiredStartDate || null
+ const actual = s.actualStartDate || null
+ const handedOver = s.actualHandoverDate || null
+ const floatDays = Number.isFinite(s.overallFloatDays) ? s.overallFloatDays : null
+ const floatWeeks = Number.isFinite(s.overallFloatWeeks) ? s.overallFloatWeeks : null
+ const [tone, label] = PLANNING_STATUS[s.planningStatus] || PLANNING_STATUS.on_track
+ let text = 'No desired start yet, so there is no float to check.'
+ if (desired && floatDays !== null) {
+  if (floatDays < 0) text = `Desired start is ${count(-floatDays, 'day')} before the earliest possible start · float ${signedWeeks(floatWeeks ?? Math.round(floatDays / 7 * 10) / 10)}.`
+  else if (floatDays === 0) text = 'Desired start is the earliest possible start · no float.'
+  else text = `Float of ${signedWeeks(floatWeeks ?? Math.round(floatDays / 7 * 10) / 10)} before the desired start.`
+ }
+ const pendingWeeks = Number.isFinite(s.coordinationPendingPeriod?.weeks) ? s.coordinationPendingPeriod.weeks : null
+ const missing = Array.isArray(process.missingTitles) ? process.missingTitles.length : 0
+ let stepsNote = ''
+ if (!configured) stepsNote = 'No process steps configured'
+ else if (stepsDone) stepsNote = process.date ? `Completed ${dateLabel(process.date)}` : 'All steps done'
+ else if (missing) stepsNote = `${count(missing, 'required card')} missing from the board`
+ else if (pendingWeeks !== null) stepsNote = `${count(pendingWeeks, 'week')} since the request`
+ const weeks = Number.isFinite(s.executionWeeks) ? s.executionWeeks : null
+ const planned = !handedOver && s.plannedHandoverDate ? s.plannedHandoverDate : null
+ let handoverNote = 'Set the actual start in Planning to plan it'
+ if (handedOver) handoverNote = 'Handed over'
+ else if (planned) handoverNote = `${count(weeks ?? 0, 'week')} on site from the actual start`
+ else if (actual) handoverNote = 'Set weeks on site in Planning to plan it'
+ const preparation = Math.max(0, Number(s.requiredPreparationWeeks) || 0)
+ return {
+  status: { tone, label: desired ? label : label + ' (no target)', text },
+  // Which group the project is in: 0 Initiation, 1 Execution, 2 Delivery, 3 handed over.
+  stage: handedOver ? 3 : actual ? 2 : stepsDone ? 1 : 0,
+  initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0 },
+  execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual },
+  delivery: { handover: handedOver || planned, planned: !!planned, note: handoverNote, weeks },
+ }
+}
