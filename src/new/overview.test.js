@@ -26,6 +26,14 @@ test('recent files flatten authorized roots, exclude generated notes/whiteboards
 test('redacted activities never expose payload titles', () => {
  assert.equal(activityText({ eventType: 'note_updated', payload: { redacted: true, title: 'secret' } }).includes('secret'), false)
 })
+test('open tasks come oldest first, wherever they are on the board', () => {
+ const stacks = [
+  { title: 'Done', cards: [{ id: 30, createdAt: 1700000300 }] },
+  { title: 'To do', cards: [{ id: 12, createdAt: 1700000900 }, { id: 11, createdAt: 1700000100 }, { id: 14, createdAt: 1700000100 }] },
+ ]
+ assert.deepEqual(openTasks(stacks).map(c => c.id), [11, 14, 30, 12], 'by creation, then by id')
+ assert.deepEqual(assignedTasks([{ title: 'To do', cards: [{ id: 2, createdAt: 9, assignedUsers: [{ type: 0, participant: 'a' }] }, { id: 1, createdAt: 5, assignedUsers: [{ type: 0, participant: 'a' }] }] }], 'a').map(c => c.id), [1, 2], 'my tasks too')
+})
 test('all tasks is every open card on the board, and my tasks is always a subset of it', () => {
  const mine = [{ type: 0, participant: { uid: 'alice' } }]
  const stacks = [

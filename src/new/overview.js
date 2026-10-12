@@ -12,8 +12,11 @@ export function planningSummary(summary) {
  return { milestone, conflict, phases, currentPhase: pending[0]?.name || null }
 }
 // Open means what the board shows as work left: not archived, deleted or done.
+// Oldest first: by when the card was created, then by id, which Deck hands out in order.
 export function openTasks(stacks) {
+ const age = card => Number(card.createdAt) || 0
  return stacks.filter(s => !s.deletedAt).flatMap(stack => (stack.cards || []).filter(card => !card.archived && !card.deletedAt && !card.done).map(card => ({ ...card, stackTitle: stack.title })))
+  .sort((a, b) => age(a) - age(b) || Number(a.id) - Number(b.id))
 }
 export function assignedTasks(stacks, userId) {
  if (!userId) return []
