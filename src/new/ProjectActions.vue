@@ -28,7 +28,6 @@
 					</p>
 					<div v-if="hasClient" class="pc-actions__client">
 						<strong>{{ project.client_name || 'No client name' }}</strong>
-						<span v-if="project.client_email" class="pc-actions__copyable">{{ project.client_email }}</span>
 						<span v-if="project.client_phone" class="pc-actions__copyable">{{ project.client_phone }}</span>
 						<span v-if="project.client_address">{{ project.client_address }}</span>
 					</div>
@@ -36,9 +35,6 @@
 						No client details yet.
 					</p>
 					<div class="pc-actions__sep" />
-					<a v-if="project.client_email" class="pc-actions__item" :href="'mailto:' + project.client_email">
-						<EmailOutline :size="16" />Email the client
-					</a>
 					<button type="button" class="pc-actions__item" @click="pick('members')">
 						<AccountGroupOutline :size="16" />View project team
 					</button>
@@ -65,13 +61,13 @@
 					class="pc-actions__pop pc-actions__menu"
 					role="menu"
 					aria-label="Project actions">
-					<button v-if="can.rename || can.describe"
+					<button v-if="can.rename || can.describe || can.disciplines"
 						type="button"
 						role="menuitem"
 						class="pc-actions__item"
 						@click="openDetails">
 						<PencilOutline :size="16" />
-						<span>Edit project details<small>{{ can.describe ? 'Name and description' : 'Name' }}</small></span>
+						<span>Edit project details<small>{{ detailsHint }}</small></span>
 					</button>
 					<button type="button"
 						role="menuitem"
@@ -153,6 +149,13 @@
 						class="iz-input"
 						rows="4" />
 				</label>
+				<RoleChips v-if="can.disciplines && draft.disciplines"
+					label="Discipline"
+					label-id="pc-edit-disciplines"
+					:options="disciplineOptions"
+					:selected="draft.disciplines"
+					:disabled="busy"
+					@toggle="draft.disciplines = toggled(draft.disciplines, $event)" />
 				<p class="pc-dialog__muted">
 					The project number and type stay as they were created.
 				</p>
@@ -284,7 +287,6 @@ import ChatOutline from 'vue-material-design-icons/ChatOutline.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import DotsHorizontal from 'vue-material-design-icons/DotsHorizontal.vue'
-import EmailOutline from 'vue-material-design-icons/EmailOutline.vue'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import PencilOutline from 'vue-material-design-icons/PencilOutline.vue'
 import TrashCanOutline from 'vue-material-design-icons/TrashCanOutline.vue'
@@ -292,6 +294,8 @@ import TrayArrowDown from 'vue-material-design-icons/TrayArrowDown.vue'
 import { CLIENT_ROLE_OPTIONS } from '../macros/client-roles.js'
 import { PROJECT_STATUS_OPTIONS, normalizeProjectStatus } from '../constants/project-statuses.js'
 import RoleChips from './RoleChips.vue'
+import { DISCIPLINE_OPTIONS } from './discipline-options.js'
+import { sentence } from './create.js'
 import { api } from './api.js'
 import { toggled } from './members.js'
 import { permissionsOf, detailsDraft, clientDraft, changesOf, detailsFields, CLIENT_FIELDS, messageOf } from './project-actions.js'
@@ -301,7 +305,7 @@ import { permissionsOf, detailsDraft, clientDraft, changesOf, detailsFields, CLI
 // client and address, status, export, delete) so nobody has to leave.
 export default {
 	name: 'ProjectActions',
-	components: { AccountGroupOutline, ChatOutline, Check, ChevronDown, DotsHorizontal, EmailOutline, MapMarkerOutline, PencilOutline, TrashCanOutline, TrayArrowDown, RoleChips },
+	components: { AccountGroupOutline, ChatOutline, Check, ChevronDown, DotsHorizontal, MapMarkerOutline, PencilOutline, TrashCanOutline, TrayArrowDown, RoleChips },
 	props: {
 		project: { type: Object, required: true },
 		context: { type: Object, required: true },
@@ -319,12 +323,19 @@ export default {
 			noticeError: false,
 			statuses: PROJECT_STATUS_OPTIONS,
 			roleOptions: CLIENT_ROLE_OPTIONS,
+			disciplineOptions: DISCIPLINE_OPTIONS,
 		}
 	},
 	computed: {
 		can() { return permissionsOf(this.project, this.context) },
 		currentStatus() { return normalizeProjectStatus(this.project.status) },
-		hasClient() { return !!(this.project.client_name || this.project.client_email || this.project.client_phone || this.project.client_address) },
+		// The Contacts card shows name, phone and address; the email stays in the client form only.
+		hasClient() { return !!(this.project.client_name || this.project.client_phone || this.project.client_address) },
+		detailsHint() {
+			const parts = [this.can.rename && 'name', this.can.describe && 'description', this.can.disciplines && 'disciplines'].filter(Boolean)
+			const text = sentence(parts)
+			return text.charAt(0).toUpperCase() + text.slice(1)
+		},
 	},
 	watch: {
 		'project.id'() { this.open = ''; this.notice = ''; this.closeDialog() },

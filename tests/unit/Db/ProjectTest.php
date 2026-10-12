@@ -38,4 +38,31 @@ final class ProjectTest extends TestCase {
 			$project->jsonSerialize()['client_role'],
 		);
 	}
+
+	public function testDisciplinesAreStoredOnceEachInTheFixedOrder(): void {
+		$encoded = Project::encodeDisciplines(['water', 'electricity', 'water', 'fiber_optic']);
+
+		$this->assertSame('["electricity","water","fiber_optic"]', $encoded);
+		$this->assertSame(['electricity', 'water', 'fiber_optic'], Project::decodeDisciplines($encoded));
+		$this->assertSame('[]', Project::encodeDisciplines([]));
+	}
+
+	public function testUnknownDisciplinesAreRefused(): void {
+		$this->expectException(\InvalidArgumentException::class);
+		Project::encodeDisciplines(['electricity', 'telepathy']);
+	}
+
+	public function testDisciplinesMustBeAList(): void {
+		$this->expectException(\InvalidArgumentException::class);
+		Project::encodeDisciplines('electricity');
+	}
+
+	public function testProjectsWithoutDisciplinesSerializeAnEmptyList(): void {
+		$project = new Project();
+		$this->assertSame([], $project->jsonSerialize()['disciplines']);
+		$project->setDisciplines('["gas","sewerage"]');
+		$this->assertSame(['gas', 'sewerage'], $project->jsonSerialize()['disciplines']);
+		$project->setDisciplines('not json');
+		$this->assertSame([], $project->jsonSerialize()['disciplines']);
+	}
 }

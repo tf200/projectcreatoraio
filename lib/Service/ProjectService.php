@@ -119,7 +119,13 @@ class ProjectService {
 		?string $locCity = null,
 		?string $locZip = null,
 		?int $requiredPreparationWeeks = null,
+		mixed $disciplines = null,
 	): Project {
+		try {
+			$encodedDisciplines = $disciplines === null ? null : Project::encodeDisciplines($disciplines);
+		} catch (\InvalidArgumentException $e) {
+			throw new OCSException($e->getMessage(), 400);
+		}
 
 		$createdBoard = null;
 		$createdGroup = null;
@@ -235,6 +241,7 @@ class ProjectService {
 				$locStreet,
 				$locCity,
 				$locZip,
+				$encodedDisciplines,
 			);
 			$createdProject = $project;
 			$this->administratorAccessService?->syncProject($project);
@@ -2614,6 +2621,7 @@ class ProjectService {
 		?int $required_preparation_weeks = null,
 		?string $desired_start_date = null,
 		?string $actual_start_date = null,
+		mixed $disciplines = null,
 	) {
 		// 1. Fetch the existing project
 		$project = $this->projectMapper->find($id);
@@ -2650,6 +2658,13 @@ class ProjectService {
 		}
 		if ($client_address !== null) {
 			$project->setClientAddress($client_address);
+		}
+		if ($disciplines !== null) {
+			try {
+				$project->setDisciplines(Project::encodeDisciplines($disciplines));
+			} catch (\InvalidArgumentException $e) {
+				throw new OCSException($e->getMessage(), 400);
+			}
 		}
 
 		// Location

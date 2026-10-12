@@ -20,7 +20,7 @@ test('Create waits for a name, a number, a type and, for administrators, an orga
 
 test('the request carries the fields the current interface sends, trimmed', () => {
 	const body = create.payloadOf({ ...filled(), clientRoles: ['project_owner', 'project_owner', 'key_stakeholder'], city: ' Rotterdam ', organizationId: '3' })
-	assert.equal(JSON.stringify(Object.keys(body)), JSON.stringify(['name', 'number', 'description', 'client_name', 'client_role', 'client_phone', 'client_email', 'client_address', 'loc_street', 'loc_city', 'loc_zip', 'type', 'organizationId', 'members']))
+	assert.equal(JSON.stringify(Object.keys(body)), JSON.stringify(['name', 'number', 'description', 'client_name', 'client_role', 'client_phone', 'client_email', 'client_address', 'loc_street', 'loc_city', 'loc_zip', 'disciplines', 'type', 'organizationId', 'members']))
 	assert.equal(body.name, 'Firma de Testerij')
 	assert.equal(body.number, 'P-2026-014')
 	assert.equal(body.loc_city, 'Rotterdam')
@@ -28,9 +28,11 @@ test('the request carries the fields the current interface sends, trimmed', () =
 	assert.equal(body.organizationId, 3)
 	assert.equal(body.members.length, 0)
 	assert.equal(create.payloadOf(filled()).organizationId, null)
-	// The legacy model sends the same keys; keep the two in step.
+	// The legacy model sends the same keys, except the disciplines only this page asks for.
 	const model = readFileSync(new URL('../Models/project.js', import.meta.url), 'utf8')
-	for (const key of Object.keys(body)) assert.match(model, new RegExp('\\b' + key + '\\b'), key)
+	for (const key of Object.keys(body).filter(key => key !== 'disciplines')) assert.match(model, new RegExp('\\b' + key + '\\b'), key)
+	assert.deepEqual(body.disciplines, [], 'none chosen')
+	assert.deepEqual(create.payloadOf({ ...filled(), disciplines: ['sewerage', 'electricity', 'sewerage'] }).disciplines, ['electricity', 'sewerage'], 'once each, in the server’s order')
 })
 
 test('the set-up list follows the name, the type and the plan', () => {

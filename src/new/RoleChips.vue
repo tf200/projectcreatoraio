@@ -11,6 +11,10 @@
 				:disabled="disabled"
 				@click="$emit('toggle', option.value)">
 				<span v-if="option.tone" class="iz-dot" :class="'pc-tone-dot--' + option.tone" />
+				<component :is="option.icon"
+					v-else-if="option.icon"
+					:size="14"
+					class="pc-role-chips__icon" />
 				{{ option.label }}
 			</button>
 		</div>
@@ -19,7 +23,8 @@
 
 <script>
 // One toggle group of roles, used for DRASCIVS and for project roles, both when
-// adding a member and when editing one.
+// adding a member and when editing one, and for a project's disciplines. An
+// option may carry a colour dot (tone) or an icon component (icon).
 export default {
 	name: 'RoleChips',
 	props: {
@@ -37,6 +42,7 @@ export default {
 .pc-role-chips__label { margin: 0; }
 .pc-role-chips__list { display: flex; flex-wrap: wrap; gap: 6px; }
 .pc-role-chips__list .iz-chip:disabled { cursor: default; opacity: 0.6; }
+.pc-role-chips__icon { display: inline-flex; margin-inline-end: 2px; }
 .pc-tone-dot--1 { color: var(--iz-cat-1); }
 .pc-tone-dot--2 { color: var(--iz-cat-2); }
 .pc-tone-dot--3 { color: var(--iz-cat-3); }

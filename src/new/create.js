@@ -1,5 +1,6 @@
 // The New project page of the new layout: the same fields and request as the
-// current interface's create form, plus what Create will set up.
+// current interface's create form, plus the disciplines and what Create will set up.
+import { disciplinesOf } from './disciplines.js'
 
 export const TYPES = [
 	{ id: 0, label: 'Combi', text: 'Starts with the 20 Combi process tasks and the intake form.' },
@@ -22,6 +23,7 @@ export function emptyForm() {
 		street: '',
 		city: '',
 		zip: '',
+		disciplines: [],
 		description: '',
 	}
 }
@@ -42,7 +44,8 @@ export function sentence(parts) {
 	return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]
 }
 
-// The body the create endpoint takes, as the current interface sends it.
+// The body the create endpoint takes, as the current interface sends it, plus
+// the disciplines, which only this page asks for.
 export function payloadOf(form) {
 	return {
 		name: form.name.trim(),
@@ -56,6 +59,7 @@ export function payloadOf(form) {
 		loc_street: form.street.trim(),
 		loc_city: form.city.trim(),
 		loc_zip: form.zip.trim(),
+		disciplines: disciplinesOf(form.disciplines),
 		type: form.type,
 		organizationId: Number(form.organizationId) > 0 ? Number(form.organizationId) : null,
 		members: [],

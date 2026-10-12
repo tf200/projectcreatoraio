@@ -23,6 +23,9 @@ class Project extends Entity implements JsonSerializable {
     protected string|null $clientEmail   = null;
     protected string|null $clientAddress = null; // Client Specific Address
 
+    // The disciplines the project covers, a JSON list of DISCIPLINES keys.
+    protected string|null $disciplines = null;
+
     // 3. Location Info
     protected string|null $locStreet   = null;
     protected string|null $locCity     = null;
@@ -68,6 +71,7 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('clientPhone',   Types::STRING);
         $this->addType('clientEmail',   Types::STRING);
         $this->addType('clientAddress', Types::STRING);
+        $this->addType('disciplines',   Types::STRING);
 
         // Location
         $this->addType('locStreet',   Types::STRING);
@@ -100,6 +104,40 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('cvAvpLocation', Types::SMALLINT);
         $this->addType('createdAt',   Types::DATETIME);
         $this->addType('updatedAt',   Types::DATETIME);
+    }
+
+    public const DISCIPLINES = ['electricity', 'water', 'gas', 'coax', 'fiber_optic', 'sewerage'];
+
+    /**
+     * The disciplines as stored: known keys only, once each, in DISCIPLINES order.
+     *
+     * @throws \InvalidArgumentException for anything that is not a list of known keys
+     */
+    public static function encodeDisciplines(mixed $disciplines): string {
+        if (!is_array($disciplines)) {
+            throw new \InvalidArgumentException('Disciplines must be a list.');
+        }
+        foreach ($disciplines as $discipline) {
+            if (!is_string($discipline) || !in_array($discipline, self::DISCIPLINES, true)) {
+                throw new \InvalidArgumentException('Unknown discipline: ' . (is_scalar($discipline) ? (string)$discipline : gettype($discipline)));
+            }
+        }
+
+        return json_encode(array_values(array_intersect(self::DISCIPLINES, $disciplines)), JSON_THROW_ON_ERROR);
+    }
+
+    public static function decodeDisciplines(?string $disciplines): array {
+        if ($disciplines === null || trim($disciplines) === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($disciplines, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+
+        return is_array($decoded) ? array_values(array_intersect(self::DISCIPLINES, $decoded)) : [];
     }
 
     public static function encodeClientRoles(array|string|null $roles): ?string {
@@ -152,6 +190,7 @@ class Project extends Entity implements JsonSerializable {
             'client_phone'   => $this->clientPhone,
             'client_email'   => $this->clientEmail,
             'client_address' => $this->clientAddress,
+            'disciplines'    => self::decodeDisciplines($this->disciplines),
 
             // Location
             'loc_street'   => $this->locStreet,

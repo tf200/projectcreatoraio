@@ -45,6 +45,7 @@ class ProjectMapper extends QBMapper
         ?string $locStreet = null,
         ?string $locCity = null,
         ?string $locZip = null,
+        ?string $disciplines = null,
     ) {
         $project = new Project();
 
@@ -67,6 +68,7 @@ class ProjectMapper extends QBMapper
         $project->setLocStreet($locStreet);
         $project->setLocCity($locCity);
         $project->setLocZip($locZip);
+        $project->setDisciplines($disciplines);
         $project->setStatus(ProjectStatus::ACTIVE);
         $project->setOrganizationId($organization !== null ? (int) $organization->getId() : null);
         $project->setWhiteBoardId($whiteBoardId);

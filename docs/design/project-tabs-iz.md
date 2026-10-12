@@ -29,6 +29,8 @@ current interface is untouched — no file under `src/components/` changed.
 - **Overview tasks** — the panel has My tasks / All tasks `iz-tab`s over the Deck stacks
   the overview already loads. `openTasks` defines open once (not archived, deleted or
   done) and `assignedTasks` filters it, so My tasks is always a subset of All tasks.
+  Both list the oldest cards first (Deck's `createdAt`, then id), wherever they sit on
+  the board.
 - **Members** — `src/new/NewMembers.vue`, a new view over the endpoints the current
   interface already calls (list, add, update roles, organisation search), read strictly
   so a failure is not shown as an empty team. The team is a DRASCIVS matrix: one column
@@ -95,7 +97,13 @@ current interface is untouched — no file under `src/components/` changed.
   fields, rules and request (`create.js` builds the same body as `Project.toJson()`; a
   test keeps the keys in step): name, number and type required, an organisation for
   administrators (the existing `OrganizationsFetcher`), client, location with the
-  existing map preview, description. Project types are cards that say what each sets up.
+  existing map preview, discipline, description. Project types are cards that say what
+  each sets up. Discipline (optional, between Location and Description) takes one or
+  more of Electricity, Water, Gas, Coax, Fiber optic and Sewerage as icon chips; only
+  this page sends it (`disciplines`, a list of keys). The server stores it as a JSON
+  list in `custom_projects.disciplines` (migration `Version010049`), in the fixed order
+  of `Project::DISCIPLINES`, refuses unknown keys with a 400, and returns it with every
+  project; `disciplines.js` holds the same list, kept equal by a test.
   Beside the form, "Create sets up" names what the request makes after the project
   (board, shared and private folders, whiteboard, chat) and the plan line comes from a
   new read, `GET /api/v1/projects/allowance` (`ProjectService::getCreationAllowance`,
@@ -107,12 +115,13 @@ current interface is untouched — no file under `src/components/` changed.
 
 - **Header actions** — `src/new/ProjectActions.vue` replaces the three tiles (Project
   updates, Project contacts, Manage project) with `iz-btn`s: Chat (when the project has a
-  conversation), Contacts (the client card, Email the client, View project team, Edit
-  client & address) and More, which does in the new layout what Manage project used to
+  conversation), Contacts (the client's name, phone and address, View project team, Edit
+  client & address; no email) and More, which does in the new layout what Manage project used to
   leave for: edit details, client and address, status, export and delete (confirmed by
   typing the project's name). `project-actions.js` follows the server's rules: every
-  member edits the client and address and can export; the owner also renames, changes
-  status and deletes; organisation administrators also edit the description. Only
+  member edits the client and address and can export; the owner also renames, sets the
+  disciplines, changes status and deletes; organisation administrators also edit the
+  description. Edit project details shows the discipline chips to those who may set them. Only
   changed, allowed fields are sent. After a change the app reads the project and the
   shelf again; after a delete it opens another project with a notice. Project updates
   is gone; the Activity tab is right below. Dialogs are native `<dialog>`s, hidden when

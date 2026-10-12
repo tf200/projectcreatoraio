@@ -151,6 +151,18 @@
 						:zip="form.zip" />
 				</section>
 
+				<section class="iz-panel pc-create__panel" aria-labelledby="pc-create-discipline">
+					<h3 id="pc-create-discipline" class="pc-create__panel-title">
+						Discipline <span class="pc-create__optional">Optional</span>
+					</h3>
+					<RoleChips label="Choose one or more"
+						label-id="pc-create-discipline-choice"
+						:options="disciplineOptions"
+						:selected="form.disciplines"
+						:disabled="creating"
+						@toggle="form.disciplines = toggled(form.disciplines, $event)" />
+				</section>
+
 				<section class="iz-panel pc-create__panel" aria-labelledby="pc-create-description">
 					<h3 id="pc-create-description" class="pc-create__panel-title">
 						Description <span class="pc-create__optional">Optional</span>
@@ -231,6 +243,7 @@ import OrganizationsFetcher from '../components/OrganizationsFetcher.vue'
 import ProjectLocationMap from '../components/ProjectLocationMap.vue'
 import { CLIENT_ROLE_OPTIONS } from '../macros/client-roles.js'
 import RoleChips from './RoleChips.vue'
+import { DISCIPLINE_OPTIONS } from './discipline-options.js'
 import { api } from './api.js'
 import { toggled } from './members.js'
 import { TYPES, emptyForm, missingOf, sentence, payloadOf, setupOf, planOf, failureOf } from './create.js'
@@ -252,6 +265,7 @@ export default {
 			form: emptyForm(),
 			types: TYPES,
 			roleOptions: CLIENT_ROLE_OPTIONS,
+			disciplineOptions: DISCIPLINE_OPTIONS,
 			allowance: null,
 			allowanceLoading: false,
 			allowanceError: '',

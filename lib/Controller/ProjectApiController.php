@@ -843,6 +843,7 @@ class ProjectApiController extends Controller {
 		?string $desired_execution_date = null,
 		?int $required_preparation_weeks = null,
 		?int $required_preparation_days = null,
+		mixed $disciplines = null,
 	): DataResponse {
 
 		$params = $this->request->getParams();
@@ -900,6 +901,7 @@ class ProjectApiController extends Controller {
 				$loc_city,
 				$loc_zip,
 				$required_preparation_weeks,
+				$disciplines,
 			);
 
 			return new DataResponse([
@@ -1392,6 +1394,7 @@ class ProjectApiController extends Controller {
 		?int $required_preparation_weeks = null,
 		?string $desired_start_date = null,
 		?string $actual_start_date = null,
+		mixed $disciplines = null,
 	): DataResponse {
 		$params = $this->request->getParams();
 		if (is_array($params) && array_key_exists('required_preparation_weeks', $params)) {
@@ -1434,6 +1437,7 @@ class ProjectApiController extends Controller {
 				'number',
 				'type',
 				'description',
+				'disciplines',
 				'external_ref',
 				'status',
 				'required_preparation_weeks',
@@ -1446,9 +1450,9 @@ class ProjectApiController extends Controller {
 			if ($attemptedRestrictedFields !== []) {
 				if (
 					$isProjectOwner
-					&& array_values(array_diff($attemptedRestrictedFields, ['name', 'status', 'required_preparation_weeks', 'desired_start_date', 'actual_start_date'])) === []
+					&& array_values(array_diff($attemptedRestrictedFields, ['name', 'disciplines', 'status', 'required_preparation_weeks', 'desired_start_date', 'actual_start_date'])) === []
 				) {
-					// Project owners may only edit project name, status, required preparation weeks, desired start date and actual start date.
+					// Project owners may only edit project name, disciplines, status, required preparation weeks, desired start date and actual start date.
 				} elseif (
 					$canEditPreparationWeeks
 					&& array_values(array_diff($attemptedRestrictedFields, ['required_preparation_weeks', 'desired_start_date', 'actual_start_date'])) === []
@@ -1457,6 +1461,15 @@ class ProjectApiController extends Controller {
 				} else {
 					throw new OCSForbiddenException('Project members can only update client and location details');
 				}
+			}
+		}
+
+		// Refused as JSON before anything changes; this controller does not turn exceptions into responses.
+		if ($disciplines !== null) {
+			try {
+				Project::encodeDisciplines($disciplines);
+			} catch (\InvalidArgumentException $e) {
+				return new DataResponse(['message' => $e->getMessage()], 400);
 			}
 		}
 
@@ -1471,6 +1484,7 @@ class ProjectApiController extends Controller {
 			'client_phone' => $existingProject->getClientPhone(),
 			'client_email' => $existingProject->getClientEmail(),
 			'client_address' => $existingProject->getClientAddress(),
+			'disciplines' => $existingProject->getDisciplines(),
 			'loc_street' => $existingProject->getLocStreet(),
 			'loc_city' => $existingProject->getLocCity(),
 			'loc_zip' => $existingProject->getLocZip(),
@@ -1499,6 +1513,7 @@ class ProjectApiController extends Controller {
 			$required_preparation_weeks,
 			$desired_start_date,
 			$actual_start_date,
+			$disciplines,
 		);
 
 		$changedFields = [];
@@ -1513,6 +1528,7 @@ class ProjectApiController extends Controller {
 			'client_phone' => $updatedProject->getClientPhone(),
 			'client_email' => $updatedProject->getClientEmail(),
 			'client_address' => $updatedProject->getClientAddress(),
+			'disciplines' => $updatedProject->getDisciplines(),
 			'loc_street' => $updatedProject->getLocStreet(),
 			'loc_city' => $updatedProject->getLocCity(),
 			'loc_zip' => $updatedProject->getLocZip(),
