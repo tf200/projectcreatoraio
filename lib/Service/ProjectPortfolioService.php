@@ -151,8 +151,10 @@ class ProjectPortfolioService {
 	 * Fetches the portfolio in batches. The card query deliberately returns done as text:
 	 * PostgreSQL Deck installations have used both datetime and date-like values there.
 	 * The people of the team carry their projects of other teams too.
+	 * A member viewing their own team ($viewerUid) only sees the unassigned
+	 * projects they are on, not the organization's whole backlog.
 	 */
-	public function getCapacity(int $organizationId, int $teamId, ?string $weekStart = null): array {
+	public function getCapacity(int $organizationId, int $teamId, ?string $weekStart = null, ?string $viewerUid = null): array {
 		$requestedMonday = $this->normalizeMonday($weekStart);
 		$teamRows = $this->loadTeams($organizationId);
 		$team = null;
@@ -173,7 +175,7 @@ class ProjectPortfolioService {
 		$loads = $this->memberLoad->getLoads($organizationId, $requestedMonday);
 		$members = array_filter($loads['members'], static fn (array $member): bool => in_array($teamId, $member['teamIds'], true));
 
-		$unassigned = $this->loadUnassignedProjects($organizationId);
+		$unassigned = $this->applyMemberFilter($this->loadUnassignedProjects($organizationId), $viewerUid);
 		$result = $this->summarizeCapacity($requestedMonday->format('Y-m-d'), $eligible, $planningGaps, $unassigned);
 		$result = $this->applyPeople($result, $members, $loads['projects'], $teamRows, true);
 		$result['scope'] = [
@@ -250,7 +252,7 @@ class ProjectPortfolioService {
 			if ($team === null) {
 				throw new \InvalidArgumentException('Team does not belong to organization');
 			}
-			$capacitySummary = $this->getCapacity($organizationId, $teamId, $requestedMonday->format('Y-m-d'));
+			$capacitySummary = $this->getCapacity($organizationId, $teamId, $requestedMonday->format('Y-m-d'), $memberUid);
 			$rawProjects = $this->loadTableProjects($organizationId, $teamId);
 		} elseif ($scope === 'mine') {
 			$capacitySummary = $this->getCapacityForAll($organizationId, $requestedMonday->format('Y-m-d'), $memberUid);
@@ -896,6 +898,18 @@ class ProjectPortfolioService {
 			'organizationId' => (int)($row['organization_id'] ?? $row['organizationId'] ?? 0),
 			'name' => (string)$row['name'],
 		];
+	}
+
+	public function isTeamMember(int $organizationId, int $teamId, string $uid): bool {
+		$qb = $this->db->getQueryBuilder();
+		$row = $qb->select('team_id')
+			->from('organization_team_members')
+			->where($qb->expr()->eq('organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('team_id', $qb->createNamedParameter($teamId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_uid', $qb->createNamedParameter($uid)))
+			->setMaxResults(1)
+			->executeQuery()->fetch();
+		return $row !== false;
 	}
 
 	/** @return array<string,mixed>|null */

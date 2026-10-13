@@ -198,7 +198,7 @@ final class PortfolioApiControllerTest extends TestCase {
 
 	public function testMembersCannotEscalatePortfolioScope(): void {
 		foreach (['completion', 'capacity', 'table'] as $endpoint) {
-			foreach ([null, '', 'all', 'team'] as $scope) {
+			foreach ([null, '', 'all'] as $scope) {
 				[$request, $session, $mapper, $service] = $this->memberMocks($scope);
 				$service->expects($this->never())->method('getCompletion');
 				$service->expects($this->never())->method('getCapacityForAll');
@@ -209,6 +209,51 @@ final class PortfolioApiControllerTest extends TestCase {
 					self::fail('Member was allowed a broader portfolio scope');
 				} catch (OCSForbiddenException $e) {
 					self::assertSame('Organization administrator access required', $e->getMessage());
+				}
+			}
+		}
+	}
+
+	public function testMemberTeamScopeServesOwnTeam(): void {
+		[$request, $session, $mapper, $service] = $this->memberMocks('team', 42, '7');
+		$service->method('isTeamMember')->with(42, 7, 'member')->willReturn(true);
+		$service->expects($this->once())->method('getCompletion')->with(42, null, 7)->willReturn(['trackedProjects' => 2]);
+		$service->expects($this->once())->method('getCapacity')->with(42, 7, '2026-10-05', 'member')->willReturn(['weeks' => []]);
+		$service->expects($this->once())->method('getTableOverview')->with(42, '2026-10-05', 7, 'team', 'member')->willReturn(['projects' => []]);
+		$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+		self::assertSame(['trackedProjects' => 2], $controller->completion()->getData());
+		self::assertSame(['weeks' => []], $controller->capacity()->getData());
+		self::assertSame(['projects' => []], $controller->table()->getData());
+	}
+
+	public function testMembersCannotRequestOtherTeams(): void {
+		foreach (['completion', 'capacity', 'table'] as $endpoint) {
+			[$request, $session, $mapper, $service] = $this->memberMocks('team', 42, '8');
+			$service->method('isTeamMember')->with(42, 8, 'member')->willReturn(false);
+			$service->expects($this->never())->method('getCompletion');
+			$service->expects($this->never())->method('getCapacity');
+			$service->expects($this->never())->method('getTableOverview');
+			$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+			try {
+				$controller->$endpoint();
+				self::fail('Member was allowed a team they are not in');
+			} catch (OCSForbiddenException $e) {
+				self::assertSame('Team access denied', $e->getMessage());
+			}
+		}
+	}
+
+	public function testMemberTeamScopeRequiresTeamId(): void {
+		foreach (['completion', 'capacity', 'table'] as $endpoint) {
+			foreach ([null, '', 'all', '0'] as $teamId) {
+				[$request, $session, $mapper, $service] = $this->memberMocks('team', 42, $teamId);
+				$service->expects($this->never())->method('isTeamMember');
+				$controller = new PortfolioApiController('projectcreatoraio', $request, $session, $this->access($mapper), $service);
+				try {
+					$controller->$endpoint();
+					self::fail('Member team scope accepted an invalid teamId');
+				} catch (OCSBadRequestException $e) {
+					self::assertSame('teamId must be a positive integer', $e->getMessage());
 				}
 			}
 		}
@@ -251,12 +296,13 @@ final class PortfolioApiControllerTest extends TestCase {
 		}
 	}
 
-	private function memberMocks(?string $scope, int $organizationId = 42): array {
+	private function memberMocks(?string $scope, int $organizationId = 42, ?string $teamId = null): array {
 		[$request, $session, $mapper, $service] = $this->adminMocks([
 			['scope', null, $scope],
 			['organizationId', null, $organizationId],
 			['weekStart', null, '2026-10-05'],
 			['userId', null, 'another-user'],
+			['teamId', null, $teamId],
 		]);
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn('member');

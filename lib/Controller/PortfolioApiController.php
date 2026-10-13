@@ -16,6 +16,9 @@ use OCP\IRequest;
 use OCP\IUserSession;
 
 class PortfolioApiController extends Controller {
+	/** Set when a non-admin member views one of their own teams. */
+	private ?string $teamViewerUid = null;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -68,6 +71,9 @@ class PortfolioApiController extends Controller {
 
 		$teamId = $this->request->getParam('teamId');
 		try {
+			if ($this->teamViewerUid !== null) {
+				return new DataResponse($this->portfolioService->getCapacity($organizationId, (int)$teamId, $weekStart, $this->teamViewerUid));
+			}
 			if ($scope === 'mine') {
 				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart, $this->requireUid()));
 			}
@@ -113,7 +119,7 @@ class PortfolioApiController extends Controller {
 			throw new OCSBadRequestException('teamId is required for team scope');
 		}
 
-		$memberUid = $scope === 'mine' ? $this->requireUid() : null;
+		$memberUid = $scope === 'mine' ? $this->requireUid() : $this->teamViewerUid;
 
 		try {
 			return new DataResponse($this->portfolioService->getTableOverview(
@@ -128,9 +134,13 @@ class PortfolioApiController extends Controller {
 		}
 	}
 
-	/** Members may only request their own projects; admin scopes stay unchanged. */
+	/**
+	 * Members may request their own projects or a team they belong to;
+	 * every other scope, and team scope for admins, stays unchanged.
+	 */
 	private function requirePortfolioOrganization(): int {
-		if ($this->request->getParam('scope') !== 'mine') {
+		$scope = $this->request->getParam('scope');
+		if ($scope !== 'mine' && $scope !== 'team') {
 			return $this->requireOrganizationAdmin();
 		}
 
@@ -142,6 +152,9 @@ class PortfolioApiController extends Controller {
 		if ($membership === null || (int)$membership['organization_id'] < 1) {
 			throw new OCSForbiddenException('Organization membership required');
 		}
+		if ($scope === 'team' && ($membership['role'] ?? null) === 'admin') {
+			return $this->requireOrganizationAdmin();
+		}
 		$organizationId = (int)$membership['organization_id'];
 		$requestedOrgId = $this->request->getParam('organizationId');
 		if ($requestedOrgId !== null && $requestedOrgId !== '' &&
@@ -150,6 +163,16 @@ class PortfolioApiController extends Controller {
 		}
 		if ($requestedOrgId !== null && $requestedOrgId !== '' && (int)$requestedOrgId !== $organizationId) {
 			throw new OCSForbiddenException('Access denied to other organizations');
+		}
+		if ($scope === 'team') {
+			$teamId = $this->request->getParam('teamId');
+			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
+				throw new OCSBadRequestException('teamId must be a positive integer');
+			}
+			if (!$this->portfolioService->isTeamMember($organizationId, (int)$teamId, $uid)) {
+				throw new OCSForbiddenException('Team access denied');
+			}
+			$this->teamViewerUid = $uid;
 		}
 		return $organizationId;
 	}
