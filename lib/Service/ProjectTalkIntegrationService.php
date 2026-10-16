@@ -27,6 +27,8 @@ class ProjectTalkIntegrationService {
 	private const SPREED_PARTICIPANT_SERVICE_CLASS = 'OCA\\Talk\\Service\\ParticipantService';
 	private const SPREED_ROOM_SERVICE_CLASS = 'OCA\\Talk\\Service\\RoomService';
 	private const TALK_ACTOR_USERS = 'users';
+	private const TALK_PARTICIPANT_OWNER = 1;
+	private const TALK_PARTICIPANT_MODERATOR = 2;
 	private const TALK_PARTICIPANT_USER = 3;
 	private const TALK_REMOVAL_REASON = 'remove';
 	private const TALK_HUMAN_MESSAGE_VERBS = ['comment', 'object_shared'];
@@ -217,6 +219,40 @@ class ProjectTalkIntegrationService {
 				'count' => count($users),
 				'exception' => $e,
 			]);
+		}
+	}
+
+	/**
+	 * Makes a participant a moderator, adding them first when needed. Owners
+	 * and moderators stay as they are. False when Talk could not do it.
+	 */
+	public function promoteToModerator(string $conversationToken, IUser $user): bool {
+		$conversationToken = trim($conversationToken);
+		if ($conversationToken === '' || !$this->isAvailable()) {
+			return false;
+		}
+
+		try {
+			$room = $this->getTalkManager()->getRoomByToken($conversationToken);
+			$participantService = $this->getParticipantService();
+			try {
+				$participant = $participantService->getParticipant($room, $user->getUID());
+			} catch (Throwable) {
+				$this->addUsersToConversation($conversationToken, [$user]);
+				$participant = $participantService->getParticipant($room, $user->getUID());
+			}
+			$type = (int)$participant->getAttendee()->getParticipantType();
+			if ($type !== self::TALK_PARTICIPANT_OWNER && $type !== self::TALK_PARTICIPANT_MODERATOR) {
+				$participantService->updateParticipantType($room, $participant, self::TALK_PARTICIPANT_MODERATOR);
+			}
+			return true;
+		} catch (Throwable $e) {
+			$this->logger->warning('Failed to make a user moderator of the project Talk conversation', [
+				'token' => $conversationToken,
+				'userId' => $user->getUID(),
+				'exception' => $e,
+			]);
+			return false;
 		}
 	}
 

@@ -156,34 +156,62 @@ final class ProjectMembershipServiceTest extends TestCase {
 		$this->assertSame('moved', $this->service->removeMember(42, 'bob')['privateFolder']);
 	}
 
-	public function testReleasingATeamKeepsManuallyAddedMembers(): void {
-		$this->memberSourceMapper->expects($this->once())->method('removeSource')->with(42, 'bob', 3);
-		$this->memberSourceMapper->method('hasAnySource')->with(42, 'bob')->willReturn(true);
+	public function testLosingATeamOriginKeepsTheMemberAsAddedByHand(): void {
+		$this->memberSourceMapper->method('hasSource')->with(42, 'bob', ProjectMemberSourceMapper::MANUAL)->willReturn(false);
+		$calls = [];
+		$this->memberSourceMapper->expects($this->once())->method('addSource')
+			->willReturnCallback(function (...$args) use (&$calls) { $calls[] = ['add', ...$args]; });
+		$this->memberSourceMapper->expects($this->once())->method('removeSource')
+			->willReturnCallback(function (...$args) use (&$calls) { $calls[] = ['remove', ...$args]; });
 		$this->group->expects($this->never())->method('removeUser');
 
-		$this->assertFalse($this->service->releaseTeamSource(42, 'bob', 3));
+		$this->assertTrue($this->service->keepAfterTeamSource(42, 'bob', 3));
+		// The manual origin exists before the team origin goes.
+		$this->assertSame([['add', 42, 'bob', ProjectMemberSourceMapper::MANUAL], ['remove', 42, 'bob', 3]], $calls);
 	}
 
-	public function testReleasingTheLastTeamRemovesTheMember(): void {
-		$this->memberSourceMapper->method('hasAnySource')->willReturn(false);
-		$this->groupManager->method('isInGroup')->willReturn(true);
-		$this->group->expects($this->once())->method('removeUser')->with($this->bob);
+	public function testLosingATeamOriginKeepsAnExistingManualOrigin(): void {
+		$this->memberSourceMapper->method('hasSource')->willReturn(true);
+		$this->memberSourceMapper->expects($this->never())->method('addSource');
+		$this->memberSourceMapper->expects($this->once())->method('removeSource')->with(42, 'bob', 3);
 
-		$this->assertTrue($this->service->releaseTeamSource(42, 'bob', 3));
+		$this->assertFalse($this->service->keepAfterTeamSource(42, 'bob', 3));
 	}
 
-	public function testSwitchingTeamsAddsTheNewTeamAndReleasesTheOldOne(): void {
+	public function testSwitchingTeamsAddsTheNewTeamAndKeepsTheOldOnesMembers(): void {
 		$this->projectService->expects($this->once())
 			->method('addMembersToProjectBulk')
 			->with(42, [], [], null, 4, null)
 			->willReturn(['added' => [], 'alreadyMembers' => [], 'rejected' => [], 'teamId' => 4]);
-		$this->memberSourceMapper->method('findUserIdsByProjectAndTeam')->with(42, 3)->willReturn(['bob']);
-		$this->memberSourceMapper->expects($this->once())->method('removeSource')->with(42, 'bob', 3);
-		// Bob is also in the new team, so he keeps a source and stays.
-		$this->memberSourceMapper->method('hasAnySource')->willReturn(true);
+		$this->memberSourceMapper->method('findUserIdsByProjectAndTeam')->with(42, 3)->willReturn(['bob', 'carol']);
+		$this->memberSourceMapper->method('hasSource')->willReturn(false);
+		$this->memberSourceMapper->expects($this->exactly(2))->method('addSource');
+		$this->memberSourceMapper->expects($this->exactly(2))->method('removeSource');
 		$this->group->expects($this->never())->method('removeUser');
+		$this->talk->expects($this->never())->method('removeUserFromConversation');
 
 		$this->service->syncProjectTeam(42, 3, 4);
+	}
+
+	public function testUnassigningTheTeamKeepsItsMembers(): void {
+		$this->projectService->expects($this->never())->method('addMembersToProjectBulk');
+		$this->memberSourceMapper->method('findUserIdsByProjectAndTeam')->with(42, 3)->willReturn(['bob']);
+		$this->memberSourceMapper->expects($this->once())->method('removeSource')->with(42, 'bob', 3);
+		$this->group->expects($this->never())->method('removeUser');
+
+		$this->service->syncProjectTeam(42, 3, null);
+	}
+
+	public function testLeavingOrDeletingATeamKeepsPeopleOnItsProjects(): void {
+		$this->memberSourceMapper->method('findByTeam')->willReturnMap([
+			[3, 'bob', [['projectId' => 42, 'userId' => 'bob']]],
+			[5, null, [['projectId' => 42, 'userId' => 'bob'], ['projectId' => 42, 'userId' => 'carol']]],
+		]);
+		$this->memberSourceMapper->expects($this->exactly(3))->method('removeSource');
+		$this->group->expects($this->never())->method('removeUser');
+
+		$this->service->removeTeamMember(3, 'bob');
+		$this->service->removeTeam(5);
 	}
 
 	public function testAFailedSwitchKeepsTheOldTeam(): void {

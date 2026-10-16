@@ -45,6 +45,8 @@ use OCA\ProjectCreatorAIO\Service\ProjectDownloadService;
 use OCA\ProjectCreatorAIO\Service\ProjectNotificationService;
 use OCA\ProjectCreatorAIO\Service\ProjectQuotaService;
 use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
+use OCA\ProjectCreatorAIO\Service\ProjectOwnershipService;
+use OCA\ProjectCreatorAIO\Service\ProjectHandoverStepService;
 use OCA\ProjectCreatorAIO\Service\ProjectAdministratorAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectRetentionService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
@@ -110,6 +112,7 @@ use OCA\GroupFolders\Mount\FolderStorageManager;
 use OCA\Organization\Db\OrganizationMapper;
 use OCA\Organization\Db\UserMapper as OrganizationUserMapper;
 use OCA\Organization\Service\ExternalCollaboratorService;
+use OCA\Organization\Service\TeamService;
 use OCA\Organization\Db\SubscriptionMapper;
 use OCA\Organization\Db\PlanMapper;
 use OCA\Organization\Event\EntitlementsChangedEvent;
@@ -340,6 +343,41 @@ class Application extends App implements IBootstrap {
 				$c->get(IGroupManager::class),
 				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null,
 				$externalsEnabled ? $c->get(ExternalCollaboratorService::class) : null,
+			);
+		});
+
+		$context->registerService(ProjectOwnershipService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$deckEnabled = $appManager->isEnabledForAnyone('deck') && class_exists(BoardService::class);
+			return new ProjectOwnershipService(
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectAccessService::class),
+				$c->get(ProjectMemberSourceMapper::class),
+				$c->get(ProjectTalkIntegrationService::class),
+				$c->get(ProjectActivityService::class),
+				$c->get(IGroupManager::class),
+				$c->get(IUserManager::class),
+				$c->get(IUserSession::class),
+				$c->get(LoggerInterface::class),
+				$deckEnabled ? $c->get(BoardService::class) : null,
+			);
+		});
+
+		$context->registerService(ProjectHandoverStepService::class, function (ContainerInterface $c) {
+			$appManager = $c->get(IAppManager::class);
+			$organizationEnabled = $appManager->isEnabledForAnyone('organization');
+			return new ProjectHandoverStepService(
+				$c->get(ProjectMapper::class),
+				$c->get(ProjectService::class),
+				$c->get(ProjectAccessService::class),
+				$c->get(ProjectOwnershipService::class),
+				$c->get(ProjectMemberSourceMapper::class),
+				$c->get(TimelinePlanningService::class),
+				$c->get(ProjectActivityService::class),
+				$c->get(IUserManager::class),
+				$c->get(LoggerInterface::class),
+				$organizationEnabled && class_exists(TeamService::class) ? $c->get(TeamService::class) : null,
+				$organizationEnabled && class_exists(ExternalCollaboratorService::class) ? $c->get(ExternalCollaboratorService::class) : null,
 			);
 		});
 

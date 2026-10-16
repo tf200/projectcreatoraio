@@ -81,6 +81,21 @@ return [
             "verb" => "POST",
         ],
         [
+            "name" => "handover_api#preview",
+            "url" => "/api/v1/projects/{projectId}/handover",
+            "verb" => "GET",
+        ],
+        [
+            "name" => "handover_api#apply",
+            "url" => "/api/v1/projects/{projectId}/handover",
+            "verb" => "POST",
+        ],
+        [
+            "name" => "project_owner_api#update",
+            "url" => "/api/v1/projects/{projectId}/owner",
+            "verb" => "PUT",
+        ],
+        [
             "name" => "external_api#index",
             "url" => "/api/v1/projects/{projectId}/externals",
             "verb" => "GET",

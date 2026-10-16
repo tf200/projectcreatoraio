@@ -29,6 +29,8 @@ use Throwable;
  * Removing a member revokes everything a project grants: the project group
  * (Deck board, Team Folder), DRASCIVS and functional roles, the Talk
  * conversation and the private folder, which is handed to the project owner.
+ * Only an explicit removal does that: people who once worked on a project
+ * stay on it when their team is switched, changed or deleted.
  */
 class ProjectMembershipService {
 	public const PRIVATE_FOLDER_NONE = 'none';
@@ -113,36 +115,29 @@ class ProjectMembershipService {
 	}
 
 	/**
-	 * Drops one team origin of a member and removes the member once no
-	 * origin remains. Manually added members are never removed here.
+	 * Drops one team origin of a member without removing them: once no team
+	 * brings them in any more they stay as if added by hand, until someone
+	 * removes them explicitly. True when that manual origin was added.
 	 */
-	public function releaseTeamSource(int $projectId, string $userId, int $teamId): bool {
+	public function keepAfterTeamSource(int $projectId, string $userId, int $teamId): bool {
+		$kept = false;
+		if (!$this->memberSourceMapper->hasSource($projectId, $userId, ProjectMemberSourceMapper::MANUAL)) {
+			// Added before the team origin goes, so the member always has one.
+			$this->memberSourceMapper->addSource($projectId, $userId, ProjectMemberSourceMapper::MANUAL);
+			$kept = true;
+		}
 		$this->memberSourceMapper->removeSource($projectId, $userId, $teamId);
-		if ($this->memberSourceMapper->hasAnySource($projectId, $userId)) {
-			return false;
-		}
-
-		$project = $this->projectMapper->find($projectId);
-		if ($project === null || trim((string)$project->getOwnerId()) === $userId) {
-			return false;
-		}
-
-		$groupGid = trim((string)($project->getProjectGroupGid() ?? ''));
-		if ($groupGid === '' || !$this->groupManager->isInGroup($userId, $groupGid)) {
-			return false;
-		}
-
-		$this->removeMember($projectId, $userId);
-		return true;
+		return $kept;
 	}
 
 	/**
-	 * A project's team was assigned, switched or unassigned.
+	 * A project's team was assigned, switched or unassigned. The new team's
+	 * members join; the previous team's members stay.
 	 */
 	public function syncProjectTeam(int $projectId, ?int $previousTeamId, ?int $teamId): void {
 		if ($teamId !== null && $teamId > 0 && !$this->addTeamMembers($projectId, $teamId, null)) {
-			// The new team's members were not recorded, so releasing the old team
-			// would also drop people who are in both teams. Keep the old access.
+			// The new team's members were not recorded, so the old team stays
+			// recorded too: it is still what brings these people in.
 			$this->logger->error('Kept the previous team on the project because the new team could not be added', [
 				'projectId' => $projectId,
 				'previousTeamId' => $previousTeamId,
@@ -156,7 +151,7 @@ class ProjectMembershipService {
 		}
 
 		foreach ($this->memberSourceMapper->findUserIdsByProjectAndTeam($projectId, $previousTeamId) as $userId) {
-			$this->releaseSafely($projectId, $userId, $previousTeamId);
+			$this->keepSafely($projectId, $userId, $previousTeamId);
 		}
 	}
 
@@ -166,15 +161,17 @@ class ProjectMembershipService {
 		}
 	}
 
+	/** Leaving a team keeps the person on the team's projects. */
 	public function removeTeamMember(int $teamId, string $userId): void {
 		foreach ($this->memberSourceMapper->findByTeam($teamId, $userId) as $row) {
-			$this->releaseSafely($row['projectId'], $row['userId'], $teamId);
+			$this->keepSafely($row['projectId'], $row['userId'], $teamId);
 		}
 	}
 
+	/** Deleting a team keeps its members on the team's projects. */
 	public function removeTeam(int $teamId): void {
 		foreach ($this->memberSourceMapper->findByTeam($teamId) as $row) {
-			$this->releaseSafely($row['projectId'], $row['userId'], $teamId);
+			$this->keepSafely($row['projectId'], $row['userId'], $teamId);
 		}
 	}
 
@@ -281,11 +278,11 @@ class ProjectMembershipService {
 		}
 	}
 
-	private function releaseSafely(int $projectId, string $userId, int $teamId): void {
+	private function keepSafely(int $projectId, string $userId, int $teamId): void {
 		try {
-			$this->releaseTeamSource($projectId, $userId, $teamId);
+			$this->keepAfterTeamSource($projectId, $userId, $teamId);
 		} catch (Throwable $e) {
-			$this->logger->error('Failed to revoke team-based project access', [
+			$this->logger->error('Failed to keep a member after their team origin went away', [
 				'projectId' => $projectId,
 				'userId' => $userId,
 				'teamId' => $teamId,

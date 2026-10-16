@@ -26,6 +26,8 @@ class ProjectActivityService {
 	public const EVENT_PROJECT_DELETED = 'project_deleted';
 	public const EVENT_MEMBER_ADDED = 'member_added';
 	public const EVENT_MEMBER_REMOVED = 'member_removed';
+	public const EVENT_OWNER_CHANGED = 'owner_changed';
+	public const EVENT_PROJECT_HANDED_OVER = 'project_handed_over';
 	public const EVENT_WHITEBOARD_UPDATED = 'whiteboard_updated';
 	public const EVENT_PROJECT_NOTES_UPDATED = 'project_notes_updated';
 	public const EVENT_NOTE_CREATED = 'note_created';
@@ -154,6 +156,20 @@ class ProjectActivityService {
 		$this->record($project, self::EVENT_MEMBER_REMOVED, self::SOURCE_INTERNAL, $actor, [
 			'memberUid' => $memberUid,
 			'memberDisplayName' => $memberDisplayName ?? $memberUid,
+		]);
+	}
+
+	/** @param array<string, mixed> $summary What the handover changed */
+	public function recordHandedOver(Project $project, ?IUser $actor, array $summary): void {
+		$this->record($project, self::EVENT_PROJECT_HANDED_OVER, self::SOURCE_INTERNAL, $actor, $summary);
+	}
+
+	public function recordOwnerChanged(Project $project, IUser $previousOwner, IUser $newOwner, ?IUser $actor = null): void {
+		$this->record($project, self::EVENT_OWNER_CHANGED, self::SOURCE_INTERNAL, $actor, [
+			'previousOwnerUid' => $previousOwner->getUID(),
+			'previousOwnerDisplayName' => $this->getUserDisplayName($previousOwner),
+			'memberUid' => $newOwner->getUID(),
+			'memberDisplayName' => $this->getUserDisplayName($newOwner),
 		]);
 	}
 
