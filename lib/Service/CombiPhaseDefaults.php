@@ -44,8 +44,18 @@ class CombiPhaseDefaults
 				'cards' => $currentCardTitles,
 				'customTasks' => [],
 			],
-			'preparation' => [
+			// Handover follows the process steps and comes before the start.
+			'handover' => [
 				'order' => 3,
+				'name' => 'Handover Phase',
+				'category' => 'handover',
+				'color' => '#8b5cf6',
+				'milestone' => 'Handed over',
+				'cards' => [],
+				'customTasks' => [],
+			],
+			'preparation' => [
+				'order' => 4,
 				'name' => 'Preparation Phase',
 				'category' => 'preparation',
 				'color' => '#f59e0b',
@@ -54,20 +64,11 @@ class CombiPhaseDefaults
 				'customTasks' => [],
 			],
 			'execution' => [
-				'order' => 4,
+				'order' => 5,
 				'name' => 'Execution / Construction',
 				'category' => 'execution',
 				'color' => '#3b82f6',
 				'milestone' => 'End construction',
-				'cards' => [],
-				'customTasks' => [],
-			],
-			'handover' => [
-				'order' => 5,
-				'name' => 'Handover Phase',
-				'category' => 'handover',
-				'color' => '#8b5cf6',
-				'milestone' => 'Project complete',
 				'cards' => [],
 				'customTasks' => [],
 			],

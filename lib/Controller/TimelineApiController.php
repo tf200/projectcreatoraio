@@ -291,6 +291,19 @@ class TimelineApiController extends Controller
                 }
             }
 
+            if (array_key_exists('actual_end_date', $params)) {
+                $value = $params['actual_end_date'];
+                if ($value === null || $value === '') {
+                    $project->setActualEndDate(null);
+                } else {
+                    $date = is_string($value) ? DateTime::createFromFormat('!Y-m-d', $value) : false;
+                    if ($date === false || $date->format('Y-m-d') !== $value) {
+                        throw new \InvalidArgumentException('End date must be a valid date in YYYY-MM-DD format');
+                    }
+                    $project->setActualEndDate($date);
+                }
+            }
+
             if ($desiredStartDate !== null) {
                 $trimmed = trim($desiredStartDate);
                 if ($trimmed === '' || strtolower($trimmed) === 'null') {

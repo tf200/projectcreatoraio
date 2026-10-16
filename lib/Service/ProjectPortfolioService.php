@@ -23,7 +23,6 @@ class ProjectPortfolioService {
 	 */
 	public const INITIATION_STATUSES = [ProjectStatus::ACTIVE, ProjectStatus::WAITING_ON_CUSTOMER, ProjectStatus::ON_HOLD];
 	private const CAPACITY_STATUSES = self::INITIATION_STATUSES;
-	private const HANDOVER_TITLE = 'handover 1';
 	private const BUCKETS = [
 		['key' => '0-24', 'label' => '0 - 24%', 'min' => 0, 'max' => 24],
 		['key' => '25-49', 'label' => '25 - 49%', 'min' => 25, 'max' => 49],
@@ -348,7 +347,7 @@ class ProjectPortfolioService {
 				'25-49' => '25–49%',
 				'50-74' => '50–74%',
 				'75-99' => '75–99% / Upcoming',
-				'100' => '100% ready for Handover 1',
+				'100' => '100% ready for handover',
 			];
 			$bucketLabel = $bucketLabels[$bucketKey] ?? self::BUCKETS[$bucketIndex]['label'];
 
@@ -507,7 +506,7 @@ class ProjectPortfolioService {
 			['key' => '25-49', 'label' => '25–49%', 'count' => $bucketCounters['25-49']],
 			['key' => '50-74', 'label' => '50–74%', 'count' => $bucketCounters['50-74']],
 			['key' => '75-99', 'label' => '75–99% / Upcoming', 'count' => $bucketCounters['75-99']],
-			['key' => '100', 'label' => '100% ready for Handover 1', 'count' => $bucketCounters['100']],
+			['key' => '100', 'label' => '100% ready for handover', 'count' => $bucketCounters['100']],
 			['key' => 'gaps', 'label' => 'Projects with gaps', 'count' => $projectsWithGapsCount],
 		];
 
@@ -749,7 +748,7 @@ class ProjectPortfolioService {
 
 	/**
 	 * A team is busy with a project while it works on site: from the actual
-	 * start until handover (see MemberLoadService::busyWindow()). Projects
+	 * start until its end (see MemberLoadService::busyWindow()). Projects
 	 * without an actual start are not planned yet and are listed by
 	 * findProjectsToSchedule() instead.
 	 *
@@ -763,13 +762,13 @@ class ProjectPortfolioService {
 			if ($window === null) {
 				continue;
 			}
-			$eligible[] = array_merge($project, $window, ['actualEnd' => $this->calendarDay($project['actualHandoverDate'] ?? null)]);
+			$eligible[] = array_merge($project, $window, ['actualEnd' => $this->calendarDay($project['actualEndDate'] ?? null)]);
 		}
 		return $eligible;
 	}
 
 	/**
-	 * Execution window: actual start until the recorded handover, or until
+	 * Execution window: actual start until the recorded end, or until
 	 * actual start + execution weeks. Without either end it stays open.
 	 *
 	 * @param array<string,mixed> $project
@@ -780,9 +779,9 @@ class ProjectPortfolioService {
 		if ($start === null) {
 			return null;
 		}
-		$actualEnd = $this->calendarDay($project['actualHandoverDate'] ?? null);
+		$actualEnd = $this->calendarDay($project['actualEndDate'] ?? null);
 		$weeks = $project['executionWeeks'] ?? null;
-		$end = TimelinePlanningService::plannedHandoverDate($start, $weeks === null ? null : (int)$weeks, $actualEnd);
+		$end = TimelinePlanningService::plannedEndDate($start, $weeks === null ? null : (int)$weeks, $actualEnd);
 		return ['start' => $start, 'end' => $end, 'actualEnd' => $actualEnd];
 	}
 
@@ -810,8 +809,10 @@ class ProjectPortfolioService {
 	}
 
 	/**
-	 * Started projects whose execution window cannot be counted reliably.
-	 * Projects closed without a recorded handover are left alone.
+	 * Started projects whose execution window cannot be counted reliably,
+	 * and handovers that fall after the actual start (a warning: handover
+	 * comes before the start). Projects closed without a recorded end are
+	 * left alone.
 	 *
 	 * @param array<int,array<string,mixed>> $projects Raw project rows with execution date keys
 	 * @return array<int,array<string,mixed>>
@@ -823,13 +824,17 @@ class ProjectPortfolioService {
 			if ($window === null) {
 				continue;
 			}
+			$handover = $this->calendarDay($project['actualHandoverDate'] ?? null);
+			if ($handover !== null && $handover > $window['start']) {
+				$issues[] = ['id' => 'handover:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Handover after the actual start'];
+			}
 			if ($window['actualEnd'] === null && in_array((int)$project['status'], [ProjectStatus::DONE, ProjectStatus::ARCHIVED], true)) {
 				continue;
 			}
 			if ($window['end'] === null) {
-				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Started but no handover planned: set weeks on site'];
+				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Started but no end planned: set weeks on site'];
 			} elseif ($window['end'] < $window['start']) {
-				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Handover before actual start'];
+				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'End before actual start'];
 			}
 		}
 		return $issues;
@@ -837,8 +842,8 @@ class ProjectPortfolioService {
 
 	/**
 	 * Counts the projects running in each of six weeks. Each project's 'end'
-	 * is its recorded handover when there is one, otherwise its planned
-	 * handover, so Ending lands in the week the team really finished even
+	 * is its recorded end when there is one, otherwise its planned end,
+	 * so Ending lands in the week the team really finished even
 	 * when it differs from the plan. The people are added by applyPeople().
 	 *
 	 * @param array<int,array<string,mixed>> $projects Projects with start/end keys
@@ -940,7 +945,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadCapacityProjects(int $organizationId, int $teamId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.actual_end_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -953,7 +958,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadAllCapacityProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.actual_end_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid', 'pt.team_id')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -993,6 +998,7 @@ class ProjectPortfolioService {
 			'desiredStartDate' => $row['desired_start_date'] === null ? null : (string)$row['desired_start_date'],
 			'actualStartDate' => ($row['actual_start_date'] ?? null) === null ? null : (string)$row['actual_start_date'],
 			'actualHandoverDate' => ($row['actual_handover_date'] ?? null) === null ? null : (string)$row['actual_handover_date'],
+			'actualEndDate' => ($row['actual_end_date'] ?? null) === null ? null : (string)$row['actual_end_date'],
 			'executionWeeks' => ($row['execution_weeks'] ?? null) === null ? null : (int)$row['execution_weeks'],
 			'ownerId' => $row['owner_id'] === null ? null : (string)$row['owner_id'],
 			'projectGroupGid' => $row['project_group_gid'] === null ? null : (string)$row['project_group_gid'],
@@ -1117,7 +1123,7 @@ class ProjectPortfolioService {
 	/** @return array<int,array<string,mixed>> */
 	private function loadUnassignedCapacityProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.board_id', 'p.created_at', 'p.desired_start_date', 'p.actual_start_date', 'p.actual_handover_date', 'p.actual_end_date', 'p.execution_weeks', 'p.owner_id', 'p.project_group_gid')
 			->from('custom_projects', 'p')
 			->leftJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -1132,7 +1138,6 @@ class ProjectPortfolioService {
 		$starts = [];
 		$dues = [];
 		$dones = [];
-		$handoverDue = null;
 		$active = count($cards);
 		$doneCount = 0;
 		$doneStackId = $this->resolveCapacityDoneStackId($cards);
@@ -1145,10 +1150,6 @@ class ProjectPortfolioService {
 			$dueDate = $this->dateString($card['duedate'] ?? null);
 			if ($dueDate !== null) {
 				$dues[] = $dueDate;
-			}
-			$title = strtolower(trim((string)($card['title'] ?? '')));
-			if ($title === self::HANDOVER_TITLE && $dueDate !== null) {
-				$handoverDue = $dueDate;
 			}
 
 			$doneValue = $card['done'] ?? null;
@@ -1179,10 +1180,7 @@ class ProjectPortfolioService {
 				$actual = max($dues);
 			}
 		}
-		$planned = $handoverDue;
-		if ($planned === null && $dues !== []) {
-			$planned = max($dues);
-		}
+		$planned = $dues !== [] ? max($dues) : null;
 		if ($planned === null && $project['desiredStartDate'] !== null) {
 			$planned = $this->dateString($project['desiredStartDate']);
 		}
@@ -1352,14 +1350,14 @@ class ProjectPortfolioService {
 		}
 
 		// Between projects means the team has no work on site: only the
-		// execution windows (actual start until handover) fill its time.
+		// execution windows (actual start until the end) fill its time.
 		foreach ($this->deriveEligibleCapacityProjects($projects) as $project) {
 			foreach (($project['teamIds'] ?? []) as $teamId) {
 				$teamId = (int)$teamId;
 				if ($teamId > 0 && isset($teamNames[$teamId])) {
 					$teamProjects[$teamId][] = [
 						'start' => $project['start'],
-						// Without a planned handover the team stays busy from here on.
+						// Without a planned end the team stays busy from here on.
 						'end' => $project['end'] ?? '9999-12-31',
 						'project' => ['id' => (int)$project['id'], 'name' => (string)$project['name']],
 					];

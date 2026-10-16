@@ -15,7 +15,7 @@ use OCP\IUserManager;
 use PHPUnit\Framework\TestCase;
 
 final class MemberLoadServiceTest extends TestCase {
-	public function testBusyWindowRunsFromActualStartUntilRecordedHandover(): void {
+	public function testBusyWindowRunsFromActualStartUntilRecordedEnd(): void {
 		self::assertSame(
 			['start' => '2026-09-14', 'end' => '2026-09-30'],
 			MemberLoadService::busyWindow($this->window(ProjectStatus::ACTIVE, '2026-09-14 00:00:00', 1, '2026-09-30')),
@@ -27,7 +27,7 @@ final class MemberLoadServiceTest extends TestCase {
 		self::assertSame(['start' => '2026-09-14', 'end' => '2026-09-14'], MemberLoadService::busyWindow($this->window(ProjectStatus::ACTIVE, '2026-09-14', 0, null)));
 	}
 
-	public function testBusyWindowStaysOpenWithoutHandoverOrWeeks(): void {
+	public function testBusyWindowStaysOpenWithoutEndOrWeeks(): void {
 		self::assertSame(['start' => '2026-09-14', 'end' => null], MemberLoadService::busyWindow($this->window(ProjectStatus::ON_HOLD, '2026-09-14', null, null)));
 	}
 
@@ -92,14 +92,14 @@ final class MemberLoadServiceTest extends TestCase {
 		self::assertSame(['id' => 2, 'name' => 'Project 2', 'start' => '2026-09-21', 'end' => '2026-09-27', 'teamId' => 7], $loads['projects'][2]);
 	}
 
-	private function window(int $status, ?string $start, ?int $weeks, ?string $handover): array {
-		return ['status' => $status, 'actualStartDate' => $start, 'executionWeeks' => $weeks, 'actualHandoverDate' => $handover];
+	private function window(int $status, ?string $start, ?int $weeks, ?string $end): array {
+		return ['status' => $status, 'actualStartDate' => $start, 'executionWeeks' => $weeks, 'actualEndDate' => $end];
 	}
 
 	private function row(int $id, int $teamId, ?string $start, ?int $weeks): array {
 		return [
 			'id' => $id, 'name' => 'Project ' . $id, 'status' => ProjectStatus::ACTIVE,
-			'actual_start_date' => $start, 'actual_handover_date' => null, 'execution_weeks' => $weeks,
+			'actual_start_date' => $start, 'actual_end_date' => null, 'execution_weeks' => $weeks,
 			'team_id' => $teamId,
 		];
 	}

@@ -140,7 +140,7 @@ final class ProjectPortfolioMembershipTest extends TestCase {
 		return [
 			'id' => $id, 'name' => 'Project ' . $id, 'status' => ProjectStatus::ACTIVE,
 			'board_id' => null, 'created_at' => '2026-09-01', 'desired_start_date' => '2026-10-05',
-			'actual_start_date' => '2026-10-05', 'actual_handover_date' => '2026-11-16', 'execution_weeks' => 6,
+			'actual_start_date' => '2026-10-05', 'actual_handover_date' => '2026-09-28', 'actual_end_date' => '2026-11-16', 'execution_weeks' => 6,
 			'owner_id' => 'owner', 'project_group_gid' => 'group-' . $id, 'team_id' => $teamId,
 		];
 	}

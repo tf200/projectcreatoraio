@@ -70,11 +70,12 @@ final class TimelinePhaseServiceTest extends TestCase
 		$phases = $hierarchy['phases'];
 		$this->assertSame('initiation', $phases[0]['category']);
 		$this->assertSame(2, $phases[0]['order']);
-		$this->assertSame('preparation', $phases[1]['category']);
+		// Handover comes right after initiation, before preparation and the start.
+		$this->assertSame('handover', $phases[1]['category']);
 		$this->assertSame(3, $phases[1]['order']);
-		$this->assertSame('execution', $phases[2]['category']);
+		$this->assertSame('preparation', $phases[2]['category']);
 		$this->assertSame(4, $phases[2]['order']);
-		$this->assertSame('handover', $phases[3]['category']);
+		$this->assertSame('execution', $phases[3]['category']);
 		$this->assertSame(5, $phases[3]['order']);
 		foreach ($phases as $phase) {
 			$this->assertSame([], $phase['tasks']);

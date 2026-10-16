@@ -186,7 +186,7 @@ class ExternalApiController extends Controller {
 
 	/**
 	 * A given date ends at the end of that day. Without one the grant runs until
-	 * the planned handover, or for 90 days when no handover is planned.
+	 * the planned end of work on site, or for 90 days when no end is planned.
 	 */
 	private function resolveEndDate(Project $project, ?string $expiresAt): DateTime {
 		$utc = new DateTimeZone('UTC');
@@ -201,11 +201,11 @@ class ExternalApiController extends Controller {
 		}
 
 		$start = $project->getActualStartDate();
-		$handover = $project->getActualHandoverDate();
-		$planned = TimelinePlanningService::plannedHandoverDate(
+		$end = $project->getActualEndDate();
+		$planned = TimelinePlanningService::plannedEndDate(
 			$start instanceof DateTime ? $start->format('Y-m-d') : null,
 			$project->getExecutionWeeks(),
-			$handover instanceof DateTime ? $handover->format('Y-m-d') : null,
+			$end instanceof DateTime ? $end->format('Y-m-d') : null,
 		);
 		if ($planned !== null) {
 			$date = DateTime::createFromFormat('!Y-m-d', $planned, $utc);

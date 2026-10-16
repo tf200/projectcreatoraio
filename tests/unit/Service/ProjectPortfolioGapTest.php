@@ -200,10 +200,10 @@ final class ProjectPortfolioGapTest extends TestCase {
 		return ['id' => $id, 'name' => 'Project ' . $id, 'status' => 1, 'boardId' => (string)(100 + $id), 'teamIds' => $teamIds];
 	}
 
-	private function executing(int $id, array $teamIds, string $actualStart, ?string $handover): array {
+	private function executing(int $id, array $teamIds, string $actualStart, ?string $end): array {
 		return $this->project($id, $teamIds) + [
 			'actualStartDate' => $actualStart,
-			'actualHandoverDate' => $handover,
+			'actualEndDate' => $end,
 			'executionWeeks' => null,
 		];
 	}

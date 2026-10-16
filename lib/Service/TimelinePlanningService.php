@@ -22,40 +22,41 @@ class TimelinePlanningService
 	public function buildSummary(Project $project, ?array $phases = null): array
 	{
 		$summary = $this->buildPlanningSummary($project, $phases);
-		$date = $project->getActualHandoverDate();
-		$dateString = $date instanceof DateTime ? $date->format('Y-m-d') : null;
-		$summary['actualHandoverDate'] = $dateString;
-		$summary['kpis']['actualHandoverDate'] = $dateString;
-		$summary['systemPlanning']['actualHandover'] = ['date' => $dateString];
+		$handover = self::dateString($project->getActualHandoverDate());
+		$summary['actualHandoverDate'] = $handover;
+		$summary['kpis']['actualHandoverDate'] = $handover;
+		$summary['systemPlanning']['actualHandover'] = ['date' => $handover];
 
 		$executionWeeks = $project->getExecutionWeeks();
-		$start = $project->getActualStartDate();
-		$plannedHandover = self::plannedHandoverDate(
-			$start instanceof DateTime ? $start->format('Y-m-d') : null,
-			$executionWeeks,
-			$dateString,
-		);
+		$start = self::dateString($project->getActualStartDate());
+		$actualEnd = self::dateString($project->getActualEndDate());
+		$plannedEnd = self::plannedEndDate($start, $executionWeeks, $actualEnd);
 		$summary['executionWeeks'] = $executionWeeks;
-		$summary['plannedHandoverDate'] = $plannedHandover;
+		$summary['actualEndDate'] = $actualEnd;
+		$summary['plannedEndDate'] = $plannedEnd;
 		$summary['kpis']['executionWeeks'] = $executionWeeks;
-		$summary['kpis']['plannedHandoverDate'] = $plannedHandover;
+		$summary['kpis']['actualEndDate'] = $actualEnd;
+		$summary['kpis']['plannedEndDate'] = $plannedEnd;
 		$summary['systemPlanning']['execution'] = [
 			'label' => 'Execution',
 			'startDate' => $summary['actualStartDate'] ?? null,
-			'endDate' => $plannedHandover,
+			'endDate' => $plannedEnd,
 			'weeks' => $executionWeeks,
 		];
+		$summary['systemPlanning']['actualEnd'] = ['date' => $actualEnd];
+		$summary['handoverWarnings'] = self::handoverWarnings($handover, $summary['processCompleted'] ?? [], $start);
+		$summary['kpis']['handoverWarnings'] = $summary['handoverWarnings'];
 		return $summary;
 	}
 
 	/**
-	 * The team works on site from actual start until handover. A recorded
-	 * handover wins; otherwise actual start + execution weeks plans it.
+	 * The team works on site from actual start until the end. A recorded
+	 * end wins; otherwise actual start + execution weeks plans it.
 	 */
-	public static function plannedHandoverDate(?string $actualStartDate, ?int $executionWeeks, ?string $actualHandoverDate): ?string
+	public static function plannedEndDate(?string $actualStartDate, ?int $executionWeeks, ?string $actualEndDate): ?string
 	{
-		if ($actualHandoverDate !== null && $actualHandoverDate !== '') {
-			return substr($actualHandoverDate, 0, 10);
+		if ($actualEndDate !== null && $actualEndDate !== '') {
+			return substr($actualEndDate, 0, 10);
 		}
 		if ($actualStartDate === null || $actualStartDate === '' || $executionWeeks === null) {
 			return null;
@@ -65,6 +66,36 @@ class TimelinePlanningService
 			return null;
 		}
 		return $start->modify('+' . (7 * max(0, $executionWeeks)) . ' days')->format('Y-m-d');
+	}
+
+	/**
+	 * Handover comes after the process steps and before the actual start.
+	 * Dates out of that order are warned about, not refused.
+	 *
+	 * @param array<string,mixed> $processCompleted The summary's processCompleted entry
+	 * @return list<string>
+	 */
+	public static function handoverWarnings(?string $handoverDate, array $processCompleted, ?string $actualStartDate): array
+	{
+		if ($handoverDate === null || $handoverDate === '') {
+			return [];
+		}
+		$handover = substr($handoverDate, 0, 10);
+		$warnings = [];
+		$processDate = $processCompleted['date'] ?? null;
+		$stepsOpen = in_array($processCompleted['status'] ?? null, ['incomplete', 'missing_cards'], true);
+		if ($stepsOpen || (is_string($processDate) && $processDate !== '' && $handover < substr($processDate, 0, 10))) {
+			$warnings[] = 'Handover before the process steps are done';
+		}
+		if ($actualStartDate !== null && $actualStartDate !== '' && $handover > substr($actualStartDate, 0, 10)) {
+			$warnings[] = 'Handover after the actual start';
+		}
+		return $warnings;
+	}
+
+	private static function dateString(mixed $date): ?string
+	{
+		return $date instanceof DateTime ? $date->format('Y-m-d') : null;
 	}
 
 	/** @param null|array<int, array<string, mixed>> $phases */

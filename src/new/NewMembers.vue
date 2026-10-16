@@ -89,7 +89,7 @@
 						type="date"
 						:min="tomorrow">
 					<p class="pc-member-hint">
-						Without a date, access ends at the planned handover, or after 90 days. An external takes one member seat of the organisation and sees only this project.
+						Without a date, access ends at the planned end of work on site, or after 90 days. An external takes one member seat of the organisation and sees only this project.
 					</p>
 				</div>
 				<div class="pc-member-add__roles">

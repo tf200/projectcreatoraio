@@ -49,14 +49,14 @@ test('all tasks is every open card on the board, and my tasks is always a subset
 })
 
 // The summary of the local PROJECT_TEST01 on 12 Oct 2026, trimmed to what the panel reads.
-const fresh = { requestDate: '2026-08-24', requiredPreparationWeeks: 0, processCompleted: { status: 'incomplete', date: null, doneCount: 0, totalRequired: 10, missingTitles: [] }, coordinationPendingPeriod: { weeks: 7 }, minimumStartDate: '2028-05-29', desiredStartDate: null, actualStartDate: null, overallFloatWeeks: null, overallFloatDays: null, planningStatus: 'on_track', actualHandoverDate: null, executionWeeks: null, plannedHandoverDate: null }
+const fresh = { requestDate: '2026-08-24', requiredPreparationWeeks: 0, processCompleted: { status: 'incomplete', date: null, doneCount: 0, totalRequired: 10, missingTitles: [] }, coordinationPendingPeriod: { weeks: 7 }, minimumStartDate: '2028-05-29', desiredStartDate: null, actualStartDate: null, overallFloatWeeks: null, overallFloatDays: null, planningStatus: 'on_track', actualHandoverDate: null, actualEndDate: null, executionWeeks: null, plannedEndDate: null, handoverWarnings: [] }
 test('a fresh project sits in Initiation, on track without a target', () => {
  const t = timelineOf(fresh)
  assert.deepEqual(t.status, { tone: 'success', label: 'On track (no target)', text: 'No desired start yet, so there is no float to check.' })
  assert.equal(t.stage, 0)
- assert.deepEqual(t.initiation, { requestDate: '2026-08-24', done: 0, total: 10, configured: true, percent: 0, note: '7 weeks since the request', warn: false })
+ assert.deepEqual(t.initiation, { requestDate: '2026-08-24', done: 0, total: 10, configured: true, percent: 0, note: '7 weeks since the request', warn: false, handover: null, handoverNote: 'After the process steps', handoverWarn: false })
  assert.equal(t.execution.note, 'Right after the process steps')
- assert.deepEqual(t.delivery, { handover: null, planned: false, note: 'Set the actual start in Planning to plan it', weeks: null })
+ assert.deepEqual(t.delivery, { end: null, planned: false, note: 'Set the actual start in Planning to plan it', weeks: null })
 })
 test('the status and float are the server’s, in words', () => {
  assert.deepEqual(timelineOf({ ...fresh, desiredStartDate: '2026-10-01', overallFloatDays: -4, overallFloatWeeks: -0.6, planningStatus: 'behind_at_risk' }).status, { tone: 'danger', label: 'Behind / at risk', text: 'Desired start is 4 days before the earliest possible start · float -0.6 weeks.' })
@@ -64,19 +64,28 @@ test('the status and float are the server’s, in words', () => {
  assert.equal(timelineOf({ ...fresh, desiredStartDate: '2026-11-02', overallFloatDays: 28, overallFloatWeeks: 4, planningStatus: 'on_track' }).status.text, 'Float of +4 weeks before the desired start.')
  assert.equal(timelineOf({ ...fresh, desiredStartDate: '2026-10-12', overallFloatDays: -1, overallFloatWeeks: -0.1, planningStatus: 'behind_at_risk' }).status.text, 'Desired start is 1 day before the earliest possible start · float -0.1 weeks.')
 })
-test('the stage follows steps, actual start and handover', () => {
+test('the stage follows handover, actual start and end, in that order', () => {
  const steps = { ...fresh, processCompleted: { status: 'complete', date: '2026-09-14', doneCount: 10, totalRequired: 10 }, requiredPreparationWeeks: 3 }
- assert.equal(timelineOf(steps).stage, 1)
+ assert.equal(timelineOf(steps).stage, 0)
  assert.match(timelineOf(steps).initiation.note, /^Completed 14 Sept? 2026$/)
  assert.equal(timelineOf(steps).execution.note, '3 weeks preparation after the process steps')
- const started = { ...steps, actualStartDate: '2026-10-12' }
+ const handedOver = { ...steps, actualHandoverDate: '2026-09-28' }
+ assert.equal(timelineOf(handedOver).stage, 1)
+ assert.equal(timelineOf(handedOver).initiation.handover, '2026-09-28')
+ assert.equal(timelineOf(handedOver).initiation.handoverNote, 'Handed to the execution team')
+ const started = { ...handedOver, actualStartDate: '2026-10-12' }
  assert.equal(timelineOf(started).stage, 2)
  assert.equal(timelineOf(started).delivery.note, 'Set weeks on site in Planning to plan it')
- const planned = { ...started, executionWeeks: 6, plannedHandoverDate: '2026-11-23' }
- assert.deepEqual(timelineOf(planned).delivery, { handover: '2026-11-23', planned: true, note: '6 weeks on site from the actual start', weeks: 6 })
- const over = { ...planned, actualHandoverDate: '2026-11-20', plannedHandoverDate: '2026-11-20' }
+ const planned = { ...started, executionWeeks: 6, plannedEndDate: '2026-11-23' }
+ assert.deepEqual(timelineOf(planned).delivery, { end: '2026-11-23', planned: true, note: '6 weeks on site from the actual start', weeks: 6 })
+ const over = { ...planned, actualEndDate: '2026-11-20', plannedEndDate: '2026-11-20' }
  assert.equal(timelineOf(over).stage, 3)
- assert.deepEqual(timelineOf(over).delivery, { handover: '2026-11-20', planned: false, note: 'Handed over', weeks: 6 })
+ assert.deepEqual(timelineOf(over).delivery, { end: '2026-11-20', planned: false, note: 'Work on site finished', weeks: 6 })
+})
+test('handover warnings are the server’s, shown on the handover', () => {
+ const t = timelineOf({ ...fresh, actualHandoverDate: '2026-10-19', actualStartDate: '2026-10-12', handoverWarnings: ['Handover after the actual start'] })
+ assert.equal(t.initiation.handoverNote, 'Handover after the actual start')
+ assert.equal(t.initiation.handoverWarn, true)
 })
 test('missing or unconfigured process steps are said, not counted as progress', () => {
  const missing = timelineOf({ ...fresh, processCompleted: { status: 'missing_cards', doneCount: 1, totalRequired: 4, missingTitles: ['AVP', 'VO'] } })

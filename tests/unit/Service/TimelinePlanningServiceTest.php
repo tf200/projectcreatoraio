@@ -34,7 +34,7 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertNull($project->jsonSerialize()['actual_handover_date']);
 	}
 
-	public function testPlannedHandoverIsActualStartPlusExecutionWeeksUntilHandoverIsRecorded(): void {
+	public function testPlannedEndIsActualStartPlusExecutionWeeksUntilTheEndIsRecorded(): void {
 		$service = new TimelinePlanningService($this->createMock(IDBConnection::class), $this->createMock(LoggerInterface::class));
 		$project = new Project();
 		$project->setType(-1);
@@ -43,25 +43,44 @@ final class TimelinePlanningServiceTest extends TestCase {
 
 		$noStart = $service->buildSummary($project);
 		$this->assertSame(6, $noStart['kpis']['executionWeeks']);
-		$this->assertNull($noStart['kpis']['plannedHandoverDate']);
+		$this->assertNull($noStart['kpis']['plannedEndDate']);
 
 		$project->setActualStartDate(new DateTime('2027-09-06'));
 		$planned = $service->buildSummary($project);
-		$this->assertSame('2027-10-18', $planned['plannedHandoverDate']);
-		$this->assertSame('2027-10-18', $planned['kpis']['plannedHandoverDate']);
+		$this->assertSame('2027-10-18', $planned['plannedEndDate']);
+		$this->assertSame('2027-10-18', $planned['kpis']['plannedEndDate']);
 		$this->assertSame(['label' => 'Execution', 'startDate' => '2027-09-06', 'endDate' => '2027-10-18', 'weeks' => 6], $planned['systemPlanning']['execution']);
 		$this->assertSame(6, $project->jsonSerialize()['execution_weeks']);
 
-		$project->setActualHandoverDate(new DateTime('2027-11-01'));
-		$this->assertSame('2027-11-01', $service->buildSummary($project)['plannedHandoverDate']);
+		// Handover comes before the start: it never moves the end.
+		$project->setActualHandoverDate(new DateTime('2027-08-30'));
+		$this->assertSame('2027-10-18', $service->buildSummary($project)['plannedEndDate']);
+
+		$project->setActualEndDate(new DateTime('2027-11-01'));
+		$ended = $service->buildSummary($project);
+		$this->assertSame('2027-11-01', $ended['plannedEndDate']);
+		$this->assertSame('2027-11-01', $ended['actualEndDate']);
+		$this->assertSame('2027-11-01', $ended['systemPlanning']['actualEnd']['date']);
+		$this->assertSame('2027-11-01', $project->jsonSerialize()['actual_end_date']);
 	}
 
-	public function testPlannedHandoverDateNeedsStartAndWeeksOrARecordedHandover(): void {
-		$this->assertNull(TimelinePlanningService::plannedHandoverDate(null, 4, null));
-		$this->assertNull(TimelinePlanningService::plannedHandoverDate('2027-09-06', null, null));
-		$this->assertSame('2027-09-06', TimelinePlanningService::plannedHandoverDate('2027-09-06', 0, null));
-		$this->assertSame('2027-10-04', TimelinePlanningService::plannedHandoverDate('2027-09-06 00:00:00', 4, null));
-		$this->assertSame('2027-12-01', TimelinePlanningService::plannedHandoverDate(null, null, '2027-12-01'));
+	public function testPlannedEndDateNeedsStartAndWeeksOrARecordedEnd(): void {
+		$this->assertNull(TimelinePlanningService::plannedEndDate(null, 4, null));
+		$this->assertNull(TimelinePlanningService::plannedEndDate('2027-09-06', null, null));
+		$this->assertSame('2027-09-06', TimelinePlanningService::plannedEndDate('2027-09-06', 0, null));
+		$this->assertSame('2027-10-04', TimelinePlanningService::plannedEndDate('2027-09-06 00:00:00', 4, null));
+		$this->assertSame('2027-12-01', TimelinePlanningService::plannedEndDate(null, null, '2027-12-01'));
+	}
+
+	public function testHandoverIsWarnedAboutOutsideProcessStepsDoneAndActualStart(): void {
+		$done = ['status' => 'complete', 'date' => '2027-08-20'];
+		$this->assertSame([], TimelinePlanningService::handoverWarnings(null, ['status' => 'incomplete'], '2027-09-06'));
+		$this->assertSame([], TimelinePlanningService::handoverWarnings('2027-08-27', $done, '2027-09-06'));
+		$this->assertSame([], TimelinePlanningService::handoverWarnings('2027-09-06', $done, '2027-09-06'));
+		$this->assertSame(['Handover before the process steps are done'], TimelinePlanningService::handoverWarnings('2027-08-13', $done, null));
+		$this->assertSame(['Handover before the process steps are done'], TimelinePlanningService::handoverWarnings('2027-08-27', ['status' => 'incomplete', 'date' => null], null));
+		$this->assertSame(['Handover after the actual start'], TimelinePlanningService::handoverWarnings('2027-09-13', $done, '2027-09-06'));
+		$this->assertSame([], TimelinePlanningService::handoverWarnings('2027-08-27', ['status' => 'not_configured', 'date' => null], null));
 	}
 
 	public function testBuildSummaryIncludesPlanningMetricsAndKpis(): void {

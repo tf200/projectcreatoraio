@@ -12,7 +12,7 @@ use OCP\IUserManager;
 
 /**
  * Workload per person. Everyone in the team assigned to a project works on
- * it from its actual start until handover, and nobody should carry more
+ * it from its actual start until its end on site, and nobody should carry more
  * than MAX_CONCURRENT_PROJECTS projects in the same week. A person in
  * several teams carries the projects of all of them.
  */
@@ -27,12 +27,13 @@ class MemberLoadService {
 
 	/**
 	 * Days the team works on a project: from the actual start until the
-	 * recorded handover, or until the last day of the planned execution
-	 * weeks. Without either it stays open. Projects that have not started,
-	 * that hand over before they start, or that were closed (done or
-	 * archived) without a recorded handover are not counted.
+	 * recorded end, or until the last day of the planned execution weeks.
+	 * Without either it stays open. Projects that have not started, that
+	 * end before they start, or that were closed (done or archived) without
+	 * a recorded end are not counted. Handover comes before the start, so
+	 * it plays no part here.
 	 *
-	 * @param array<string,mixed> $project Keys status, actualStartDate, actualHandoverDate, executionWeeks
+	 * @param array<string,mixed> $project Keys status, actualStartDate, actualEndDate, executionWeeks
 	 * @return array{start:string,end:?string}|null
 	 */
 	public static function busyWindow(array $project): ?array {
@@ -40,12 +41,12 @@ class MemberLoadService {
 		if ($start === null) {
 			return null;
 		}
-		$handover = self::calendarDay($project['actualHandoverDate'] ?? null);
-		if ($handover === null && in_array((int)($project['status'] ?? ProjectStatus::ACTIVE), [ProjectStatus::DONE, ProjectStatus::ARCHIVED], true)) {
+		$actualEnd = self::calendarDay($project['actualEndDate'] ?? null);
+		if ($actualEnd === null && in_array((int)($project['status'] ?? ProjectStatus::ACTIVE), [ProjectStatus::DONE, ProjectStatus::ARCHIVED], true)) {
 			return null;
 		}
 		$weeks = $project['executionWeeks'] ?? null;
-		$end = $handover;
+		$end = $actualEnd;
 		if ($end === null && $weeks !== null) {
 			// N weeks on site end the day before the N-th weekly anniversary.
 			$end = (new DateTimeImmutable($start))->modify('+' . max(0, 7 * (int)$weeks - 1) . ' days')->format('Y-m-d');
@@ -173,7 +174,7 @@ class MemberLoadService {
 	 */
 	private function loadTeamProjects(int $organizationId): array {
 		$qb = $this->db->getQueryBuilder();
-		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.actual_start_date', 'p.actual_handover_date', 'p.execution_weeks', 'pt.team_id')
+		$rows = $qb->select('p.id', 'p.name', 'p.status', 'p.actual_start_date', 'p.actual_end_date', 'p.execution_weeks', 'pt.team_id')
 			->from('custom_projects', 'p')
 			->innerJoin('p', 'organization_project_teams', 'pt', 'pt.project_id = p.id AND pt.organization_id = p.organization_id')
 			->where($qb->expr()->eq('p.organization_id', $qb->createNamedParameter($organizationId, IQueryBuilder::PARAM_INT)))
@@ -197,7 +198,7 @@ class MemberLoadService {
 		$window = self::busyWindow([
 			'status' => (int)$row['status'],
 			'actualStartDate' => $row['actual_start_date'] ?? null,
-			'actualHandoverDate' => $row['actual_handover_date'] ?? null,
+			'actualEndDate' => $row['actual_end_date'] ?? null,
 			'executionWeeks' => ($row['execution_weeks'] ?? null) === null ? null : (int)$row['execution_weeks'],
 		]);
 		if ($window === null) {

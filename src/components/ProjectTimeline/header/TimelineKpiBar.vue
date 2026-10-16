@@ -104,6 +104,97 @@
 							</div>
 						</div>
 					</div>
+
+					<div class="kpi-connector" :class="{ 'kpi-connector--active': !!kpis.actualHandoverDate }"></div>
+
+					<!-- 4. Handover: after the process steps, before the start -->
+					<div class="kpi-card kpi-card--handover" :class="{ 'kpi-card--complete': !!kpis.actualHandoverDate && !handoverWarnings.length }">
+						<div class="kpi-card__step" :class="{ 'kpi-card__step--success': !!kpis.actualHandoverDate && !handoverWarnings.length }">
+							4
+						</div>
+						<div class="kpi-card__icon" :class="handoverIconClass">
+							<AlertCircleOutline v-if="handoverWarnings.length" :size="18" />
+							<HandshakeOutline v-else :size="18" />
+						</div>
+						<div class="kpi-card__content">
+							<div class="kpi-card__label">HANDOVER</div>
+
+							<div class="start-date-inline-right start-date-inline-right--start">
+								<!-- Hidden native date picker triggered directly by click -->
+								<input
+									ref="handoverDatePicker"
+									type="date"
+									class="kpi-native-date-hidden"
+									:value="isoDateOnly(kpis.actualHandoverDate)"
+									:disabled="!canEdit || saving"
+									aria-label="Select handover date"
+									@change="onHandoverDateChange" />
+
+								<div v-if="kpis.actualHandoverDate" class="desired-date-row">
+									<span
+										class="kpi-card__value"
+										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+										:title="canEdit ? 'Click to change handover date' : ''"
+										@click="openHandoverCalendar">
+										{{ formatDisplayDate(kpis.actualHandoverDate) }}
+									</span>
+									<NcButton
+										v-if="canEdit"
+										type="tertiary"
+										size="small"
+										class="kpi-card__mini-btn"
+										title="Change handover date"
+										:disabled="saving"
+										@click="openHandoverCalendar">
+										<template #icon>
+											<Pencil :size="11" />
+										</template>
+									</NcButton>
+									<NcButton
+										v-if="canEdit"
+										type="tertiary"
+										size="small"
+										class="kpi-card__mini-btn kpi-card__mini-btn--clear"
+										title="Clear handover date"
+										:disabled="saving"
+										@click.stop="clearHandoverDate">
+										<template #icon>
+											<Close :size="11" />
+										</template>
+									</NcButton>
+								</div>
+								<div v-else class="desired-date-row desired-date-row--empty">
+									<span
+										class="kpi-card__placeholder"
+										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
+										:title="canEdit ? 'Click to set handover date' : ''"
+										@click="openHandoverCalendar">
+										Not set
+									</span>
+									<NcButton
+										v-if="canEdit"
+										type="tertiary"
+										size="small"
+										class="set-date-btn"
+										title="Set handover date"
+										:disabled="saving"
+										@click="openHandoverCalendar">
+										<template #icon>
+											<Plus :size="12" />
+										</template>
+										Set
+									</NcButton>
+								</div>
+							</div>
+
+							<div v-if="handoverWarnings.length" class="kpi-card__subtext kpi-card__subtext--warning" role="status">
+								{{ handoverWarnings.join(' · ') }}
+							</div>
+							<div v-else class="kpi-card__subtext">
+								{{ kpis.actualHandoverDate ? 'Handed to the execution team' : 'After the process steps' }}
+							</div>
+						</div>
+					</div>
 				</div>
 			</section>
 
@@ -116,9 +207,9 @@
 			<section class="kpi-phase kpi-phase--execution">
 				<div class="kpi-phase__label">Execution</div>
 				<div class="kpi-group kpi-group--execution">
-					<!-- 4. Preparation Time & Calculated Duration -->
+					<!-- 5. Preparation Time & Calculated Duration -->
 					<div class="kpi-card kpi-card--prep">
-						<div class="kpi-card__step">4</div>
+						<div class="kpi-card__step">5</div>
 						<div class="kpi-card__icon kpi-card__icon--clock">
 							<CalendarEdit :size="18" />
 						</div>
@@ -164,9 +255,9 @@
 
 					<div class="kpi-connector"></div>
 
-					<!-- 5. Minimum Start Date -->
+					<!-- 6. Minimum Start Date -->
 					<div class="kpi-card">
-						<div class="kpi-card__step">5</div>
+						<div class="kpi-card__step">6</div>
 						<div class="kpi-card__icon kpi-card__icon--diamond">
 							<RhombusMedium :size="18" />
 						</div>
@@ -179,9 +270,9 @@
 
 					<div class="kpi-connector kpi-connector--dashed"></div>
 
-					<!-- 6. Start Dates (Interactive Direct Calendar Picker) -->
+					<!-- 7. Start Dates (Interactive Direct Calendar Picker) -->
 					<div class="kpi-card kpi-card--desired">
-						<div class="kpi-card__step">6</div>
+						<div class="kpi-card__step">7</div>
 						<div class="kpi-card__icon kpi-card__icon--play">
 							<Play :size="18" />
 						</div>
@@ -355,50 +446,50 @@
 
 			<div
 				class="kpi-connector kpi-connector--group-link"
-				:class="{ 'kpi-connector--active': !!kpis.actualHandoverDate }"></div>
+				:class="{ 'kpi-connector--active': !!kpis.actualEndDate }"></div>
 
 			<!-- Phase 3: Delivery -->
 			<section class="kpi-phase kpi-phase--delivery">
 				<div class="kpi-phase__label">Delivery</div>
 				<div class="kpi-group kpi-group--delivery">
-					<!-- 7. Actual Handover Date -->
-					<div class="kpi-card kpi-card--handover" :class="{ 'kpi-card--complete': !!kpis.actualHandoverDate }">
-						<div class="kpi-card__step" :class="{ 'kpi-card__step--success': !!kpis.actualHandoverDate }">
-							7
+					<!-- 8. End Date: the last day on site -->
+					<div class="kpi-card kpi-card--end" :class="{ 'kpi-card--complete': !!kpis.actualEndDate }">
+						<div class="kpi-card__step" :class="{ 'kpi-card__step--success': !!kpis.actualEndDate }">
+							8
 						</div>
-						<div class="kpi-card__icon" :class="kpis.actualHandoverDate ? 'kpi-card__icon--success' : 'kpi-card__icon--muted'">
+						<div class="kpi-card__icon" :class="kpis.actualEndDate ? 'kpi-card__icon--success' : 'kpi-card__icon--muted'">
 							<FlagCheckered :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">HANDOVER</div>
+							<div class="kpi-card__label">END DATE</div>
 
 							<div class="start-date-inline-right start-date-inline-right--start">
 								<!-- Hidden native date picker triggered directly by click -->
 								<input
-									ref="handoverDatePicker"
+									ref="endDatePicker"
 									type="date"
 									class="kpi-native-date-hidden"
-									:value="isoDateOnly(kpis.actualHandoverDate)"
+									:value="isoDateOnly(kpis.actualEndDate)"
 									:disabled="!canEdit || saving"
-									aria-label="Select actual handover date"
-									@change="onHandoverDateChange" />
+									aria-label="Select end date"
+									@change="onEndDateChange" />
 
-								<div v-if="kpis.actualHandoverDate" class="desired-date-row">
+								<div v-if="kpis.actualEndDate" class="desired-date-row">
 									<span
 										class="kpi-card__value"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? 'Click to change actual handover date' : ''"
-										@click="openHandoverCalendar">
-										{{ formatDisplayDate(kpis.actualHandoverDate) }}
+										:title="canEdit ? 'Click to change end date' : ''"
+										@click="openEndCalendar">
+										{{ formatDisplayDate(kpis.actualEndDate) }}
 									</span>
 									<NcButton
 										v-if="canEdit"
 										type="tertiary"
 										size="small"
 										class="kpi-card__mini-btn"
-										title="Change actual handover date"
+										title="Change end date"
 										:disabled="saving"
-										@click="openHandoverCalendar">
+										@click="openEndCalendar">
 										<template #icon>
 											<Pencil :size="11" />
 										</template>
@@ -408,9 +499,9 @@
 										type="tertiary"
 										size="small"
 										class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-										title="Clear actual handover date"
+										title="Clear end date"
 										:disabled="saving"
-										@click.stop="clearHandoverDate">
+										@click.stop="clearEndDate">
 										<template #icon>
 											<Close :size="11" />
 										</template>
@@ -420,18 +511,18 @@
 									<span
 										class="kpi-card__placeholder"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? 'Click to set actual handover date' : ''"
-										@click="openHandoverCalendar">
-										Not set
+										:title="canEdit ? 'Click to set end date' : ''"
+										@click="openEndCalendar">
+										{{ kpis.plannedEndDate ? 'Planned ' + formatDisplayDate(kpis.plannedEndDate) : 'Not set' }}
 									</span>
 									<NcButton
 										v-if="canEdit"
 										type="tertiary"
 										size="small"
 										class="set-date-btn"
-										title="Set actual handover date"
+										title="Set end date"
 										:disabled="saving"
-										@click="openHandoverCalendar">
+										@click="openEndCalendar">
 										<template #icon>
 											<Plus :size="12" />
 										</template>
@@ -441,7 +532,7 @@
 							</div>
 
 							<div class="prep-input-row">
-								<div class="prep-input-wrap" title="Weeks the team works on site, from actual start to handover">
+								<div class="prep-input-wrap" title="Weeks the team works on site, from the actual start to the end">
 									<input
 										id="execution-weeks-kpi-input"
 										v-model.number="localExecutionWeeks"
@@ -470,8 +561,8 @@
 								</transition>
 							</div>
 
-							<div class="kpi-card__subtext" :title="handoverSubtext">
-								{{ handoverSubtext }}
+							<div class="kpi-card__subtext" :title="endSubtext">
+								{{ endSubtext }}
 							</div>
 						</div>
 					</div>
@@ -494,6 +585,7 @@ import Close from 'vue-material-design-icons/Close.vue'
 import CheckboxMarkedCircleOutline from 'vue-material-design-icons/CheckboxMarkedCircleOutline.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import FlagCheckered from 'vue-material-design-icons/FlagCheckered.vue'
+import HandshakeOutline from 'vue-material-design-icons/HandshakeOutline.vue'
 
 export default {
 	name: 'TimelineKpiBar',
@@ -510,6 +602,7 @@ export default {
 		CheckboxMarkedCircleOutline,
 		AlertCircleOutline,
 		FlagCheckered,
+		HandshakeOutline,
 	},
 	props: {
 		kpis: {
@@ -531,8 +624,10 @@ export default {
 				desiredStartDate: null,
 				actualStartDate: null,
 				actualHandoverDate: null,
+				handoverWarnings: [],
 				executionWeeks: null,
-				plannedHandoverDate: null,
+				actualEndDate: null,
+				plannedEndDate: null,
 				deckTasksWeeks: 0,
 				preparationWeeks: 0,
 				overallFloatWeeks: null,
@@ -712,28 +807,33 @@ export default {
 			}
 			return `${Math.abs(float)} week${Math.abs(float) === 1 ? '' : 's'} behind schedule`
 		},
-		handoverSubtext() {
-			const handover = this.kpis?.actualHandoverDate
-			if (!handover) {
-				if (this.kpis?.plannedHandoverDate) {
-					return `Planned ${this.formatDisplayDate(this.kpis.plannedHandoverDate)}`
-				}
-				if (!this.kpis?.actualStartDate) {
-					return 'Set actual start to plan handover'
-				}
-				return 'Set weeks on site to plan handover'
-			}
+		handoverWarnings() {
+			return Array.isArray(this.kpis?.handoverWarnings) ? this.kpis.handoverWarnings : []
+		},
+		handoverIconClass() {
+			if (this.handoverWarnings.length) return 'kpi-card__icon--warning'
+			return this.kpis?.actualHandoverDate ? 'kpi-card__icon--success' : 'kpi-card__icon--muted'
+		},
+		endSubtext() {
+			const end = this.kpis?.actualEndDate
 			const start = this.kpis?.actualStartDate
-			if (!start) {
-				return 'Project handed over'
+			if (!end) {
+				if (this.kpis?.plannedEndDate) {
+					return `${this.kpis.executionWeeks} ${this.kpis.executionWeeks === 1 ? 'week' : 'weeks'} on site from the actual start`
+				}
+				return start ? 'Set weeks on site to plan the end' : 'Set the actual start to plan the end'
 			}
-			const days = Math.round((Date.parse(this.isoDateOnly(handover)) - Date.parse(this.isoDateOnly(start))) / 86400000)
+			if (!start) {
+				return 'Work on site finished'
+			}
+			const days = Math.round((Date.parse(this.isoDateOnly(end)) - Date.parse(this.isoDateOnly(start))) / 86400000)
 			if (!Number.isFinite(days) || days < 0) {
-				return 'Project handed over'
+				return 'Ends before the actual start'
 			}
 			const weeks = Math.round(days / 7 * 10) / 10
-			return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} after actual start`
+			return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} after the actual start`
 		},
+
 		floatChipClass() {
 			const float = this.kpis.overallFloatWeeks
 			if (float < 0) {
@@ -825,6 +925,34 @@ export default {
 			this.$emit('save-handover-date', null)
 			if (this.$refs.handoverDatePicker) {
 				this.$refs.handoverDatePicker.value = ''
+			}
+		},
+		openEndCalendar() {
+			if (!this.canEdit || this.saving) return
+			const input = this.$refs.endDatePicker
+			if (!input) return
+			if (typeof input.showPicker === 'function') {
+				try {
+					input.showPicker()
+					return
+				} catch (e) {
+					console.warn('showPicker failed', e)
+				}
+			}
+			input.focus()
+			input.click()
+		},
+		onEndDateChange(e) {
+			const val = e?.target?.value ? e.target.value.trim() : null
+			if (val) {
+				this.$emit('save-end-date', val)
+			}
+		},
+		clearEndDate() {
+			if (!this.canEdit || this.saving) return
+			this.$emit('save-end-date', null)
+			if (this.$refs.endDatePicker) {
+				this.$refs.endDatePicker.value = ''
 			}
 		},
 		isoDateOnly(isoDate) {
@@ -1172,12 +1300,19 @@ export default {
 	border-color: rgba(16, 185, 129, 0.35);
 }
 
-/* Handover Card specifics */
-.kpi-card--handover {
+/* Handover and End Card specifics: dashed until the date is recorded */
+.kpi-card--handover,
+.kpi-card--end {
 	border-style: dashed;
 }
 
-.kpi-card--handover.kpi-card--complete {
+.kpi-card__subtext--warning {
+	color: var(--color-warning-text, #b45309);
+	white-space: normal;
+}
+
+.kpi-card--handover.kpi-card--complete,
+.kpi-card--end.kpi-card--complete {
 	border-style: solid;
 	border-color: rgba(16, 185, 129, 0.35);
 	background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), var(--color-background-hover) 60%);

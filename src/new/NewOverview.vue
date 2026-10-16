@@ -26,6 +26,7 @@
     <section class="pc-timeline-group" :class="stageClass(0)" aria-labelledby="pc-timeline-initiation"><h3 id="pc-timeline-initiation"><i aria-hidden="true" />Initiation<span class="pc-sr-only">{{ stageText(0) }}</span></h3><dl>
      <div><dt>Request date</dt><dd>{{ date(timeline.initiation.requestDate) }}</dd></div>
      <div><dt>Process steps</dt><dd>{{ timeline.initiation.configured ? timeline.initiation.done + ' of ' + timeline.initiation.total + ' done' : 'Not configured' }}</dd><div v-if="timeline.initiation.configured" class="pc-timeline-meter" role="progressbar" aria-label="Process steps done" aria-valuemin="0" :aria-valuemax="timeline.initiation.total" :aria-valuenow="timeline.initiation.done"><i :style="{ width: timeline.initiation.percent + '%' }" /></div><small :class="{ 'pc-timeline-warn': timeline.initiation.warn }">{{ timeline.initiation.note }}</small></div>
+     <div><dt>Handover</dt><dd :class="{ 'pc-timeline-unset': !timeline.initiation.handover }">{{ date(timeline.initiation.handover) }}</dd><small :class="{ 'pc-timeline-warn': timeline.initiation.handoverWarn }">{{ timeline.initiation.handoverNote }}</small></div>
     </dl></section>
     <section class="pc-timeline-group" :class="stageClass(1)" aria-labelledby="pc-timeline-execution"><h3 id="pc-timeline-execution"><i aria-hidden="true" />Execution<span class="pc-sr-only">{{ stageText(1) }}</span></h3><dl>
      <div><dt>Minimum start</dt><dd>{{ timeline.execution.minimumStart ? date(timeline.execution.minimumStart) : '—' }}</dd><small>{{ timeline.execution.note }}</small></div>
@@ -33,7 +34,7 @@
      <div><dt>Actual start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.actual }">{{ date(timeline.execution.actual) }}</dd></div>
     </dl></section>
     <section class="pc-timeline-group" :class="stageClass(2)" aria-labelledby="pc-timeline-delivery"><h3 id="pc-timeline-delivery"><i aria-hidden="true" />Delivery<span class="pc-sr-only">{{ stageText(2) }}</span></h3><dl>
-     <div><dt>Handover</dt><dd :class="{ 'pc-timeline-unset': !timeline.delivery.handover }"><span v-if="timeline.delivery.planned" class="pc-timeline-unset">Planned </span>{{ date(timeline.delivery.handover) }}</dd><small>{{ timeline.delivery.note }}</small></div>
+     <div><dt>End date</dt><dd :class="{ 'pc-timeline-unset': !timeline.delivery.end }"><span v-if="timeline.delivery.planned" class="pc-timeline-unset">Planned </span>{{ date(timeline.delivery.end) }}</dd><small>{{ timeline.delivery.note }}</small></div>
      <div><dt>Weeks on site</dt><dd :class="{ 'pc-timeline-unset': timeline.delivery.weeks === null }">{{ timeline.delivery.weeks === null ? 'Not set' : timeline.delivery.weeks }}</dd></div>
     </dl></section>
    </div>

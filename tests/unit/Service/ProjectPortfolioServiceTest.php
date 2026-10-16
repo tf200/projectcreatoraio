@@ -238,12 +238,12 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertFalse($this->service->isMemberProject(['ownerId' => null, 'projectGroupGid' => ''], 'ada', ['g1' => true]));
 	}
 
-	public function testCapacityDatesPreferActualDoneWeekOverPlannedHandoverWeek(): void {
+	public function testCapacityDatesPreferActualDoneWeekOverPlannedLastDueWeek(): void {
 		$dates = $this->deriveDates(
 			$this->datedProject(),
 			[
 				$this->datedCard('Task A', '2026-09-10', '2026-09-16 10:00:00', 3, 'In progress', 2),
-				$this->datedCard('Handover 1', '2026-10-20', null, 9, 'Approved/Done', 5),
+				$this->datedCard('Last process step', '2026-10-20', null, 9, 'Approved/Done', 5),
 			],
 		);
 
@@ -347,15 +347,16 @@ final class ProjectPortfolioServiceTest extends TestCase {
 
 		$cardsByBoard = [
 			101 => [
-				$this->datedCard('Handover 1', '2026-07-19', null, 1, 'In progress', 1),
+				$this->datedCard('Last process step', '2026-07-19', null, 1, 'In progress', 1),
 				$this->datedCard('Task 1', '2026-06-01', '2026-06-02', 2, 'Done', 2),
 			],
 			102 => [
-				$this->datedCard('Handover 1', '2026-07-12', null, 1, 'In progress', 1),
-				$this->datedCard('Archived dummy', '2026-07-15', null, 2, 'Done', 2),
+				$this->datedCard('Last process step', '2026-07-12', null, 1, 'In progress', 1),
+				// Initiation ends at the latest due card: no card title is special.
+				$this->datedCard('Archived dummy', '2026-07-10', null, 2, 'Done', 2),
 			],
 			103 => [
-				$this->datedCard('Handover 1', '2026-07-20', '2026-07-24', 2, 'Done', 2),
+				$this->datedCard('Last process step', '2026-07-20', '2026-07-24', 2, 'Done', 2),
 			],
 		];
 
@@ -548,8 +549,8 @@ final class ProjectPortfolioServiceTest extends TestCase {
 				],
 			],
 			[
-				112 => [$this->datedCard('Handover 1', '2026-07-19', null, 1, 'In progress', 1)],
-				113 => [$this->datedCard('Handover 1', '2026-07-19', null, 1, 'In progress', 1)],
+				112 => [$this->datedCard('Last process step', '2026-07-19', null, 1, 'In progress', 1)],
+				113 => [$this->datedCard('Last process step', '2026-07-19', null, 1, 'In progress', 1)],
 			],
 			['period' => ['weekStart' => '2026-07-27', 'weekEnd' => '2026-09-06', 'weeks' => 6], 'weeks' => []],
 			$currentMonday,
@@ -581,7 +582,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		// Completed 2026-08-10 (Monday 2026-W33), after desired 2026-W31.
 		$result = $this->service->buildTableOverview(
 			[$project],
-			[114 => [$this->datedCard('Handover 1', '2026-07-19', '2026-08-10', 9, 'Approved/Done', 5)]],
+			[114 => [$this->datedCard('Last process step', '2026-07-19', '2026-08-10', 9, 'Approved/Done', 5)]],
 			$capacity,
 			$currentMonday,
 			$requestedMonday,
@@ -593,7 +594,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		// Incomplete project with a desired date is never leading.
 		$open = $this->service->buildTableOverview(
 			[$project],
-			[114 => [$this->datedCard('Handover 1', '2026-09-19', null, 1, 'In progress', 1)]],
+			[114 => [$this->datedCard('Last process step', '2026-09-19', null, 1, 'In progress', 1)]],
 			$capacity,
 			$currentMonday,
 			$requestedMonday,
@@ -602,7 +603,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertFalse($open['projects'][0]['isLeadingDesiredWeek']);
 	}
 
-	public function testCapacityCountsProjectsFromActualStartUntilHandover(): void {
+	public function testCapacityCountsProjectsFromActualStartUntilEnd(): void {
 		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
 			$this->executionProject(1, 1, '2026-09-21', 2, null),
 			$this->executionProject(2, 1, null, 6, null),
@@ -612,7 +613,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame([1, 3], array_column($eligible, 'id'));
 		// Two weeks on site from Monday end on the second Sunday.
 		self::assertSame(['2026-09-21', '2026-10-04', null], [$eligible[0]['start'], $eligible[0]['end'], $eligible[0]['actualEnd']]);
-		// A recorded handover wins over start + weeks.
+		// A recorded end wins over start + weeks.
 		self::assertSame(['2026-09-14', '2026-09-30', '2026-09-30'], [$eligible[1]['start'], $eligible[1]['end'], $eligible[1]['actualEnd']]);
 
 		$result = $this->service->summarizeCapacity('2026-09-14', $eligible);
@@ -620,7 +621,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame([1, 1, 2, 0, 0, 0], array_map(static fn (array $w): int => $w['starting'] + $w['ending'], $result['weeks']));
 	}
 
-	public function testCapacitySkipsClosedProjectsWithoutRecordedHandoverAndEndsBeforeStart(): void {
+	public function testCapacitySkipsClosedProjectsWithoutRecordedEndAndEndsBeforeStart(): void {
 		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[
 			$this->executionProject(1, 0, '2026-09-21', null, null),
 			$this->executionProject(2, 0, '2026-09-21', 2, null),
@@ -654,7 +655,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		self::assertSame('2027-01-04', $toSchedule[0]['desiredStartDate']);
 	}
 
-	public function testStartedProjectsWithoutHandoverPlanAreScheduleIssues(): void {
+	public function testStartedProjectsWithoutEndPlanAreScheduleIssues(): void {
 		$issues = $this->invokePrivate('findExecutionIssues', [[
 			$this->executionProject(1, 1, '2026-09-21', null, null),
 			$this->executionProject(2, 1, '2026-09-21', 2, null),
@@ -663,7 +664,19 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		]]);
 
 		self::assertSame([1, 3], array_column($issues, 'projectId'));
-		self::assertSame('Handover before actual start', $issues[1]['note']);
+		self::assertSame('End before actual start', $issues[1]['note']);
+	}
+
+	public function testHandoverAfterTheActualStartIsAWarningAndNeverEndsTheProject(): void {
+		$late = $this->executionProject(1, 1, '2026-09-21', 2, null, '2026-09-28');
+		$onTime = $this->executionProject(2, 1, '2026-09-21', 2, null, '2026-09-14');
+
+		$issues = $this->invokePrivate('findExecutionIssues', [[$late, $onTime]]);
+		self::assertSame(['handover:1'], array_column($issues, 'id'));
+		self::assertSame('Handover after the actual start', $issues[0]['note']);
+
+		$eligible = $this->invokePrivate('deriveEligibleCapacityProjects', [[$late, $onTime]]);
+		self::assertSame(['2026-10-04', '2026-10-04'], array_column($eligible, 'end'));
 	}
 
 	private function invokePrivate(string $name, array $args): mixed {
@@ -671,7 +684,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 		return $method->invokeArgs($this->service, $args);
 	}
 
-	private function executionProject(int $id, int $status, ?string $actualStart, ?int $weeks, ?string $handover): array {
+	private function executionProject(int $id, int $status, ?string $actualStart, ?int $weeks, ?string $end, ?string $handover = null): array {
 		return [
 			'id' => $id,
 			'name' => 'Project ' . $id,
@@ -679,6 +692,7 @@ final class ProjectPortfolioServiceTest extends TestCase {
 			'desiredStartDate' => null,
 			'actualStartDate' => $actualStart,
 			'actualHandoverDate' => $handover,
+			'actualEndDate' => $end,
 			'executionWeeks' => $weeks,
 		];
 	}

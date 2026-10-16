@@ -9,6 +9,7 @@
 			@save-desired-date="onSaveDesiredDate"
 			@save-actual-date="onSaveActualDate"
 			@save-handover-date="onSaveHandoverDate"
+			@save-end-date="onSaveEndDate"
 			@save-prep-weeks="onSavePrepWeeks"
 			@save-execution-weeks="onSaveExecutionWeeks" />
 
@@ -1179,6 +1180,7 @@ export default {
 					this.systemPlanningData.minimumStart?.date,
 					this.systemPlanningData.desiredStart?.date,
 					this.systemPlanningData.actualHandover?.date,
+					this.endDate,
 				].filter(Boolean)
 				for (const dateStr of planningDates) {
 					const d = this.parseDateOnly(dateStr)
@@ -1328,6 +1330,11 @@ export default {
 				backgroundPosition: `${this.firstMondayOffsetPx}px 0`,
 			}
 		},
+		/** The last day on site: the recorded end, else actual start + weeks on site */
+		endDate() {
+			const d = this.systemPlanningData
+			return d?.actualEnd?.date || d?.execution?.endDate || null
+		},
 		guideMarkers() {
 			const d = this.systemPlanningData
 			if (!d) return []
@@ -1336,6 +1343,7 @@ export default {
 				{ key: 'desired-start', label: 'Desired start', date: d.desiredStart?.date, offset: this.desiredStartOffset },
 				{ key: 'actual-start', label: 'Actual start', date: d.actualStart?.date, offset: this.actualStartOffset },
 				{ key: 'handover', label: 'Handover', date: d.actualHandover?.date, offset: this.actualHandoverOffset },
+				{ key: 'end', label: d.actualEnd?.date ? 'End' : 'End (planned)', date: this.endDate, offset: this.dateOffset(this.endDate) },
 				{ key: 'min-start-plan', label: 'Min start (live plan)', date: this.whatIfBaselineMinStart, offset: this.dateOffset(this.whatIfBaselineMinStart) },
 			].filter(m => m.offset !== null)
 				.sort((a, b) => a.offset - b.offset)
@@ -1889,8 +1897,21 @@ export default {
 				await axios.put(url, { actual_handover_date: dateStr || null })
 				await this.loadItems()
 			} catch (error) {
-				console.error('Error updating actual handover date:', error)
-				showError('Could not save actual handover date. Please try again.')
+				console.error('Error updating handover date:', error)
+				showError('Could not save the handover date. Please try again.')
+			} finally {
+				this.savingDesiredDate = false
+			}
+		},
+		async onSaveEndDate(dateStr) {
+			this.savingDesiredDate = true
+			try {
+				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
+				await axios.put(url, { actual_end_date: dateStr || null })
+				await this.loadItems()
+			} catch (error) {
+				console.error('Error updating end date:', error)
+				showError('Could not save the end date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -3065,6 +3086,10 @@ export default {
 
 .timeline-guide-line--handover {
 	border-left: 2px solid var(--color-success);
+}
+
+.timeline-guide-line--end {
+	border-left: 2px solid #8b5cf6;
 }
 
 .timeline-guide-line--min-start {

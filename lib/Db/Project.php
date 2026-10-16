@@ -49,6 +49,7 @@ class Project extends Entity implements JsonSerializable {
     protected DateTime|null $desiredStartDate = null;
     protected DateTime|null $actualStartDate = null;
     protected DateTime|null $actualHandoverDate = null;
+    protected DateTime|null $actualEndDate = null;
     protected int|null $requiredPreparationWeeks = null;
     protected int|null $executionWeeks = null;
     protected int|null $cvObjectOwnership = null;
@@ -96,6 +97,7 @@ class Project extends Entity implements JsonSerializable {
         $this->addType('desiredStartDate', Types::DATE);
         $this->addType('actualStartDate', Types::DATE);
         $this->addType('actualHandoverDate', Types::DATE);
+        $this->addType('actualEndDate', Types::DATE);
         $this->addType('requiredPreparationWeeks', Types::INTEGER);
         $this->addType('executionWeeks', Types::INTEGER);
         $this->addType('cvObjectOwnership', Types::SMALLINT);
@@ -212,6 +214,7 @@ class Project extends Entity implements JsonSerializable {
             'desired_start_date' => $this->desiredStartDate instanceof DateTime ? $this->desiredStartDate->format('Y-m-d') : null,
             'actual_start_date' => $this->actualStartDate instanceof DateTime ? $this->actualStartDate->format('Y-m-d') : null,
             'actual_handover_date' => $this->actualHandoverDate instanceof DateTime ? $this->actualHandoverDate->format('Y-m-d') : null,
+            'actual_end_date' => $this->actualEndDate instanceof DateTime ? $this->actualEndDate->format('Y-m-d') : null,
             'required_preparation_weeks' => $this->requiredPreparationWeeks,
             'execution_weeks' => $this->executionWeeks,
             'cv_object_ownership' => $this->cvObjectOwnership,

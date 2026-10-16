@@ -60,7 +60,8 @@ export function timelineOf(summary) {
  const stepsDone = configured && process.status === 'complete'
  const desired = s.desiredStartDate || null
  const actual = s.actualStartDate || null
- const handedOver = s.actualHandoverDate || null
+ const handover = s.actualHandoverDate || null
+ const ended = s.actualEndDate || null
  const floatDays = Number.isFinite(s.overallFloatDays) ? s.overallFloatDays : null
  const floatWeeks = Number.isFinite(s.overallFloatWeeks) ? s.overallFloatWeeks : null
  const [tone, label] = PLANNING_STATUS[s.planningStatus] || PLANNING_STATUS.on_track
@@ -78,18 +79,21 @@ export function timelineOf(summary) {
  else if (missing) stepsNote = `${count(missing, 'required card')} missing from the board`
  else if (pendingWeeks !== null) stepsNote = `${count(pendingWeeks, 'week')} since the request`
  const weeks = Number.isFinite(s.executionWeeks) ? s.executionWeeks : null
- const planned = !handedOver && s.plannedHandoverDate ? s.plannedHandoverDate : null
- let handoverNote = 'Set the actual start in Planning to plan it'
- if (handedOver) handoverNote = 'Handed over'
- else if (planned) handoverNote = `${count(weeks ?? 0, 'week')} on site from the actual start`
- else if (actual) handoverNote = 'Set weeks on site in Planning to plan it'
+ const planned = !ended && s.plannedEndDate ? s.plannedEndDate : null
+ let endNote = 'Set the actual start in Planning to plan it'
+ if (ended) endNote = 'Work on site finished'
+ else if (planned) endNote = `${count(weeks ?? 0, 'week')} on site from the actual start`
+ else if (actual) endNote = 'Set weeks on site in Planning to plan it'
+ const warnings = Array.isArray(s.handoverWarnings) ? s.handoverWarnings : []
+ const handoverNote = warnings.length ? warnings.join(' · ') : handover ? 'Handed to the execution team' : 'After the process steps'
  const preparation = Math.max(0, Number(s.requiredPreparationWeeks) || 0)
  return {
   status: { tone, label: desired ? label : label + ' (no target)', text },
-  // Which group the project is in: 0 Initiation, 1 Execution, 2 Delivery, 3 handed over.
-  stage: handedOver ? 3 : actual ? 2 : stepsDone ? 1 : 0,
-  initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0 },
+  // Which group the project is in: 0 Initiation until the handover, 1 Execution
+  // until the actual start, 2 Delivery on site, 3 ended.
+  stage: ended ? 3 : actual ? 2 : handover ? 1 : 0,
+  initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0, handover, handoverNote, handoverWarn: warnings.length > 0 },
   execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual },
-  delivery: { handover: handedOver || planned, planned: !!planned, note: handoverNote, weeks },
+  delivery: { end: ended || planned, planned: !!planned, note: endNote, weeks },
  }
 }
