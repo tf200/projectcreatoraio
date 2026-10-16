@@ -26,6 +26,9 @@ export const api = {
 	resendExternal: (id, userId) => send('post', `projects/${id}/externals/${encodeURIComponent(userId)}/resend`, {}),
 	changeExternalEndDate: (id, userId, expiresAt) => send('put', `projects/${id}/externals/${encodeURIComponent(userId)}`, { expiresAt }),
 	revokeExternal: (id, userId) => send('delete', `projects/${id}/externals/${encodeURIComponent(userId)}`),
+	// The handover step: what it starts from, and applying it.
+	handoverPreview: id => get(`projects/${id}/handover`),
+	handover: (id, payload) => send('post', `projects/${id}/handover`, payload),
 	searchUsers: (search, organizationId) => get('users/search', organizationId ? { search, organizationId } : { search }),
 	// The plan limit a new project counts against, and the create request itself.
 	allowance: organizationId => get('projects/allowance', organizationId ? { organizationId } : undefined),

@@ -84,6 +84,7 @@ class ProjectHandoverStepService {
 			'plannedEndDate' => $summary['plannedEndDate'] ?? null,
 			'ownerId' => trim((string)$project->getOwnerId()),
 			'members' => $members,
+			'functionalRoles' => $this->projectService->getProjectFunctionalRoles($projectId),
 			'team' => $this->currentTeam($organizationId, $projectId),
 			'teams' => $this->teams === null ? [] : array_map(static fn (array $team): array => [
 				'id' => (int)$team['id'],

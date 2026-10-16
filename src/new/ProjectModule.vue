@@ -108,7 +108,7 @@ export default {
 					targetDirectUser: this.directChatUser,
 				}
 				// Legacy timeline editing is available to project viewers, not only admins.
-				case 'planning': return { ...base, isAdmin: !!(this.context.isGlobalAdmin || this.context.organizationId != null) }
+				case 'planning': return { ...base, isAdmin: !!(this.context.isGlobalAdmin || this.context.organizationId != null), canHandOver: this.canManageProject, organizationId: Number(this.project.organization_id) > 0 ? Number(this.project.organization_id) : (this.context.organizationId ?? null) }
 				case 'documents': return { ...base, sharedRoots: this.files.shared, privateRoots: this.files.private, loading: this.filesLoading, error: this.filesError }
 				case 'intake': return { ...base, canEdit: this.canManageProject }
 				case 'members': return { ...base, currentUserId: this.currentUserId, organizationId: Number(this.project.organization_id) > 0 ? Number(this.project.organization_id) : (this.context.organizationId ?? null), canManage: this.canManageProject }

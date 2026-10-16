@@ -12,6 +12,13 @@
 			<div v-if="canManage && !adding && !inviting && !loading && !error" class="pc-view__head-actions">
 				<button type="button"
 					class="iz-btn"
+					title="Hand the project to the people who carry it out"
+					@click="handingOver = true">
+					<HandshakeOutline :size="16" />
+					Hand over…
+				</button>
+				<button type="button"
+					class="iz-btn"
 					@click="openInvite">
 					<EmailPlusOutline :size="16" />
 					Invite external
@@ -551,6 +558,12 @@
 				</li>
 			</ul>
 		</section>
+
+		<HandoverDialog v-if="handingOver"
+			:project-id="Number(projectId)"
+			:organization-id="Number(organizationId) > 0 ? Number(organizationId) : null"
+			@close="handingOver = false"
+			@done="load()" />
 	</section>
 </template>
 
@@ -564,6 +577,8 @@ import InformationOutline from 'vue-material-design-icons/InformationOutline.vue
 import Check from 'vue-material-design-icons/Check.vue'
 import AccountRemoveOutline from 'vue-material-design-icons/AccountRemoveOutline.vue'
 import EmailPlusOutline from 'vue-material-design-icons/EmailPlusOutline.vue'
+import HandshakeOutline from 'vue-material-design-icons/HandshakeOutline.vue'
+import HandoverDialog from './HandoverDialog.vue'
 import RoleChips from './RoleChips.vue'
 import { api, errorMessage, actionMessage } from './api.js'
 import { DRASCIVS, rolesOf, drascivsLabel, projectRoleOptions, coverage, draftProblem, toggled, inviteProblem, externalLabel, shortDate, endsSoon, isoDay } from './members.js'
@@ -577,7 +592,7 @@ function emptyInvite() {
 // strict reads, so a failure is shown instead of an empty team.
 export default {
 	name: 'NewMembers',
-	components: { NcAvatar, Plus, Close, CheckCircle, ChatOutline, InformationOutline, Check, AccountRemoveOutline, EmailPlusOutline, RoleChips },
+	components: { NcAvatar, Plus, Close, CheckCircle, ChatOutline, InformationOutline, Check, AccountRemoveOutline, EmailPlusOutline, HandshakeOutline, HandoverDialog, RoleChips },
 	props: {
 		projectId: { type: [String, Number], required: true },
 		currentUserId: { type: String, default: '' },
@@ -588,6 +603,7 @@ export default {
 		return {
 			members: [],
 			functionalRoles: [],
+			handingOver: false,
 			loading: false,
 			error: '',
 			request: 0,

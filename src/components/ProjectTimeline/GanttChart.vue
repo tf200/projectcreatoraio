@@ -5,10 +5,12 @@
 			v-if="kpisData"
 			:kpis="kpisData"
 			:can-edit="isAdmin && !whatIf.active"
+			:can-hand-over="canHandOver && !whatIf.active"
 			:saving="savingDesiredDate"
 			@save-desired-date="onSaveDesiredDate"
 			@save-actual-date="onSaveActualDate"
 			@save-handover-date="onSaveHandoverDate"
+			@open-handover="handingOver = true"
 			@save-end-date="onSaveEndDate"
 			@save-prep-weeks="onSavePrepWeeks"
 			@save-execution-weeks="onSaveExecutionWeeks" />
@@ -745,6 +747,12 @@
 				</footer>
 			</div>
 		</NcModal>
+
+		<HandoverDialog v-if="handingOver"
+			:project-id="projectId"
+			:organization-id="organizationId"
+			@close="handingOver = false"
+			@done="loadItems()" />
 	</div>
 </template>
 
@@ -773,6 +781,7 @@ import Pencil from 'vue-material-design-icons/Pencil.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 
 import TimelineKpiBar from './header/TimelineKpiBar.vue'
+import HandoverDialog from '../../new/HandoverDialog.vue'
 import SystemPlanningRow from './rows/SystemPlanningRow.vue'
 import TimelineHoverGuide from './overlays/TimelineHoverGuide.vue'
 import WhatIfApplyDialog from './whatIf/WhatIfApplyDialog.vue'
@@ -809,6 +818,7 @@ export default {
 		Pencil,
 		Plus,
 		TimelineKpiBar,
+		HandoverDialog,
 		SystemPlanningRow,
 		TimelineHoverGuide,
 		WhatIfApplyDialog,
@@ -826,9 +836,19 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+		// The project owner and organization admins may hand a project over.
+		canHandOver: {
+			type: Boolean,
+			default: false,
+		},
+		organizationId: {
+			type: Number,
+			default: null,
+		},
 	},
 	data() {
 		return {
+			handingOver: false,
 			loading: true,
 			saving: false,
 			allItems: [],

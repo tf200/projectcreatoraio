@@ -187,6 +187,17 @@
 								</div>
 							</div>
 
+							<NcButton
+								v-if="canHandOver"
+								type="secondary"
+								size="small"
+								class="kpi-card__handover-btn"
+								title="Hand the project to the people who carry it out"
+								:disabled="saving"
+								@click="$emit('open-handover')">
+								Hand over…
+							</NcButton>
+
 							<div v-if="handoverWarnings.length" class="kpi-card__subtext kpi-card__subtext--warning" role="status">
 								{{ handoverWarnings.join(' · ') }}
 							</div>
@@ -638,6 +649,10 @@ export default {
 		canEdit: {
 			type: Boolean,
 			default: true,
+		},
+		canHandOver: {
+			type: Boolean,
+			default: false,
 		},
 		saving: {
 			type: Boolean,
@@ -1304,6 +1319,11 @@ export default {
 .kpi-card--handover,
 .kpi-card--end {
 	border-style: dashed;
+}
+
+.kpi-card__handover-btn {
+	align-self: flex-start;
+	margin: 4px 0 2px;
 }
 
 .kpi-card__subtext--warning {
