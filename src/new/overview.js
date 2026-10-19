@@ -51,7 +51,9 @@ export function fileSize(value) { return value >= 1048576 ? `${(value / 1048576)
 const PLANNING_STATUS = { on_track: ['success', 'On track'], attention_needed: ['warning', 'Attention needed'], behind_at_risk: ['danger', 'Behind / at risk'] }
 const count = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
 const signedWeeks = weeks => `${weeks > 0 ? '+' : ''}${count(weeks, 'week')}`
-export function timelineOf(summary) {
+// A YYYY-MM-DD date as a day number, so differences are whole days in any time zone.
+const dayOf = value => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null }
+export function timelineOf(summary, now = Date.now()) {
  const s = summary || {}
  const process = s.processCompleted || {}
  const total = Math.max(0, Number(process.totalRequired) || 0)
@@ -95,5 +97,17 @@ export function timelineOf(summary) {
   initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0, handover, handoverNote, handoverWarn: warnings.length > 0 },
   execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual },
   delivery: { end: ended || planned, planned: !!planned, note: endNote, weeks },
+  overall: overallOf(s.requestDate || null, ended, planned, dayOf(s.kpis?.today) ?? dayOf(new Date(now).toISOString())),
  }
+}
+// How far along the whole timeline is: the share of the time from the request
+// date to the end (recorded, else planned) that has passed. Time, not work, so
+// without an end date there is nothing to measure against.
+function overallOf(requestDate, ended, planned, today) {
+ const end = ended || planned
+ const from = dayOf(requestDate), to = dayOf(end)
+ if (from === null) return { percent: null, text: 'of the timeline · no request date yet' }
+ if (to === null) return { percent: null, text: 'of the timeline · no end date planned yet, so there is nothing to measure against' }
+ const percent = ended ? 100 : to <= from ? 0 : Math.min(100, Math.max(0, Math.round((today - from) / (to - from) * 100)))
+ return { percent, text: `of the timeline · ${dateLabel(requestDate)} → ${ended ? 'ended' : 'planned end'} ${dateLabel(end)}` }
 }

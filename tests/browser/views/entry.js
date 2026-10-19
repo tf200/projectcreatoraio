@@ -39,7 +39,7 @@ const overview = {
 		{ title: 'Review', cards: [{ id: 4, title: 'Situatieschets maken', assignedUsers: [{ type: 0, participant: 'thomas' }] }, { id: 5, title: 'Gearchiveerd', archived: true }] },
 	] },
 	// A project past its process steps and started, a little behind its desired start.
-	planning: { loading: false, error: '', data: { requestDate: '2026-06-01', requiredPreparationWeeks: 3, processCompleted: { status: 'complete', date: '2026-09-14', doneCount: 10, totalRequired: 10, missingTitles: [] }, coordinationPendingPeriod: { weeks: 15 }, minimumStartDate: '2026-10-05', desiredStartDate: '2026-10-01', actualStartDate: '2026-10-12', overallFloatWeeks: -0.6, overallFloatDays: -4, planningStatus: 'behind_at_risk', executionWeeks: 6, plannedEndDate: '2026-11-23', actualEndDate: null, actualHandoverDate: '2026-09-28', handoverWarnings: [], phases: [] } },
+	planning: { loading: false, error: '', data: { requestDate: '2026-06-01', requiredPreparationWeeks: 3, processCompleted: { status: 'complete', date: '2026-09-14', doneCount: 10, totalRequired: 10, missingTitles: [] }, coordinationPendingPeriod: { weeks: 15 }, minimumStartDate: '2026-10-05', desiredStartDate: '2026-10-01', actualStartDate: '2026-10-12', overallFloatWeeks: -0.6, overallFloatDays: -4, planningStatus: 'behind_at_risk', executionWeeks: 6, plannedEndDate: '2026-11-23', actualEndDate: null, actualHandoverDate: '2026-09-28', handoverWarnings: [], kpis: { today: '2026-10-19' }, phases: [] } },
 	files: { loading: false, error: '', data: { shared: [], private: [] } },
 }
 

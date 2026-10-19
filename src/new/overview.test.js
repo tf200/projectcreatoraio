@@ -96,3 +96,18 @@ test('missing or unconfigured process steps are said, not counted as progress', 
  assert.equal(none.initiation.note, 'No process steps configured')
  assert.equal(timelineOf(null).stage, 0)
 })
+test('the whole timeline’s percentage is the time passed from request to end', () => {
+ const site = { ...fresh, requestDate: '2026-06-01', actualStartDate: '2026-10-12', executionWeeks: 6, plannedEndDate: '2026-11-23' }
+ // 1 Jun to 23 Nov is 175 days; 19 Oct is day 140.
+ assert.deepEqual(timelineOf({ ...site, kpis: { today: '2026-10-19' } }).overall, { percent: 80, text: 'of the timeline · 1 Jun 2026 → planned end 23 Nov 2026' })
+ assert.equal(timelineOf({ ...site, kpis: { today: '2026-05-20' } }).overall.percent, 0, 'not below 0 before the request')
+ assert.equal(timelineOf({ ...site, kpis: { today: '2026-12-10' } }).overall.percent, 100, 'not above 100 past a planned end')
+ assert.equal(timelineOf(site, Date.UTC(2026, 9, 19, 23, 30)).overall.percent, 80, 'without the server’s today, the clock’s date')
+ const ended = timelineOf({ ...site, actualEndDate: '2026-11-20', kpis: { today: '2026-11-01' } }).overall
+ assert.deepEqual(ended, { percent: 100, text: 'of the timeline · 1 Jun 2026 → ended 20 Nov 2026' }, 'a recorded end is the whole way')
+})
+test('without an end date the timeline has no percentage', () => {
+ assert.deepEqual(timelineOf({ ...fresh, kpis: { today: '2026-10-19' } }).overall, { percent: null, text: 'of the timeline · no end date planned yet, so there is nothing to measure against' })
+ assert.equal(timelineOf({ ...fresh, requestDate: null, plannedEndDate: '2026-11-23' }).overall.text, 'of the timeline · no request date yet')
+ assert.equal(timelineOf(null).overall.percent, null)
+})

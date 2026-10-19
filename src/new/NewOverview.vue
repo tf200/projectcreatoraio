@@ -22,13 +22,14 @@
   </OverviewPanel>
   <OverviewPanel name="timeline" title="5. Timeline" icon="progress" :state="overview.planning" @retry="retry('planning')">
    <p class="pc-timeline-status"><span class="iz-pill" :class="'iz-pill--' + timeline.status.tone">{{ timeline.status.label }}</span><span>{{ timeline.status.text }}</span></p>
+   <div class="pc-timeline-overall"><p><strong>{{ timeline.overall.percent === null ? '—' : timeline.overall.percent + '%' }}</strong><span>{{ timeline.overall.text }}</span></p><div v-if="timeline.overall.percent !== null" class="pc-timeline-meter" role="progressbar" aria-label="Share of the timeline passed" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="timeline.overall.percent"><i :style="{ width: timeline.overall.percent + '%' }" /></div><div v-else class="pc-timeline-meter" aria-hidden="true" /></div>
    <div class="pc-timeline">
     <section class="pc-timeline-group" :class="stageClass(0)" aria-labelledby="pc-timeline-initiation"><h3 id="pc-timeline-initiation"><i aria-hidden="true" />Initiation<span class="pc-sr-only">{{ stageText(0) }}</span></h3><dl>
-     <div><dt>Request date</dt><dd>{{ date(timeline.initiation.requestDate) }}</dd></div>
      <div><dt>Process steps</dt><dd>{{ timeline.initiation.configured ? timeline.initiation.done + ' of ' + timeline.initiation.total + ' done' : 'Not configured' }}</dd><div v-if="timeline.initiation.configured" class="pc-timeline-meter" role="progressbar" aria-label="Process steps done" aria-valuemin="0" :aria-valuemax="timeline.initiation.total" :aria-valuenow="timeline.initiation.done"><i :style="{ width: timeline.initiation.percent + '%' }" /></div><small :class="{ 'pc-timeline-warn': timeline.initiation.warn }">{{ timeline.initiation.note }}</small></div>
      <div><dt>Handover</dt><dd :class="{ 'pc-timeline-unset': !timeline.initiation.handover }">{{ date(timeline.initiation.handover) }}</dd><small :class="{ 'pc-timeline-warn': timeline.initiation.handoverWarn }">{{ timeline.initiation.handoverNote }}</small></div>
     </dl></section>
     <section class="pc-timeline-group" :class="stageClass(1)" aria-labelledby="pc-timeline-execution"><h3 id="pc-timeline-execution"><i aria-hidden="true" />Execution<span class="pc-sr-only">{{ stageText(1) }}</span></h3><dl>
+     <div><dt>Request date</dt><dd>{{ date(timeline.initiation.requestDate) }}</dd></div>
      <div><dt>Minimum start</dt><dd>{{ timeline.execution.minimumStart ? date(timeline.execution.minimumStart) : '—' }}</dd><small>{{ timeline.execution.note }}</small></div>
      <div><dt>Desired start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.desired }">{{ date(timeline.execution.desired) }}</dd></div>
      <div><dt>Actual start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.actual }">{{ date(timeline.execution.actual) }}</dd></div>
