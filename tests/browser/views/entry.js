@@ -98,6 +98,8 @@ window.fixture = new Vue({
 			section(h, 'members-readonly', 'members', h(NewMembers, { props: { projectId: 21, currentUserId: 'thomas', canManage: false } })),
 			section(h, 'members-denied', 'members', h(NewMembers, { props: { projectId: 23, currentUserId: 'emma', canManage: true } })),
 			h('div', { attrs: { id: 'overview' } }, [h(NewOverview, { props: { project: { id: 21, description: '', disciplines: ['electricity', 'water', 'fiber_optic'] }, context: { userId: 'emma' }, overview, legacyUrl: '#' }, on: { navigate: tab => { window.overviewNav = tab } } })]),
+			// Before the actual start: the end is estimated from the desired start + weeks on site.
+			h('div', { attrs: { id: 'overview-estimate' } }, [h(NewOverview, { props: { project: { id: 21, description: '' }, context: { userId: 'emma' }, overview: { ...overview, planning: { loading: false, error: '', data: { requestDate: '2026-06-01', processCompleted: { status: 'incomplete', date: null, doneCount: 6, totalRequired: 10, missingTitles: [] }, coordinationPendingPeriod: { weeks: 21 }, minimumStartDate: '2026-12-07', desiredStartDate: '2027-02-01', actualStartDate: null, executionWeeks: 6, plannedEndDate: null, actualEndDate: null, actualHandoverDate: null, handoverWarnings: [], overallFloatDays: 56, overallFloatWeeks: 8, planningStatus: 'on_track', kpis: { today: '2026-10-25' }, phases: [] } } }, legacyUrl: '#' } })]),
 		]),
 		h('div', { attrs: { id: 'legacy-host' }, style: 'padding:22px;background:#fff' }, [
 			h(Files, { props: { projectId: 22, sharedRoots: roots, privateRoots: [], loading: false, error: '' } }),

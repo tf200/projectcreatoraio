@@ -97,17 +97,40 @@ export function timelineOf(summary, now = Date.now()) {
   initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0, handover, handoverNote, handoverWarn: warnings.length > 0 },
   execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual },
   delivery: { end: ended || planned, planned: !!planned, note: endNote, weeks },
-  overall: overallOf(s.requestDate || null, ended, planned, dayOf(s.kpis?.today) ?? dayOf(new Date(now).toISOString())),
+  overall: overallOf(s, ended, planned, dayOf(s.kpis?.today) ?? dayOf(new Date(now).toISOString())),
  }
 }
+const isoOf = day => new Date(day * 86400000).toISOString().slice(0, 10)
 // How far along the whole timeline is: the share of the time from the request
-// date to the end (recorded, else planned) that has passed. Time, not work, so
-// without an end date there is nothing to measure against.
-function overallOf(requestDate, ended, planned, today) {
- const end = ended || planned
- const from = dayOf(requestDate), to = dayOf(end)
- if (from === null) return { percent: null, text: 'of the timeline · no request date yet' }
- if (to === null) return { percent: null, text: 'of the timeline · no end date planned yet, so there is nothing to measure against' }
- const percent = ended ? 100 : to <= from ? 0 : Math.min(100, Math.max(0, Math.round((today - from) / (to - from) * 100)))
- return { percent, text: `of the timeline · ${dateLabel(requestDate)} → ${ended ? 'ended' : 'planned end'} ${dateLabel(end)}` }
+// date to the end that has passed. Time, not work. The end is the recorded end,
+// else the planned end (actual start + weeks on site); without either it is
+// estimated from the desired (else minimum) start + weeks on site, or, with no
+// weeks on site yet, the bar runs to that start. Estimates say so.
+function overallOf(s, ended, planned, today) {
+ const requestDate = s.requestDate || null
+ const from = dayOf(requestDate)
+ const none = text => ({ percent: null, estimate: false, text, note: '' })
+ if (from === null) return none('of the timeline · no request date yet')
+ let end = ended || planned
+ let label = ended ? 'ended' : 'planned end'
+ let note = ''
+ const which = s.desiredStartDate ? 'desired' : 'minimum'
+ const start = s.desiredStartDate || s.minimumStartDate || null
+ if (!end && dayOf(start) !== null) {
+  const weeks = Number.isFinite(s.executionWeeks) ? Math.max(0, s.executionWeeks) : null
+  if (weeks !== null) {
+   end = isoOf(dayOf(start) + 7 * weeks)
+   label = 'estimated end'
+   note = `Estimated from the ${which} start, ${dateLabel(start)}, + ${count(weeks, 'week')} on site.`
+  } else {
+   end = start
+   label = `${which} start`
+   note = `Measured to the ${which} start, as weeks on site aren't set yet.`
+  }
+  note += ' It becomes the planned end once the actual start and weeks on site are set.'
+ }
+ const to = dayOf(end)
+ if (to === null) return none('of the timeline · no end date planned yet, so there is nothing to measure against')
+ const percent = ended ? 100 : to <= from ? (today >= to ? 100 : 0) : Math.min(100, Math.max(0, Math.round((today - from) / (to - from) * 100)))
+ return { percent, estimate: note !== '', text: `of the timeline · ${dateLabel(requestDate)} → ${label} ${dateLabel(end)}`, note }
 }

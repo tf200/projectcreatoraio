@@ -38,8 +38,11 @@ current interface is untouched — no file under `src/components/` changed.
   or planned from actual start plus weeks on site, and the weeks on site). On top, the
   server's planning status as a pill and the float in words; under it, the whole
   timeline's percentage: the share of the time from the request date to the end
-  (recorded, else planned) that has passed, by the server's today, with a bar, or "—"
-  until an end date exists. The request date sits at the top of Execution with the other
+  (recorded, else planned) that has passed, by the server's today, with a bar. Without
+  either, the end is estimated from the desired (else minimum) start + weeks on site, or,
+  with no weeks on site yet, the bar runs to that start; an estimate shows "≈", an
+  Estimate pill, a striped bar and a line saying what it was estimated from. "—" only
+  when there is no date at all to measure to. The request date sits at the top of Execution with the other
   dates; a dot marks done, current
   and coming groups. `timelineOf` in `overview.js` reads the same `timeline/summary` as
   before, with no extra call; the four-phase card count and the "next milestone" are gone

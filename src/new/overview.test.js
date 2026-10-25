@@ -99,15 +99,37 @@ test('missing or unconfigured process steps are said, not counted as progress', 
 test('the whole timeline’s percentage is the time passed from request to end', () => {
  const site = { ...fresh, requestDate: '2026-06-01', actualStartDate: '2026-10-12', executionWeeks: 6, plannedEndDate: '2026-11-23' }
  // 1 Jun to 23 Nov is 175 days; 19 Oct is day 140.
- assert.deepEqual(timelineOf({ ...site, kpis: { today: '2026-10-19' } }).overall, { percent: 80, text: 'of the timeline · 1 Jun 2026 → planned end 23 Nov 2026' })
+ assert.deepEqual(timelineOf({ ...site, kpis: { today: '2026-10-19' } }).overall, { percent: 80, estimate: false, text: 'of the timeline · 1 Jun 2026 → planned end 23 Nov 2026', note: '' })
  assert.equal(timelineOf({ ...site, kpis: { today: '2026-05-20' } }).overall.percent, 0, 'not below 0 before the request')
  assert.equal(timelineOf({ ...site, kpis: { today: '2026-12-10' } }).overall.percent, 100, 'not above 100 past a planned end')
  assert.equal(timelineOf(site, Date.UTC(2026, 9, 19, 23, 30)).overall.percent, 80, 'without the server’s today, the clock’s date')
  const ended = timelineOf({ ...site, actualEndDate: '2026-11-20', kpis: { today: '2026-11-01' } }).overall
- assert.deepEqual(ended, { percent: 100, text: 'of the timeline · 1 Jun 2026 → ended 20 Nov 2026' }, 'a recorded end is the whole way')
+ assert.deepEqual(ended, { percent: 100, estimate: false, text: 'of the timeline · 1 Jun 2026 → ended 20 Nov 2026', note: '' }, 'a recorded end is the whole way')
 })
-test('without an end date the timeline has no percentage', () => {
- assert.deepEqual(timelineOf({ ...fresh, kpis: { today: '2026-10-19' } }).overall, { percent: null, text: 'of the timeline · no end date planned yet, so there is nothing to measure against' })
+test('without an end date the end is estimated from the desired, else minimum, start and weeks on site', () => {
+ const early = { ...fresh, requestDate: '2026-06-01', minimumStartDate: '2026-12-07', kpis: { today: '2026-10-25' } }
+ // 1 Jun to 15 Mar 2027 (1 Feb + 6 weeks) is 287 days; 25 Oct is day 146.
+ assert.deepEqual(timelineOf({ ...early, desiredStartDate: '2027-02-01', executionWeeks: 6 }).overall, { percent: 51, estimate: true, text: 'of the timeline · 1 Jun 2026 → estimated end 15 Mar 2027', note: 'Estimated from the desired start, 1 Feb 2027, + 6 weeks on site. It becomes the planned end once the actual start and weeks on site are set.' })
+ // No desired start: 7 Dec + 6 weeks is 18 Jan 2027, 231 days from the request.
+ const minimum = timelineOf({ ...early, executionWeeks: 6 }).overall
+ assert.equal(minimum.percent, 63)
+ assert.equal(minimum.text, 'of the timeline · 1 Jun 2026 → estimated end 18 Jan 2027')
+ assert.match(minimum.note, /^Estimated from the minimum start, 7 Dec 2026, \+ 6 weeks on site\./)
+ assert.equal(timelineOf({ ...early, executionWeeks: 1 }).overall.note.split('.')[0], 'Estimated from the minimum start, 7 Dec 2026, + 1 week on site')
+})
+test('with no weeks on site the bar runs to the start, and says so', () => {
+ // PROJECT_TEST01 on 25 Oct 2026: 24 Aug 2026 to the minimum start 29 May 2028 is 644 days; day 62.
+ assert.deepEqual(timelineOf({ ...fresh, kpis: { today: '2026-10-25' } }).overall, { percent: 10, estimate: true, text: 'of the timeline · 24 Aug 2026 → minimum start 29 May 2028', note: 'Measured to the minimum start, as weeks on site aren’t set yet. It becomes the planned end once the actual start and weeks on site are set.'.replace('’', "'") })
+ assert.equal(timelineOf({ ...fresh, desiredStartDate: '2027-01-04', kpis: { today: '2026-10-25' } }).overall.text, 'of the timeline · 24 Aug 2026 → desired start 4 Jan 2027')
+ assert.equal(timelineOf({ ...fresh, minimumStartDate: '2026-10-01', kpis: { today: '2026-10-25' } }).overall.percent, 100, 'a start that has passed is the whole way to it')
+})
+test('the planned and recorded ends win over any estimate', () => {
+ const t = timelineOf({ ...fresh, requestDate: '2026-06-01', desiredStartDate: '2027-02-01', executionWeeks: 6, actualStartDate: '2026-10-12', plannedEndDate: '2026-11-23', kpis: { today: '2026-10-25' } }).overall
+ assert.equal(t.estimate, false)
+ assert.equal(t.percent, 83)
+})
+test('without any date to measure to the timeline has no percentage', () => {
+ assert.deepEqual(timelineOf({ ...fresh, minimumStartDate: null, kpis: { today: '2026-10-19' } }).overall, { percent: null, estimate: false, text: 'of the timeline · no end date planned yet, so there is nothing to measure against', note: '' })
  assert.equal(timelineOf({ ...fresh, requestDate: null, plannedEndDate: '2026-11-23' }).overall.text, 'of the timeline · no request date yet')
  assert.equal(timelineOf(null).overall.percent, null)
 })
