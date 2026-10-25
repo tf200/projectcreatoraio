@@ -5,7 +5,7 @@
 	<name>Projects</name>
 	<summary>Projects creator</summary>
 	<description>App to create projects easily</description>
-	<version>1.0.95</version>
+	<version>1.0.96</version>
 	<licence>agpl</licence>
 	<author mail="mmed172017@gmail.com">med172017</author>
 	<namespace>ProjectCreatorAIO</namespace>
@@ -18,6 +18,11 @@
 		<php min-version="8.2"/>
 		<nextcloud min-version="34" max-version="34"/>
 	</dependencies>
+	<repair-steps>
+		<post-migration>
+			<step>OCA\ProjectCreatorAIO\Migration\AddBlockerLabelToBoards</step>
+		</post-migration>
+	</repair-steps>
 	<dashboard>
 		<widget>projectcreatoraio</widget>
 	</dashboard>

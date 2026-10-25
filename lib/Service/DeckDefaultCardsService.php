@@ -37,6 +37,15 @@ class DeckDefaultCardsService
 	/** @return array<string, \OCA\Deck\Db\Card> */
 	public function seedForProjectType(int $projectType, Board $board, IUser $owner): array
 	{
+		// Every project board gets the Blokkade label, whatever its type.
+		if ($this->db !== null && (int)$board->getId() > 0) {
+			try {
+				(new BlockerLabel($this->db))->ensure((int)$board->getId());
+			} catch (Throwable $e) {
+				$this->logger->warning('Unable to add the Blokkade label', ['boardId' => (int)$board->getId(), 'exception' => $e]);
+			}
+		}
+
 		$nextPriorityCards = ProjectTypeDeckDefaults::getNextPriorityCards($projectType);
 		$processStepCards = ProjectTypeDeckDefaults::getProcessStepCards($projectType);
 

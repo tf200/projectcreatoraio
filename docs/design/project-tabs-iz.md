@@ -79,6 +79,19 @@ current interface is untouched — no file under `src/components/` changed.
   list scrolls inside a box of eight rows with a fade; on a narrow screen it runs full
   length with a column pill instead of the track.
 
+- **Task cards** — the new layout embeds Deck with `cardFace: 'inzicht'` (`NewTasks.embedOptions`;
+  `DeckBoard` passes none, so the current interface keeps Deck's cards). The Deck fork
+  then draws `CardFaceInzicht`: labels first ("Blokkade" first, deep red, with a warning
+  sign), title, two lines of description without its checklist, the due date as a date
+  in the person's locale (red when overdue), assignee avatars (also on Combi boards),
+  then "Waits for n" (open cards it depends on), checklist n/m, attachments, comments and
+  a description icon. No card number. "Blokkade" is an ordinary board label that
+  people set and remove from the card's menu ("Mark as Blokkade"); on Combi cards,
+  where Deck locks labels, the fork lets exactly this label through for anyone who may
+  move the card, on screen and on the server. Every project board gets the label: at
+  creation (`DeckDefaultCardsService`) and, for existing boards, through the
+  `AddBlockerLabelToBoards` repair step (`BlockerLabel`), run on upgrade.
+
 - **Who can do what** — Deck's Permissions Overview (`ProjectMemberAccessSummary` in the
   Deck fork) is hidden in the new layout. In its place `BoardAccessLine.vue` puts one
   line under the Progress panel that names who is limited ("Everyone can see all 20

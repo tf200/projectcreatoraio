@@ -147,3 +147,11 @@ test('the new Tasks tab extends DeckBoard and replaces only Deck’s dashboard r
 	const theme = readFileSync(new URL('./tasks-theme.css', import.meta.url), 'utf8')
 	assert.match(theme, /\.pc-new \.pc-tasks-theme\.deck-board \.reporting-dashboard \{ display: none; \}/)
 })
+
+test('only the new layout asks Deck for the In Zicht card face', () => {
+	const tasks = readFileSync(new URL('./NewTasks.vue', import.meta.url), 'utf8')
+	assert.match(tasks, /embedOptions\(\) \{\s*return \{ cardFace: 'inzicht' \}/)
+	const deckBoard = readFileSync(new URL('../components/ProjectDeck/DeckBoard.vue', import.meta.url), 'utf8')
+	assert.match(deckBoard, /embedOptions\(\) \{\s*return \{\}/, 'the current interface keeps Deck’s own cards')
+	assert.match(deckBoard, /EmbeddedTasks\.mount\(\{ el, boardId, \.\.\.this\.embedOptions\(\) \}\)/)
+})

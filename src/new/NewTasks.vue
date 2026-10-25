@@ -140,6 +140,11 @@ export default {
 			await this.$nextTick()
 			this.$refs.access?.focus()
 		},
+		// The card face the client asked for: labels first, a short description,
+		// the date as a date, who is on it, then the counts (Deck's CardFaceInzicht).
+		embedOptions() {
+			return { cardFace: 'inzicht' }
+		},
 		async mountEmbedded(options) {
 			this.stopFollowingBoard()
 			await DeckBoard.methods.mountEmbedded.call(this, options)

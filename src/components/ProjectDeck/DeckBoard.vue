@@ -218,6 +218,10 @@ export default {
 			this.embeddedReady = false
 			this.embeddedError = ''
 		},
+		// Extra options for Deck's embed; none here, so the cards look as in Deck.
+		embedOptions() {
+			return {}
+		},
 		openBoard() {
 			if (!this.deckBoardUrl) {
 				return
@@ -300,7 +304,7 @@ export default {
 			el.innerHTML = ''
 
 			try {
-				this.embeddedHandle = window.OCA.Deck.EmbeddedTasks.mount({ el, boardId })
+				this.embeddedHandle = window.OCA.Deck.EmbeddedTasks.mount({ el, boardId, ...this.embedOptions() })
 				this.embeddedReady = true
 			} catch (e) {
 				this.unmountEmbedded()
