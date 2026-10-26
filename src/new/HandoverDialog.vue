@@ -56,6 +56,7 @@
 						<input v-model="draft.date"
 							class="iz-input"
 							type="date"
+							:max="latestHandover(preview) || undefined"
 							required>
 					</label>
 
@@ -208,7 +209,7 @@
 import RoleChips from './RoleChips.vue'
 import { api, actionMessage, errorMessage } from './api.js'
 import { DRASCIVS, projectRoleOptions, toggled } from './members.js'
-import { handoverDraft, joiningWithTeam, ownerOptions, externalEndText, handoverProblem, whoProblem, externalsProblem, handoverPayload, handoverSummary, stepReport } from './handover.js'
+import { handoverDraft, joiningWithTeam, ownerOptions, externalEndText, handoverProblem, latestHandover, whoProblem, externalsProblem, handoverPayload, handoverSummary, stepReport } from './handover.js'
 
 // The handover step: the people who carry out the project take over from
 // initiation. Opened from the Planning tab's Handover card and the Members tab.
@@ -264,6 +265,7 @@ export default {
 	methods: {
 		toggled,
 		externalEndText,
+		latestHandover,
 		async open() {
 			const el = this.$refs.dialog
 			if (el && typeof el.showModal === 'function' && !el.open) el.showModal()
@@ -292,7 +294,7 @@ export default {
 				: { mode: 'set', teamId: Number(value) }
 		},
 		next() {
-			this.error = this.step === 0 ? whoProblem(this.draft) : externalsProblem(this.preview, this.draft)
+			this.error = this.step === 0 ? whoProblem(this.draft, this.preview) : externalsProblem(this.preview, this.draft)
 			if (!this.error) this.step++
 		},
 		search() {

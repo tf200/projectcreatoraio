@@ -11,9 +11,16 @@ export function dayLabel(day) {
 	return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// The handover comes before the work on site starts, so it can't be later than that.
+export function latestHandover(preview) {
+	return dayOf(preview?.actualStartDate) || dayOf(preview?.actualEndDate)
+}
+
 export function handoverDraft(preview, today = new Date()) {
+	const latest = latestHandover(preview)
+	const day = isoDay(today)
 	return {
-		date: dayOf(preview?.handoverDate) || isoDay(today),
+		date: dayOf(preview?.handoverDate) || (latest && latest < day ? latest : day),
 		ownerUid: preview?.ownerId || '',
 		team: { mode: 'keep', teamId: preview?.team?.id ?? null },
 		add: [],
@@ -66,12 +73,17 @@ export function externalEndText(preview, draft, external) {
 }
 
 export function handoverProblem(preview, draft) {
-	return whoProblem(draft) || externalsProblem(preview, draft)
+	return whoProblem(draft, preview) || externalsProblem(preview, draft)
 }
 
 // The first step: the date, the team and the people added.
-export function whoProblem(draft) {
+export function whoProblem(draft, preview = {}) {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) return 'Choose the handover date.'
+	const latest = latestHandover(preview)
+	if (latest && draft.date > latest) {
+		const what = dayOf(preview.actualStartDate) ? 'actual start' : 'end date'
+		return 'The handover can’t be after the ' + what + ' (' + dayLabel(latest) + ').'
+	}
 	if (draft.team.mode === 'set' && !draft.team.teamId) return 'Choose the team that takes over.'
 	for (const person of draft.add) {
 		const problem = draftProblem({ drascivs: person.drascivs, functional: person.functional })

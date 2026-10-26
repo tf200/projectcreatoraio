@@ -82,6 +82,8 @@ class ProjectHandoverStepService {
 		return [
 			'handoverDate' => $summary['actualHandoverDate'] ?? null,
 			'plannedEndDate' => $summary['plannedEndDate'] ?? null,
+			'actualStartDate' => $summary['actualStartDate'] ?? null,
+			'actualEndDate' => $summary['actualEndDate'] ?? null,
 			'ownerId' => trim((string)$project->getOwnerId()),
 			'members' => $members,
 			'functionalRoles' => $this->projectService->getProjectFunctionalRoles($projectId),
@@ -181,10 +183,15 @@ class ProjectHandoverStepService {
 		$organizationId = (int)$project->getOrganizationId();
 
 		$handoverDate = trim((string)($request['handoverDate'] ?? ''));
-		$parsed = DateTime::createFromFormat('!Y-m-d', $handoverDate);
-		if ($parsed === false || $parsed->format('Y-m-d') !== $handoverDate) {
-			throw new OCSException('The handover date must be a date like 2026-10-28.', 400);
+		try {
+			$parsed = TimelineDates::parse($handoverDate, 'handover date') ?? throw new \InvalidArgumentException('Choose the handover date.');
+			$planned = clone $project;
+			$planned->setActualHandoverDate($parsed);
+			TimelineDates::assertInOrder($planned, [TimelineDates::HANDOVER]);
+		} catch (\InvalidArgumentException $e) {
+			throw new OCSException($e->getMessage(), 400);
 		}
+		$handoverDate = $parsed->format('Y-m-d');
 
 		$addMembers = [];
 		$adding = [];

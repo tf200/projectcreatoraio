@@ -164,6 +164,15 @@ final class ProjectHandoverStepServiceTest extends TestCase {
 		}
 	}
 
+	public function testTheHandoverCannotComeAfterTheActualStart(): void {
+		$this->projectMapper->expects($this->never())->method('updateProjectDetails');
+		$this->project->setActualStartDate(new DateTime('2026-10-20'));
+
+		$this->expectException(OCSException::class);
+		$this->expectExceptionMessage('The handover (28 Oct 2026) can\'t be after the actual start (20 Oct 2026).');
+		$this->service->apply($this->project, ['handoverDate' => '2026-10-28'], $this->actor);
+	}
+
 	public function testKeepingTheTeamOrSettingTheSameTeamLeavesItAlone(): void {
 		$this->teams->expects($this->never())->method('assignProjectTeam');
 

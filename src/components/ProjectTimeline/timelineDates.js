@@ -52,3 +52,29 @@ export function formatRelativeDays(days) {
 	const span = parts.join(' ')
 	return days > 0 ? `in ${span}` : `${span} ago`
 }
+
+// The years a typed date may fall in; the server refuses anything outside.
+export const FIRST_DAY = '2000-01-01'
+export const LAST_DAY = '2100-12-31'
+
+const dayOf = value => (typeof value === 'string' && value ? value.slice(0, 10) : '')
+
+/**
+ * The days each typed-in date may take so handover, actual start and end
+ * stay in that order. The server checks the same rules.
+ * @param {object} kpis the timeline summary's kpis
+ */
+export function plannedDateBounds(kpis) {
+	const handover = dayOf(kpis?.actualHandoverDate)
+	const start = dayOf(kpis?.actualStartDate)
+	const end = dayOf(kpis?.actualEndDate)
+	return {
+		desiredStart: { min: FIRST_DAY, max: LAST_DAY },
+		handover: { min: FIRST_DAY, max: start || end || LAST_DAY },
+		actualStart: { min: handover || FIRST_DAY, max: end || LAST_DAY },
+		end: { min: start || handover || FIRST_DAY, max: LAST_DAY },
+		// The end is the last day on site, so the work has to have started.
+		canSetEnd: !!start || !!end,
+		canClearStart: !end,
+	}
+}

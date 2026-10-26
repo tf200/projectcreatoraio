@@ -126,6 +126,8 @@
 									type="date"
 									class="kpi-native-date-hidden"
 									:value="isoDateOnly(kpis.actualHandoverDate)"
+									:min="dateBounds.handover.min"
+									:max="dateBounds.handover.max"
 									:disabled="!canEdit || saving"
 									aria-label="Select handover date"
 									@change="onHandoverDateChange" />
@@ -306,6 +308,8 @@
 											type="date"
 											class="kpi-native-date-hidden"
 											:value="isoDateOnly(kpis.desiredStartDate)"
+											:min="dateBounds.desiredStart.min"
+											:max="dateBounds.desiredStart.max"
 											:disabled="!canEdit || saving"
 											aria-label="Select desired start date"
 											@change="onDesiredDateChange" />
@@ -388,6 +392,8 @@
 											type="date"
 											class="kpi-native-date-hidden"
 											:value="isoDateOnly(kpis.actualStartDate)"
+											:min="dateBounds.actualStart.min"
+											:max="dateBounds.actualStart.max"
 											:disabled="!canEdit || saving"
 											aria-label="Select actual start date"
 											@change="onActualDateChange" />
@@ -417,8 +423,8 @@
 												type="tertiary"
 												size="small"
 												class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-												title="Clear actual start date"
-												:disabled="saving"
+												:title="dateBounds.canClearStart ? 'Clear actual start date' : 'Clear the end date first'"
+												:disabled="saving || !dateBounds.canClearStart"
 												@click.stop="clearActualDate">
 												<template #icon>
 													<Close :size="11" />
@@ -481,6 +487,8 @@
 									type="date"
 									class="kpi-native-date-hidden"
 									:value="isoDateOnly(kpis.actualEndDate)"
+									:min="dateBounds.end.min"
+									:max="dateBounds.end.max"
 									:disabled="!canEdit || saving"
 									aria-label="Select end date"
 									@change="onEndDateChange" />
@@ -522,7 +530,7 @@
 									<span
 										class="kpi-card__placeholder"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? 'Click to set end date' : ''"
+										:title="canEdit ? (dateBounds.canSetEnd ? 'Click to set end date' : 'Set the actual start first') : ''"
 										@click="openEndCalendar">
 										{{ kpis.plannedEndDate ? 'Planned ' + formatDisplayDate(kpis.plannedEndDate) : 'Not set' }}
 									</span>
@@ -531,8 +539,8 @@
 										type="tertiary"
 										size="small"
 										class="set-date-btn"
-										title="Set end date"
-										:disabled="saving"
+										:title="dateBounds.canSetEnd ? 'Set end date' : 'Set the actual start first'"
+										:disabled="saving || !dateBounds.canSetEnd"
 										@click="openEndCalendar">
 										<template #icon>
 											<Plus :size="12" />
@@ -597,6 +605,7 @@ import CheckboxMarkedCircleOutline from 'vue-material-design-icons/CheckboxMarke
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import FlagCheckered from 'vue-material-design-icons/FlagCheckered.vue'
 import HandshakeOutline from 'vue-material-design-icons/HandshakeOutline.vue'
+import { plannedDateBounds } from '../timelineDates.js'
 
 export default {
 	name: 'TimelineKpiBar',
@@ -679,6 +688,9 @@ export default {
 		},
 	},
 	computed: {
+		dateBounds() {
+			return plannedDateBounds(this.kpis)
+		},
 		isPrepWeeksDirty() {
 			const current = Number(this.kpis?.preparationWeeks ?? 0)
 			return this.localPrepWeeks !== null && this.localPrepWeeks !== undefined && Number(this.localPrepWeeks) !== current
@@ -878,6 +890,7 @@ export default {
 			if (val) {
 				this.$emit('save-desired-date', val)
 			}
+			e.target.value = this.isoDateOnly(this.kpis.desiredStartDate)
 		},
 		clearDesiredDate() {
 			if (!this.canEdit || this.saving) return
@@ -906,9 +919,10 @@ export default {
 			if (val) {
 				this.$emit('save-actual-date', val)
 			}
+			e.target.value = this.isoDateOnly(this.kpis.actualStartDate)
 		},
 		clearActualDate() {
-			if (!this.canEdit || this.saving) return
+			if (!this.canEdit || this.saving || !this.dateBounds.canClearStart) return
 			this.$emit('save-actual-date', null)
 			if (this.$refs.actualDatePicker) {
 				this.$refs.actualDatePicker.value = ''
@@ -934,6 +948,7 @@ export default {
 			if (val) {
 				this.$emit('save-handover-date', val)
 			}
+			e.target.value = this.isoDateOnly(this.kpis.actualHandoverDate)
 		},
 		clearHandoverDate() {
 			if (!this.canEdit || this.saving) return
@@ -943,7 +958,7 @@ export default {
 			}
 		},
 		openEndCalendar() {
-			if (!this.canEdit || this.saving) return
+			if (!this.canEdit || this.saving || !this.dateBounds.canSetEnd) return
 			const input = this.$refs.endDatePicker
 			if (!input) return
 			if (typeof input.showPicker === 'function') {
@@ -962,6 +977,7 @@ export default {
 			if (val) {
 				this.$emit('save-end-date', val)
 			}
+			e.target.value = this.isoDateOnly(this.kpis.actualEndDate)
 		},
 		clearEndDate() {
 			if (!this.canEdit || this.saving) return

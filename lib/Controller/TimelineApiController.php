@@ -10,6 +10,7 @@ use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
 use OCA\ProjectCreatorAIO\Service\ProjectAccessService;
 use OCA\ProjectCreatorAIO\Service\ProjectActivityService;
+use OCA\ProjectCreatorAIO\Service\TimelineDates;
 use OCA\ProjectCreatorAIO\Service\TimelineImpactService;
 use OCA\ProjectCreatorAIO\Service\TimelinePhaseService;
 use OCA\ProjectCreatorAIO\Service\TimelinePlanningService;
@@ -278,56 +279,33 @@ class TimelineApiController extends Controller
                 }
             }
 
+            $changed = [];
             if (array_key_exists('actual_handover_date', $params)) {
-                $value = $params['actual_handover_date'];
-                if ($value === null || $value === '') {
-                    $project->setActualHandoverDate(null);
-                } else {
-                    $date = is_string($value) ? DateTime::createFromFormat('!Y-m-d', $value) : false;
-                    if ($date === false || $date->format('Y-m-d') !== $value) {
-                        throw new \InvalidArgumentException('Actual handover date must be a valid date in YYYY-MM-DD format');
-                    }
-                    $project->setActualHandoverDate($date);
-                }
+                $project->setActualHandoverDate(TimelineDates::parse($params['actual_handover_date'], TimelineDates::HANDOVER));
+                $changed[] = TimelineDates::HANDOVER;
             }
 
             if (array_key_exists('actual_end_date', $params)) {
-                $value = $params['actual_end_date'];
-                if ($value === null || $value === '') {
-                    $project->setActualEndDate(null);
-                } else {
-                    $date = is_string($value) ? DateTime::createFromFormat('!Y-m-d', $value) : false;
-                    if ($date === false || $date->format('Y-m-d') !== $value) {
-                        throw new \InvalidArgumentException('End date must be a valid date in YYYY-MM-DD format');
-                    }
-                    $project->setActualEndDate($date);
-                }
+                $project->setActualEndDate(TimelineDates::parse($params['actual_end_date'], TimelineDates::ACTUAL_END));
+                $changed[] = TimelineDates::ACTUAL_END;
             }
 
             if ($desiredStartDate !== null) {
-                $trimmed = trim($desiredStartDate);
-                if ($trimmed === '' || strtolower($trimmed) === 'null') {
-                    $project->setDesiredStartDate(null);
-                } else {
-                    $dt = new DateTime($trimmed);
-                    $dt->setTime(0, 0, 0);
-                    $project->setDesiredStartDate($dt);
-                }
+                $project->setDesiredStartDate(TimelineDates::parse($desiredStartDate, 'desired start'));
             }
 
             if ($actualStartDate !== null) {
-                $trimmed = trim($actualStartDate);
-                if ($trimmed === '' || strtolower($trimmed) === 'null') {
-                    $project->setActualStartDate(null);
-                } else {
-                    $dt = new DateTime($trimmed);
-                    $dt->setTime(0, 0, 0);
-                    $project->setActualStartDate($dt);
-                }
+                $project->setActualStartDate(TimelineDates::parse($actualStartDate, TimelineDates::ACTUAL_START));
+                $changed[] = TimelineDates::ACTUAL_START;
             }
 
+            TimelineDates::assertInOrder($project, $changed);
+
             if ($requiredPreparationWeeks !== null) {
-                $project->setRequiredPreparationWeeks(max(0, $requiredPreparationWeeks));
+                if ($requiredPreparationWeeks < 0 || $requiredPreparationWeeks > 520) {
+                    throw new \InvalidArgumentException('Preparation weeks must be a whole number between 0 and 520');
+                }
+                $project->setRequiredPreparationWeeks($requiredPreparationWeeks);
             }
 
             $this->projectMapper->updateProjectDetails($project);
@@ -346,10 +324,8 @@ class TimelineApiController extends Controller
 			$project = $this->requireProject($projectId);
 			$this->assertCanManageTimelineProject($project);
 
-			$start = new DateTime($startDate);
-			$end = new DateTime($endDate);
-			$start->setTime(0, 0);
-			$end->setTime(0, 0);
+			$start = TimelineDates::parse($startDate, 'start date') ?? throw new \InvalidArgumentException('Missing start date');
+			$end = TimelineDates::parse($endDate, 'end date') ?? throw new \InvalidArgumentException('Missing end date');
 			if ($end < $start) {
 				throw new \InvalidArgumentException('End date cannot be before start date');
 			}
@@ -412,8 +388,8 @@ class TimelineApiController extends Controller
                 return new JSONResponse(['error' => 'Missing label'], Http::STATUS_BAD_REQUEST);
             }
 
-            $startDate = $this->normalizeDateParamToNull($startDate);
-            $endDate = $this->normalizeDateParamToNull($endDate);
+            $startDate = $this->normalizeDateParamToNull($startDate, 'start date');
+            $endDate = $this->normalizeDateParamToNull($endDate, 'end date');
 
             $itemType = strtolower(trim((string) $itemType));
             if ($itemType === '') {
@@ -495,8 +471,8 @@ class TimelineApiController extends Controller
             $clearStart = $startDate !== null && trim($startDate) === '';
             $clearEnd = $endDate !== null && trim($endDate) === '';
 
-            $startDate = $this->normalizeDateParamToNull($startDate);
-            $endDate = $this->normalizeDateParamToNull($endDate);
+            $startDate = $this->normalizeDateParamToNull($startDate, 'start date');
+            $endDate = $this->normalizeDateParamToNull($endDate, 'end date');
 
             if ($startDate !== null) {
                 $item->setStartDate(new DateTime($startDate));
@@ -551,16 +527,10 @@ class TimelineApiController extends Controller
         }
     }
 
-    private function normalizeDateParamToNull(?string $value): ?string
+    /** A YYYY-MM-DD day, or null when empty. */
+    private function normalizeDateParamToNull(?string $value, string $label): ?string
     {
-        if ($value === null) {
-            return null;
-        }
-        $value = trim($value);
-        if ($value === '') {
-            return null;
-        }
-        return $value;
+        return TimelineDates::parse($value, $label)?->format('Y-m-d');
     }
 
     /**

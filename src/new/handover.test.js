@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { handoverDraft, joiningWithTeam, ownerOptions, externalEnd, externalEndText, handoverProblem, handoverPayload, handoverSummary, stepReport } from './handover.js'
+import { handoverDraft, joiningWithTeam, ownerOptions, externalEnd, externalEndText, handoverProblem, handoverPayload, handoverSummary, latestHandover, stepReport, whoProblem } from './handover.js'
 
 // Project 39 on the dev server, trimmed: Team Zuid works on it, Klaas is external.
 const preview = {
@@ -77,4 +77,14 @@ test('the server’s report names people and lists failures and notes apart', ()
 	])
 	assert.deepEqual(report.failed, [{ label: 'Team', failed: true, message: 'Something went wrong.' }])
 	assert.deepEqual(report.notes.map(n => n.label), ['Klaas'])
+})
+
+test('the handover can’t come after the actual start', () => {
+	const started = { handoverDate: null, actualStartDate: '2026-10-20', externals: [] }
+	assert.equal(latestHandover(started), '2026-10-20')
+	const draft = handoverDraft(started, new Date(2026, 9, 28))
+	assert.equal(draft.date, '2026-10-20')
+	assert.equal(whoProblem(draft, started), '')
+	assert.equal(whoProblem({ ...draft, date: '2026-10-28' }, started), 'The handover can’t be after the actual start (20 Oct 2026).')
+	assert.equal(handoverDraft({ externals: [] }, new Date(2026, 9, 28)).date, '2026-10-28')
 })

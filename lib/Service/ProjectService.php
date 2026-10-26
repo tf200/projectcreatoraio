@@ -2715,34 +2715,16 @@ class ProjectService {
 			$project->setRequiredPreparationWeeks(max(0, (int)$required_preparation_weeks));
 		}
 
-		if ($desired_start_date !== null) {
-			$trimmed = trim($desired_start_date);
-			if ($trimmed === '' || strtolower($trimmed) === 'null') {
-				$project->setDesiredStartDate(null);
-			} else {
-				try {
-					$dt = new DateTime($trimmed);
-					$dt->setTime(0, 0, 0);
-					$project->setDesiredStartDate($dt);
-				} catch (\Throwable) {
-					// ignore invalid format
-				}
+		try {
+			if ($desired_start_date !== null) {
+				$project->setDesiredStartDate(TimelineDates::parse($desired_start_date, 'desired start'));
 			}
-		}
-
-		if ($actual_start_date !== null) {
-			$trimmed = trim($actual_start_date);
-			if ($trimmed === '' || strtolower($trimmed) === 'null') {
-				$project->setActualStartDate(null);
-			} else {
-				try {
-					$dt = new DateTime($trimmed);
-					$dt->setTime(0, 0, 0);
-					$project->setActualStartDate($dt);
-				} catch (\Throwable) {
-					// ignore invalid format
-				}
+			if ($actual_start_date !== null) {
+				$project->setActualStartDate(TimelineDates::parse($actual_start_date, TimelineDates::ACTUAL_START));
+				TimelineDates::assertInOrder($project, [TimelineDates::ACTUAL_START]);
 			}
+		} catch (\InvalidArgumentException $e) {
+			throw new OCSException($e->getMessage(), 400);
 		}
 
 		// 3. Save via Mapper

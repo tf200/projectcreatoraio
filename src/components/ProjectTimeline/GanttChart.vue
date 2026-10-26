@@ -715,7 +715,10 @@
 							v-model="form.endDate"
 							type="date"
 							label="End Date"
+							:min="form.startDate || undefined"
 							:disabled="form.isOngoing"
+							:error="!!itemDateProblem"
+							:helper-text="itemDateProblem"
 							:show-label="true" />
 					</div>
 
@@ -1147,6 +1150,10 @@ export default {
 			const start = this.formatDate(d.deckTasks?.startDate || d.requestDate)
 			const end = this.formatDate(d.desiredStart?.date || d.minimumStart?.date)
 			return `${start} – ${end}`
+		},
+		itemDateProblem() {
+			if (this.form.itemType !== 'phase' || this.form.isOngoing || !this.form.startDate || !this.form.endDate) return ''
+			return this.form.endDate < this.form.startDate ? 'The end can’t be before the start.' : ''
 		},
 		canSave() {
 			const labelOk = this.form.label.trim() !== ''
@@ -1888,6 +1895,7 @@ export default {
 				}
 			} catch (error) {
 				console.error('Error updating desired start date:', error)
+				showError(error.response?.data?.error || 'Could not save the desired start date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1906,6 +1914,7 @@ export default {
 				}
 			} catch (error) {
 				console.error('Error updating actual start date:', error)
+				showError(error.response?.data?.error || 'Could not save the actual start date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1918,7 +1927,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error updating handover date:', error)
-				showError('Could not save the handover date. Please try again.')
+				showError(error.response?.data?.error || 'Could not save the handover date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1931,7 +1940,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error updating end date:', error)
-				showError('Could not save the end date. Please try again.')
+				showError(error.response?.data?.error || 'Could not save the end date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1944,7 +1953,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error updating execution weeks:', error)
-				showError('Could not save weeks on site. Please try again.')
+				showError(error.response?.data?.error || 'Could not save weeks on site. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1962,6 +1971,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error updating preparation weeks:', error)
+				showError(error.response?.data?.error || 'Could not save the preparation weeks. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -2150,6 +2160,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error saving timeline item:', error)
+				showError(error.response?.data?.error || 'Could not save the timeline item. Please try again.')
 			} finally {
 				this.saving = false
 			}
