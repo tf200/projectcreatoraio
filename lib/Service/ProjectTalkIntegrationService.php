@@ -31,7 +31,12 @@ class ProjectTalkIntegrationService {
 	private const TALK_PARTICIPANT_MODERATOR = 2;
 	private const TALK_PARTICIPANT_USER = 3;
 	private const TALK_REMOVAL_REASON = 'remove';
-	private const TALK_HUMAN_MESSAGE_VERBS = ['comment', 'object_shared'];
+	private const TALK_ROOM_READ_WRITE = 0;
+	private const TALK_ROOM_READ_ONLY = 1;
+	// File shares are stored as system messages; parsing turns them into normal messages.
+	private const TALK_HUMAN_MESSAGE_VERBS = ['comment', 'object_shared', 'system', 'comment_deleted'];
+	private const TALK_SYSTEM_MESSAGE_TYPE = 'system';
+	private const TALK_DELETED_MESSAGE_TYPE = 'comment_deleted';
 
 	public function __construct(
 		private readonly ?object $talkBroker,
@@ -64,7 +69,7 @@ class ProjectTalkIntegrationService {
 	public function createProjectConversation(string $projectName, IUser $owner, array $memberIds): array {
 		try {
 			$conversation = $this->talkBroker->createConversation(
-				trim($projectName) . ' - Chat',
+				self::projectConversationName($projectName),
 				[$owner],
 				$this->talkBroker->newConversationOptions()->setPublic(),
 			);
@@ -113,6 +118,18 @@ class ProjectTalkIntegrationService {
 		];
 	}
 
+	public static function projectConversationName(string $projectName): string {
+		return self::fitRoomName(trim($projectName) . ' - Chat');
+	}
+
+	public static function directConversationName(string $projectName, string $displayName1, string $displayName2): string {
+		return self::fitRoomName(sprintf('%s - %s & %s', trim($projectName), $displayName1, $displayName2));
+	}
+
+	private static function fitRoomName(string $name): string {
+		return mb_strlen($name) > 255 ? mb_substr($name, 0, 252) . '...' : $name;
+	}
+
 	/**
 	 * Create a private 1-to-1 conversation between two project members for a specific project.
 	 *
@@ -124,10 +141,7 @@ class ProjectTalkIntegrationService {
 		IUser $user1,
 		IUser $user2,
 	): array {
-		$roomName = sprintf('%s - %s & %s', trim($projectName), $user1->getDisplayName(), $user2->getDisplayName());
-		if (mb_strlen($roomName) > 255) {
-			$roomName = mb_substr($roomName, 0, 252) . '...';
-		}
+		$roomName = self::directConversationName($projectName, $user1->getDisplayName(), $user2->getDisplayName());
 
 		try {
 			$conversation = $this->talkBroker->createConversation(
@@ -274,6 +288,86 @@ class ProjectTalkIntegrationService {
 		}
 	}
 
+	/**
+	 * Renames a project room; see projectConversationName() and directConversationName().
+	 */
+	public function renameConversation(string $conversationToken, string $name): void {
+		$conversationToken = trim($conversationToken);
+		$name = self::fitRoomName(trim($name));
+		if ($conversationToken === '' || $name === '' || !$this->isAvailable()) {
+			return;
+		}
+
+		try {
+			$room = $this->getTalkManager()->getRoomByToken($conversationToken);
+			$this->resolveTalkService(self::SPREED_ROOM_SERVICE_CLASS)->setName($room, $name);
+		} catch (Throwable $e) {
+			$this->logger->warning('Failed to rename project Talk conversation', [
+				'token' => $conversationToken,
+				'exception' => $e,
+			]);
+		}
+	}
+
+	/**
+	 * Adds back whoever of these users left the room, and lets them post
+	 * again unless the project is archived.
+	 *
+	 * @param IUser[] $users
+	 */
+	public function reopenConversation(string $conversationToken, array $users, bool $writable): void {
+		$conversationToken = trim($conversationToken);
+		if ($conversationToken === '' || !$this->isAvailable()) {
+			return;
+		}
+
+		try {
+			$room = $this->getTalkManager()->getRoomByToken($conversationToken);
+			$missing = array_values(array_filter(
+				$users,
+				fn (IUser $user): bool => $this->findViewerParticipant($room, $user->getUID()) === null,
+			));
+		} catch (Throwable $e) {
+			$this->logger->warning('Failed to reopen project Talk conversation', [
+				'token' => $conversationToken,
+				'exception' => $e,
+			]);
+			return;
+		}
+
+		if ($missing === []) {
+			return;
+		}
+		$this->addUsersToConversation($conversationToken, $missing);
+		if ($writable) {
+			$this->setConversationReadOnly($conversationToken, false);
+		}
+	}
+
+	/**
+	 * An archived project's rooms stay readable but nobody can post in them.
+	 */
+	public function setConversationReadOnly(string $conversationToken, bool $readOnly): void {
+		$conversationToken = trim($conversationToken);
+		if ($conversationToken === '' || !$this->isAvailable()) {
+			return;
+		}
+
+		try {
+			$room = $this->getTalkManager()->getRoomByToken($conversationToken);
+			$this->resolveTalkService(self::SPREED_ROOM_SERVICE_CLASS)->setReadOnly(
+				$room,
+				$readOnly ? self::TALK_ROOM_READ_ONLY : self::TALK_ROOM_READ_WRITE,
+			);
+		} catch (Throwable $e) {
+			$this->logger->warning('Failed to change whether the project Talk conversation is read-only', [
+				'token' => $conversationToken,
+				'readOnly' => $readOnly,
+				'exception' => $e,
+			]);
+		}
+	}
+
 	public function shareFileInConversation(
 		string $conversationToken,
 		int $fileId,
@@ -331,9 +425,13 @@ class ProjectTalkIntegrationService {
 	/**
 	 * Fetch chat messages for a project's Talk conversation.
 	 *
-	 * @return array{messages: list<array{id: int, actorDisplayName: string, message: string, timestamp: int, messageType: string}>, hasMore: bool, nextOffset: int}
+	 * Messages carry Talk's rich parameters (mentions, files, shared objects) so
+	 * the client can render them. With a viewer who is in the room, file links
+	 * and previews resolve the way Talk shows them to that user.
+	 *
+	 * @return array{messages: list<array<string, mixed>>, hasMore: bool, nextOffset: int}
 	 */
-	public function getConversationMessages(string $conversationToken, int $limit = 50, int $offset = 0): array {
+	public function getConversationMessages(string $conversationToken, int $limit = 50, int $offset = 0, ?string $viewerId = null): array {
 		$conversationToken = trim($conversationToken);
 		if ($conversationToken === '' || !$this->isAvailable()) {
 			return ['messages' => [], 'hasMore' => false, 'nextOffset' => 0];
@@ -351,6 +449,7 @@ class ProjectTalkIntegrationService {
 		try {
 			$messageParser = $this->resolveTalkService('OCA\\Talk\\Chat\\MessageParser');
 			$l10n = $this->l10nFactory->get('spreed');
+			$participant = $this->findViewerParticipant($room, $viewerId);
 
 			$messages = [];
 			$nextOffset = $offset;
@@ -369,20 +468,16 @@ class ProjectTalkIntegrationService {
 
 				foreach ($comments as $index => $comment) {
 					$nextOffset = (int)$comment->getId();
-					$message = $messageParser->createMessage($room, null, $comment, $l10n);
-					$messageParser->parseMessage($message);
-
-					if (!$message->getVisibility()) {
+					$message = $this->serializeChatMessage($messageParser, $room, $participant, $comment, $l10n);
+					if ($message === null) {
 						continue;
 					}
 
-					$messages[] = [
-						'id' => (int)$comment->getId(),
-						'actorDisplayName' => $message->getActorDisplayName(),
-						'message' => $message->getMessage(),
-						'timestamp' => $comment->getCreationDateTime()->getTimestamp(),
-						'messageType' => $message->getMessageType(),
-					];
+					$parent = $this->findParentMessage($messageParser, $room, $participant, $comment, $l10n);
+					if ($parent !== null) {
+						$message['parent'] = $parent;
+					}
+					$messages[] = $message;
 
 					if (count($messages) === $limit) {
 						$hasMore = $index < count($comments) - 1 || count($comments) === $batchSize;
@@ -404,6 +499,81 @@ class ProjectTalkIntegrationService {
 				'exception' => $e,
 			]);
 			return ['messages' => [], 'hasMore' => false, 'nextOffset' => $offset];
+		}
+	}
+
+	/**
+	 * @return array<string, mixed>|null null when Talk hides the message or it is a system notice
+	 */
+	private function serializeChatMessage(object $messageParser, object $room, ?object $participant, object $comment, object $l10n): ?array {
+		$message = $messageParser->createMessage($room, $participant, $comment, $l10n);
+		$messageParser->parseMessage($message);
+
+		if (!$message->getVisibility() || $message->getMessageType() === self::TALK_SYSTEM_MESSAGE_TYPE) {
+			return null;
+		}
+
+		$reactions = method_exists($comment, 'getReactions') ? $comment->getReactions() : [];
+
+		$data = [
+			'id' => (int)$comment->getId(),
+			'actorType' => $message->getActorType(),
+			'actorId' => $message->getActorId(),
+			'actorDisplayName' => $message->getActorDisplayName(),
+			'message' => $message->getMessage(),
+			'messageParameters' => $message->getMessageParameters(),
+			'timestamp' => $comment->getCreationDateTime()->getTimestamp(),
+			'messageType' => $message->getMessageType(),
+			'reactions' => is_array($reactions) ? $reactions : [],
+		];
+
+		if ($message->getMessageType() === self::TALK_DELETED_MESSAGE_TYPE) {
+			$data['deleted'] = true;
+		}
+
+		// Talk keeps the last edit in the comment's metadata.
+		$metaData = method_exists($comment, 'getMetaData') ? ($comment->getMetaData() ?? []) : [];
+		if (isset($metaData['last_edited_time'])) {
+			$data['lastEditTimestamp'] = (int)$metaData['last_edited_time'];
+			$data['lastEditActorDisplayName'] = (string)($metaData['last_edited_by_displayname'] ?? '');
+		}
+
+		return $data;
+	}
+
+	/**
+	 * @return array<string, mixed>|null
+	 */
+	private function findParentMessage(object $messageParser, object $room, ?object $participant, object $comment, object $l10n): ?array {
+		$parentId = method_exists($comment, 'getParentId') ? (string)$comment->getParentId() : '0';
+		if ($parentId === '' || $parentId === '0') {
+			return null;
+		}
+
+		try {
+			$parentComment = $this->commentsManager->get($parentId);
+			$parent = $this->serializeChatMessage($messageParser, $room, $participant, $parentComment, $l10n);
+		} catch (Throwable) {
+			return null;
+		}
+		if ($parent === null) {
+			return null;
+		}
+		unset($parent['reactions']);
+		return $parent;
+	}
+
+	private function findViewerParticipant(object $room, ?string $viewerId): ?object {
+		$viewerId = trim((string)$viewerId);
+		if ($viewerId === '') {
+			return null;
+		}
+
+		try {
+			return $this->getParticipantService()->getParticipant($room, $viewerId);
+		} catch (Throwable) {
+			// Not in the room (for example an admin looking at the project).
+			return null;
 		}
 	}
 

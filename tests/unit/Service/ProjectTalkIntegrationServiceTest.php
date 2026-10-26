@@ -22,6 +22,16 @@ namespace OCA\Talk\Service {
     class ParticipantService
     {
         public array $calls = [];
+        /** @var string[] users already in the room */
+        public array $present = [];
+
+        public function getParticipant(object $room, ?string $userId): object
+        {
+            if (!in_array($userId, $this->present, true)) {
+                throw new \RuntimeException('Participant not found');
+            }
+            return new \stdClass();
+        }
 
         public function addUsers(object $room, array $participants, ?IUser $addedBy = null): void
         {
@@ -36,6 +46,18 @@ namespace OCA\Talk\Service {
     class RoomService
     {
         public array $descriptions = [];
+        public array $names = [];
+        public array $readOnly = [];
+
+        public function setName(object $room, string $name): void
+        {
+            $this->names[] = $name;
+        }
+
+        public function setReadOnly(object $room, int $state): void
+        {
+            $this->readOnly[] = $state;
+        }
 
         public function setDescription(object $room, string $description): void
         {
@@ -55,7 +77,23 @@ namespace OCA\Talk\Chat {
             private readonly string $message,
             private readonly string $messageType,
             private readonly bool $visibility,
+            private readonly array $messageParameters = [],
         ) {
+        }
+
+        public function getActorType(): string
+        {
+            return 'users';
+        }
+
+        public function getActorId(): string
+        {
+            return strtolower($this->actorDisplayName);
+        }
+
+        public function getMessageParameters(): array
+        {
+            return $this->messageParameters;
         }
 
         public function getActorDisplayName(): string
@@ -88,6 +126,7 @@ namespace OCA\Talk\Chat {
                 $comment->getTestMessage(),
                 $comment->getTestMessageType(),
                 $comment->getTestVisibility(),
+                $comment->getTestMessageParameters(),
             );
         }
 
@@ -385,6 +424,77 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Talk DB failure');
         $service->createProjectDirectConversation('Test Project', 1, $user1, $user2);
+    }
+
+    public function testRenamingAndLockingAProjectRoom(): void
+    {
+        [$service, , $roomService] = $this->serviceWithRoom();
+
+        $service->renameConversation('room-token', str_repeat('x', 300));
+        $service->setConversationReadOnly('room-token', true);
+        $service->setConversationReadOnly('room-token', false);
+
+        $this->assertSame([str_repeat('x', 252) . '...'], $roomService->names);
+        $this->assertSame([1, 0], $roomService->readOnly);
+    }
+
+    public function testReopeningADirectChatAddsBackOnlyWhoLeft(): void
+    {
+        [$service, $participantService, $roomService] = $this->serviceWithRoom();
+        $participantService->present = ['alice'];
+        $alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+        $bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+
+        $service->reopenConversation('room-token', [$alice, $bob], true);
+
+        $this->assertCount(1, $participantService->calls);
+        $this->assertSame(['bob'], array_column($participantService->calls[0]['participants'], 'actorId'));
+        $this->assertSame([0], $roomService->readOnly);
+    }
+
+    public function testReopeningLeavesAnArchivedOrUntouchedChatAlone(): void
+    {
+        [$service, $participantService, $roomService] = $this->serviceWithRoom();
+        $alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+        $bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+
+        $service->reopenConversation('room-token', [$alice, $bob], false);
+        $this->assertCount(1, $participantService->calls);
+        $this->assertSame([], $roomService->readOnly);
+
+        $participantService->present = ['alice', 'bob'];
+        $service->reopenConversation('room-token', [$alice, $bob], true);
+        $this->assertCount(1, $participantService->calls);
+        $this->assertSame([], $roomService->readOnly);
+    }
+
+    /** @return array{0: ProjectTalkIntegrationService, 1: ParticipantService, 2: RoomService} */
+    private function serviceWithRoom(): array
+    {
+        $participantService = new ParticipantService();
+        $roomService = new RoomService();
+        $manager = new Manager(new \stdClass());
+        $this->talkBroker->method('hasBackend')->willReturn(true);
+        $this->serverContainer->method('get')
+            ->willReturnCallback(static fn (string $serviceClass): object => match ($serviceClass) {
+                'OCA\\Talk\\Manager' => $manager,
+                'OCA\\Talk\\Service\\ParticipantService' => $participantService,
+                'OCA\\Talk\\Service\\RoomService' => $roomService,
+                default => throw new \RuntimeException("Unexpected service lookup: $serviceClass"),
+            });
+
+        $service = new ProjectTalkIntegrationService(
+            $this->talkBroker,
+            $this->serverContainer,
+            $this->userManager,
+            $this->urlGenerator,
+            $this->rootFolder,
+            $this->shareManager,
+            $this->commentsManager,
+            $this->l10nFactory,
+            $this->logger,
+        );
+        return [$service, $participantService, $roomService];
     }
 
     public function testDeleteConversationsDeletesAllTokens(): void
@@ -835,7 +945,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
 
         $this->commentsManager->expects($this->once())
             ->method('getCommentsWithVerbForObjectSinceComment')
-            ->with('chat', '42', ['comment', 'object_shared'], 0, 'desc', 50)
+            ->with('chat', '42', ['comment', 'object_shared', 'system', 'comment_deleted'], 0, 'desc', 50)
             ->willReturn($comments);
 
         $result = $service->getConversationMessages('room-token', 10);
@@ -844,6 +954,48 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         $this->assertSame(['comment', 'comment', 'voice-message'], array_column($result['messages'], 'messageType'));
         $this->assertFalse($result['hasMore']);
         $this->assertSame(102, $result['nextOffset']);
+    }
+
+    public function testGetConversationMessagesReturnsRichDataAndSkipsSystemNotices(): void
+    {
+        $file = ['type' => 'file', 'id' => '7', 'name' => 'plan.pdf', 'mimetype' => 'application/pdf'];
+        $mention = ['type' => 'user', 'id' => 'bob', 'name' => 'Bob'];
+        $comments = [
+            $this->createChatComment(105, 'Alice', 'Hi {mention-user1}', 'comment', true, ['mention-user1' => $mention], 101),
+            $this->createChatComment(104, 'Bob', '{file}', 'comment', true, ['file' => $file]),
+            $this->createChatComment(103, 'Bob', '{actor} joined the conversation', 'system', true),
+            $this->createChatComment(102, 'Bob', 'Message deleted by author', 'comment_deleted', true),
+        ];
+        $service = $this->createChatMessageService(new class {
+            public function getId(): int
+            {
+                return 42;
+            }
+        });
+
+        $this->commentsManager->method('getCommentsWithVerbForObjectSinceComment')->willReturn($comments);
+        $this->commentsManager->expects($this->once())
+            ->method('get')
+            ->with('101')
+            ->willReturn($this->createChatComment(101, 'Bob', 'Question?'));
+
+        $result = $service->getConversationMessages('room-token', 10);
+
+        $this->assertSame([105, 104, 102], array_column($result['messages'], 'id'));
+        [$reply, $fileShare, $deleted] = $result['messages'];
+        $this->assertTrue($deleted['deleted']);
+        $this->assertArrayNotHasKey('deleted', $reply);
+        $this->assertSame(1700000000, $reply['lastEditTimestamp']);
+        $this->assertSame('Alice', $reply['lastEditActorDisplayName']);
+        $this->assertArrayNotHasKey('lastEditTimestamp', $fileShare);
+        $this->assertSame(['mention-user1' => $mention], $reply['messageParameters']);
+        $this->assertSame(['👍' => 2], $reply['reactions']);
+        $this->assertSame('alice', $reply['actorId']);
+        $this->assertSame(101, $reply['parent']['id']);
+        $this->assertSame('Question?', $reply['parent']['message']);
+        $this->assertArrayNotHasKey('reactions', $reply['parent']);
+        $this->assertSame(['file' => $file], $fileShare['messageParameters']);
+        $this->assertArrayNotHasKey('parent', $fileShare);
     }
 
     public function testGetConversationMessagesUsesNextSourceOffsetWithoutDuplicates(): void
@@ -867,7 +1019,7 @@ class ProjectTalkIntegrationServiceTest extends TestCase
             ): array {
                 $this->assertSame('chat', $objectType);
                 $this->assertSame('42', $objectId);
-                $this->assertSame(['comment', 'object_shared'], $verbs);
+                $this->assertSame(['comment', 'object_shared', 'system', 'comment_deleted'], $verbs);
                 $this->assertSame('desc', $sortDirection);
                 $this->assertSame(50, $limit);
 
@@ -929,15 +1081,41 @@ class ProjectTalkIntegrationServiceTest extends TestCase
         string $message,
         string $messageType = 'comment',
         bool $visibility = true,
+        array $messageParameters = [],
+        int $parentId = 0,
     ): object {
-        return new class ($id, $actorDisplayName, $message, $messageType, $visibility) {
+        return new class ($id, $actorDisplayName, $message, $messageType, $visibility, $messageParameters, $parentId) {
             public function __construct(
                 private readonly int $id,
                 private readonly string $actorDisplayName,
                 private readonly string $message,
                 private readonly string $messageType,
                 private readonly bool $visibility,
+                private readonly array $messageParameters,
+                private readonly int $parentId,
             ) {
+            }
+
+            public function getParentId(): string
+            {
+                return (string)$this->parentId;
+            }
+
+            public function getReactions(): array
+            {
+                return $this->id === 105 ? ['👍' => 2] : [];
+            }
+
+            public function getMetaData(): ?array
+            {
+                return $this->id === 105
+                    ? ['last_edited_time' => 1700000000, 'last_edited_by_displayname' => 'Alice']
+                    : null;
+            }
+
+            public function getTestMessageParameters(): array
+            {
+                return $this->messageParameters;
             }
 
             public function getId(): string

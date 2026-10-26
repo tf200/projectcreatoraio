@@ -2629,6 +2629,9 @@ class ProjectService {
 			throw new OCSException('Project Not Found', 404);
 		}
 
+		$oldName = (string)$project->getName();
+		$wasArchived = $project->getStatus() === ProjectStatus::ARCHIVED;
+
 		// 2. Update Fields (Only if sent in request)
 		if ($name !== null) {
 			$project->setName($name);
@@ -2744,8 +2747,71 @@ class ProjectService {
 
 		// 3. Save via Mapper
 		$updatedProject = $this->projectMapper->updateProjectDetails($project);
+		$this->syncTalkRooms($updatedProject, $oldName, $wasArchived);
 		return $updatedProject;
 
+	}
+
+	/**
+	 * Carries a rename over to the project's Talk rooms, and makes them
+	 * read-only while the project is archived.
+	 */
+	private function syncTalkRooms(Project $project, string $oldName, bool $wasArchived): void {
+		$name = (string)$project->getName();
+		$isArchived = $project->getStatus() === ProjectStatus::ARCHIVED;
+		$renamed = trim($name) !== trim($oldName);
+		if ((!$renamed && $isArchived === $wasArchived) || !$this->projectTalkIntegrationService->isAvailable()) {
+			return;
+		}
+
+		$rooms = [];
+		$token = trim((string)($project->getTalkConversationToken() ?? ''));
+		if ($token !== '') {
+			$rooms[$token] = ProjectTalkIntegrationService::projectConversationName($name);
+		}
+		foreach ($this->directChatMapper?->findByProject((int)$project->getId()) ?? [] as $chat) {
+			$chatToken = trim((string)$chat->getTalkConversationToken());
+			if ($chatToken !== '') {
+				$rooms[$chatToken] = ProjectTalkIntegrationService::directConversationName(
+					$name,
+					$this->userDisplayName((string)$chat->getUser1Id()),
+					$this->userDisplayName((string)$chat->getUser2Id()),
+				);
+			}
+		}
+
+		foreach ($rooms as $roomToken => $roomName) {
+			if ($renamed) {
+				$this->projectTalkIntegrationService->renameConversation($roomToken, $roomName);
+			}
+			if ($isArchived !== $wasArchived) {
+				$this->projectTalkIntegrationService->setConversationReadOnly($roomToken, $isArchived);
+			}
+		}
+	}
+
+	private function userDisplayName(string $userId): string {
+		return $this->userManager->get($userId)?->getDisplayName() ?? $userId;
+	}
+
+	/**
+	 * A removed member leaves their direct chats in the project. The other
+	 * person keeps the history in Talk, read-only; the chat reopens when the
+	 * member is back and one of them opens it again. The rows stay so that
+	 * purging the project still deletes these rooms.
+	 */
+	public function releaseDirectChats(Project $project, IUser $user): void {
+		if ($this->directChatMapper === null) {
+			return;
+		}
+
+		foreach ($this->directChatMapper->findByProjectAndUser((int)$project->getId(), $user->getUID()) as $chat) {
+			$token = trim((string)$chat->getTalkConversationToken());
+			if ($token !== '') {
+				$this->projectTalkIntegrationService->removeUserFromConversation($token, $user);
+				$this->projectTalkIntegrationService->setConversationReadOnly($token, true);
+			}
+		}
 	}
 
 	/**
@@ -2976,6 +3042,12 @@ class ProjectService {
 
 		$directChat = $this->directChatMapper->findPair($projectId, $currentUserId, $targetUserId);
 		if ($directChat !== null) {
+			// One of them may have been removed from the project and added back since.
+			$this->projectTalkIntegrationService->reopenConversation(
+				(string)$directChat->getTalkConversationToken(),
+				[$currentUser, $targetUser],
+				$project->getStatus() !== ProjectStatus::ARCHIVED,
+			);
 			return $this->buildDirectChatPayload($directChat, $targetUser);
 		}
 
@@ -3071,7 +3143,8 @@ class ProjectService {
 
 		foreach ($chats as $chat) {
 			$otherUid = $chat->getOtherUserId($currentUserId);
-			if ($otherUid === null) {
+			// Chats with someone removed from the project stay in Talk only.
+			if ($otherUid === null || !$this->isProjectMember($project, $otherUid)) {
 				continue;
 			}
 
@@ -3100,7 +3173,7 @@ class ProjectService {
 	/**
 	 * Fetch messages for a direct chat between two members of a project.
 	 *
-	 * @return array{messages: list<array{id: int, actorDisplayName: string, message: string, timestamp: int, messageType: string}>, hasMore: bool, nextOffset: int}
+	 * @return array{messages: list<array<string, mixed>>, hasMore: bool, nextOffset: int}
 	 */
 	public function getDirectChatMessages(int $projectId, string $currentUserId, string $targetUserId, int $limit = 50, int $offset = 0): array {
 		$currentUserId = trim($currentUserId);
@@ -3137,6 +3210,6 @@ class ProjectService {
 			return ['messages' => [], 'hasMore' => false, 'nextOffset' => 0];
 		}
 
-		return $this->projectTalkIntegrationService->getConversationMessages($token, $limit, $offset);
+		return $this->projectTalkIntegrationService->getConversationMessages($token, $limit, $offset, $currentUserId);
 	}
 }

@@ -1243,7 +1243,8 @@ class ProjectApiController extends Controller {
 			return new DataResponse(['messages' => [], 'hasMore' => false, 'nextOffset' => 0]);
 		}
 
-		$result = $this->talkIntegrationService->getConversationMessages($token, $limit, $offset);
+		$viewerId = $this->userSession->getUser()?->getUID();
+		$result = $this->talkIntegrationService->getConversationMessages($token, $limit, $offset, $viewerId);
 		return new DataResponse($result);
 	}
 

@@ -15,6 +15,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectNote;
 use OCA\ProjectCreatorAIO\Db\ProjectNoteMapper;
 use OCA\ProjectCreatorAIO\Db\ProjectDirectChat;
 use OCA\ProjectCreatorAIO\Db\ProjectDirectChatMapper;
+use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCA\ProjectCreatorAIO\Service\CardPolicyService;
 use OCA\ProjectCreatorAIO\Service\FileTreeService;
 use OCA\ProjectCreatorAIO\Service\OrganizationPdfService;
@@ -499,6 +500,7 @@ final class ProjectServiceTest extends TestCase {
 		$talkService->method('buildConversationUrl')->with('existing-token')->willReturn('https://example.test/call/existing-token');
 		// createProjectDirectConversation should NOT be called
 		$talkService->expects($this->never())->method('createProjectDirectConversation');
+		$talkService->expects($this->once())->method('reopenConversation')->with('existing-token', [$alice, $bob], true);
 
 		$existingChat = new ProjectDirectChat();
 		$existingChat->setId(10);
@@ -700,11 +702,18 @@ final class ProjectServiceTest extends TestCase {
 		$chat->setUser2Id('bob');
 		$chat->setTalkConversationToken('tok-bob');
 
+		$formerChat = new ProjectDirectChat();
+		$formerChat->setId(21);
+		$formerChat->setProjectId(42);
+		$formerChat->setUser1Id('alice');
+		$formerChat->setUser2Id('carol');
+		$formerChat->setTalkConversationToken('tok-carol');
+
 		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
 		$chatMapper->expects($this->once())
 			->method('findByProjectAndUser')
 			->with(42, 'alice')
-			->willReturn([$chat]);
+			->willReturn([$chat, $formerChat]);
 
 		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
 		$talkService->method('buildConversationUrl')->with('tok-bob')->willReturn('https://example.test/call/tok-bob');
@@ -836,6 +845,115 @@ final class ProjectServiceTest extends TestCase {
 		$membership->setParticipantType($type);
 		$membership->setParticipantId($id);
 		return $membership;
+	}
+
+	public function testRenamingAProjectRenamesItsTalkRooms(): void {
+		[$service, $talkService] = $this->projectWithTalkRooms('Harbour', ProjectStatus::ACTIVE);
+		$renamed = [];
+		$talkService->method('renameConversation')->willReturnCallback(static function (string $token, string $name) use (&$renamed): void {
+			$renamed[$token] = $name;
+		});
+		$talkService->expects($this->never())->method('setConversationReadOnly');
+
+		$service->updateProjectDetails(42, name: 'Harbour Bridge');
+
+		$this->assertSame(['main-token' => 'Harbour Bridge - Chat', 'tok-bob' => 'Harbour Bridge - Alice & Bob'], $renamed);
+	}
+
+	public function testArchivingLocksTheTalkRoomsAndRestoringUnlocksThem(): void {
+		[$service, $talkService] = $this->projectWithTalkRooms('Harbour', ProjectStatus::ACTIVE);
+		$locked = [];
+		$talkService->method('setConversationReadOnly')->willReturnCallback(static function (string $token, bool $readOnly) use (&$locked): void {
+			$locked[] = [$token, $readOnly];
+		});
+		$talkService->expects($this->never())->method('renameConversation');
+
+		$service->updateProjectDetails(42, status: ProjectStatus::ARCHIVED);
+		$service->updateProjectDetails(42, status: ProjectStatus::ARCHIVED);
+		$service->updateProjectDetails(42, status: ProjectStatus::ACTIVE);
+
+		$this->assertSame([
+			['main-token', true], ['tok-bob', true],
+			['main-token', false], ['tok-bob', false],
+		], $locked);
+	}
+
+	public function testOtherEditsLeaveTheTalkRoomsAlone(): void {
+		[$service, $talkService] = $this->projectWithTalkRooms('Harbour', ProjectStatus::ACTIVE);
+		$talkService->expects($this->never())->method('renameConversation');
+		$talkService->expects($this->never())->method('setConversationReadOnly');
+
+		$service->updateProjectDetails(42, name: 'Harbour', description: 'New scope');
+	}
+
+	public function testARemovedMemberLeavesTheirDirectChats(): void {
+		$project = $this->project(42, 'alice', null);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+		$chat = new ProjectDirectChat();
+		$chat->setProjectId(42);
+		$chat->setUser1Id('alice');
+		$chat->setUser2Id('bob');
+		$chat->setTalkConversationToken('tok-bob');
+
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->method('findByProjectAndUser')->with(42, 'bob')->willReturn([$chat]);
+		// The row stays so that purging the project still deletes the room.
+		$chatMapper->expects($this->never())->method('delete');
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->expects($this->once())->method('removeUserFromConversation')->with('tok-bob', $bob);
+		$talkService->expects($this->once())->method('setConversationReadOnly')->with('tok-bob', true);
+
+		$service = $this->service(
+			$this->createMock(ProjectMapper::class),
+			$this->createMock(IGroupManager::class),
+			$this->createMock(IUserManager::class),
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+		);
+
+		$service->releaseDirectChats($project, $bob);
+	}
+
+	/** @return array{0: ProjectService, 1: ProjectTalkIntegrationService&\PHPUnit\Framework\MockObject\MockObject} */
+	private function projectWithTalkRooms(string $name, int $status): array {
+		$project = $this->project(42, 'alice', null);
+		$project->setName($name);
+		$project->setStatus($status);
+		$project->setTalkConversationToken('main-token');
+		$projectMapper = $this->createMock(ProjectMapper::class);
+		$projectMapper->method('find')->with(42)->willReturn($project);
+		$projectMapper->method('updateProjectDetails')->willReturnArgument(0);
+
+		$alice = $this->createConfiguredMock(IUser::class, ['getUID' => 'alice', 'getDisplayName' => 'Alice']);
+		$bob = $this->createConfiguredMock(IUser::class, ['getUID' => 'bob', 'getDisplayName' => 'Bob']);
+		$userManager = $this->createMock(IUserManager::class);
+		$userManager->method('get')->willReturnMap([['alice', $alice], ['bob', $bob]]);
+
+		$chat = new ProjectDirectChat();
+		$chat->setProjectId(42);
+		$chat->setUser1Id('alice');
+		$chat->setUser2Id('bob');
+		$chat->setTalkConversationToken('tok-bob');
+		$chatMapper = $this->createMock(ProjectDirectChatMapper::class);
+		$chatMapper->method('findByProject')->with(42)->willReturn([$chat]);
+
+		$talkService = $this->createMock(ProjectTalkIntegrationService::class);
+		$talkService->method('isAvailable')->willReturn(true);
+
+		$service = $this->service(
+			$projectMapper,
+			$this->createMock(IGroupManager::class),
+			$userManager,
+			$this->createMock(ProjectMemberRoleMapper::class),
+			$this->createMock(BoardPolicyRoleMapper::class),
+			$this->createMock(BoardPolicyMembershipMapper::class),
+			projectTalkIntegrationService: $talkService,
+			directChatMapper: $chatMapper,
+		);
+		return [$service, $talkService];
 	}
 
 	private function project(int $id, string $ownerId, ?int $boardId): Project {

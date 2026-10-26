@@ -196,23 +196,12 @@
 
 		<!-- Team Chat message list -->
 		<div v-else-if="mainTab === 'chat' && chatSubTab === 'team'" class="project-notes-list__chat-list">
-			<div
+			<ChatMessage
 				v-for="msg in chatMessages"
 				:key="msg.id"
-				class="project-notes-list__chat-message">
-				<div class="project-notes-list__chat-avatar">
-					{{ msg.actorDisplayName ? msg.actorDisplayName.charAt(0).toUpperCase() : '?' }}
-				</div>
-				<div class="project-notes-list__chat-content">
-					<div class="project-notes-list__chat-header">
-						<span class="project-notes-list__chat-author">{{ msg.actorDisplayName }}</span>
-						<span class="project-notes-list__chat-time">{{ formatDate(msg.timestamp * 1000) }}</span>
-					</div>
-					<p class="project-notes-list__chat-text">
-						{{ msg.message }}
-					</p>
-				</div>
-			</div>
+				:message="msg"
+				:current-user-id="currentUserId"
+				:format-date="formatDate" />
 			<div v-if="chatHasMore" class="project-notes-list__chat-load-more">
 				<NcButton
 					type="secondary"
@@ -374,23 +363,12 @@
 						</div>
 
 						<div v-else class="project-notes-list__chat-list project-notes-list__direct-message-list">
-							<div
+							<ChatMessage
 								v-for="msg in directChatMessages"
 								:key="msg.id"
-								class="project-notes-list__chat-message">
-								<div class="project-notes-list__chat-avatar">
-									{{ msg.actorDisplayName ? msg.actorDisplayName.charAt(0).toUpperCase() : '?' }}
-								</div>
-								<div class="project-notes-list__chat-content">
-									<div class="project-notes-list__chat-header">
-										<span class="project-notes-list__chat-author">{{ msg.actorDisplayName }}</span>
-										<span class="project-notes-list__chat-time">{{ formatDate(msg.timestamp * 1000) }}</span>
-									</div>
-									<p class="project-notes-list__chat-text">
-										{{ msg.message }}
-									</p>
-								</div>
-							</div>
+								:message="msg"
+								:current-user-id="currentUserId"
+								:format-date="formatDate" />
 							<div v-if="directChatHasMore" class="project-notes-list__chat-load-more">
 								<NcButton
 									type="secondary"
@@ -557,6 +535,7 @@ import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import CreateNoteModal from './CreateNoteModal.vue'
 import CardDetailModal from './CardDetailModal.vue'
+import ChatMessage from './ProjectChat/ChatMessage.vue'
 import { ProjectsService } from '../Services/projects.js'
 import { NOTE_TYPES, noteTypeLabel } from '../constants/note-types.js'
 
@@ -586,6 +565,7 @@ export default {
 		Magnify,
 		CreateNoteModal,
 		CardDetailModal,
+		ChatMessage,
 	},
 	props: {
 		projectId: {
@@ -1659,18 +1639,6 @@ export default {
 	overflow-y: auto;
 }
 
-.project-notes-list__chat-message {
-	display: flex;
-	gap: 12px;
-	padding: 12px 16px;
-	border-radius: 12px;
-	transition: background 0.15s ease;
-}
-
-.project-notes-list__chat-message:hover {
-	background: var(--color-background-hover);
-}
-
 .project-notes-list__chat-avatar {
 	width: 36px;
 	height: 36px;
@@ -1683,39 +1651,6 @@ export default {
 	font-size: 14px;
 	font-weight: 800;
 	flex-shrink: 0;
-}
-
-.project-notes-list__chat-content {
-	flex: 1;
-	min-width: 0;
-}
-
-.project-notes-list__chat-header {
-	display: flex;
-	align-items: baseline;
-	gap: 10px;
-	margin-bottom: 4px;
-}
-
-.project-notes-list__chat-author {
-	font-size: 13px;
-	font-weight: 700;
-	color: var(--color-main-text);
-}
-
-.project-notes-list__chat-time {
-	font-size: 11px;
-	font-weight: 600;
-	color: var(--color-text-maxcontrast);
-}
-
-.project-notes-list__chat-text {
-	margin: 0;
-	font-size: 14px;
-	color: var(--color-main-text);
-	line-height: 1.5;
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
 }
 
 .project-notes-list__chat-load-more {

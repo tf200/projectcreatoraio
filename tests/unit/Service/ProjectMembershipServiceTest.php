@@ -100,6 +100,7 @@ final class ProjectMembershipServiceTest extends TestCase {
 		$this->policyMembershipMapper->expects($this->once())->method('delete')->with($membership);
 		$this->memberSourceMapper->expects($this->once())->method('deleteByProjectAndUser')->with(42, 'bob');
 		$this->talk->expects($this->once())->method('removeUserFromConversation')->with('talk-token', $this->bob);
+		$this->projectService->expects($this->once())->method('releaseDirectChats')->with($this->anything(), $this->bob);
 		$this->activity->expects($this->once())->method('recordMemberRemoved');
 
 		$result = $this->service->removeMember(42, 'bob');

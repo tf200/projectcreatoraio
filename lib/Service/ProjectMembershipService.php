@@ -28,7 +28,8 @@ use Throwable;
  *
  * Removing a member revokes everything a project grants: the project group
  * (Deck board, Team Folder), DRASCIVS and functional roles, the Talk
- * conversation and the private folder, which is handed to the project owner.
+ * conversation and their direct chats in the project, and the private
+ * folder, which is handed to the project owner.
  * Only an explicit removal does that: people who once worked on a project
  * stay on it when their team is switched, changed or deleted.
  */
@@ -101,6 +102,11 @@ class ProjectMembershipService {
 
 		if ($user !== null) {
 			$this->talkIntegrationService->removeUserFromConversation((string)($project->getTalkConversationToken() ?? ''), $user);
+			try {
+				$this->projectService->releaseDirectChats($project, $user);
+			} catch (Throwable $e) {
+				$this->logger->warning('Failed to close the removed member\'s direct chats', ['projectId' => $projectId, 'exception' => $e]);
+			}
 		}
 
 		$privateFolder = $this->handOverPrivateFolder($project, $userId, $user?->getDisplayName() ?: $userId);
