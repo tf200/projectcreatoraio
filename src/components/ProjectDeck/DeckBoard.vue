@@ -82,7 +82,7 @@
 
 <script>
 import NcButton from '@nextcloud/vue/components/NcButton'
-import { generateFilePath, generateUrl } from '@nextcloud/router'
+import { generateUrl } from '@nextcloud/router'
 
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
@@ -92,6 +92,7 @@ import ShieldAccount from 'vue-material-design-icons/ShieldAccount.vue'
 import { DeckService } from '../../Services/deck.js'
 import { ProjectsService } from '../../Services/projects.js'
 import DeckCardPolicyManager from './DeckCardPolicyManager.vue'
+import { deckEmbedScriptUrl } from '../../Services/deckEmbedScript.js'
 
 const deckService = DeckService.getInstance()
 const projectsService = ProjectsService.getInstance()
@@ -233,8 +234,7 @@ export default {
 				return true
 			}
 
-			// Must be a static asset URL (no index.php front controller), otherwise Nextcloud returns HTML.
-			const src = generateFilePath('deck', '', 'js/deck-embedded-tasks.js')
+			const src = deckEmbedScriptUrl()
 			window.__projectcreatoraioDeckEmbedLoading = window.__projectcreatoraioDeckEmbedLoading || new Promise((resolve, reject) => {
 				const existing = document.querySelector(`script[data-projectcreatoraio-deck-embed="1"][src="${src}"]`)
 				if (existing) {

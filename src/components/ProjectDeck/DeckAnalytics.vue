@@ -17,7 +17,7 @@
 </template>
 
 <script>
-import { generateFilePath } from '@nextcloud/router'
+import { deckEmbedScriptUrl } from '../../Services/deckEmbedScript.js'
 
 export default {
 	name: 'DeckAnalytics',
@@ -53,8 +53,7 @@ export default {
 			}
 
 			// Same bundle as tasks, but analytics is mounted through a different API.
-			// Must be a static asset URL (no index.php front controller), otherwise Nextcloud returns HTML.
-			const src = generateFilePath('deck', '', 'js/deck-embedded-tasks.js')
+			const src = deckEmbedScriptUrl()
 			window.__projectcreatoraioDeckEmbedLoading = window.__projectcreatoraioDeckEmbedLoading || new Promise((resolve, reject) => {
 				const existing = document.querySelector(`script[data-projectcreatoraio-deck-embed="1"][src="${src}"]`)
 				if (existing) {
