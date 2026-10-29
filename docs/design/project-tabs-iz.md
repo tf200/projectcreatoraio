@@ -79,6 +79,14 @@ current interface is untouched — no file under `src/components/` changed.
   list scrolls inside a box of eight rows with a fade; on a narrow screen it runs full
   length with a column pill instead of the track.
 
+- **Next milestone** — the header's badge names the open task whose due date comes up
+  first (`nextMilestoneOf` in `overview.js`, from the board the overview already loads):
+  anything overdue first, red, with the most overdue task and "n days late"; then a task
+  due today, amber; otherwise the nearest date. "+n" counts the other tasks due that day
+  (or the other overdue ones), and hovering lists them. On one date critical process
+  steps come first, then the task furthest along the board, then the title. Clicking
+  opens Tasks. It replaces the phase end date the badge used to show.
+
 - **Task cards** — the new layout embeds Deck with `cardFace: 'inzicht'` (`NewTasks.embedOptions`;
   `DeckBoard` passes none, so the current interface keeps Deck's cards). The Deck fork
   then draws `CardFaceInzicht`: labels first ("Blokkade" first, deep red, with a warning

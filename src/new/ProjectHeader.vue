@@ -10,7 +10,7 @@
    <button class="pc-badge pc-primary-tint" @click="$emit('navigate', 'planning')"><ChartDonut :size="18" />{{ overview.planning.loading ? 'Loading progress…' : progress.percent === null ? 'Progress unavailable' : progress.percent + '% checklist completed' }}</button>
    <button v-if="planning.conflict" class="pc-badge pc-tone-danger" @click="$emit('navigate', 'planning')"><AlertCircleOutline :size="17" />1 planning conflict</button>
    <button v-if="riskCount !== null" class="pc-badge pc-tone-warning" @click="$emit('navigate', 'notes')"><FlagOutline :size="17" />{{ riskCount }} risk {{ riskCount === 1 ? 'note' : 'notes' }}</button>
-   <button class="pc-badge" @click="$emit('navigate', 'planning')"><CalendarMonthOutline :size="17" />{{ overview.planning.loading ? 'Loading milestone…' : overview.planning.error ? 'Milestone unavailable' : planning.milestone ? 'Next milestone: ' + date(planning.milestone.date) : 'Next milestone not scheduled' }}</button>
+   <button class="pc-badge pc-badge--milestone" :class="{ 'pc-tone-danger': milestone && milestone.state === 'overdue', 'pc-tone-warning': milestone && milestone.state === 'today' }" :title="milestoneHint" @click="$emit('navigate', 'tasks')"><AlertCircleOutline v-if="milestone && milestone.state === 'overdue'" :size="17" /><CalendarMonthOutline v-else :size="17" />{{ milestoneText }}<span v-if="milestone && milestone.more" class="pc-badge-more">+{{ milestone.more }}</span></button>
   </div>
   <nav class="pc-tabs" :aria-label="t('projectcreatoraio', 'Project sections')"><a v-for="item in availableTabs" :key="item.id" :href="tabUrl(item.id)" :aria-current="tab === item.id ? 'page' : null" @click.prevent="$emit('navigate', item.id)"><component :is="item.icon" :size="18" />{{ item.label }}</a></nav>
  </header>
@@ -23,7 +23,7 @@ import CircleOutline from 'vue-material-design-icons/CircleOutline.vue'
 import ChartDonut from 'vue-material-design-icons/ChartDonut.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import FlagOutline from 'vue-material-design-icons/FlagOutline.vue'
-import { progressSummary, planningSummary, dateLabel } from './overview.js'
+import { progressSummary, planningSummary, nextMilestoneOf } from './overview.js'
 
 import ViewDashboardOutline from 'vue-material-design-icons/ViewDashboardOutline.vue'
 import ClipboardCheckOutline from 'vue-material-design-icons/ClipboardCheckOutline.vue'
@@ -44,6 +44,19 @@ export default {
   chatUrl() { return this.context.features?.talk !== false && this.project.talk_conversation_token ? generateUrl('/call/' + encodeURIComponent(this.project.talk_conversation_token)) : null },
   progress() { return progressSummary(this.overview.planning.data) },
   planning() { return planningSummary(this.overview.planning.data) },
+  // The open task whose due date comes up first (overview.js, nextMilestoneOf).
+  milestone() { return this.overview.tasks?.data ? nextMilestoneOf(this.overview.tasks.data) : null },
+  milestoneText() {
+   if (this.overview.tasks?.loading) return 'Loading milestone…'
+   if (this.overview.tasks?.error) return 'Milestone unavailable'
+   return this.milestone ? 'Next milestone: ' + this.milestone.title + ' · ' + this.milestone.when : 'Next milestone not scheduled'
+  },
+  // Hovering lists the tasks the number counts.
+  milestoneHint() {
+   if (!this.milestone || !this.milestone.more) return 'Open Tasks'
+   const heading = this.milestone.state === 'overdue' ? 'Overdue' : this.milestone.state === 'today' ? 'Due today' : 'Due ' + this.milestone.when
+   return heading + ':\n' + this.milestone.tasks.map(title => '• ' + title).join('\n')
+  },
   riskCount() { const count = this.overview.notes.data?.risks; return Number.isFinite(count) ? count : null },
   statusLabel() { return getProjectStatusLabel(this.project.status) },
   projectType() { return PROJECT_TYPES.find(p => p.id === Number(this.project.type))?.label || '' },
@@ -69,6 +82,6 @@ export default {
     .filter(([, feature]) => features[feature] === false).map(([tab]) => tab)
   },
  },
- methods: { date: dateLabel, tabUrl(tab) { return interfaceUrl(this.base, { projectId: this.project.id, tab }) } },
+ methods: { tabUrl(tab) { return interfaceUrl(this.base, { projectId: this.project.id, tab }) } },
 }
 </script>

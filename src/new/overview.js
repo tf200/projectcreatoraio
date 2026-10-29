@@ -1,3 +1,4 @@
+import { CRITICAL_LABELS } from './tasks-progress.js'
 export function progressSummary(summary) {
  const process = summary?.processCompleted
  const total = Number(process?.totalRequired || 0), done = Number(process?.doneCount || 0)
@@ -133,4 +134,28 @@ function overallOf(s, ended, planned, today) {
  if (to === null) return none('of the timeline · no end date planned yet, so there is nothing to measure against')
  const percent = ended ? 100 : to <= from ? (today >= to ? 100 : 0) : Math.min(100, Math.max(0, Math.round((today - from) / (to - from) * 100)))
  return { percent, estimate: note !== '', text: `of the timeline · ${dateLabel(requestDate)} → ${label} ${dateLabel(end)}`, note }
+}
+
+// The header's next milestone: the open task whose due date comes up first.
+// Anything overdue comes first (the most overdue), then anything due today,
+// then the nearest date. On one date: critical process steps, then the task
+// furthest along the board, then the title. Null when no open task has a date.
+const localDay = value => { const d = new Date(value); return Number.isNaN(d.getTime()) ? null : Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) }
+export function nextMilestoneOf(stacks, now = Date.now()) {
+ const today = localDay(now)
+ const columns = (Array.isArray(stacks) ? stacks : []).filter(stack => !stack.deletedAt).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+ const tasks = columns.flatMap((stack, stage) => (stack.cards || [])
+  .filter(card => !card.archived && !card.deletedAt && !card.done && card.duedate)
+  .map(card => ({ title: String(card.title || ''), due: card.duedate, day: localDay(card.duedate), stage, critical: (card.labels || []).some(label => CRITICAL_LABELS.includes(label?.title)) })))
+  .filter(task => task.day !== null)
+ if (!tasks.length) return null
+ const order = (a, b) => a.day - b.day || Number(b.critical) - Number(a.critical) || b.stage - a.stage || a.title.localeCompare(b.title)
+ const overdue = tasks.filter(task => task.day < today).sort(order)
+ const first = Math.min(...tasks.map(task => task.day))
+ const group = overdue.length ? overdue : tasks.filter(task => task.day === first).sort(order)
+ const lead = group[0]
+ const state = overdue.length ? 'overdue' : lead.day === today ? 'today' : 'upcoming'
+ const late = today - lead.day
+ const when = state === 'overdue' ? (late === 1 ? '1 day late' : late + ' days late') : state === 'today' ? 'today' : dateLabel(lead.due)
+ return { title: lead.title, when, state, more: group.length - 1, tasks: group.map(task => task.title) }
 }

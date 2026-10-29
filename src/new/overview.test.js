@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { progressSummary, planningSummary, timelineOf, assignedTasks, openTasks, recentFiles, activityText } from './overview.js'
+import { progressSummary, planningSummary, timelineOf, nextMilestoneOf, assignedTasks, openTasks, recentFiles, activityText } from './overview.js'
 test('checklist completion preserves unavailable and missing-card states', () => {
  assert.equal(progressSummary(null).percent, null)
  assert.equal(progressSummary({ processCompleted: { status: 'error', doneCount: 1, totalRequired: 2 } }).percent, null)
@@ -132,4 +132,39 @@ test('without any date to measure to the timeline has no percentage', () => {
  assert.deepEqual(timelineOf({ ...fresh, minimumStartDate: null, kpis: { today: '2026-10-19' } }).overall, { percent: null, estimate: false, text: 'of the timeline · no end date planned yet, so there is nothing to measure against', note: '' })
  assert.equal(timelineOf({ ...fresh, requestDate: null, plannedEndDate: '2026-11-23' }).overall.text, 'of the timeline · no request date yet')
  assert.equal(timelineOf(null).overall.percent, null)
+})
+
+// A board on 29 Oct 2026, noon: three columns in order, with the cards as Deck sends them.
+const NOW = new Date(2026, 9, 29, 12).getTime()
+const crit = [{ title: 'Kritieke Processtap' }]
+const board = (...columns) => columns.map((cards, order) => ({ id: order + 1, title: 'Column ' + order, order, cards }))
+test('the next milestone is the open task due first, critical and furthest along first on one date', () => {
+ const m = nextMilestoneOf(board(
+  [{ id: 1, title: 'Garantie overeenkomst', duedate: '2026-11-18T22:51:32+00:00' }, { id: 2, title: 'Huisnummerbesluit', duedate: '2026-11-18T10:00:00+00:00', labels: crit }],
+  [{ id: 3, title: 'Intakeformulier', duedate: '2026-11-18T09:00:00+00:00', labels: crit }, { id: 4, title: 'Quickscan', duedate: '2027-02-19T00:00:00+00:00', labels: crit }],
+  [{ id: 5, title: 'Klaar', duedate: '2026-10-01T00:00:00+00:00', done: '2026-10-02' }, { id: 6, title: 'Weg', duedate: '2026-10-01T00:00:00+00:00', archived: true }],
+ ), NOW)
+ assert.equal(m.title, 'Intakeformulier', 'critical, and in a later column than Huisnummerbesluit')
+ assert.equal(m.state, 'upcoming')
+ assert.match(m.when, /^18 Nov 2026$/)
+ assert.equal(m.more, 2)
+ assert.deepEqual(m.tasks, ['Intakeformulier', 'Huisnummerbesluit', 'Garantie overeenkomst'])
+})
+test('anything overdue comes first, the most overdue leading', () => {
+ const m = nextMilestoneOf(board(
+  [{ id: 1, title: 'Morgen', duedate: '2026-10-30T09:00:00+00:00' }, { id: 2, title: 'Huisnummerbesluit', duedate: '2026-10-26T09:00:00+00:00' }],
+  [{ id: 3, title: 'Gisteren', duedate: '2026-10-28T09:00:00+00:00' }],
+ ), NOW)
+ assert.deepEqual([m.title, m.state, m.when, m.more], ['Huisnummerbesluit', 'overdue', '3 days late', 1])
+ assert.equal(nextMilestoneOf(board([{ id: 3, title: 'Gisteren', duedate: '2026-10-28T09:00:00+00:00' }]), NOW).when, '1 day late')
+})
+test('a task due today says so', () => {
+ const m = nextMilestoneOf(board([{ id: 1, title: 'Intakeformulier', duedate: '2026-10-29T16:00:00+00:00' }, { id: 2, title: 'Later', duedate: '2026-11-02T09:00:00+00:00' }]), NOW)
+ assert.deepEqual([m.title, m.state, m.when, m.more], ['Intakeformulier', 'today', 'today', 0])
+})
+test('no milestone without an open task that has a due date', () => {
+ assert.equal(nextMilestoneOf(board([{ id: 1, title: 'Zonder datum' }, { id: 2, title: 'Klaar', duedate: '2026-11-01', done: '2026-10-20' }]), NOW), null)
+ assert.equal(nextMilestoneOf([], NOW), null)
+ assert.equal(nextMilestoneOf(null, NOW), null)
+ assert.equal(nextMilestoneOf([{ order: 0, deletedAt: 5, cards: [{ id: 1, title: 'In a deleted column', duedate: '2026-11-01' }] }], NOW), null)
 })
