@@ -1,7 +1,8 @@
 /* Presentation only: keep the whiteboard handler, its WebDAV source, the
  * autosave cycle and the overlay lifecycle exactly as they are. The extra root
  * class out-ranks the components' own scoped rules without reaching the
- * standalone whiteboard app or the legacy project interface.
+ * standalone whiteboard app or the legacy project interface. Focus mode is the
+ * one exception: it enlarges the inline board rather than opening the overlay.
  */
 .pc-new .pc-whiteboard-theme.whiteboard-board {
 	gap: 14px;
@@ -30,6 +31,14 @@
 .pc-new .pc-whiteboard-theme .whiteboard-board__frame { border-radius: var(--border-radius-large); min-height: 440px; }
 .pc-new .pc-whiteboard-theme .whiteboard-board__preview-wrap { height: 62vh; max-height: none; min-height: 440px; }
 .pc-new .pc-whiteboard-theme .whiteboard-board__hint { padding: 16px; font-size: 12px; }
+
+/* Focus mode: the same inline board fills the window (see enterFocus). */
+body.pc-whiteboard-focus #content-vue,
+body.pc-whiteboard-focus #content { z-index: 2001; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__frame.whiteboard-board__frame--focused { position: fixed; inset: 0; height: auto; z-index: 10000; display: flex; flex-direction: column; min-height: 0; border: 0; border-radius: 0; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__frame--focused .whiteboard-board__preview-wrap { flex: 1 1 auto; height: auto; min-height: 0; max-height: none; }
+.pc-new .pc-whiteboard-theme .whiteboard-board__focus-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--color-border); background: var(--color-main-background); }
+.pc-new .pc-whiteboard-theme .whiteboard-board__focus-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; }
 .pc-new .pc-whiteboard-theme .whiteboard-board__loading,
 .pc-new .pc-whiteboard-theme .whiteboard-board__error { font-size: 13px; }
 

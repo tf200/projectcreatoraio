@@ -33,7 +33,16 @@
 			</div>
 		</div>
 
-		<div class="whiteboard-board__frame">
+		<div class="whiteboard-board__frame" :class="{ 'whiteboard-board__frame--focused': focused }">
+			<div v-if="focused" class="whiteboard-board__focus-bar">
+				<span class="whiteboard-board__focus-title">{{ whiteboardInfo ? whiteboardInfo.name : 'Whiteboard' }}</span>
+				<NcButton type="secondary" @click="exitFocus">
+					<template #icon>
+						<ArrowCollapse :size="18" />
+					</template>
+					Exit focus mode
+				</NcButton>
+			</div>
 			<div v-if="error" class="whiteboard-board__error">
 				{{ error }}
 			</div>
@@ -77,6 +86,7 @@
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
+import ArrowCollapse from 'vue-material-design-icons/ArrowCollapse.vue'
 import ArrowExpand from 'vue-material-design-icons/ArrowExpand.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
@@ -93,6 +103,7 @@ export default {
 	components: {
 		NcButton,
 		NcLoadingIcon,
+		ArrowCollapse,
 		ArrowExpand,
 		EyeOutline,
 		OpenInNew,
@@ -143,6 +154,7 @@ export default {
 			lastSyncAttemptAt: 0,
 			isPopoutWindow: false,
 			overlayOpen: false,
+			focused: false,
 		}
 	},
 	computed: {
@@ -201,6 +213,9 @@ export default {
 		}
 	},
 	beforeDestroy() {
+		if (this.focused) {
+			this.setPageFocus(false)
+		}
 		// Inline edits can be newer than the last ten-second autosave.
 		if (this.inlineEditing) {
 			this.syncLocalSnapshotToServer({ force: true }).catch(() => {})
@@ -533,8 +548,31 @@ export default {
 				},
 			})
 		},
+		// The modern tab's focus mode enlarges the board that is already on the
+		// page. Opening the Viewer overlay instead would mount a second board,
+		// which decodes every PDF page again (about 120 MB a page) and reloads
+		// the inline board when it closes.
+		enterFocus() {
+			this.focused = true
+			this.setPageFocus(true)
+			this.startAutosave()
+		},
+		async exitFocus() {
+			this.focused = false
+			this.setPageFocus(false)
+			await this.syncLocalSnapshotToServer({ force: true })
+		},
+		// Nextcloud's header stacks above the app content; the body class lets
+		// the theme lift the content over it while the board fills the window.
+		setPageFocus(on) {
+			document.body.classList.toggle('pc-whiteboard-focus', on)
+		},
 		openPopout() {
 			this.error = ''
+			if (this.inlineEditing && this.openMode === 'overlay' && !this.isPopoutWindow && this.handler && this.whiteboardInfo) {
+				this.enterFocus()
+				return
+			}
 			if (this.isPopoutWindow || this.openMode === 'overlay') {
 				this.openOverlay()
 				return

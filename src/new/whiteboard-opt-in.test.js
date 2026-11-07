@@ -77,11 +77,14 @@ test('a failed second page keeps the events already on screen', async () => {
 	assert.ok(instance.error)
 })
 
+const page = new Set()
+const document = { body: { classList: { toggle: (name, on) => { if (on) page.add(name); else page.delete(name) } } } }
 const boardOptions = (win = {}) => load('../components/ProjectWhiteboard/WhiteboardBoard.vue', {
 	ProjectsService: { getInstance: () => ({}) },
 	generateUrl: value => value,
 	generateRemoteUrl: value => value,
 	window: win,
+	document,
 })
 const board = overrides => build(boardOptions(), { projectId: 21, userId: 'emma', ...overrides })
 
@@ -111,6 +114,53 @@ test('the inline board stands down while the overlay holds the same file', () =>
 	assert.equal(modern.inlineSuspended, false)
 	modern.overlayOpen = true
 	assert.equal(modern.inlineSuspended, true)
+})
+
+test('focus mode on the modern tab enlarges the inline board instead of opening a second one', async () => {
+	// A second board instance decodes the PDF pages again (about 120 MB a page).
+	let overlays = 0
+	const modern = board({ inlineEditing: true, openMode: 'overlay', handler: {}, whiteboardInfo: { fileId: 5 } })
+	modern.openOverlay = () => { overlays++ }
+	let autosaves = 0
+	modern.startAutosave = () => { autosaves++ }
+	modern.openPopout()
+	assert.equal(overlays, 0)
+	assert.equal(modern.focused, true)
+	assert.equal(modern.inlineSuspended, false, 'the inline board stays mounted')
+	assert.equal(autosaves, 1)
+
+	const syncs = []
+	modern.syncLocalSnapshotToServer = async options => { syncs.push(options) }
+	const key = modern.previewKey
+	await modern.exitFocus()
+	assert.equal(modern.focused, false)
+	assert.deepEqual(syncs.map(options => options.force), [true])
+	assert.equal(modern.previewKey, key, 'leaving focus must not remount the board')
+})
+
+test('focus mode lifts the app above the Nextcloud header only while it is on', async () => {
+	// The header (z-index 2000) otherwise covers the focus bar and its exit button.
+	const options = boardOptions()
+	const modern = build(options, { projectId: 21, userId: 'emma', inlineEditing: true, openMode: 'overlay', handler: {}, whiteboardInfo: { fileId: 5 } })
+	modern.startAutosave = () => {}
+	modern.syncLocalSnapshotToServer = async () => {}
+	modern.openPopout()
+	assert.ok(page.has('pc-whiteboard-focus'))
+	await modern.exitFocus()
+	assert.ok(!page.has('pc-whiteboard-focus'))
+	modern.openPopout()
+	modern.stopAutosave = () => {}
+	options.beforeDestroy.call(modern)
+	assert.ok(!page.has('pc-whiteboard-focus'), 'leaving the tab must not strand the page lifted')
+})
+
+test('focus mode falls back to the overlay while the inline board is not there', () => {
+	let overlays = 0
+	const modern = board({ inlineEditing: true, openMode: 'overlay', handler: null, whiteboardInfo: null })
+	modern.openOverlay = () => { overlays++ }
+	modern.openPopout()
+	assert.equal(overlays, 1)
+	assert.equal(modern.focused, false)
 })
 
 test('autosave only follows an interaction the modern tab opted into', () => {
