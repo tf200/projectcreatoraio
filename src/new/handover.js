@@ -16,11 +16,19 @@ export function latestHandover(preview) {
 	return dayOf(preview?.actualStartDate) || dayOf(preview?.actualEndDate)
 }
 
+// Nothing on the timeline comes before the project was requested.
+export function earliestHandover(preview) {
+	return dayOf(preview?.requestDate)
+}
+
 export function handoverDraft(preview, today = new Date()) {
+	const earliest = earliestHandover(preview)
 	const latest = latestHandover(preview)
-	const day = isoDay(today)
+	let day = isoDay(today)
+	if (latest && latest < day) day = latest
+	if (earliest && earliest > day) day = earliest
 	return {
-		date: dayOf(preview?.handoverDate) || (latest && latest < day ? latest : day),
+		date: dayOf(preview?.handoverDate) || day,
 		ownerUid: preview?.ownerId || '',
 		team: { mode: 'keep', teamId: preview?.team?.id ?? null },
 		add: [],
@@ -79,6 +87,10 @@ export function handoverProblem(preview, draft) {
 // The first step: the date, the team and the people added.
 export function whoProblem(draft, preview = {}) {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) return 'Choose the handover date.'
+	const earliest = earliestHandover(preview)
+	if (earliest && draft.date < earliest) {
+		return 'The handover can’t be before the request date (' + dayLabel(earliest) + ').'
+	}
 	const latest = latestHandover(preview)
 	if (latest && draft.date > latest) {
 		const what = dayOf(preview.actualStartDate) ? 'actual start' : 'end date'
@@ -90,6 +102,30 @@ export function whoProblem(draft, preview = {}) {
 		if (problem) return person.displayName + ': ' + problem.charAt(0).toLowerCase() + problem.slice(1)
 	}
 	return ''
+}
+
+/**
+ * How the chosen day compares with the plan: allowed, but worth knowing.
+ * The Planning tab's Handover card says the same (TimelinePlanningService::dateWarnings).
+ * @param {object} preview the handover preview
+ * @param {string} date the chosen handover day
+ */
+export function handoverWarnings(preview, date) {
+	const day = dayOf(date)
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return []
+	const warnings = []
+	const process = preview?.processCompleted || {}
+	const processDate = dayOf(process.date)
+	if (['incomplete', 'missing_cards'].includes(process.status) || (processDate && day < processDate)) {
+		warnings.push('Handover before the process steps are done')
+	}
+	if (!dayOf(preview?.actualStartDate)) {
+		const minimum = dayOf(preview?.minimumStartDate)
+		const desired = dayOf(preview?.desiredStartDate)
+		if (minimum && day > minimum) warnings.push('Handover after the minimum start (' + dayLabel(minimum) + '), so preparation is squeezed')
+		if (desired && day > desired) warnings.push('Handover after the desired start (' + dayLabel(desired) + ')')
+	}
+	return warnings
 }
 
 export function externalsProblem(preview, draft) {

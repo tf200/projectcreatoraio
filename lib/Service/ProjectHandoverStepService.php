@@ -81,6 +81,10 @@ class ProjectHandoverStepService {
 
 		return [
 			'handoverDate' => $summary['actualHandoverDate'] ?? null,
+			'requestDate' => $summary['requestDate'] ?? null,
+			'processCompleted' => $summary['processCompleted'] ?? null,
+			'minimumStartDate' => $summary['minimumStartDate'] ?? null,
+			'desiredStartDate' => $summary['desiredStartDate'] ?? null,
 			'plannedEndDate' => $summary['plannedEndDate'] ?? null,
 			'actualStartDate' => $summary['actualStartDate'] ?? null,
 			'actualEndDate' => $summary['actualEndDate'] ?? null,

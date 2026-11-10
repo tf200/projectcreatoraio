@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { handoverDraft, joiningWithTeam, ownerOptions, externalEnd, externalEndText, handoverProblem, handoverPayload, handoverSummary, latestHandover, stepReport, whoProblem } from './handover.js'
+import { earliestHandover, handoverWarnings, handoverDraft, joiningWithTeam, ownerOptions, externalEnd, externalEndText, handoverProblem, handoverPayload, handoverSummary, latestHandover, stepReport, whoProblem } from './handover.js'
 
 // Project 39 on the dev server, trimmed: Team Zuid works on it, Klaas is external.
 const preview = {
@@ -87,4 +87,20 @@ test('the handover can’t come after the actual start', () => {
 	assert.equal(whoProblem(draft, started), '')
 	assert.equal(whoProblem({ ...draft, date: '2026-10-28' }, started), 'The handover can’t be after the actual start (20 Oct 2026).')
 	assert.equal(handoverDraft({ externals: [] }, new Date(2026, 9, 28)).date, '2026-10-28')
+})
+
+test('the handover can’t come before the request date', () => {
+	const fresh = { requestDate: '2026-11-02', externals: [] }
+	assert.equal(earliestHandover(fresh), '2026-11-02')
+	assert.equal(handoverDraft(fresh, new Date(2026, 9, 28)).date, '2026-11-02')
+	assert.equal(whoProblem({ ...handoverDraft(fresh), date: '2026-10-30' }, fresh), 'The handover can’t be before the request date (2 Nov 2026).')
+})
+
+test('a handover that misses the plan is warned about, not refused', () => {
+	const plan = { requestDate: '2026-08-03', processCompleted: { status: 'complete', date: '2026-09-14' }, minimumStartDate: '2026-10-05', desiredStartDate: '2026-10-19', externals: [] }
+	assert.deepEqual(handoverWarnings(plan, '2026-09-21'), [])
+	assert.deepEqual(handoverWarnings(plan, '2026-09-07'), ['Handover before the process steps are done'])
+	assert.deepEqual(handoverWarnings(plan, '2026-10-26'), ['Handover after the minimum start (5 Oct 2026), so preparation is squeezed', 'Handover after the desired start (19 Oct 2026)'])
+	assert.equal(whoProblem({ ...handoverDraft(plan), date: '2026-10-26' }, plan), '')
+	assert.deepEqual(handoverWarnings({ ...plan, processCompleted: { status: 'incomplete' } }, '2026-09-21'), ['Handover before the process steps are done'])
 })

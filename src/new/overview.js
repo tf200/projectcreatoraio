@@ -90,13 +90,17 @@ export function timelineOf(summary, now = Date.now()) {
  const warnings = Array.isArray(s.handoverWarnings) ? s.handoverWarnings : []
  const handoverNote = warnings.length ? warnings.join(' · ') : handover ? 'Handed to the execution team' : 'After the process steps'
  const preparation = Math.max(0, Number(s.requiredPreparationWeeks) || 0)
+ // The server's warnings when a start misses the plan, as on the Planning tab.
+ const listOf = value => (Array.isArray(value) ? value : [])
+ const desiredWarnings = listOf(s.dateWarnings?.desiredStart)
+ const actualWarnings = listOf(s.dateWarnings?.actualStart)
  return {
   status: { tone, label: desired ? label : label + ' (no target)', text },
   // Which group the project is in: 0 Initiation until the handover, 1 Execution
   // until the actual start, 2 Delivery on site, 3 ended.
   stage: ended ? 3 : actual ? 2 : handover ? 1 : 0,
   initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0, handover, handoverNote, handoverWarn: warnings.length > 0 },
-  execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual },
+  execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual, desiredNote: desiredWarnings.join(' · '), actualNote: actualWarnings.join(' · ') },
   delivery: { end: ended || planned, planned: !!planned, note: endNote, weeks },
   overall: overallOf(s, ended, planned, dayOf(s.kpis?.today) ?? dayOf(new Date(now).toISOString())),
  }

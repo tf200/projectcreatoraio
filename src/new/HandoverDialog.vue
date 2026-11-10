@@ -56,9 +56,16 @@
 						<input v-model="draft.date"
 							class="iz-input"
 							type="date"
+							:min="earliestHandover(preview) || undefined"
 							:max="latestHandover(preview) || undefined"
 							required>
 					</label>
+					<p v-for="warning in dateWarnings"
+						:key="warning"
+						class="pc-handover__warning"
+						role="status">
+						{{ warning }}
+					</p>
 
 					<label v-if="preview.teamsAvailable" class="pc-handover__field">
 						<span>Team that carries out the project</span>
@@ -209,7 +216,7 @@
 import RoleChips from './RoleChips.vue'
 import { api, actionMessage, errorMessage } from './api.js'
 import { DRASCIVS, projectRoleOptions, toggled } from './members.js'
-import { handoverDraft, joiningWithTeam, ownerOptions, externalEndText, handoverProblem, latestHandover, whoProblem, externalsProblem, handoverPayload, handoverSummary, stepReport } from './handover.js'
+import { handoverDraft, joiningWithTeam, ownerOptions, externalEndText, handoverProblem, earliestHandover, latestHandover, handoverWarnings, whoProblem, externalsProblem, handoverPayload, handoverSummary, stepReport } from './handover.js'
 
 // The handover step: the people who carry out the project take over from
 // initiation. Opened from the Planning tab's Handover card and the Members tab.
@@ -243,6 +250,7 @@ export default {
 	computed: {
 		drascivsOptions() { return DRASCIVS },
 		roleOptions() { return projectRoleOptions(this.preview?.functionalRoles || []) },
+		dateWarnings() { return handoverWarnings(this.preview, this.draft?.date) },
 		otherTeams() { return (this.preview?.teams || []).filter(team => team.id !== this.preview.team?.id) },
 		teamChoice() { return this.draft.team.mode === 'set' ? String(this.draft.team.teamId) : this.draft.team.mode },
 		joining() { return joiningWithTeam(this.preview, this.draft) },
@@ -265,6 +273,7 @@ export default {
 	methods: {
 		toggled,
 		externalEndText,
+		earliestHandover,
 		latestHandover,
 		async open() {
 			const el = this.$refs.dialog
@@ -371,6 +380,7 @@ export default {
 .pc-handover__text { margin: 0; font-size: var(--iz-fs-md); }
 .pc-handover__muted { margin: 0; font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); font-weight: 400; }
 .pc-handover__error { margin: 0; padding: 8px 10px; border-radius: var(--iz-radius); background: var(--iz-danger-bg); color: var(--iz-danger-text); font-size: var(--iz-fs-sm); }
+.pc-handover__warning { margin: 0; padding: 6px 10px; border-radius: var(--iz-radius); background: var(--iz-warning-bg); color: var(--iz-warning-text); font-size: var(--iz-fs-sm); }
 .pc-handover__results { margin: 0; padding: 4px; list-style: none; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius); background: var(--iz-surface); max-height: 200px; overflow-y: auto; }
 .pc-handover__result { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--iz-radius); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .pc-handover__result:hover, .pc-handover__result:focus-visible { background: var(--iz-surface-hover, rgba(0, 0, 0, 0.05)); }

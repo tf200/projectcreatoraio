@@ -31,8 +31,8 @@
     <section class="pc-timeline-group" :class="stageClass(1)" aria-labelledby="pc-timeline-execution"><h3 id="pc-timeline-execution"><i aria-hidden="true" />Execution<span class="pc-sr-only">{{ stageText(1) }}</span></h3><dl>
      <div><dt>Request date</dt><dd>{{ date(timeline.initiation.requestDate) }}</dd></div>
      <div><dt>Minimum start</dt><dd>{{ timeline.execution.minimumStart ? date(timeline.execution.minimumStart) : '—' }}</dd><small>{{ timeline.execution.note }}</small></div>
-     <div><dt>Desired start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.desired }">{{ date(timeline.execution.desired) }}</dd></div>
-     <div><dt>Actual start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.actual }">{{ date(timeline.execution.actual) }}</dd></div>
+     <div><dt>Desired start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.desired }">{{ date(timeline.execution.desired) }}</dd><small v-if="timeline.execution.desiredNote" class="pc-timeline-warn">{{ timeline.execution.desiredNote }}</small></div>
+     <div><dt>Actual start</dt><dd :class="{ 'pc-timeline-unset': !timeline.execution.actual }">{{ date(timeline.execution.actual) }}</dd><small v-if="timeline.execution.actualNote" class="pc-timeline-warn">{{ timeline.execution.actualNote }}</small></div>
     </dl></section>
     <section class="pc-timeline-group" :class="stageClass(2)" aria-labelledby="pc-timeline-delivery"><h3 id="pc-timeline-delivery"><i aria-hidden="true" />Delivery<span class="pc-sr-only">{{ stageText(2) }}</span></h3><dl>
      <div><dt>End date</dt><dd :class="{ 'pc-timeline-unset': !timeline.delivery.end }"><span v-if="timeline.delivery.planned" class="pc-timeline-unset">Planned </span>{{ date(timeline.delivery.end) }}</dd><small>{{ timeline.delivery.note }}</small></div>

@@ -87,6 +87,12 @@ test('handover warnings are the server’s, shown on the handover', () => {
  assert.equal(t.initiation.handoverNote, 'Handover after the actual start')
  assert.equal(t.initiation.handoverWarn, true)
 })
+test('start warnings are the server’s, shown under each start', () => {
+ const t = timelineOf({ ...fresh, desiredStartDate: '2028-01-03', dateWarnings: { handover: [], desiredStart: ['Desired start before the minimum start'], actualStart: [] } })
+ assert.equal(t.execution.desiredNote, 'Desired start before the minimum start')
+ assert.equal(t.execution.actualNote, '')
+ assert.equal(timelineOf(fresh).execution.desiredNote, '')
+})
 test('missing or unconfigured process steps are said, not counted as progress', () => {
  const missing = timelineOf({ ...fresh, processCompleted: { status: 'missing_cards', doneCount: 1, totalRequired: 4, missingTitles: ['AVP', 'VO'] } })
  assert.equal(missing.initiation.note, '2 required cards missing from the board')
