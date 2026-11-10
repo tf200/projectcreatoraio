@@ -52,6 +52,30 @@ final class TimelineDatesTest extends TestCase {
 		$this->addToAssertionCount(2);
 	}
 
+	public function testNoTypedDateComesBeforeTheRequestDate(): void {
+		// Created on a Wednesday, so the request date is the next Monday, 5 Oct 2026.
+		$project = $this->project('2026-10-05', null, null);
+		$project->setCreatedAt(new DateTime('2026-09-30 15:00:00'));
+		$this->assertSame('2026-10-05', TimelineDates::requestDate($project));
+		TimelineDates::assertInOrder($project, [TimelineDates::HANDOVER]);
+
+		$project->setActualHandoverDate(new DateTime('2026-10-02'));
+		$this->assertRefused($project, [TimelineDates::HANDOVER], 'The handover (2 Oct 2026) can\'t be before the request date (5 Oct 2026).');
+
+		$project->setActualHandoverDate(null);
+		$project->setDesiredStartDate(new DateTime('2026-09-01'));
+		$this->assertRefused($project, [TimelineDates::DESIRED_START], 'The desired start (1 Sep 2026) can\'t be before the request date (5 Oct 2026).');
+		// Only the changed date is held to it.
+		TimelineDates::assertInOrder($project, [TimelineDates::HANDOVER]);
+	}
+
+	public function testTheDesiredStartIsNotHeldToTheHandover(): void {
+		$project = $this->project('2026-10-10', null, null);
+		$project->setDesiredStartDate(new DateTime('2026-10-01'));
+		TimelineDates::assertInOrder($project, [TimelineDates::HANDOVER, TimelineDates::DESIRED_START]);
+		$this->addToAssertionCount(1);
+	}
+
 	private function project(?string $handover, ?string $start, ?string $end): Project {
 		$project = new Project();
 		$project->setActualHandoverDate($handover === null ? null : new DateTime($handover));

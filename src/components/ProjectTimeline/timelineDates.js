@@ -58,23 +58,62 @@ export const FIRST_DAY = '2000-01-01'
 export const LAST_DAY = '2100-12-31'
 
 const dayOf = value => (typeof value === 'string' && value ? value.slice(0, 10) : '')
+const later = (a, b) => (a > b ? a : b)
+
+// "5 Oct 2026", as the server words it.
+function dayText(day) {
+	const date = new Date(day + 'T00:00:00')
+	return Number.isNaN(date.getTime()) ? day : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
 
 /**
- * The days each typed-in date may take so handover, actual start and end
- * stay in that order. The server checks the same rules.
+ * The days each typed-in date may take. Nothing comes before the request
+ * date, and handover, actual start and end stay in that order. The desired
+ * start is a plan, so only the request date holds it. The server checks the
+ * same rules (TimelineDates.php); how dates compare with the plan is a
+ * warning the server sends as kpis.dateWarnings.
  * @param {object} kpis the timeline summary's kpis
  */
 export function plannedDateBounds(kpis) {
+	const request = dayOf(kpis?.requestDate) || FIRST_DAY
 	const handover = dayOf(kpis?.actualHandoverDate)
 	const start = dayOf(kpis?.actualStartDate)
 	const end = dayOf(kpis?.actualEndDate)
 	return {
-		desiredStart: { min: FIRST_DAY, max: LAST_DAY },
-		handover: { min: FIRST_DAY, max: start || end || LAST_DAY },
-		actualStart: { min: handover || FIRST_DAY, max: end || LAST_DAY },
-		end: { min: start || handover || FIRST_DAY, max: LAST_DAY },
+		desiredStart: { min: request, max: LAST_DAY },
+		handover: { min: request, max: start || end || LAST_DAY },
+		actualStart: { min: later(handover, request), max: end || LAST_DAY },
+		end: { min: later(start || handover, request), max: LAST_DAY },
 		// The end is the last day on site, so the work has to have started.
 		canSetEnd: !!start || !!end,
 		canClearStart: !end,
 	}
+}
+
+const NAMES = { desiredStart: 'desired start', handover: 'handover', actualStart: 'actual start', end: 'end date' }
+
+/**
+ * Why a picked day would be refused, worded like the server, or ''.
+ * @param {object} kpis the timeline summary's kpis
+ * @param {'desiredStart'|'handover'|'actualStart'|'end'} field the date being set
+ * @param {string} value the picked day, YYYY-MM-DD
+ */
+export function dateRefusal(kpis, field, value) {
+	const day = dayOf(value)
+	if (!day) return ''
+	const name = NAMES[field]
+	if (day < FIRST_DAY || day > LAST_DAY) return `The ${name} must fall between 2000 and 2100.`
+	const request = dayOf(kpis?.requestDate)
+	if (request && day < request) return `The ${name} (${dayText(day)}) can’t be before the request date (${dayText(request)}).`
+	const dates = { handover: dayOf(kpis?.actualHandoverDate), actualStart: dayOf(kpis?.actualStartDate), end: dayOf(kpis?.actualEndDate), [field]: day }
+	if (field === 'end' && !dates.actualStart) return 'Set the actual start before the end date.'
+	const order = [['handover', 'actualStart'], ['actualStart', 'end'], ['handover', 'end']]
+	for (const [earlier, laterField] of order) {
+		const first = dates[earlier]
+		const second = dates[laterField]
+		if (!first || !second || second >= first) continue
+		if (field === laterField) return `The ${NAMES[laterField]} (${dayText(second)}) can’t be before the ${NAMES[earlier]} (${dayText(first)}).`
+		if (field === earlier) return `The ${NAMES[earlier]} (${dayText(first)}) can’t be after the ${NAMES[laterField]} (${dayText(second)}).`
+	}
+	return ''
 }

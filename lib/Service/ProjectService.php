@@ -2716,13 +2716,16 @@ class ProjectService {
 		}
 
 		try {
+			$changed = [];
 			if ($desired_start_date !== null) {
-				$project->setDesiredStartDate(TimelineDates::parse($desired_start_date, 'desired start'));
+				$project->setDesiredStartDate(TimelineDates::parse($desired_start_date, TimelineDates::DESIRED_START));
+				$changed[] = TimelineDates::DESIRED_START;
 			}
 			if ($actual_start_date !== null) {
 				$project->setActualStartDate(TimelineDates::parse($actual_start_date, TimelineDates::ACTUAL_START));
-				TimelineDates::assertInOrder($project, [TimelineDates::ACTUAL_START]);
+				$changed[] = TimelineDates::ACTUAL_START;
 			}
+			TimelineDates::assertInOrder($project, $changed);
 		} catch (\InvalidArgumentException $e) {
 			throw new OCSException($e->getMessage(), 400);
 		}

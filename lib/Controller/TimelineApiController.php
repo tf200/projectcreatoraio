@@ -291,7 +291,8 @@ class TimelineApiController extends Controller
             }
 
             if ($desiredStartDate !== null) {
-                $project->setDesiredStartDate(TimelineDates::parse($desiredStartDate, 'desired start'));
+                $project->setDesiredStartDate(TimelineDates::parse($desiredStartDate, TimelineDates::DESIRED_START));
+                $changed[] = TimelineDates::DESIRED_START;
             }
 
             if ($actualStartDate !== null) {

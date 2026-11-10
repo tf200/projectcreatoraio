@@ -72,15 +72,28 @@ final class TimelinePlanningServiceTest extends TestCase {
 		$this->assertSame('2027-12-01', TimelinePlanningService::plannedEndDate(null, null, '2027-12-01'));
 	}
 
-	public function testHandoverIsWarnedAboutOutsideProcessStepsDoneAndActualStart(): void {
-		$done = ['status' => 'complete', 'date' => '2027-08-20'];
-		$this->assertSame([], TimelinePlanningService::handoverWarnings(null, ['status' => 'incomplete'], '2027-09-06'));
-		$this->assertSame([], TimelinePlanningService::handoverWarnings('2027-08-27', $done, '2027-09-06'));
-		$this->assertSame([], TimelinePlanningService::handoverWarnings('2027-09-06', $done, '2027-09-06'));
-		$this->assertSame(['Handover before the process steps are done'], TimelinePlanningService::handoverWarnings('2027-08-13', $done, null));
-		$this->assertSame(['Handover before the process steps are done'], TimelinePlanningService::handoverWarnings('2027-08-27', ['status' => 'incomplete', 'date' => null], null));
-		$this->assertSame(['Handover after the actual start'], TimelinePlanningService::handoverWarnings('2027-09-13', $done, '2027-09-06'));
-		$this->assertSame([], TimelinePlanningService::handoverWarnings('2027-08-27', ['status' => 'not_configured', 'date' => null], null));
+	public function testDatesAreWarnedAboutWhenTheyBreakThePlan(): void {
+		$warn = static fn (array $dates, array $process = ['status' => 'complete', 'date' => '2027-08-20']): array => TimelinePlanningService::dateWarnings($dates + ['handover' => null, 'desiredStart' => null, 'actualStart' => null, 'minimumStart' => '2027-09-06'], $process);
+		$none = ['handover' => [], 'desiredStart' => [], 'actualStart' => []];
+
+		// In the planned order: process steps, handover, minimum start, desired start, actual start.
+		$this->assertSame($none, $warn([]));
+		$this->assertSame($none, $warn(['handover' => '2027-08-27', 'desiredStart' => '2027-09-13']));
+		$this->assertSame($none, $warn(['handover' => '2027-09-06', 'desiredStart' => '2027-09-06', 'actualStart' => '2027-09-06']));
+		$this->assertSame($none, $warn(['handover' => '2027-08-27'], ['status' => 'not_configured', 'date' => null]));
+
+		$this->assertSame(['Handover before the process steps are done'], $warn(['handover' => '2027-08-13'])['handover']);
+		$this->assertSame(['Handover before the process steps are done'], $warn(['handover' => '2027-08-27'], ['status' => 'incomplete', 'date' => null])['handover']);
+		$this->assertSame(['Handover after the minimum start, so preparation is squeezed'], $warn(['handover' => '2027-09-13'])['handover']);
+		$this->assertSame(['Handover after the actual start'], $warn(['handover' => '2027-09-13', 'actualStart' => '2027-09-10'])['handover']);
+
+		$late = $warn(['handover' => '2027-09-01', 'desiredStart' => '2027-08-30']);
+		$this->assertSame(['Handover after the desired start'], $late['handover']);
+		$this->assertSame(['Desired start before the handover', 'Desired start before the minimum start'], $late['desiredStart']);
+
+		$this->assertSame(['Started before the minimum start'], $warn(['actualStart' => '2027-09-01'])['actualStart']);
+		// Once started, the desired start is history.
+		$this->assertSame([], $warn(['desiredStart' => '2027-08-30', 'actualStart' => '2027-09-06'])['desiredStart']);
 	}
 
 	public function testBuildSummaryIncludesPlanningMetricsAndKpis(): void {

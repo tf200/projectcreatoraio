@@ -44,8 +44,16 @@ class TimelinePlanningService
 			'weeks' => $executionWeeks,
 		];
 		$summary['systemPlanning']['actualEnd'] = ['date' => $actualEnd];
-		$summary['handoverWarnings'] = self::handoverWarnings($handover, $summary['processCompleted'] ?? [], $start);
-		$summary['kpis']['handoverWarnings'] = $summary['handoverWarnings'];
+		$warnings = self::dateWarnings([
+			'handover' => $handover,
+			'desiredStart' => $summary['desiredStartDate'] ?? null,
+			'actualStart' => $start,
+			'minimumStart' => $summary['minimumStartDate'] ?? null,
+		], $summary['processCompleted'] ?? []);
+		$summary['dateWarnings'] = $warnings;
+		$summary['kpis']['dateWarnings'] = $warnings;
+		$summary['handoverWarnings'] = $warnings['handover'];
+		$summary['kpis']['handoverWarnings'] = $warnings['handover'];
 		return $summary;
 	}
 
@@ -69,27 +77,50 @@ class TimelinePlanningService
 	}
 
 	/**
-	 * Handover comes after the process steps and before the actual start.
-	 * Dates out of that order are warned about, not refused.
+	 * How the typed dates compare with the plan. The flow is process steps →
+	 * handover → preparation → minimum start → start. Breaking it is warned
+	 * about, not refused: the minimum start moves with the Deck cards, and a
+	 * plan that reality missed still has to be recorded. The hard rules are
+	 * in TimelineDates.
 	 *
+	 * @param array{handover: ?string, desiredStart: ?string, actualStart: ?string, minimumStart: ?string} $dates
 	 * @param array<string,mixed> $processCompleted The summary's processCompleted entry
-	 * @return list<string>
+	 * @return array{handover: list<string>, desiredStart: list<string>, actualStart: list<string>}
 	 */
-	public static function handoverWarnings(?string $handoverDate, array $processCompleted, ?string $actualStartDate): array
+	public static function dateWarnings(array $dates, array $processCompleted): array
 	{
-		if ($handoverDate === null || $handoverDate === '') {
-			return [];
+		$day = static fn (?string $value): ?string => $value === null || $value === '' ? null : substr($value, 0, 10);
+		$handover = $day($dates['handover'] ?? null);
+		$desired = $day($dates['desiredStart'] ?? null);
+		$actual = $day($dates['actualStart'] ?? null);
+		$minimum = $day($dates['minimumStart'] ?? null);
+		$warnings = ['handover' => [], 'desiredStart' => [], 'actualStart' => []];
+
+		if ($handover !== null) {
+			$processDate = $day(is_string($processCompleted['date'] ?? null) ? $processCompleted['date'] : null);
+			$stepsOpen = in_array($processCompleted['status'] ?? null, ['incomplete', 'missing_cards'], true);
+			if ($stepsOpen || ($processDate !== null && $handover < $processDate)) {
+				$warnings['handover'][] = 'Handover before the process steps are done';
+			}
+			// Refused when typed now; older projects may still have it.
+			if ($actual !== null && $handover > $actual) {
+				$warnings['handover'][] = 'Handover after the actual start';
+			} elseif ($actual === null && $minimum !== null && $handover > $minimum) {
+				$warnings['handover'][] = 'Handover after the minimum start, so preparation is squeezed';
+			}
+			if ($actual === null && $desired !== null && $handover > $desired) {
+				$warnings['handover'][] = 'Handover after the desired start';
+				$warnings['desiredStart'][] = 'Desired start before the handover';
+			}
 		}
-		$handover = substr($handoverDate, 0, 10);
-		$warnings = [];
-		$processDate = $processCompleted['date'] ?? null;
-		$stepsOpen = in_array($processCompleted['status'] ?? null, ['incomplete', 'missing_cards'], true);
-		if ($stepsOpen || (is_string($processDate) && $processDate !== '' && $handover < substr($processDate, 0, 10))) {
-			$warnings[] = 'Handover before the process steps are done';
+
+		if ($actual === null && $desired !== null && $minimum !== null && $desired < $minimum) {
+			$warnings['desiredStart'][] = 'Desired start before the minimum start';
 		}
-		if ($actualStartDate !== null && $actualStartDate !== '' && $handover > substr($actualStartDate, 0, 10)) {
-			$warnings[] = 'Handover after the actual start';
+		if ($actual !== null && $minimum !== null && $actual < $minimum) {
+			$warnings['actualStart'][] = 'Started before the minimum start';
 		}
+
 		return $warnings;
 	}
 

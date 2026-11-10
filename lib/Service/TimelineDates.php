@@ -9,14 +9,18 @@ use InvalidArgumentException;
 use OCA\ProjectCreatorAIO\Db\Project;
 
 /**
- * The timeline dates people type in. Each must be a real day, and the
- * handover, actual start and end must follow each other in that order.
- * Only rules that touch a changed date are checked, so a project with
- * older out-of-order dates can still be edited elsewhere.
+ * The timeline dates people type in. Saves are refused only when the order
+ * is impossible: every date is a real day on or after the request date, and
+ * the handover, actual start and end follow each other. How these compare
+ * with the plan (minimum and desired start) is a warning, see
+ * TimelinePlanningService::dateWarnings(). Only rules that touch a changed
+ * date are checked, so a project with older out-of-order dates can still be
+ * edited elsewhere.
  */
 final class TimelineDates
 {
 	public const HANDOVER = 'handover';
+	public const DESIRED_START = 'desired start';
 	public const ACTUAL_START = 'actual start';
 	public const ACTUAL_END = 'end date';
 
@@ -65,9 +69,20 @@ final class TimelineDates
 	{
 		$dates = [
 			self::HANDOVER => self::day($project->getActualHandoverDate()),
+			self::DESIRED_START => self::day($project->getDesiredStartDate()),
 			self::ACTUAL_START => self::day($project->getActualStartDate()),
 			self::ACTUAL_END => self::day($project->getActualEndDate()),
 		];
+
+		// Nothing on the timeline happens before the project was requested.
+		$request = self::requestDate($project);
+		if ($request !== null) {
+			foreach ($changed as $name) {
+				if (($dates[$name] ?? null) !== null && $dates[$name] < $request) {
+					throw new InvalidArgumentException(sprintf('The %s (%s) can\'t be before the request date (%s).', $name, self::label($dates[$name]), self::label($request)));
+				}
+			}
+		}
 
 		// The end is the last day on site, so the work has to have started.
 		if ($dates[self::ACTUAL_END] !== null && $dates[self::ACTUAL_START] === null) {
@@ -92,6 +107,23 @@ final class TimelineDates
 				throw new InvalidArgumentException(sprintf('The %s (%s) can\'t be after the %s (%s).', $earlier, self::label($first), $later, self::label($second)));
 			}
 		}
+	}
+
+	/**
+	 * The timeline's first day: the first Monday on or after the project was created.
+	 */
+	public static function requestDate(Project $project): ?string
+	{
+		$created = $project->getCreatedAt();
+		if (!$created instanceof \DateTimeInterface) {
+			return null;
+		}
+		$day = DateTime::createFromFormat('!Y-m-d', $created->format('Y-m-d'));
+		$daysUntilMonday = (8 - (int)$day->format('N')) % 7;
+		if ($daysUntilMonday > 0) {
+			$day->modify('+' . $daysUntilMonday . ' days');
+		}
+		return $day->format('Y-m-d');
 	}
 
 	private static function day(mixed $date): ?string

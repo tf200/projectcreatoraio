@@ -200,10 +200,13 @@
 								Hand over…
 							</NcButton>
 
+							<div v-if="refusalFor('handover')" class="kpi-card__subtext kpi-card__subtext--error" role="alert">
+								{{ refusalFor('handover') }}
+							</div>
 							<div v-if="handoverWarnings.length" class="kpi-card__subtext kpi-card__subtext--warning" role="status">
 								{{ handoverWarnings.join(' · ') }}
 							</div>
-							<div v-else class="kpi-card__subtext">
+							<div v-else-if="!refusalFor('handover')" class="kpi-card__subtext">
 								{{ kpis.actualHandoverDate ? 'Handed to the execution team' : 'After the process steps' }}
 							</div>
 						</div>
@@ -456,6 +459,16 @@
 									</div>
 								</div>
 							</div>
+
+							<div v-for="message in startRefusals"
+								:key="'r' + message"
+								class="kpi-card__subtext kpi-card__subtext--error"
+								role="alert">
+								{{ message }}
+							</div>
+							<div v-if="startWarnings.length" class="kpi-card__subtext kpi-card__subtext--warning" role="status">
+								{{ startWarnings.join(' · ') }}
+							</div>
 						</div>
 					</div>
 				</div>
@@ -550,6 +563,10 @@
 								</div>
 							</div>
 
+							<div v-if="refusalFor('end')" class="kpi-card__subtext kpi-card__subtext--error" role="alert">
+								{{ refusalFor('end') }}
+							</div>
+
 							<div class="prep-input-row">
 								<div class="prep-input-wrap" title="Weeks the team works on site, from the actual start to the end">
 									<input
@@ -605,7 +622,7 @@ import CheckboxMarkedCircleOutline from 'vue-material-design-icons/CheckboxMarke
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import FlagCheckered from 'vue-material-design-icons/FlagCheckered.vue'
 import HandshakeOutline from 'vue-material-design-icons/HandshakeOutline.vue'
-import { plannedDateBounds } from '../timelineDates.js'
+import { dateRefusal, plannedDateBounds } from '../timelineDates.js'
 
 export default {
 	name: 'TimelineKpiBar',
@@ -645,6 +662,7 @@ export default {
 				actualStartDate: null,
 				actualHandoverDate: null,
 				handoverWarnings: [],
+				dateWarnings: { handover: [], desiredStart: [], actualStart: [] },
 				executionWeeks: null,
 				actualEndDate: null,
 				plannedEndDate: null,
@@ -667,9 +685,16 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+		// The server's refusal of the last date saved: { field, message }
+		refusal: {
+			type: Object,
+			default: null,
+		},
 	},
 	data() {
 		return {
+			// A picked day refused here before it was sent: { field, message }
+			localRefusal: null,
 			localPrepWeeks: Number(this.kpis?.preparationWeeks ?? 0),
 			localExecutionWeeks: this.kpis?.executionWeeks ?? '',
 		}
@@ -690,6 +715,13 @@ export default {
 	computed: {
 		dateBounds() {
 			return plannedDateBounds(this.kpis)
+		},
+		startRefusals() {
+			return ['desiredStart', 'actualStart'].map(field => this.refusalFor(field)).filter(Boolean)
+		},
+		startWarnings() {
+			const warnings = this.kpis?.dateWarnings || {}
+			return [...(warnings.desiredStart || []), ...(warnings.actualStart || [])]
 		},
 		isPrepWeeksDirty() {
 			const current = Number(this.kpis?.preparationWeeks ?? 0)
@@ -886,14 +918,11 @@ export default {
 			input.click()
 		},
 		onDesiredDateChange(e) {
-			const val = e?.target?.value ? e.target.value.trim() : null
-			if (val) {
-				this.$emit('save-desired-date', val)
-			}
-			e.target.value = this.isoDateOnly(this.kpis.desiredStartDate)
+			this.pickDate('desiredStart', 'save-desired-date', e)
 		},
 		clearDesiredDate() {
 			if (!this.canEdit || this.saving) return
+			this.localRefusal = null
 			this.$emit('save-desired-date', null)
 			if (this.$refs.desiredDatePicker) {
 				this.$refs.desiredDatePicker.value = ''
@@ -915,14 +944,11 @@ export default {
 			input.click()
 		},
 		onActualDateChange(e) {
-			const val = e?.target?.value ? e.target.value.trim() : null
-			if (val) {
-				this.$emit('save-actual-date', val)
-			}
-			e.target.value = this.isoDateOnly(this.kpis.actualStartDate)
+			this.pickDate('actualStart', 'save-actual-date', e)
 		},
 		clearActualDate() {
 			if (!this.canEdit || this.saving || !this.dateBounds.canClearStart) return
+			this.localRefusal = null
 			this.$emit('save-actual-date', null)
 			if (this.$refs.actualDatePicker) {
 				this.$refs.actualDatePicker.value = ''
@@ -944,14 +970,11 @@ export default {
 			input.click()
 		},
 		onHandoverDateChange(e) {
-			const val = e?.target?.value ? e.target.value.trim() : null
-			if (val) {
-				this.$emit('save-handover-date', val)
-			}
-			e.target.value = this.isoDateOnly(this.kpis.actualHandoverDate)
+			this.pickDate('handover', 'save-handover-date', e)
 		},
 		clearHandoverDate() {
 			if (!this.canEdit || this.saving) return
+			this.localRefusal = null
 			this.$emit('save-handover-date', null)
 			if (this.$refs.handoverDatePicker) {
 				this.$refs.handoverDatePicker.value = ''
@@ -973,18 +996,35 @@ export default {
 			input.click()
 		},
 		onEndDateChange(e) {
-			const val = e?.target?.value ? e.target.value.trim() : null
-			if (val) {
-				this.$emit('save-end-date', val)
-			}
-			e.target.value = this.isoDateOnly(this.kpis.actualEndDate)
+			this.pickDate('end', 'save-end-date', e)
 		},
 		clearEndDate() {
 			if (!this.canEdit || this.saving) return
+			this.localRefusal = null
 			this.$emit('save-end-date', null)
 			if (this.$refs.endDatePicker) {
 				this.$refs.endDatePicker.value = ''
 			}
+		},
+		/**
+		 * Saves a picked day, or says right away why it would be refused.
+		 * The picker goes back to the saved day; the summary moves it on save.
+		 * @param {string} field desiredStart, actualStart, handover or end
+		 * @param {string} event the save event to emit
+		 * @param {Event} e the picker's change event
+		 */
+		pickDate(field, event, e) {
+			const val = e?.target?.value ? e.target.value.trim() : ''
+			const current = { desiredStart: 'desiredStartDate', actualStart: 'actualStartDate', handover: 'actualHandoverDate', end: 'actualEndDate' }[field]
+			e.target.value = this.isoDateOnly(this.kpis[current])
+			if (!val) return
+			const message = dateRefusal(this.kpis, field, val)
+			this.localRefusal = message ? { field, message } : null
+			if (!message) this.$emit(event, val)
+		},
+		refusalFor(field) {
+			if (this.localRefusal?.field === field) return this.localRefusal.message
+			return this.refusal?.field === field ? this.refusal.message : ''
 		},
 		isoDateOnly(isoDate) {
 			if (!isoDate || typeof isoDate !== 'string') return ''
@@ -1344,6 +1384,11 @@ export default {
 
 .kpi-card__subtext--warning {
 	color: var(--color-warning-text, #b45309);
+	white-space: normal;
+}
+
+.kpi-card__subtext--error {
+	color: var(--color-error-text, #c9302c);
 	white-space: normal;
 }
 

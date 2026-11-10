@@ -7,6 +7,7 @@
 			:can-edit="isAdmin && !whatIf.active"
 			:can-hand-over="canHandOver && !whatIf.active"
 			:saving="savingDesiredDate"
+			:refusal="dateRefusal"
 			@save-desired-date="onSaveDesiredDate"
 			@save-actual-date="onSaveActualDate"
 			@save-handover-date="onSaveHandoverDate"
@@ -857,6 +858,7 @@ export default {
 			allItems: [],
 			timelineSummary: null,
 			savingDesiredDate: false,
+			dateRefusal: null,
 			showModal: false,
 			editingItem: null,
 			form: {
@@ -1881,66 +1883,41 @@ export default {
 				this.loading = false
 			}
 		},
-		async onSaveDesiredDate(dateStr) {
+		onSaveDesiredDate(dateStr) {
+			return this.saveTimelineDate('desiredStart', 'desired_start_date', dateStr, 'desired start date')
+		},
+		onSaveActualDate(dateStr) {
+			return this.saveTimelineDate('actualStart', 'actual_start_date', dateStr, 'actual start date')
+		},
+		onSaveHandoverDate(dateStr) {
+			return this.saveTimelineDate('handover', 'actual_handover_date', dateStr, 'handover date')
+		},
+		onSaveEndDate(dateStr) {
+			return this.saveTimelineDate('end', 'actual_end_date', dateStr, 'end date')
+		},
+		/**
+		 * Saves one typed timeline date. A refusal (400) shows under that
+		 * date's card; anything else is a toast.
+		 */
+		async saveTimelineDate(field, param, dateStr, label) {
 			this.savingDesiredDate = true
 			try {
 				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
-				const response = await axios.put(url, {
-					desired_start_date: dateStr || null,
-				})
+				const response = await axios.put(url, { [param]: dateStr || null })
+				this.dateRefusal = null
 				if (response.data?.summary) {
 					this.timelineSummary = response.data.summary
 				} else {
 					await this.loadItems()
 				}
 			} catch (error) {
-				console.error('Error updating desired start date:', error)
-				showError(error.response?.data?.error || 'Could not save the desired start date. Please try again.')
-			} finally {
-				this.savingDesiredDate = false
-			}
-		},
-		async onSaveActualDate(dateStr) {
-			this.savingDesiredDate = true
-			try {
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
-				const response = await axios.put(url, {
-					actual_start_date: dateStr || null,
-				})
-				if (response.data?.summary) {
-					this.timelineSummary = response.data.summary
+				console.error(`Error updating ${label}:`, error)
+				const message = error.response?.data?.error
+				if (error.response?.status === 400 && message) {
+					this.dateRefusal = { field, message }
 				} else {
-					await this.loadItems()
+					showError(message || `Could not save the ${label}. Please try again.`)
 				}
-			} catch (error) {
-				console.error('Error updating actual start date:', error)
-				showError(error.response?.data?.error || 'Could not save the actual start date. Please try again.')
-			} finally {
-				this.savingDesiredDate = false
-			}
-		},
-		async onSaveHandoverDate(dateStr) {
-			this.savingDesiredDate = true
-			try {
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
-				await axios.put(url, { actual_handover_date: dateStr || null })
-				await this.loadItems()
-			} catch (error) {
-				console.error('Error updating handover date:', error)
-				showError(error.response?.data?.error || 'Could not save the handover date. Please try again.')
-			} finally {
-				this.savingDesiredDate = false
-			}
-		},
-		async onSaveEndDate(dateStr) {
-			this.savingDesiredDate = true
-			try {
-				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/planning`)
-				await axios.put(url, { actual_end_date: dateStr || null })
-				await this.loadItems()
-			} catch (error) {
-				console.error('Error updating end date:', error)
-				showError(error.response?.data?.error || 'Could not save the end date. Please try again.')
 			} finally {
 				this.savingDesiredDate = false
 			}
