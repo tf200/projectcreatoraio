@@ -26,7 +26,7 @@
 							<p class="pc-view__lede">{{ t('projectcreatoraio', 'Shared and private project files, with OCR and signing.') }}</p>
 						</div>
 					</header>
-					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents' }" v-bind="moduleProps" @refresh="loadFiles" @open-direct-chat="$emit('direct-chat', $event)" @clear-target-direct-user="$emit('direct-chat', null)" />
+					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents', 'pc-planning-theme': tab === 'planning' }" v-bind="moduleProps" @refresh="loadFiles" @open-direct-chat="$emit('direct-chat', $event)" @clear-target-direct-user="$emit('direct-chat', null)" />
 				</template>
 				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
 			</template>

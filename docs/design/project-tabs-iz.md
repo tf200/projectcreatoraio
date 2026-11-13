@@ -166,6 +166,16 @@ current interface is untouched — no file under `src/components/` changed.
   is gone; the Activity tab is right below. Dialogs are native `<dialog>`s, hidden when
   closed even though Nextcloud's own styles show every `dialog`.
 
+- **Planning** — keeps `GanttChart` and its sub-components (dates, What-If, editors,
+  the planning calculations) with one scoped stylesheet, `src/new/planning-theme.css`,
+  of `--iz-*` tokens. The key dates read like the Overview's Timeline panel:
+  Initiation, Execution and Delivery as three columns of numbered steps, stacking
+  below 720 px. "Project timeline" is said once; the chart's tools sit right above the
+  chart. Labels that the template writes in capitals read in sentence case
+  (`lowercase` plus `::first-letter`). Task bars are a light tint of their phase
+  colour with a coloured edge and dark text; System Planning, arrows, pills and chips
+  take theme colours, today stays red. The What-If panel keeps its own styling.
+
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,
 a row being edited and, in the dark theme, darker than a panel, so they vanished in the

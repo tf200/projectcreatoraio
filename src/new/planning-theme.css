@@ -1,0 +1,165 @@
+/* Presentation only: the timeline's calculations, data, editors and What-If
+ * mode stay exactly as they are. The extra root class out-ranks the
+ * components' own scoped rules without reaching the legacy project interface.
+ * The key dates read like the Overview's Timeline panel: Initiation, Execution
+ * and Delivery as three columns of steps.
+ */
+.pc-new .pc-planning-theme.timeline-v2 { gap: var(--iz-gap); padding: 0; font-size: var(--iz-fs-md); color: var(--iz-text); }
+
+/* Labels written in capitals in the template read in sentence case. */
+.pc-new .pc-planning-theme .tag-label,
+.pc-new .pc-planning-theme .status-text,
+.pc-new .pc-planning-theme .float-text,
+.pc-new .pc-planning-theme .kpi-card__label,
+.pc-new .pc-planning-theme .subrow-title,
+.pc-new .pc-planning-theme .kpi-process-pill { display: inline-block; max-width: 100%; text-transform: lowercase; letter-spacing: 0; }
+.pc-new .pc-planning-theme .tag-label::first-letter,
+.pc-new .pc-planning-theme .status-text::first-letter,
+.pc-new .pc-planning-theme .float-text::first-letter,
+.pc-new .pc-planning-theme .kpi-card__label::first-letter,
+.pc-new .pc-planning-theme .subrow-title::first-letter,
+.pc-new .pc-planning-theme .kpi-process-pill::first-letter { text-transform: uppercase; }
+
+/* One title: the key dates panel carries "Project timeline", and the chart's
+ * tools sit right above the chart. The delay badge stays. */
+.pc-new .pc-planning-theme .timeline-v2__title,
+.pc-new .pc-planning-theme .timeline-v2__subtitle { display: none; }
+
+/* Key dates panel */
+.pc-new .pc-planning-theme .timeline-kpi-bar { margin: 0; padding: var(--iz-pad-panel); border: 1px solid var(--iz-border); border-radius: var(--iz-radius-card); background: var(--iz-surface); box-shadow: none; }
+.pc-new .pc-planning-theme .timeline-kpi-bar__status-row { margin: 0 0 var(--iz-gap); padding: 0; border: 0; }
+.pc-new .pc-planning-theme .timeline-kpi-bar__title-tag { font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; font-size: var(--iz-fs-lg); font-weight: 600; color: var(--iz-text); }
+.pc-new .pc-planning-theme .timeline-kpi-bar .status-pill,
+.pc-new .pc-planning-theme .timeline-kpi-bar .float-pill { padding: 3px 10px; border: 0; font-size: var(--iz-fs-xs); font-weight: 600; letter-spacing: 0; }
+.pc-new .pc-planning-theme .timeline-kpi-bar .status-pill--success { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-planning-theme .timeline-kpi-bar .status-pill--warning { background: var(--iz-warning-bg); color: var(--iz-warning-text); }
+.pc-new .pc-planning-theme .timeline-kpi-bar .status-pill--danger { background: var(--iz-danger-bg); color: var(--iz-danger-text); }
+.pc-new .pc-planning-theme .timeline-kpi-bar .float-pill { background: var(--iz-surface-inset); color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .timeline-kpi-bar .float-pill--danger { background: var(--iz-danger-bg); color: var(--iz-danger-text); }
+
+/* Three columns, steps listed down each one, no boxes */
+.pc-new .pc-planning-theme .timeline-kpi-bar__cards { gap: 0; flex-wrap: nowrap; align-items: stretch; }
+.pc-new .pc-planning-theme .kpi-phase,
+.pc-new .pc-planning-theme .kpi-phase--initiation,
+.pc-new .pc-planning-theme .kpi-phase--delivery { flex: 1 1 0; min-width: 0; padding: 0 var(--iz-gap); border-left: 1px solid var(--iz-border); }
+.pc-new .pc-planning-theme .kpi-phase--initiation { padding-left: 0; border-left: 0; }
+.pc-new .pc-planning-theme .kpi-phase:last-child { padding-right: 0; }
+.pc-new .pc-planning-theme .kpi-phase__label { margin-bottom: 4px; font-size: var(--iz-fs-micro); letter-spacing: 0.5px; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .kpi-phase__label::after { display: none; }
+.pc-new .pc-planning-theme .kpi-connector,
+.pc-new .pc-planning-theme .kpi-connector--group-link,
+.pc-new .pc-planning-theme .timeline-kpi-bar__cards > .kpi-connector--group-link:nth-child(2) { display: none; }
+.pc-new .pc-planning-theme .kpi-group { flex-direction: column; gap: 0; }
+/* .kpi-group lifts these above the bar's own complete-card rules, which load later. */
+.pc-new .pc-planning-theme .kpi-group .kpi-card,
+.pc-new .pc-planning-theme .kpi-group .kpi-card:hover,
+.pc-new .pc-planning-theme .kpi-group .kpi-card--complete { flex: 0 0 auto; align-items: flex-start; gap: 10px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--iz-border); border-radius: 0; background: none; }
+.pc-new .pc-planning-theme .kpi-group > .kpi-card:last-of-type { border-bottom: 0; }
+.pc-new .pc-planning-theme .kpi-card__step { width: 20px; min-width: 20px; height: 20px; margin-top: 1px; background: var(--iz-surface-inset); color: var(--iz-text-secondary); font-size: var(--iz-fs-micro); }
+.pc-new .pc-planning-theme .kpi-card__step--success { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-planning-theme .kpi-card__icon { display: none; }
+.pc-new .pc-planning-theme .kpi-card__label { margin-bottom: 3px; font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .kpi-card__value { font-size: var(--iz-fs-lg); font-weight: 600; color: var(--iz-text); font-variant-numeric: tabular-nums; }
+.pc-new .pc-planning-theme .kpi-card__subtext { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .kpi-card__subtext--breakdown { color: var(--iz-accent-bg-text); }
+.pc-new .pc-planning-theme .kpi-card__subtext--warning { color: var(--iz-warning-text); white-space: normal; }
+.pc-new .pc-planning-theme .kpi-card__subtext--error { color: var(--iz-danger-text); white-space: normal; }
+.pc-new .pc-planning-theme .kpi-card__placeholder { font-size: var(--iz-fs-sm); font-style: normal; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .subrow-title { font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .start-date-inline-right--start { justify-content: flex-start; flex: 0 1 auto; }
+.pc-new .pc-planning-theme .kpi-process-pill { padding: 1px 8px; border-radius: var(--iz-radius-pill); font-size: var(--iz-fs-micro); font-weight: 600; }
+.pc-new .pc-planning-theme .kpi-process-pill--success { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-planning-theme .kpi-process-pill--warning { background: var(--iz-warning-bg); color: var(--iz-warning-text); }
+.pc-new .pc-planning-theme .kpi-process-pill--neutral { background: var(--iz-surface-inset); color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .process-counter-badge { border: 0; border-radius: var(--iz-radius-sm); padding: 2px 8px; }
+.pc-new .pc-planning-theme .process-counter-badge--complete { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-planning-theme .process-counter-badge--progress { background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); }
+.pc-new .pc-planning-theme .process-counter-badge--idle { background: var(--iz-surface-inset); color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .process-missing-chip { border: 0; background: var(--iz-danger-bg); color: var(--iz-danger-text); }
+.pc-new .pc-planning-theme .prep-input-wrap { border-color: var(--iz-border-strong); border-radius: var(--iz-radius-sm); background: var(--iz-surface); }
+.pc-new .pc-planning-theme .kpi-card__float-chip--success { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-planning-theme .kpi-card__float-chip--danger { background: var(--iz-danger-bg); color: var(--iz-danger-text); }
+.pc-new .pc-planning-theme .kpi-card__handover-btn { --default-clickable-area: 28px; min-height: 28px; height: 28px; padding-inline: 10px; border-radius: var(--iz-radius-sm); }
+.pc-new .pc-planning-theme .kpi-card__handover-btn .button-vue__text { font-size: var(--iz-fs-sm); font-weight: 600; }
+/* A narrow panel stacks the three groups. */
+@container kpi-bar (max-width: 719px) {
+	.pc-new .pc-planning-theme .timeline-kpi-bar__cards { flex-wrap: wrap; row-gap: var(--iz-gap); }
+	.pc-new .pc-planning-theme .kpi-phase,
+	.pc-new .pc-planning-theme .kpi-phase--initiation,
+	.pc-new .pc-planning-theme .kpi-phase--delivery { flex-basis: 100%; padding: 0; border-left: 0; }
+}
+
+/* The chart's tools */
+.pc-new .pc-planning-theme .timeline-v2__header { align-items: flex-end; gap: var(--iz-gap); margin-bottom: calc(var(--iz-gap-tight) - var(--iz-gap)); }
+.pc-new .pc-planning-theme .timeline-v2__controls { gap: 8px; }
+.pc-new .pc-planning-theme .control-group { gap: 0; padding: 2px; border: 0; border-radius: var(--iz-radius); background: var(--iz-surface-inset); }
+.pc-new .pc-planning-theme .control-group .button-vue { --default-clickable-area: 32px; min-height: 32px; height: 32px; border-radius: var(--iz-radius-sm); }
+.pc-new .pc-planning-theme .control-group .button-vue .button-vue__text { font-size: var(--iz-fs-sm); font-weight: 600; }
+.pc-new .pc-planning-theme .zoom-indicator { min-width: 44px; padding: 0 4px; font-size: var(--iz-fs-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-new .pc-planning-theme .timeline-v2__controls > .button-vue { --default-clickable-area: 36px; min-height: 36px; height: 36px; padding-inline: 10px 14px; border-radius: var(--iz-radius); }
+.pc-new .pc-planning-theme .timeline-v2__controls > .button-vue .button-vue__text { font-size: var(--iz-fs-sm); font-weight: 600; }
+.pc-new .pc-planning-theme .timeline-v2__controls > .whatif-btn { border: 1px solid var(--iz-border-strong); background: var(--iz-surface); color: var(--iz-text) !important; }
+.pc-new .pc-planning-theme .delay-warning-badge { border: 0; background: var(--iz-danger-bg); color: var(--iz-danger-text); font-size: var(--iz-fs-xs); font-weight: 600; }
+
+/* The chart */
+.pc-new .pc-planning-theme .timeline-v2__container { border: 1px solid var(--iz-border); border-radius: var(--iz-radius-card); box-shadow: none; }
+.pc-new .pc-planning-theme .gantt-v2 { border-bottom-color: var(--iz-border); }
+.pc-new .pc-planning-theme .gantt-v2__header-cell { background: var(--iz-surface-subtle); border-bottom-color: var(--iz-border); font-size: var(--iz-fs-micro); font-weight: 600; letter-spacing: 0.5px; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .year-label { background: transparent; font-size: var(--iz-fs-sm); font-weight: 600; }
+.pc-new .pc-planning-theme .month-label { font-size: var(--iz-fs-xs); font-weight: 500; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .week-label { font-size: 9px; font-weight: 500; color: var(--iz-text-muted); }
+.pc-new .pc-planning-theme .phase-row { border-bottom-color: var(--iz-border); }
+.pc-new .pc-planning-theme .phase-row__name { font-size: var(--iz-fs-md); font-weight: 600; }
+.pc-new .pc-planning-theme .phase-row__dates { font-size: var(--iz-fs-xs); color: var(--iz-text-secondary); font-variant-numeric: tabular-nums; }
+.pc-new .pc-planning-theme .phase-row__duration { padding: 2px 7px; background: var(--iz-surface-inset); font-size: var(--iz-fs-micro); font-weight: 600; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .phase-row--system-planning { border-left-color: var(--iz-accent); background: color-mix(in srgb, var(--iz-accent) 5%, var(--iz-surface)); }
+.pc-new .pc-planning-theme .sp-sidebar-badge { background: var(--iz-accent); color: var(--iz-accent-text); }
+.pc-new .pc-planning-theme .sp-sidebar-icon { color: var(--iz-accent); }
+.pc-new .pc-planning-theme .task-deck-icon { color: var(--iz-text-muted); }
+.pc-new .pc-planning-theme .status-row,
+.pc-new .pc-planning-theme .action-row { border-bottom-color: var(--iz-border); }
+.pc-new .pc-planning-theme .action-row { color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .gantt-v2__status .status-pill { padding: 3px 10px; border: 0; font-size: var(--iz-fs-xs); font-weight: 600; }
+.pc-new .pc-planning-theme .gantt-v2__status .status-pill--on-track,
+.pc-new .pc-planning-theme .gantt-v2__status .status-pill--completed { background: var(--iz-success-bg); color: var(--iz-success-text); }
+.pc-new .pc-planning-theme .gantt-v2__status .status-pill--attention { background: var(--iz-warning-bg); color: var(--iz-warning-text); }
+.pc-new .pc-planning-theme .gantt-v2__status .status-pill--at-risk { background: var(--iz-danger-bg); color: var(--iz-danger-text); }
+.pc-new .pc-planning-theme .gantt-v2__status .status-pill--not-started { background: var(--iz-surface-inset); color: var(--iz-text-secondary); }
+
+/* Bars: a light tint of the phase colour with a coloured edge and dark text. */
+.pc-new .pc-planning-theme .timeline-bar { border: 0; border-radius: var(--iz-radius-sm); box-shadow: none; }
+.pc-new .pc-planning-theme .timeline-bar__label { font-weight: 600; text-shadow: none; }
+.pc-new .pc-planning-theme .timeline-bar--task { background: color-mix(in srgb, var(--bar-color) 18%, var(--iz-surface)) !important; box-shadow: inset 3px 0 0 var(--bar-color); }
+.pc-new .pc-planning-theme .timeline-bar--task .timeline-bar__label { color: var(--iz-text); }
+.pc-new .pc-planning-theme .timeline-bar--critical { box-shadow: inset 3px 0 0 var(--bar-color), 0 0 0 2px var(--iz-warning); }
+.pc-new .pc-planning-theme .phase-summary-bar { border-radius: var(--iz-radius-sm); box-shadow: none; }
+.pc-new .pc-planning-theme .phase-summary-bar__label { font-size: var(--iz-fs-micro); font-weight: 600; letter-spacing: 0.5px; }
+.pc-new .pc-planning-theme .today-line { width: 2px; background: var(--iz-danger); box-shadow: none; }
+.pc-new .pc-planning-theme .today-badge { top: 8px; padding: 2px 8px; background: var(--iz-danger); font-size: var(--iz-fs-micro); font-weight: 700; letter-spacing: 0.5px; box-shadow: none; }
+.pc-new .pc-planning-theme .dependency-line { stroke: var(--iz-text-muted); }
+.pc-new .pc-planning-theme .dependency-line--active { stroke: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .dependency-line--delayed { stroke: var(--iz-danger); }
+.pc-new .pc-planning-theme #dep-arrow path { fill: var(--iz-text-muted); }
+.pc-new .pc-planning-theme #dep-arrow-active path { fill: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme #dep-arrow-delayed path { fill: var(--iz-danger); }
+
+/* System planning row */
+.pc-new .pc-planning-theme .system-planning-row { background: color-mix(in srgb, var(--iz-accent) 3%, var(--iz-surface)); border-bottom-color: var(--iz-border); }
+.pc-new .pc-planning-theme .sp-bar { border-radius: var(--iz-radius-sm); }
+.pc-new .pc-planning-theme .sp-bar__label { font-weight: 600; letter-spacing: 0; }
+.pc-new .pc-planning-theme .sp-bar--deck,
+.pc-new .pc-planning-theme .sp-mini-legend__swatch--deck { background: var(--iz-cat-2); }
+.pc-new .pc-planning-theme .sp-bar--prep,
+.pc-new .pc-planning-theme .sp-mini-legend__swatch--prep { background: var(--iz-cat-5); }
+/* These colours turn light in the dark theme, so the label follows the surface. */
+.pc-new .pc-planning-theme .sp-bar--deck,
+.pc-new .pc-planning-theme .sp-bar--prep { color: var(--iz-surface); }
+.pc-new .pc-planning-theme .sp-mini-legend { font-size: var(--iz-fs-xs); font-weight: 500; color: var(--iz-text-secondary); }
+
+/* Focus chips under the chart, as iz-chip */
+.pc-new .pc-planning-theme .timeline-v2__footer { padding: 12px 16px; border-top: 1px solid var(--iz-border); background: var(--iz-surface-subtle); }
+.pc-new .pc-planning-theme .phase-jumper { gap: 12px; flex-wrap: wrap; }
+.pc-new .pc-planning-theme .jumper-label { font-size: var(--iz-fs-sm); font-weight: 600; color: var(--iz-text-secondary); }
+.pc-new .pc-planning-theme .jumper-chips { gap: 6px; }
+.pc-new .pc-planning-theme .phase-chip { padding: 5px 12px; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius-pill); background: var(--iz-surface); font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text); }
+.pc-new .pc-planning-theme .phase-chip:hover { border-color: var(--iz-accent); background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); }
