@@ -174,7 +174,13 @@ current interface is untouched — no file under `src/components/` changed.
   chart. Labels that the template writes in capitals read in sentence case
   (`lowercase` plus `::first-letter`). Task bars are a light tint of their phase
   colour with a coloured edge and dark text; System Planning, arrows, pills and chips
-  take theme colours, today stays red. The What-If panel keeps its own styling.
+  take theme colours, today stays red. The What-If panel keeps its own styling, except
+  its fields. Fields from the old timeline component never replaced Nextcloud's general
+  input style (2 px border, 3 px margin, side padding, fixed height): the weeks fields
+  drew a 38 px box with its own ring inside their frame, and the What-If dates were
+  cut to "mm/dd/yyy". They are In Zicht fields now; the weeks frame is the field and
+  keeps the arrows, and the card editor's dialog is reached with `body:has()` while the
+  tab is shown. Their `color-scheme` follows the theme, which Nextcloud leaves at normal.
 
 Inactive `iz-chip`s in the new interface sit on the card surface with a hairline
 (`new-ui.css`). The theme fills them with the subtle surface, which is also the page,

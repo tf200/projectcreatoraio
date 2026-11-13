@@ -76,11 +76,23 @@
 .pc-new .pc-planning-theme .process-counter-badge--progress { background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); }
 .pc-new .pc-planning-theme .process-counter-badge--idle { background: var(--iz-surface-inset); color: var(--iz-text-secondary); }
 .pc-new .pc-planning-theme .process-missing-chip { border: 0; background: var(--iz-danger-bg); color: var(--iz-danger-text); }
-.pc-new .pc-planning-theme .prep-input-wrap { border-color: var(--iz-border-strong); border-radius: var(--iz-radius-sm); background: var(--iz-surface); }
 .pc-new .pc-planning-theme .kpi-card__float-chip--success { background: var(--iz-success-bg); color: var(--iz-success-text); }
 .pc-new .pc-planning-theme .kpi-card__float-chip--danger { background: var(--iz-danger-bg); color: var(--iz-danger-text); }
 .pc-new .pc-planning-theme .kpi-card__handover-btn { --default-clickable-area: 28px; min-height: 28px; height: 28px; padding-inline: 10px; border-radius: var(--iz-radius-sm); }
 .pc-new .pc-planning-theme .kpi-card__handover-btn .button-vue__text { font-size: var(--iz-fs-sm); font-weight: 600; }
+
+/* The weeks fields: the frame is the field. Nextcloud's general input style
+ * (a 34 px box with its own border, margin and focus ring) still reached the
+ * bare 38 px number box inside it, so a second field was drawn inside the
+ * frame and the arrows ran into the digits. The arrows stay, with room. */
+.pc-new .pc-planning-theme .prep-input-row { flex-wrap: wrap; gap: 8px; }
+.pc-new .pc-planning-theme .prep-input-wrap { height: 32px; gap: 6px; padding: 0 10px 0 0; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius); background: var(--iz-surface); cursor: text; }
+.pc-new .pc-planning-theme .prep-input-wrap:focus-within { border-color: var(--iz-accent); box-shadow: 0 0 0 2px var(--iz-surface), 0 0 0 4px var(--iz-accent); }
+.pc-new .pc-planning-theme .prep-input-wrap .prep-number-field { width: calc(3ch + 30px) !important; min-width: 0 !important; height: 30px !important; min-height: 0 !important; margin: 0 !important; padding: 0 0 0 10px !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; appearance: auto !important; font-size: var(--iz-fs-md); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pc-new .pc-planning-theme .prep-input-wrap .prep-number-field::-webkit-inner-spin-button { margin-inline-start: 4px; }
+.pc-new .pc-planning-theme .prep-unit-suffix { margin: 0; font-size: var(--iz-fs-sm); font-weight: 500; color: var(--iz-text-secondary); white-space: nowrap; }
+.pc-new .pc-planning-theme .prep-save-btn { --default-clickable-area: 32px; flex-shrink: 0; height: 32px !important; min-height: 32px; padding: 0 12px !important; border-radius: var(--iz-radius); }
+.pc-new .pc-planning-theme .prep-save-btn .button-vue__text { font-size: var(--iz-fs-sm); font-weight: 600; }
 /* A narrow panel stacks the three groups. */
 @container kpi-bar (max-width: 719px) {
 	.pc-new .pc-planning-theme .timeline-kpi-bar__cards { flex-wrap: wrap; row-gap: var(--iz-gap); }
@@ -163,3 +175,29 @@
 .pc-new .pc-planning-theme .jumper-chips { gap: 6px; }
 .pc-new .pc-planning-theme .phase-chip { padding: 5px 12px; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius-pill); background: var(--iz-surface); font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text); }
 .pc-new .pc-planning-theme .phase-chip:hover { border-color: var(--iz-accent); background: var(--iz-accent-bg); color: var(--iz-accent-bg-text); }
+
+/* What-If fields: In Zicht fields instead of Nextcloud's heavy default, whose
+ * border and padding cut a date down to "mm/dd/yyy". The card editor opens in
+ * a dialog outside the tab, so its rules hold only while this tab is shown. */
+.pc-new .pc-planning-theme .planning-try__fields input,
+body:has(.pc-new .pc-planning-theme) .whatif-editor .field-row input { height: 34px !important; min-height: 0 !important; margin: 0 !important; padding: 0 10px !important; border: 1px solid var(--iz-border-strong) !important; border-radius: var(--iz-radius) !important; background: var(--iz-surface); color: var(--iz-text); font-size: var(--iz-fs-md) !important; font-variant-numeric: tabular-nums; }
+.pc-new .pc-planning-theme .planning-try__fields input:hover,
+body:has(.pc-new .pc-planning-theme) .whatif-editor .field-row input:hover { border-color: var(--iz-text-muted) !important; }
+.pc-new .pc-planning-theme .planning-try__fields input:focus,
+body:has(.pc-new .pc-planning-theme) .whatif-editor .field-row input:focus { border-color: var(--iz-accent) !important; }
+.pc-new .pc-planning-theme .planning-try__fields label,
+body:has(.pc-new .pc-planning-theme) .whatif-editor .field-row label { gap: 4px; font-size: var(--iz-fs-xs); font-weight: 600; color: var(--iz-text-secondary); }
+
+/* The browser's own parts of a field (number arrows, the date picker icon)
+ * follow the theme. Nextcloud leaves color-scheme at normal, so they stayed
+ * light in the dark theme. */
+.pc-new .pc-planning-theme input,
+body:has(.pc-new .pc-planning-theme) .whatif-editor input { color-scheme: light dark; }
+body[data-theme-dark] .pc-new .pc-planning-theme input,
+body[data-theme-dark-highcontrast] .pc-new .pc-planning-theme input,
+body[data-theme-dark]:has(.pc-new .pc-planning-theme) .whatif-editor input,
+body[data-theme-dark-highcontrast]:has(.pc-new .pc-planning-theme) .whatif-editor input { color-scheme: dark; }
+body[data-theme-light] .pc-new .pc-planning-theme input,
+body[data-theme-light-highcontrast] .pc-new .pc-planning-theme input,
+body[data-theme-light]:has(.pc-new .pc-planning-theme) .whatif-editor input,
+body[data-theme-light-highcontrast]:has(.pc-new .pc-planning-theme) .whatif-editor input { color-scheme: light; }
