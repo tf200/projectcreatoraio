@@ -1,7 +1,6 @@
 <template>
  <section>
-  <header class="pc-list-heading"><div><h2>{{ t('projectcreatoraio', 'Projects') }}</h2></div><a v-if="canCreate" class="pc-button" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a></header>
-  <p class="pc-subtle">{{ t('projectcreatoraio', 'Project creation opens in the current interface for now.') }}</p>
+  <header class="pc-list-heading"><div><h2>{{ t('projectcreatoraio', 'Projects') }}</h2></div><a v-if="canCreate" class="pc-button" :href="base + '/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a></header>
   <div class="pc-list-surface">
    <div class="pc-filters">
     <label v-if="isOrganizationAdmin">{{ t('projectcreatoraio', 'View') }}<select :value="filters.scope" @change="filter('scope', $event.target.value)"><option value="all">{{ t('projectcreatoraio', 'All organization projects') }}</option><option value="my">{{ t('projectcreatoraio', 'My projects') }}</option></select></label>

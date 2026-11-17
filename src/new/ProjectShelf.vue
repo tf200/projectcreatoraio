@@ -6,7 +6,7 @@
    <input class="pc-shelf-search" type="search" :value="filters.query" :aria-label="t('projectcreatoraio', 'Search projects')" :placeholder="t('projectcreatoraio', 'Search projects…')" @input="$emit('filter', { key: 'query', value: $event.target.value })">
    <button ref="expand" class="pc-secondary pc-shelf-expand" aria-haspopup="dialog" @click="openPicker"><ArrowExpand :size="18" />{{ t('projectcreatoraio', 'Expand') }}</button>
    <button class="pc-secondary pc-shelf-toggle" :aria-expanded="String(!collapsed)" @click="collapsed = !collapsed">{{ collapsed ? t('projectcreatoraio', 'Show shelf') : t('projectcreatoraio', 'Hide') }}<component :is="collapsed ? 'ChevronDown' : 'ChevronUp'" :size="18" /></button>
-   <a v-if="canCreate" class="pc-button pc-shelf-create" :href="base + '/new/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a>
+   <a v-if="canCreate" class="pc-button pc-shelf-create" :href="base + '/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a>
   </div>
   <div v-if="loading" class="pc-shelf-message" role="status">{{ t('projectcreatoraio', 'Loading projects…') }}</div>
   <div v-else-if="error" class="pc-shelf-message" role="alert"><span>{{ error }}</span><button class="pc-secondary" @click="$emit('retry')">{{ t('projectcreatoraio', 'Try again') }}</button></div>

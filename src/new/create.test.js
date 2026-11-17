@@ -64,17 +64,19 @@ test('a refusal reads as the server’s own sentence, never a trace', () => {
 	assert.equal(create.failureOf({}), 'The project could not be created. Please try again.')
 })
 
-test('the New project page has its own address in both interfaces', () => {
+test('the New project page has its own address, and the old /new/create still leads there', () => {
+	assert.deepEqual(readRoute('/index.php/apps/projectcreatoraio/create', ''), { projectId: null, tab: 'overview', create: true })
 	assert.deepEqual(readRoute('/index.php/apps/projectcreatoraio/new/create', ''), { projectId: null, tab: 'overview', create: true })
-	assert.equal(readRoute('/apps/projectcreatoraio/new/projects/21', '').create, undefined)
+	assert.equal(readRoute('/apps/projectcreatoraio/21', '').create, undefined)
 	const base = '/index.php/apps/projectcreatoraio'
-	assert.equal(interfaceUrl(base, { create: true }, true), base + '/new/create')
-	assert.equal(interfaceUrl(base, { create: true }, false), base + '?create=1', 'Back to current interface opens its own create form')
+	assert.equal(interfaceUrl(base, { create: true }, true), base + '/create')
+	assert.equal(interfaceUrl(base, { create: true }, false), base + '/legacy?create=1', 'the old interface opens its own create form')
 	for (const file of ['./ProjectShelf.vue', './ProjectList.vue', './NewApp.vue']) {
 		const source = readFileSync(new URL(file, import.meta.url), 'utf8')
 		assert.doesNotMatch(source, /'\?create=1'/, file + ' no longer sends people to the old interface')
 	}
 	const routes = readFileSync(new URL('../../appinfo/routes.php', import.meta.url), 'utf8')
+	assert.match(routes, /'page#create', 'url' => '\/create'/)
 	assert.match(routes, /'page#newCreate', 'url' => '\/new\/create'/)
 	assert.ok(routes.indexOf('/api/v1/projects/allowance') < routes.indexOf('"/api/v1/projects/{projectId}"'), 'the allowance route comes before projects/{projectId}')
 })

@@ -62,7 +62,7 @@ import { timelineOf, assignedTasks, openTasks, recentFiles, activityText, dateLa
 import { DISCIPLINE_OPTIONS } from './discipline-options.js'
 export default {
  components: { OverviewPanel, FlagOutline, EyeOutline, History, ClipboardCheckOutline, FolderOutline, FileDocumentOutline },
- props: { project: { type: Object, required: true }, context: { type: Object, required: true }, overview: { type: Object, required: true }, legacyUrl: String },
+ props: { project: { type: Object, required: true }, context: { type: Object, required: true }, overview: { type: Object, required: true } },
  data: () => ({ taskView: 'mine' }),
  computed: {
   timeline() { return timelineOf(this.overview.planning.data) },
@@ -78,7 +78,7 @@ export default {
  methods: {
   activityText, date: dateLabel, size: fileSize,
   open(tab) { this.$emit('navigate', tab) }, retry(section) { this.$emit('retry', section) },
-  openDetails() { window.location.assign(this.legacyUrl) },
+  openDetails() { this.$emit('edit-details') },
   stageClass(index) { return { 'pc-timeline-group--done': index < this.timeline.stage, 'pc-timeline-group--now': index === this.timeline.stage } },
   stageText(index) { return index < this.timeline.stage ? ', done' : index === this.timeline.stage ? ', current' : '' },
   noteLabel(type) { return { decision: 'Decision', risk_blocker: 'Risk / blocker note', action_point: 'Action point' }[type] || 'Note' },

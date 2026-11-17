@@ -2,10 +2,6 @@
  <NcContent app-name="projectcreatoraio">
   <NcAppContent :allow-swipe-navigation="false">
    <main class="pc-new">
-    <div class="pc-interface-bar">
-     <span>{{ t('projectcreatoraio', 'New interface') }}</span>
-     <a :href="legacyUrl">{{ t('projectcreatoraio', 'Back to current interface') }}</a>
-    </div>
     <section v-if="contextLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project workspace…') }}</section>
     <section v-else-if="contextError" class="pc-state" role="alert">
      <h1>{{ t('projectcreatoraio', 'Project workspace unavailable') }}</h1><p>{{ contextError }}</p>
@@ -29,11 +25,11 @@
      </section>
      <template v-else-if="project">
       <p v-if="createdNotice && createdNotice.projectId === route.projectId" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ createdNotice.text }}</p>
-      <ProjectHeader @updated="refreshProject" @deleted="onDeleted" :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
-      <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" :legacy-url="legacyUrl" @navigate="navigate(route.projectId, $event)" />
+      <ProjectHeader ref="header" @updated="refreshProject" @deleted="onDeleted" :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" @navigate="navigate(route.projectId, $event)" />
+      <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" @edit-details="$refs.header.openDetails()" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :class="'pc-module--' + route.tab" :aria-label="tabLabel" :aria-busy="projectLoading">
-       <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'Open this section in the current interface to continue.') }}</p><a :href="legacyUrl" class="pc-button">{{ t('projectcreatoraio', 'Open current interface') }}</a></div>
-       <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :legacy-url="legacyUrl" :direct-chat-user="directChatUser" @direct-chat="openDirectChat" />
+       <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'This section could not be shown.') }}</p><button class="pc-button" @click="moduleError = false">{{ t('projectcreatoraio', 'Try again') }}</button></div>
+       <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :direct-chat-user="directChatUser" @direct-chat="openDirectChat" />
       </section>
      </template>
     </template>
@@ -41,7 +37,7 @@
      <h1>{{ t('projectcreatoraio', 'Your project workspace') }}</h1>
      <p v-if="isExternal">{{ t('projectcreatoraio', 'Choose a project from the shelf above.') }}</p>
      <p v-else>{{ t('projectcreatoraio', 'Create a project to get started. Your projects will appear in the shelf above.') }}</p>
-     <a v-if="!isExternal" class="pc-button" :href="base + '/new/create'" @click.prevent="openCreate">{{ t('projectcreatoraio', 'New project') }}</a>
+     <a v-if="!isExternal" class="pc-button" :href="base + '/create'" @click.prevent="openCreate">{{ t('projectcreatoraio', 'New project') }}</a>
     </section>
     </template>
    </main>
@@ -74,7 +70,6 @@ export default {
   isExternal() { return !!this.context?.isExternal },
   // External collaborators see whose guest they are, and cannot create projects.
   guestOf() { return (this.context?.hostOrganizations || []).map(o => o.name).filter(Boolean).join(', ') },
-  legacyUrl() { return interfaceUrl(this.base, this.route, false) },
   tabLabel() { return this.route.tab },
   // The New project page leads back to the project it was opened from.
   returnLabel() { return this.returnRoute ? (this.projects.find(p => Number(p.id) === this.returnRoute.projectId)?.name || '') : '' },

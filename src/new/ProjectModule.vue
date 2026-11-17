@@ -2,7 +2,6 @@
 	<section class="project-module">
 		<div v-if="unavailable" class="project-module__state" role="status">
 			<p>{{ unavailable }}</p>
-			<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 		</div>
 		<template v-else>
 			<div v-if="needsMembers && membersLoading" class="project-module__state" role="status">
@@ -17,7 +16,6 @@
 				<div v-else-if="moduleError" class="project-module__state" role="alert">
 					<p>{{ moduleError }}</p>
 					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Try again') }}</button>
-					<a :href="legacyUrl">{{ t('projectcreatoraio', 'Open current interface') }}</a>
 				</div>
 				<template v-else-if="moduleComponent">
 					<header v-if="tab === 'documents'" class="pc-view__head">
@@ -25,6 +23,12 @@
 							<h2 class="pc-view__title">{{ t('projectcreatoraio', 'Documents') }}</h2>
 							<p class="pc-view__lede">{{ t('projectcreatoraio', 'Shared and private project files, with OCR and signing.') }}</p>
 						</div>
+						<a v-if="sharedZipUrl"
+							class="pc-documents-zip"
+							:href="sharedZipUrl"
+							download>
+							<Download :size="18" />{{ t('projectcreatoraio', 'Download all shared files (ZIP)') }}
+						</a>
 					</header>
 					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents', 'pc-planning-theme': tab === 'planning' }" v-bind="moduleProps" @refresh="loadFiles" @open-direct-chat="$emit('direct-chat', $event)" @clear-target-direct-user="$emit('direct-chat', null)" />
 				</template>
@@ -36,7 +40,9 @@
 
 <script>
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { generateUrl, generateRemoteUrl } from '@nextcloud/router'
+import Download from 'vue-material-design-icons/Download.vue'
+import { sharedZipUrl } from './documents.js'
 import { t } from '@nextcloud/l10n'
 import { api } from './api.js'
 
@@ -54,11 +60,11 @@ const loaders = {
 
 export default {
 	name: 'ProjectModule',
+	components: { Download },
 	props: {
 		project: { type: Object, required: true },
 		context: { type: Object, required: true },
 		tab: { type: String, required: true },
-		legacyUrl: { type: String, required: true },
 		// A member picked for a direct chat from the Members tab, opened by Notes.
 		directChatUser: { type: Object, default: null },
 	},
@@ -86,12 +92,14 @@ export default {
 		// Notes needs the team for its direct chats; Members loads its own.
 		needsMembers() { return this.tab === 'notes' },
 		canManageProject() { return !!(this.context.isGlobalAdmin || this.context.organizationRole === 'admin' || (this.currentUserId && String(this.project.ownerId || '').trim() === this.currentUserId)) },
+		// The whole Shared Files folder, whichever folder is open below.
+		sharedZipUrl() { return this.tab === 'documents' ? sharedZipUrl(generateRemoteUrl('dav'), this.files.shared) : '' },
 		unavailable() {
 			if (!Number.isSafeInteger(this.projectId) || this.projectId <= 0) return t('projectcreatoraio', 'This project is unavailable.')
 			const feature = { tasks: 'deck', intake: 'deck', agenda: 'calendar', whiteboard: 'whiteboard' }[this.tab]
 			if (feature && this.context.features?.[feature] === false) return t('projectcreatoraio', 'This section is not enabled.')
 			if (this.tab === 'intake' && Number(this.project.type) !== 0) return t('projectcreatoraio', 'The intake form is only available for Combi projects.')
-			if (!loaders[this.tab]) return t('projectcreatoraio', 'This section is available in the current interface.')
+			if (!loaders[this.tab]) return t('projectcreatoraio', 'This section is unavailable.')
 			return ''
 		},
 		scopeKey() { return `${this.projectId}:${this.tab}:${this.unavailable}` },
@@ -212,4 +220,8 @@ export default {
 .project-module__state p { margin-bottom: 12px; }
 .project-module__state a { display: inline-block; margin: 8px; }
 .project-module a { color: var(--color-primary-element); text-decoration: underline; }
+/* Looks like the Documents tab's other buttons (documents-theme.css, .project-files__btn). */
+.project-module a.pc-documents-zip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 7px 14px; border: 1px solid var(--iz-border-strong); border-radius: var(--iz-radius); background: var(--iz-surface); color: var(--iz-text); font-size: var(--iz-fs-sm); font-weight: 600; line-height: 1.4; text-decoration: none; }
+.project-module a.pc-documents-zip:hover { background: var(--iz-surface-subtle); }
+.project-module a.pc-documents-zip:focus-visible { outline: 2px solid var(--iz-accent); outline-offset: 2px; }
 </style>

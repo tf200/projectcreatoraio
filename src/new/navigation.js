@@ -10,19 +10,18 @@ function projectId(value) {
  return Number.isSafeInteger(id) ? id : null
 }
 export function readRoute(pathname, search) {
- if (/\/new\/create\/?$/.test(pathname)) return { projectId: null, tab: 'overview', create: true }
+ if (/\/(new\/)?create\/?$/.test(pathname)) return { projectId: null, tab: 'overview', create: true }
  const match = pathname.match(/\/(\d+)\/?$/)
  return { projectId: projectId(match?.[1]), tab: normalizeTab(new URLSearchParams(search).get('tab')) }
 }
 export function interfaceUrl(base, route = {}, modern = true) {
- // The New project page, and the current interface's create form.
- if (route.create) return base.replace(/\/$/, '') + (modern ? '/new/create' : '?create=1')
+ // The new interface has the app's own addresses; the old one is only at /legacy, for admins.
+ const root = base.replace(/\/$/, '') + (modern ? '' : '/legacy')
+ if (route.create) return root + (modern ? '/create' : '?create=1')
  const id = projectId(route.projectId)
+ if (!id) return root + '/'
  const tab = normalizeTab(route.tab)
- let url = base.replace(/\/$/, '') + (modern ? '/new' : '')
- if (id) url += (modern ? '/projects/' : '/') + id
- if (id && tab !== 'overview') url += '?tab=' + (modern ? tab : legacyTabs[tab])
- return url
+ return root + '/' + id + (tab !== 'overview' ? '?tab=' + (modern ? tab : legacyTabs[tab]) : '')
 }
 export function filterProjects(projects, { query = '', status = 'all', sort = 'name', client = '', scope = 'all', organization = 'all' } = {}, { isGlobalAdmin = false, isOrganizationAdmin = false, myProjectIds = [], recentProjectIds = [] } = {}) {
  const search = query.trim().toLocaleLowerCase()

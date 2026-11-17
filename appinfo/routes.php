@@ -2,8 +2,13 @@
 
 return [
     "routes" => [
+        // The new interface is the default; /new/... addresses from before redirect.
+        ['name' => 'page#create', 'url' => '/create', 'verb' => 'GET'],
+        ['name' => 'page#legacy', 'url' => '/legacy', 'verb' => 'GET'],
+        ['name' => 'page#legacyProject', 'url' => '/legacy/{projectId}', 'verb' => 'GET', 'requirements' => ['projectId' => '\\d+']],
         ['name' => 'page#newIndex', 'url' => '/new', 'verb' => 'GET'],
         ['name' => 'page#newProject', 'url' => '/new/projects/{projectId}', 'verb' => 'GET', 'requirements' => ['projectId' => '\\d+']],
+        ['name' => 'page#newProjectTab', 'url' => '/new/projects/{projectId}/{tab}', 'verb' => 'GET', 'requirements' => ['projectId' => '\\d+', 'tab' => '[A-Za-z]+']],
         ['name' => 'page#newCreate', 'url' => '/new/create', 'verb' => 'GET'],
         [
             "name" => "project_api#create",

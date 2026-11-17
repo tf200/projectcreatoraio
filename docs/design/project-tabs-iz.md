@@ -131,8 +131,8 @@ current interface is untouched — no file under `src/components/` changed.
   anyone sees is decided by the Calendar app: proposals for their organizer, meetings
   that are in the viewer's own calendar.
 
-- **New project** — `src/new/NewCreate.vue`, a page of the new layout at `/new/create`
-  (a new page route, `page#newCreate`) instead of the current interface's modal. The same
+- **New project** — `src/new/NewCreate.vue`, a page of the new layout at `/create`
+  (`page#create`; the older `/new/create` redirects there) instead of the current interface's modal. The same
   fields, rules and request (`create.js` builds the same body as `Project.toJson()`; a
   test keeps the keys in step): name, number and type required, an organisation for
   administrators (the existing `OrganizationsFetcher`), client, location with the
@@ -150,7 +150,7 @@ current interface is untouched — no file under `src/components/` changed.
   disables Create; a refusal shows the server's own sentence, never a trace, and keeps
   the form. Created projects open on their overview with a one-line notice; Cancel and
   Back return to the project the page was opened from. The shelf, list and empty-state
-  buttons open it in place; "Back to current interface" opens the old create form.
+  buttons open it in place.
 
 - **Header actions** — `src/new/ProjectActions.vue` replaces the three tiles (Project
   updates, Project contacts, Manage project) with `iz-btn`s: Talk (the project's Talk
@@ -189,6 +189,36 @@ member editor and in the dark Activity filters.
 
 The module host drops its card for these tabs (Calendar included) (`.pc-module--{tab}`), so their
 panels sit on the page background instead of inside another card.
+
+## The new interface is the default (app 1.0.102)
+
+`PageController` serves the `new` template at the app's own addresses: `/`, `/{id}` and
+`/create`. Old links still work:
+- `/new`, `/new/projects/{id}`, `/new/projects/{id}/{tab}` and `/new/create` redirect
+  to the same place without `/new`; `newProjectTab` also fixes the Super admin page's
+  `/new/projects/{id}/members` link, which used to return "not found".
+- `?create=1` redirects to `/create`.
+- Old tab names (`?tab=timeline`, `deck`, `files`, …) are mapped by `normalizeTab`.
+
+Redirects only carry a project id and a plain tab name.
+
+The old interface (`index` template) is at `/legacy` and `/legacy/{id}`, for Nextcloud
+admins only; everyone else is redirected to the matching new address. It builds its
+addresses from the current path, so it works there unchanged. Its whiteboard pop-out
+(`/?popout=whiteboard&projectId=`) still opens for admins and sends anyone else to the
+project's Whiteboard tab. Nothing in the new interface links to the old one: the
+interface bar and the "Open current interface" fallbacks are gone.
+
+The two pieces only the old interface had:
+- **Location map:** the header's city opens a menu (`ProjectHeader`,
+  `src/new/LocationMenu.vue`, which `extends ProjectLocationMap` for the lookup and the
+  OpenStreetMap embed). It shows the address and the map, Open in OpenStreetMap and Edit
+  client & address. The address is looked up only while the menu is open.
+- **Project ZIP:** Documents has "Download all shared files (ZIP)" (`documents.js`,
+  `sharedZipUrl`), Nextcloud's ZIP of the Shared Files folder whichever folder is open.
+  It is the folder the old Download ZIP gave.
+
+"View project details" on the overview opens the Edit project details dialog.
 
 ## Verification
 
