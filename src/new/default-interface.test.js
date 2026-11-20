@@ -68,3 +68,12 @@ test('Download all shared files gives the whole Shared Files folder as a ZIP', (
 	assert.match(module, /<a v-if="sharedZipUrl"\s+class="pc-documents-zip"\s+:href="sharedZipUrl"\s+download>/)
 	assert.match(module, /sharedZipUrl\(\) \{ return this\.tab === 'documents' \? sharedZipUrl\(generateRemoteUrl\('dav'\), this\.files\.shared\) : '' \}/)
 })
+
+test('the project shelf starts folded while a project is open', () => {
+	const shelf = read('./ProjectShelf.vue')
+	assert.match(shelf, /data\(\) \{ return \{ collapsed: true \} \}/)
+	assert.match(shelf, /folded\(\) \{ return this\.collapsed && !!this\.selectedId \}/, 'with no project open the shelf stays visible')
+	assert.match(shelf, /<div v-else v-show="!folded" class="pc-shelf-content">/)
+	assert.match(shelf, /<button v-if="selectedId" class="pc-secondary pc-shelf-toggle" :aria-expanded="String\(!folded\)"/)
+	assert.match(shelf, /folded\(value\) \{ if \(!value\) this\.revealSelection\(\) \}/, 'unfolding scrolls to the open project')
+})

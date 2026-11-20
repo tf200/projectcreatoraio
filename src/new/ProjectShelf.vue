@@ -5,12 +5,12 @@
    <button class="pc-secondary pc-mobile-project" @click="openPicker">{{ selectedName || t('projectcreatoraio', 'Choose a project') }} <ChevronDown :size="18" /></button>
    <input class="pc-shelf-search" type="search" :value="filters.query" :aria-label="t('projectcreatoraio', 'Search projects')" :placeholder="t('projectcreatoraio', 'Search projects…')" @input="$emit('filter', { key: 'query', value: $event.target.value })">
    <button ref="expand" class="pc-secondary pc-shelf-expand" aria-haspopup="dialog" @click="openPicker"><ArrowExpand :size="18" />{{ t('projectcreatoraio', 'Expand') }}</button>
-   <button class="pc-secondary pc-shelf-toggle" :aria-expanded="String(!collapsed)" @click="collapsed = !collapsed">{{ collapsed ? t('projectcreatoraio', 'Show shelf') : t('projectcreatoraio', 'Hide') }}<component :is="collapsed ? 'ChevronDown' : 'ChevronUp'" :size="18" /></button>
+   <button v-if="selectedId" class="pc-secondary pc-shelf-toggle" :aria-expanded="String(!folded)" @click="collapsed = !collapsed">{{ folded ? t('projectcreatoraio', 'Show shelf') : t('projectcreatoraio', 'Hide') }}<component :is="folded ? 'ChevronDown' : 'ChevronUp'" :size="18" /></button>
    <a v-if="canCreate" class="pc-button pc-shelf-create" :href="base + '/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a>
   </div>
   <div v-if="loading" class="pc-shelf-message" role="status">{{ t('projectcreatoraio', 'Loading projects…') }}</div>
   <div v-else-if="error" class="pc-shelf-message" role="alert"><span>{{ error }}</span><button class="pc-secondary" @click="$emit('retry')">{{ t('projectcreatoraio', 'Try again') }}</button></div>
-  <div v-else v-show="!collapsed" class="pc-shelf-content">
+  <div v-else v-show="!folded" class="pc-shelf-content">
    <div v-if="visible.length" ref="cards" class="pc-shelf-cards">
     <a v-for="p in visible" :key="p.id" class="pc-shelf-card" :href="projectUrl(p.id)" :aria-current="Number(p.id) === selectedId ? 'page' : null" @click.prevent="select(p.id)">
      <span class="pc-shelf-monogram" aria-hidden="true">{{ initials(p.name) }}</span>
@@ -43,12 +43,14 @@ export default {
   loading: Boolean, error: { type: String, default: '' }, filters: { type: Object, required: true }, base: { type: String, required: true },
   isGlobalAdmin: Boolean, isOrganizationAdmin: Boolean, myProjectIds: { type: Array, default: () => [] }, recentProjectIds: { type: Array, default: () => [] }, canCreate: { type: Boolean, default: true },
  },
- data() { return { collapsed: false } },
+ // Folded by default while a project is open; with none open the shelf is how to pick one.
+ data() { return { collapsed: true } },
  computed: {
+  folded() { return this.collapsed && !!this.selectedId },
   visible() { return filterProjects(this.projects, this.filters, this) },
   hasFilters() { return !!(this.filters.query || this.filters.client || this.filters.status !== 'all' || this.filters.organization !== 'all' || this.filters.scope !== 'all') },
  },
- watch: { selectedId() { this.revealSelection() } },
+ watch: { selectedId() { this.revealSelection() }, folded(value) { if (!value) this.revealSelection() } },
  mounted() { this.revealSelection() },
  beforeDestroy() { if (this.$refs.picker.open) this.$refs.picker.close() },
  methods: {
