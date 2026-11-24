@@ -5,34 +5,34 @@
 				ref="title"
 				class="pc-access__title"
 				tabindex="-1">
-				Who can do what
+				{{ t('Who can do what') }}
 			</h3>
 			<p v-if="access && access.total" class="pc-access__sub">
-				How many of the board’s {{ cardsText(access.total) }} {{ self ? 'you' : 'each member' }} may view, move, verify and sign.
+				{{ self ? t('How many of the board’s {cards} you may view, move, verify and sign.', { cards: cardsText(access.total) }) : t('How many of the board’s {cards} each member may view, move, verify and sign.', { cards: cardsText(access.total) }) }}
 			</p>
 		</header>
 
 		<div v-if="error && !access" class="iz-empty pc-view__failure" role="alert">
 			<span>{{ error }}</span>
 			<button type="button" class="iz-btn" @click="$emit('retry')">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</div>
 		<div v-else-if="!access" class="iz-empty" role="status">
-			Loading who can do what…
+			{{ t('Loading who can do what…') }}
 		</div>
 		<p v-else-if="!access.members.length" class="iz-empty">
-			{{ self ? 'You are not a member of this project.' : 'This project has no members yet.' }}
+			{{ self ? t('You are not a member of this project.') : t('This project has no members yet.') }}
 		</p>
 		<p v-else-if="!access.total" class="iz-empty">
-			There are no cards on the board yet.
+			{{ t('There are no cards on the board yet.') }}
 		</p>
 		<div v-else class="iz-table-wrap pc-access__wrap">
 			<table class="iz-table pc-access__table">
 				<thead>
 					<tr>
 						<th scope="col">
-							Member
+							{{ t('Member') }}
 						</th>
 						<th v-for="action in actions"
 							:key="action.key"
@@ -41,7 +41,7 @@
 							{{ action.label }}
 						</th>
 						<th scope="col" class="pc-access__end">
-							<span class="pc-sr-only">Cards</span>
+							<span class="pc-sr-only">{{ t('Cards') }}</span>
 						</th>
 					</tr>
 				</thead>
@@ -58,9 +58,9 @@
 									<span class="pc-access__names">
 										<span class="pc-access__name">
 											{{ member.displayName }}
-											<span v-if="member.isOwner" class="iz-pill iz-pill--accent pc-access__tag">Owner</span>
-											<span v-if="member.boardAccess === 'read'" class="iz-pill iz-pill--muted pc-access__tag">Read only</span>
-											<span v-else-if="member.boardAccess === 'none'" class="iz-pill iz-pill--danger pc-access__tag">No board access</span>
+											<span v-if="member.isOwner" class="iz-pill iz-pill--accent pc-access__tag">{{ t('Owner') }}</span>
+											<span v-if="member.boardAccess === 'read'" class="iz-pill iz-pill--muted pc-access__tag">{{ t('Read only') }}</span>
+											<span v-else-if="member.boardAccess === 'none'" class="iz-pill iz-pill--danger pc-access__tag">{{ t('No board access') }}</span>
 										</span>
 										<span v-if="member.roles.length" class="pc-access__roles">{{ member.roles.join(' · ') }}</span>
 									</span>
@@ -81,7 +81,7 @@
 									:aria-expanded="String(isOpen(member))"
 									:aria-controls="detailId(member)"
 									@click="toggle(member)">
-									{{ isOpen(member) ? 'Hide cards' : 'Show cards' }}
+									{{ isOpen(member) ? t('Hide cards') : t('Show cards') }}
 								</button>
 							</td>
 						</tr>
@@ -94,7 +94,7 @@
 									{{ noneText(member, self) }}
 								</p>
 								<p v-if="member.missing.length" class="pc-access__detail-title">
-									{{ self ? 'Cards you can’t act on' : 'Cards ' + member.displayName + ' can’t act on' }}
+									{{ self ? t('Cards you can’t act on') : t('Cards {name} can’t act on', { name: member.displayName }) }}
 								</p>
 								<ul v-if="member.missing.length" class="pc-access__cards">
 									<li v-for="card in member.missing" :key="card.id">
@@ -103,7 +103,7 @@
 									</li>
 								</ul>
 								<p v-if="access.unnamed" class="pc-access__unnamed">
-									{{ member.missing.length || member.none.length ? 'And ' : '' }}{{ cardsText(access.unnamed) }} {{ self ? 'you can’t see' : 'no one listed here can see' }}.
+									{{ unnamedText(member) }}
 								</p>
 							</td>
 						</tr>
@@ -114,7 +114,7 @@
 		<p v-if="error && access" class="pc-access__stale" role="alert">
 			{{ error }}
 			<button type="button" class="iz-btn iz-btn--sm" @click="$emit('retry')">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</p>
 	</section>
@@ -122,6 +122,7 @@
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import { t } from './l10n.mjs'
 import { ACTIONS, cardsText, cellOf, missingText, noneText } from './board-access.js'
 
 // The table at the top of Card Permissions in the new layout: how many cards
@@ -144,6 +145,13 @@ export default {
 	methods: {
 		cardsText,
 		cellOf,
+		// Cards no one listed can see, after the member's own left-out cards ("And …") or on their own.
+		unnamedText(member) {
+			const cards = cardsText(this.access.unnamed)
+			const and = member.missing.length || member.none.length
+			if (this.self) return and ? t('And {cards} you can’t see.', { cards }) : t('{cards} you can’t see.', { cards })
+			return and ? t('And {cards} no one listed here can see.', { cards }) : t('{cards} no one listed here can see.', { cards })
+		},
 		missingText,
 		noneText,
 		isOpen(member) { return this.open.includes(member.id) },

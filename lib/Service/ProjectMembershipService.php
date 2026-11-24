@@ -22,6 +22,7 @@ use OCP\Share\IManager as IShareManager;
 use OCP\Share\IShare;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 /**
  * Removes project members and keeps team-driven membership in sync.
@@ -39,7 +40,12 @@ class ProjectMembershipService {
 	public const PRIVATE_FOLDER_DELETED = 'deleted';
 	public const PRIVATE_FOLDER_FAILED = 'failed';
 
+	/** Folder name in projects created before folder names were translated. */
 	private const FORMER_MEMBERS_FOLDER = 'Former members';
+
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
 
 	public function __construct(
 		private ProjectMapper $projectMapper,
@@ -57,7 +63,11 @@ class ProjectMembershipService {
 		private IShareManager $shareManager,
 		private IDBConnection $db,
 		private LoggerInterface $logger,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/**
@@ -66,22 +76,22 @@ class ProjectMembershipService {
 	public function removeMember(int $projectId, string $userId): array {
 		$userId = trim($userId);
 		if ($userId === '') {
-			throw new OCSException('A user ID is required.', 400);
+			throw new OCSException($this->l->t('A user ID is required.'), 400);
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		if (trim((string)$project->getOwnerId()) === $userId) {
-			throw new OCSException('The project owner cannot be removed. Hand the project over to someone else first.', 409);
+			throw new OCSException($this->l->t('The project owner cannot be removed. Hand the project over to someone else first.'), 409);
 		}
 
 		$groupGid = trim((string)($project->getProjectGroupGid() ?? ''));
 		$inGroup = $groupGid !== '' && $this->groupManager->isInGroup($userId, $groupGid);
 		if (!$inGroup && !$this->memberSourceMapper->hasAnySource($projectId, $userId)) {
-			throw new OCSException('User is not a project member.', 404);
+			throw new OCSException($this->l->t('User is not a project member.'), 404);
 		}
 
 		$user = $this->userManager->get($userId);
@@ -379,15 +389,31 @@ class ProjectMembershipService {
 
 		$ownerLink = $this->projectMapper->findPrivateFolderForUser((int)$project->getId(), $ownerId);
 		$parent = $ownerLink !== null ? $ownerFolder->getFirstNodeById((int)$ownerLink->getFolderId()) : null;
+		// Existing projects keep the folder they have (English or translated name);
+		// a new folder is named in the server default language.
+		$cl = $this->contentL10n->get();
+		$folderName = $cl->t('Former members');
+		$folderNames = array_values(array_unique([self::FORMER_MEMBERS_FOLDER, $folderName]));
 		if (!$parent instanceof Folder) {
-			$projectName = trim((string)($project->getName() ?? '')) ?: 'Project';
-			$name = sprintf('%s - %s', $projectName, self::FORMER_MEMBERS_FOLDER);
-			return $ownerFolder->nodeExists($name) ? $ownerFolder->get($name) : $ownerFolder->newFolder($name);
+			$rawName = trim((string)($project->getName() ?? ''));
+			$projectNames = $rawName !== '' ? [$rawName] : array_values(array_unique(['Project', $cl->t('Project')]));
+			foreach ($projectNames as $projectName) {
+				foreach ($folderNames as $candidate) {
+					$name = sprintf('%s - %s', $projectName, $candidate);
+					if ($ownerFolder->nodeExists($name)) {
+						return $ownerFolder->get($name);
+					}
+				}
+			}
+			return $ownerFolder->newFolder(sprintf('%s - %s', $rawName !== '' ? $rawName : $cl->t('Project'), $folderName));
 		}
 
-		return $parent->nodeExists(self::FORMER_MEMBERS_FOLDER)
-			? $parent->get(self::FORMER_MEMBERS_FOLDER)
-			: $parent->newFolder(self::FORMER_MEMBERS_FOLDER);
+		foreach ($folderNames as $candidate) {
+			if ($parent->nodeExists($candidate)) {
+				return $parent->get($candidate);
+			}
+		}
+		return $parent->newFolder($folderName);
 	}
 
 	private function uniqueName(Folder $parent, string $name): string {

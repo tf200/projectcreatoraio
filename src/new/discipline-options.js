@@ -11,4 +11,4 @@ import { DISCIPLINES } from './disciplines.js'
 const ICONS = { electricity: FlashOutline, water: WaterOutline, gas: Fire, coax: CableData, fiber_optic: SignalVariant, sewerage: Pipe }
 
 // Frozen, so Vue doesn't make the icon components reactive.
-export const DISCIPLINE_OPTIONS = Object.freeze(DISCIPLINES.map(discipline => Object.freeze({ ...discipline, icon: ICONS[discipline.value] })))
+export const DISCIPLINE_OPTIONS = Object.freeze(DISCIPLINES.map(discipline => Object.freeze({ value: discipline.value, get label() { return discipline.label }, icon: ICONS[discipline.value] })))

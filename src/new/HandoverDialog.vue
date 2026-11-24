@@ -7,9 +7,9 @@
 		<div class="pc-handover__body">
 			<header class="pc-handover__head">
 				<h3 id="pc-handover-title" class="pc-handover__title">
-					Hand over the project
+					{{ t('Hand over the project') }}
 				</h3>
-				<ol v-if="preview && !report" class="pc-handover__steps" aria-label="Steps">
+				<ol v-if="preview && !report" class="pc-handover__steps" :aria-label="t('Steps')">
 					<li v-for="(name, index) in stepNames"
 						:key="name"
 						:class="{ 'pc-handover__step--now': index === step }"
@@ -20,7 +20,7 @@
 			</header>
 
 			<p v-if="loading" class="pc-handover__muted" role="status">
-				Loading the project…
+				{{ t('Loading the project…') }}
 			</p>
 			<p v-else-if="loadError" class="pc-handover__error" role="alert">
 				{{ loadError }}
@@ -29,21 +29,21 @@
 			<!-- After applying: what happened -->
 			<template v-else-if="report">
 				<p class="pc-handover__text" role="status">
-					{{ report.failed.length ? 'The handover is saved, but not everything went through.' : 'The project is handed over.' }}
+					{{ report.failed.length ? t('The handover is saved, but not everything went through.') : t('The project is handed over.') }}
 				</p>
 				<ul v-if="report.failed.length" class="pc-handover__list pc-handover__list--failed">
 					<li v-for="row in report.failed" :key="row.label">
-						<strong>{{ row.label }}</strong> · {{ row.message }}
+						{{ t('{step} · {message}', { step: row.label, message: row.message }) }}
 					</li>
 				</ul>
 				<ul v-if="report.notes.length" class="pc-handover__list">
 					<li v-for="row in report.notes" :key="row.label">
-						<strong>{{ row.label }}</strong> · {{ row.message }}
+						{{ t('{step} · {message}', { step: row.label, message: row.message }) }}
 					</li>
 				</ul>
 				<div class="pc-handover__buttons">
 					<button type="button" class="iz-btn iz-btn--primary" @click="close">
-						Close
+						{{ t('Close') }}
 					</button>
 				</div>
 			</template>
@@ -52,7 +52,7 @@
 				<!-- 1. Who takes over -->
 				<div v-show="step === 0" class="pc-handover__section">
 					<label class="pc-handover__field">
-						<span>Handover date</span>
+						<span>{{ t('Handover date') }}</span>
 						<input v-model="draft.date"
 							class="iz-input"
 							type="date"
@@ -68,42 +68,42 @@
 					</p>
 
 					<label v-if="preview.teamsAvailable" class="pc-handover__field">
-						<span>Team that carries out the project</span>
+						<span>{{ t('Team that carries out the project') }}</span>
 						<select class="iz-input" :value="teamChoice" @change="chooseTeam($event.target.value)">
-							<option v-if="preview.team" value="keep">Keep {{ preview.team.name }}</option>
-							<option v-else value="keep">No team</option>
+							<option v-if="preview.team" value="keep">{{ t('Keep {team}', { team: preview.team.name }) }}</option>
+							<option v-else value="keep">{{ t('No team') }}</option>
 							<option v-for="team in otherTeams" :key="team.id" :value="String(team.id)">
 								{{ team.name }}
 							</option>
-							<option v-if="preview.team" value="none">No team</option>
+							<option v-if="preview.team" value="none">{{ t('No team') }}</option>
 						</select>
 					</label>
 					<p v-if="joining.length" class="pc-handover__muted">
-						Joining with the team: {{ joining.map(p => p.displayName).join(', ') }}
+						{{ t('Joining with the team: {names}', { names: joining.map(p => p.displayName).join(', ') }) }}
 					</p>
 					<p v-if="preview.team && draft.team.mode !== 'keep'" class="pc-handover__muted">
-						{{ preview.team.name }}’s people stay on the project.
+						{{ t('{team}’s people stay on the project.', { team: preview.team.name }) }}
 					</p>
 
 					<label class="pc-handover__field">
-						<span>Owner</span>
+						<span>{{ t('Owner') }}</span>
 						<select v-model="draft.ownerUid" class="iz-input">
 							<option v-for="person in owners" :key="person.id" :value="person.id">
-								{{ person.displayName }}{{ person.id === preview.ownerId ? ' (now)' : '' }}
+								{{ person.id === preview.ownerId ? t('{name} (now)', { name: person.displayName }) : person.displayName }}
 							</option>
 						</select>
 					</label>
 
 					<div class="pc-handover__field">
-						<label for="pc-handover-search">Add people</label>
+						<label for="pc-handover-search">{{ t('Add people') }}</label>
 						<input id="pc-handover-search"
 							v-model="query"
 							class="iz-input"
 							type="search"
 							autocomplete="off"
-							placeholder="Search organisation members"
+							:placeholder="t('Search organisation members')"
 							@input="search">
-						<ul v-if="results.length" class="pc-handover__results" aria-label="Search results">
+						<ul v-if="results.length" class="pc-handover__results" :aria-label="t('Search results')">
 							<li v-for="user in results" :key="user.id">
 								<button type="button" class="pc-handover__result" @click="pick(user)">
 									<strong>{{ user.displayName }}</strong>
@@ -112,7 +112,7 @@
 							</li>
 						</ul>
 						<p v-else-if="searching" class="pc-handover__muted" role="status">
-							Searching…
+							{{ t('Searching…') }}
 						</p>
 						<p v-else-if="searchError" class="pc-handover__error" role="alert">
 							{{ searchError }}
@@ -123,17 +123,17 @@
 							<strong>{{ person.displayName }}</strong>
 							<button type="button"
 								class="iz-btn iz-btn--ghost iz-btn--sm"
-								:aria-label="'Do not add ' + person.displayName"
+								:aria-label="t('Do not add {name}', { name: person.displayName })"
 								@click="unpick(person)">
-								Remove
+								{{ t('Remove') }}
 							</button>
 						</div>
-						<RoleChips label="DRASCIVS"
+						<RoleChips :label="t('DRASCIVS')"
 							:label-id="'pc-handover-drascivs-' + person.id"
 							:options="drascivsOptions"
 							:selected="person.drascivs"
 							@toggle="person.drascivs = toggled(person.drascivs, $event)" />
-						<RoleChips label="Project role"
+						<RoleChips :label="t('Project role')"
 							:label-id="'pc-handover-role-' + person.id"
 							:options="roleOptions"
 							:selected="person.functional"
@@ -144,30 +144,30 @@
 				<!-- 2. Externals -->
 				<div v-show="step === 1" class="pc-handover__section">
 					<p v-if="!preview.externals.length" class="pc-handover__muted">
-						There are no external collaborators on this project.
+						{{ t('There are no external collaborators on this project.') }}
 					</p>
 					<template v-else>
 						<p class="pc-handover__muted">
-							Externals keep access until the end of work on site, unless you choose otherwise.
+							{{ t('Externals keep access until the end of work on site, unless you choose otherwise.') }}
 						</p>
 						<fieldset v-for="external in preview.externals" :key="external.id" class="pc-handover__external">
 							<legend><strong>{{ external.displayName }}</strong><span v-if="external.company"> · {{ external.company }}</span></legend>
 							<label class="pc-handover__radio">
 								<input v-model="draft.externals[external.id].mode" type="radio" value="untilEnd">
-								Until the end of work on site
+								{{ t('Until the end of work on site') }}
 							</label>
 							<label class="pc-handover__radio">
 								<input v-model="draft.externals[external.id].mode" type="radio" value="atHandover">
-								Ends at the handover
+								{{ t('Ends at the handover') }}
 							</label>
 							<label class="pc-handover__radio">
 								<input v-model="draft.externals[external.id].mode" type="radio" value="date">
-								On a date
+								{{ t('On a date') }}
 								<input v-if="draft.externals[external.id].mode === 'date'"
 									v-model="draft.externals[external.id].date"
 									class="iz-input pc-handover__date"
 									type="date"
-									:aria-label="'Day ' + external.displayName + '’s access ends'">
+									:aria-label="t('Day {name}’s access ends', { name: external.displayName })">
 							</label>
 							<small class="pc-handover__muted">{{ externalEndText(preview, draft, external) }}</small>
 						</fieldset>
@@ -191,20 +191,20 @@
 						class="iz-btn"
 						:disabled="saving"
 						@click="step === 0 ? close() : step--">
-						{{ step === 0 ? 'Cancel' : 'Back' }}
+						{{ step === 0 ? t('Cancel') : t('Back') }}
 					</button>
 					<button v-if="step < 2"
 						type="button"
 						class="iz-btn iz-btn--primary"
 						@click="next">
-						Next
+						{{ t('Next') }}
 					</button>
 					<button v-else
 						type="button"
 						class="iz-btn iz-btn--primary"
 						:disabled="saving || !!problem"
 						@click="apply">
-						{{ saving ? 'Handing over…' : 'Hand over' }}
+						{{ saving ? t('Handing over…') : t('Hand over') }}
 					</button>
 				</div>
 			</template>
@@ -216,6 +216,7 @@
 import RoleChips from './RoleChips.vue'
 import { api, actionMessage, errorMessage } from './api.js'
 import { DRASCIVS, projectRoleOptions, toggled } from './members.js'
+import { t } from './l10n.mjs'
 import { handoverDraft, joiningWithTeam, ownerOptions, externalEndText, handoverProblem, earliestHandover, latestHandover, handoverWarnings, whoProblem, externalsProblem, handoverPayload, handoverSummary, stepReport } from './handover.js'
 
 // The handover step: the people who carry out the project take over from
@@ -235,7 +236,6 @@ export default {
 			preview: null,
 			draft: null,
 			step: 0,
-			stepNames: ['Who takes over', 'Externals', 'Review'],
 			saving: false,
 			error: '',
 			report: null,
@@ -248,6 +248,7 @@ export default {
 		}
 	},
 	computed: {
+		stepNames() { return [t('Who takes over'), t('Externals'), t('Review')] },
 		drascivsOptions() { return DRASCIVS },
 		roleOptions() { return projectRoleOptions(this.preview?.functionalRoles || []) },
 		dateWarnings() { return handoverWarnings(this.preview, this.draft?.date) },
@@ -329,7 +330,7 @@ export default {
 				} catch (e) {
 					if (request !== this.searchRequest) return
 					this.results = []
-					this.searchError = actionMessage(e, 'Organisation members could not be searched.')
+					this.searchError = actionMessage(e, t('Organisation members could not be searched.'))
 				} finally {
 					if (request === this.searchRequest) this.searching = false
 				}
@@ -355,7 +356,7 @@ export default {
 				this.report = stepReport(this.preview, this.draft, result?.steps)
 				this.$emit('done', result)
 			} catch (e) {
-				this.error = actionMessage(e, 'The project could not be handed over. Nothing was changed.')
+				this.error = actionMessage(e, t('The project could not be handed over. Nothing was changed.'))
 			} finally {
 				this.saving = false
 			}

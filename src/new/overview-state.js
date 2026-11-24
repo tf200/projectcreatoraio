@@ -1,5 +1,6 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { t } from './l10n.mjs'
 const sections = ['notes', 'activity', 'tasks', 'planning', 'files']
 export function emptyOverview() { return Object.fromEntries(sections.map(key => [key, { loading: true, error: '', data: null }])) }
 async function get(url, params = {}) { return (await axios.get(generateUrl(url), { params })).data }
@@ -42,7 +43,7 @@ export default {
     const data = await readOverviewSection(key, project, this.context)
     if (current()) this.$set(this.overview, key, { loading: false, error: '', data })
    } catch (error) {
-    if (current()) this.$set(this.overview, key, { loading: false, error: error.response?.status === 403 ? 'You do not have access to this information.' : 'This summary is unavailable. Try again or open the full section.', data: null })
+    if (current()) this.$set(this.overview, key, { loading: false, error: error.response?.status === 403 ? t('You do not have access to this information.') : t('This summary is unavailable. Try again or open the full section.'), data: null })
    }
   },
  },

@@ -1,12 +1,15 @@
 // The New project page of the new layout: the same fields and request as the
 // current interface's create form, plus the disciplines and what Create will set up.
 import { disciplinesOf } from './disciplines.js'
+import { t, formatNumber } from './l10n.mjs'
 
+// The id is what the server stores; label and text are read in the user's
+// language each time they are shown.
 export const TYPES = [
-	{ id: 0, label: 'Combi', text: 'Starts with the 20 Combi process tasks and the intake form.' },
-	{ id: 1, label: 'Solo Elektra', text: 'The six standard columns, without seeded tasks.' },
-	{ id: 2, label: 'Solo Water', text: 'The six standard columns, without seeded tasks.' },
-	{ id: 3, label: 'Custom', text: 'The six standard columns, to shape yourself.' },
+	{ id: 0, get label() { return t('Combi') }, get text() { return t('Starts with the 20 Combi process tasks and the intake form.') } },
+	{ id: 1, get label() { return t('Solo Elektra') }, get text() { return t('The six standard columns, without seeded tasks.') } },
+	{ id: 2, get label() { return t('Solo Water') }, get text() { return t('The six standard columns, without seeded tasks.') } },
+	{ id: 3, get label() { return t('Custom') }, get text() { return t('The six standard columns, to shape yourself.') } },
 ]
 
 export function emptyForm() {
@@ -32,16 +35,16 @@ export function emptyForm() {
 // current form (name, number, type, and an organisation for administrators).
 export function missingOf(form, isAdmin) {
 	return [
-		!String(form.name || '').trim() && 'a name',
-		!String(form.number || '').trim() && 'a number',
-		!TYPES.some(type => type.id === form.type) && 'a type',
-		isAdmin && !(Number(form.organizationId) > 0) && 'an organisation',
+		!String(form.name || '').trim() && t('a name'),
+		!String(form.number || '').trim() && t('a number'),
+		!TYPES.some(type => type.id === form.type) && t('a type'),
+		isAdmin && !(Number(form.organizationId) > 0) && t('an organisation'),
 	].filter(Boolean)
 }
 
 export function sentence(parts) {
 	if (parts.length <= 1) return parts.join('')
-	return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]
+	return t('{list} and {last}', { list: parts.slice(0, -1).join(', '), last: parts[parts.length - 1] })
 }
 
 // The body the create endpoint takes, as the current interface sends it, plus
@@ -70,19 +73,19 @@ export function formatBytes(bytes) {
 	const value = Number(bytes)
 	if (!(value > 0)) return ''
 	const gb = value / 1024 ** 3
-	return gb >= 1 ? (Number.isInteger(gb) ? gb : gb.toFixed(1)) + ' GB' : Math.round(value / 1024 ** 2) + ' MB'
+	return gb >= 1 ? t('{size} GB', { size: formatNumber(gb) }) : t('{size} MB', { size: formatNumber(Math.round(value / 1024 ** 2), 0) })
 }
 
 // The list beside the form, named after the project as it is typed.
 export function setupOf(form, allowance) {
-	const name = String(form.name || '').trim() || 'Project name'
+	const name = String(form.name || '').trim() || t('Project name')
 	const storage = formatBytes(allowance?.sharedStoragePerProject)
 	return [
-		{ key: 'board', title: name + ' - Main Board', text: form.type === 0 ? 'Deck board, six columns, the 20 Combi process tasks' : 'Deck board with the six standard columns' },
-		{ key: 'shared', title: name + ' - Shared Files', text: 'Team folder for everyone on the project' + (storage ? ', ' + storage : '') },
-		{ key: 'private', title: name + ' - Private Files', text: 'A private folder for each member' },
-		{ key: 'whiteboard', title: name + '.whiteboard', text: 'Whiteboard, shared in the project chat' },
-		{ key: 'chat', title: name + ' - Chat', text: 'Talk conversation for the team' },
+		{ key: 'board', title: t('{name} - Main Board', { name }), text: form.type === 0 ? t('Deck board, six columns, the 20 Combi process tasks') : t('Deck board with the six standard columns') },
+		{ key: 'shared', title: t('{name} - Shared Files', { name }), text: storage ? t('Team folder for everyone on the project, {size}', { size: storage }) : t('Team folder for everyone on the project') },
+		{ key: 'private', title: t('{name} - Private Files', { name }), text: t('A private folder for each member') },
+		{ key: 'whiteboard', title: t('{name}.whiteboard', { name }), text: t('Whiteboard, shared in the project chat') },
+		{ key: 'chat', title: t('{name} - Chat', { name }), text: t('Talk conversation for the team') },
 	]
 }
 
@@ -110,5 +113,5 @@ export function failureOf(error) {
 	const thrown = message.match(/(?:Exception|OCSException): (.+?) in \/var\/www\//s)
 	if (thrown) message = thrown[1]
 	message = message.trim()
-	return message && !/^Request failed with status code/.test(message) ? message : 'The project could not be created. Please try again.'
+	return message && !/^Request failed with status code/.test(message) ? message : t('The project could not be created. Please try again.')
 }

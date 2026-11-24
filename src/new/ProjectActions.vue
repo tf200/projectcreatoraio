@@ -3,7 +3,7 @@
 		<div class="pc-actions__row">
 			<a v-if="chatUrl" class="iz-btn iz-btn--primary pc-actions__btn" :href="chatUrl">
 				<ChatOutline :size="16" />
-				Talk
+				{{ t('Talk') }}
 			</a>
 
 			<div class="pc-actions__anchor">
@@ -16,7 +16,7 @@
 					aria-controls="pc-actions-contacts"
 					@click="toggle('contacts', $event)">
 					<AccountGroupOutline :size="16" />
-					Contacts
+					{{ t('Contacts') }}
 					<ChevronDown :size="14" class="pc-actions__caret" />
 				</button>
 				<div v-if="open === 'contacts'"
@@ -24,22 +24,22 @@
 					class="pc-actions__pop"
 					@keydown.esc="close('contactsButton')">
 					<p class="pc-actions__label">
-						Client
+						{{ t('Client') }}
 					</p>
 					<div v-if="hasClient" class="pc-actions__client">
-						<strong>{{ project.client_name || 'No client name' }}</strong>
+						<strong>{{ project.client_name || t('No client name') }}</strong>
 						<span v-if="project.client_phone" class="pc-actions__copyable">{{ project.client_phone }}</span>
 						<span v-if="project.client_address">{{ project.client_address }}</span>
 					</div>
 					<p v-else class="pc-actions__muted">
-						No client details yet.
+						{{ t('No client details yet.') }}
 					</p>
 					<div class="pc-actions__sep" />
 					<button type="button" class="pc-actions__item" @click="pick('members')">
-						<AccountGroupOutline :size="16" />View project team
+						<AccountGroupOutline :size="16" />{{ t('View project team') }}
 					</button>
 					<button type="button" class="pc-actions__item" @click="openClient">
-						<PencilOutline :size="16" />Edit client &amp; address
+						<PencilOutline :size="16" />{{ t('Edit client & address') }}
 					</button>
 				</div>
 			</div>
@@ -54,32 +54,32 @@
 					aria-controls="pc-actions-more"
 					@click="toggle('more', $event)">
 					<DotsHorizontal :size="16" />
-					More
+					{{ t('More') }}
 				</button>
 				<div v-if="open === 'more'"
 					id="pc-actions-more"
 					class="pc-actions__pop pc-actions__menu"
 					role="menu"
-					aria-label="Project actions">
+					:aria-label="t('Project actions')">
 					<button v-if="can.rename || can.describe || can.disciplines"
 						type="button"
 						role="menuitem"
 						class="pc-actions__item"
 						@click="openDetails">
 						<PencilOutline :size="16" />
-						<span>Edit project details<small>{{ detailsHint }}</small></span>
+						<span>{{ t('Edit project details') }}<small>{{ detailsHint }}</small></span>
 					</button>
 					<button type="button"
 						role="menuitem"
 						class="pc-actions__item"
 						@click="openClient">
 						<MapMarkerOutline :size="16" />
-						<span>Edit client &amp; address</span>
+						<span>{{ t('Edit client & address') }}</span>
 					</button>
 					<template v-if="can.status">
 						<div class="pc-actions__sep" />
 						<p :id="'pc-actions-status-' + project.id" class="pc-actions__label">
-							Status
+							{{ t('Status') }}
 						</p>
 						<div role="group" :aria-labelledby="'pc-actions-status-' + project.id">
 							<button v-for="option in statuses"
@@ -103,7 +103,7 @@
 						:disabled="busy"
 						@click="exportProject">
 						<TrayArrowDown :size="16" />
-						<span>Export project<small>A ZIP of its files; you get a notification when it is ready</small></span>
+						<span>{{ t('Export project') }}<small>{{ t('A ZIP of its files; you get a notification when it is ready') }}</small></span>
 					</button>
 					<template v-if="can.delete">
 						<div class="pc-actions__sep" />
@@ -112,7 +112,7 @@
 							class="pc-actions__item pc-actions__item--danger"
 							@click="openDelete">
 							<TrashCanOutline :size="16" />
-							<span>Delete project</span>
+							<span>{{ t('Delete project') }}</span>
 						</button>
 					</template>
 				</div>
@@ -132,10 +132,10 @@
 			@close="dialog = ''">
 			<form class="pc-dialog__body" @submit.prevent="saveDetails">
 				<h3 id="pc-dialog-details" class="pc-dialog__title">
-					Edit project details
+					{{ t('Edit project details') }}
 				</h3>
 				<label v-if="can.rename" class="pc-dialog__field">
-					<span>Project name</span>
+					<span>{{ t('Project name') }}</span>
 					<input id="pc-edit-name"
 						v-model="draft.name"
 						class="iz-input"
@@ -143,21 +143,21 @@
 						required>
 				</label>
 				<label v-if="can.describe" class="pc-dialog__field">
-					<span>Description</span>
+					<span>{{ t('Description') }}</span>
 					<textarea id="pc-edit-description"
 						v-model="draft.description"
 						class="iz-input"
 						rows="4" />
 				</label>
 				<RoleChips v-if="can.disciplines && draft.disciplines"
-					label="Discipline"
+					:label="t('Discipline')"
 					label-id="pc-edit-disciplines"
 					:options="disciplineOptions"
 					:selected="draft.disciplines"
 					:disabled="busy"
 					@toggle="draft.disciplines = toggled(draft.disciplines, $event)" />
 				<p class="pc-dialog__muted">
-					The project number and type stay as they were created.
+					{{ t('The project number and type stay as they were created.') }}
 				</p>
 				<p v-if="error" class="pc-dialog__error" role="alert">
 					{{ error }}
@@ -167,10 +167,10 @@
 						class="iz-btn"
 						:disabled="busy"
 						@click="closeDialog">
-						Cancel
+						{{ t('Cancel') }}
 					</button>
 					<button type="submit" class="iz-btn iz-btn--primary" :disabled="busy || (can.rename && !String(draft.name || '').trim())">
-						{{ busy ? 'Saving…' : 'Save' }}
+						{{ busy ? t('Saving…') : t('Save') }}
 					</button>
 				</div>
 			</form>
@@ -182,46 +182,46 @@
 			@close="dialog = ''">
 			<form class="pc-dialog__body" @submit.prevent="saveClient">
 				<h3 id="pc-dialog-client" class="pc-dialog__title">
-					Client &amp; address
+					{{ t('Client & address') }}
 				</h3>
 				<div class="pc-dialog__grid">
-					<label class="pc-dialog__field"><span>Client name</span><input id="pc-edit-client-name"
+					<label class="pc-dialog__field"><span>{{ t('Client name') }}</span><input id="pc-edit-client-name"
 						v-model="draft.client_name"
 						class="iz-input"
 						type="text"></label>
-					<label class="pc-dialog__field"><span>Phone</span><input id="pc-edit-client-phone"
+					<label class="pc-dialog__field"><span>{{ t('Phone') }}</span><input id="pc-edit-client-phone"
 						v-model="draft.client_phone"
 						class="iz-input"
 						type="tel"></label>
-					<label class="pc-dialog__field"><span>Email</span><input id="pc-edit-client-email"
+					<label class="pc-dialog__field"><span>{{ t('Email') }}</span><input id="pc-edit-client-email"
 						v-model="draft.client_email"
 						class="iz-input"
 						type="email"></label>
-					<label class="pc-dialog__field"><span>Client address</span><input id="pc-edit-client-address"
+					<label class="pc-dialog__field"><span>{{ t('Client address') }}</span><input id="pc-edit-client-address"
 						v-model="draft.client_address"
 						class="iz-input"
 						type="text"></label>
 				</div>
 				<RoleChips v-if="draft.client_role"
-					label="Client roles"
+					:label="t('Client roles')"
 					label-id="pc-edit-client-roles"
 					:options="roleOptions"
 					:selected="draft.client_role"
 					:disabled="busy"
 					@toggle="draft.client_role = toggled(draft.client_role, $event)" />
 				<p class="pc-dialog__section">
-					Project location
+					{{ t('Project location') }}
 				</p>
 				<div class="pc-dialog__grid pc-dialog__grid--location">
-					<label class="pc-dialog__field pc-dialog__field--wide"><span>Street</span><input id="pc-edit-street"
+					<label class="pc-dialog__field pc-dialog__field--wide"><span>{{ t('Street') }}</span><input id="pc-edit-street"
 						v-model="draft.loc_street"
 						class="iz-input"
 						type="text"></label>
-					<label class="pc-dialog__field"><span>City</span><input id="pc-edit-city"
+					<label class="pc-dialog__field"><span>{{ t('City') }}</span><input id="pc-edit-city"
 						v-model="draft.loc_city"
 						class="iz-input"
 						type="text"></label>
-					<label class="pc-dialog__field"><span>ZIP</span><input id="pc-edit-zip"
+					<label class="pc-dialog__field"><span>{{ t('ZIP') }}</span><input id="pc-edit-zip"
 						v-model="draft.loc_zip"
 						class="iz-input"
 						type="text"></label>
@@ -234,10 +234,10 @@
 						class="iz-btn"
 						:disabled="busy"
 						@click="closeDialog">
-						Cancel
+						{{ t('Cancel') }}
 					</button>
 					<button type="submit" class="iz-btn iz-btn--primary" :disabled="busy">
-						{{ busy ? 'Saving…' : 'Save' }}
+						{{ busy ? t('Saving…') : t('Save') }}
 					</button>
 				</div>
 			</form>
@@ -249,13 +249,13 @@
 			@close="dialog = ''">
 			<form class="pc-dialog__body" @submit.prevent="remove">
 				<h3 id="pc-dialog-delete" class="pc-dialog__title">
-					Delete {{ project.name }}?
+					{{ t('Delete {name}?', { name: project.name }) }}
 				</h3>
 				<p class="pc-dialog__text">
-					This removes its shared files, private folders, board, notes, timeline and membership group. It cannot be undone.
+					{{ t('This removes its shared files, private folders, board, notes, timeline and membership group. It cannot be undone.') }}
 				</p>
 				<label class="pc-dialog__field">
-					<span>Type the project name to confirm</span>
+					<span>{{ t('Type the project name to confirm') }}</span>
 					<input id="pc-delete-confirm"
 						v-model="confirmName"
 						class="iz-input"
@@ -270,10 +270,10 @@
 						class="iz-btn"
 						:disabled="busy"
 						@click="closeDialog">
-						Cancel
+						{{ t('Cancel') }}
 					</button>
 					<button type="submit" class="iz-btn pc-dialog__danger" :disabled="busy || confirmName.trim() !== String(project.name || '').trim()">
-						{{ busy ? 'Deleting…' : 'Delete project' }}
+						{{ busy ? t('Deleting…') : t('Delete project') }}
 					</button>
 				</div>
 			</form>
@@ -296,6 +296,7 @@ import { PROJECT_STATUS_OPTIONS, normalizeProjectStatus } from '../constants/pro
 import RoleChips from './RoleChips.vue'
 import { DISCIPLINE_OPTIONS } from './discipline-options.js'
 import { sentence } from './create.js'
+import { t } from './l10n.mjs'
 import { api } from './api.js'
 import { toggled } from './members.js'
 import { permissionsOf, detailsDraft, clientDraft, changesOf, detailsFields, CLIENT_FIELDS, messageOf } from './project-actions.js'
@@ -332,7 +333,7 @@ export default {
 		// The Contacts card shows name, phone and address; the email stays in the client form only.
 		hasClient() { return !!(this.project.client_name || this.project.client_phone || this.project.client_address) },
 		detailsHint() {
-			const parts = [this.can.rename && 'name', this.can.describe && 'description', this.can.disciplines && 'disciplines'].filter(Boolean)
+			const parts = [this.can.rename && t('name'), this.can.describe && t('description'), this.can.disciplines && t('disciplines')].filter(Boolean)
 			const text = sentence(parts)
 			return text.charAt(0).toUpperCase() + text.slice(1)
 		},
@@ -407,23 +408,23 @@ export default {
 				this.say(done)
 				this.$emit('updated')
 			} catch (error) {
-				this.error = messageOf(error, 'The changes could not be saved.')
+				this.error = messageOf(error, t('The changes could not be saved.'))
 			} finally {
 				this.busy = false
 			}
 		},
-		saveDetails() { return this.save(changesOf(this.draft, this.project, detailsFields(this.can)), 'Project details saved.') },
-		saveClient() { return this.save(changesOf(this.draft, this.project, CLIENT_FIELDS), 'Client and address saved.') },
+		saveDetails() { return this.save(changesOf(this.draft, this.project, detailsFields(this.can)), t('Project details saved.')) },
+		saveClient() { return this.save(changesOf(this.draft, this.project, CLIENT_FIELDS), t('Client and address saved.')) },
 		async setStatus(status) {
 			this.open = ''
 			if (status === this.currentStatus) return
 			this.busy = true
 			try {
 				await api.updateProject(this.project.id, { status })
-				this.say('Status changed to ' + (this.statuses.find(s => s.value === status)?.label || status) + '.')
+				this.say(t('Status changed to {status}.', { status: this.statuses.find(s => s.value === status)?.label || status }))
 				this.$emit('updated')
 			} catch (error) {
-				this.say(messageOf(error, 'The status could not be changed.'), true)
+				this.say(messageOf(error, t('The status could not be changed.')), true)
 			} finally {
 				this.busy = false
 			}
@@ -433,9 +434,9 @@ export default {
 			this.busy = true
 			try {
 				const result = await api.requestExport(this.project.id)
-				this.say(result?.message || 'Export is being prepared. You will be notified when it is ready.')
+				this.say(result?.message || t('Export is being prepared. You will be notified when it is ready.'))
 			} catch (error) {
-				this.say(messageOf(error, 'The export could not be started.'), true)
+				this.say(messageOf(error, t('The export could not be started.')), true)
 			} finally {
 				this.busy = false
 			}
@@ -449,7 +450,7 @@ export default {
 				this.closeDialog()
 				this.$emit('deleted', { projectId: Number(this.project.id), name: this.project.name })
 			} catch (error) {
-				this.error = messageOf(error, 'The project could not be deleted.')
+				this.error = messageOf(error, t('The project could not be deleted.'))
 			} finally {
 				this.busy = false
 			}

@@ -24,13 +24,17 @@ class ProjectDeckActivityService {
 	private const WAITING_ON_CUSTOMER_AFTER_DAYS = 90;
 	private const ON_HOLD_AFTER_DAYS = 330;
 
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private readonly ProjectMapper $projectMapper,
 		private readonly ProjectNotificationService $projectNotificationService,
 		private readonly IDBConnection $db,
 		private readonly LoggerInterface $logger,
 		private readonly ?ProjectNoteMapper $projectNoteMapper = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	public function recordCardMoveByBoardId(int $boardId, ?DateTimeInterface $movedAt = null): void {
@@ -68,7 +72,7 @@ class ProjectDeckActivityService {
 					$project,
 					$oldStatus,
 					self::STATUS_ACTIVE,
-					'Deck activity resumed (card moved on board)',
+					$this->contentL10n->get()->t('Deck activity resumed (card moved on board)'),
 				);
 			}
 		}
@@ -110,7 +114,7 @@ class ProjectDeckActivityService {
 						$project,
 						$status,
 						self::STATUS_ACTIVE,
-						'Deck card readiness check (incomplete cards remaining on board)',
+						$this->contentL10n->get()->t('Deck card readiness check (incomplete cards remaining on board)'),
 					);
 				}
 			}
@@ -133,7 +137,7 @@ class ProjectDeckActivityService {
 						$project,
 						$status,
 						self::STATUS_ACTIVE,
-						'Deck activity resumed (recent card activity detected)',
+						$this->contentL10n->get()->t('Deck activity resumed (recent card activity detected)'),
 					);
 				}
 			}
@@ -149,7 +153,7 @@ class ProjectDeckActivityService {
 						$project,
 						$status,
 						self::STATUS_ON_HOLD,
-						'Deck inactivity (no card activity for 330+ days)',
+						$this->contentL10n->get()->t('Deck inactivity (no card activity for 330+ days)'),
 					);
 				}
 			}
@@ -178,7 +182,7 @@ class ProjectDeckActivityService {
 						$project,
 						$status,
 						self::STATUS_WAITING_ON_CUSTOMER,
-						'Deck inactivity (no card activity for 90+ days)',
+						$this->contentL10n->get()->t('Deck inactivity (no card activity for 90+ days)'),
 					);
 				}
 			}
@@ -334,9 +338,14 @@ class ProjectDeckActivityService {
 	 * @return array{id: int, title: string, order: int}|null
 	 */
 	private function findDoneStack(array $stacks): ?array {
+		// The default 'Done' stack is named in the server default language when the
+		// board is created: accept the English title and every translation.
 		$normalizedDoneTitles = ['done', 'afgerond', 'gereed'];
+		foreach ($this->contentL10n->all() as $l) {
+			$normalizedDoneTitles[] = mb_strtolower($l->t('Done'));
+		}
 		foreach ($stacks as $stack) {
-			$title = strtolower(trim((string) ($stack['title'] ?? '')));
+			$title = mb_strtolower(trim((string) ($stack['title'] ?? '')));
 			if (in_array($title, $normalizedDoneTitles, true)) {
 				return $stack;
 			}

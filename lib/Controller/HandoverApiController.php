@@ -17,12 +17,16 @@ use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 /**
  * The handover step of a project. The project owner and the organization's
  * administrators may hand a project over.
  */
 class HandoverApiController extends Controller {
+	private IL10N $l;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -30,8 +34,10 @@ class HandoverApiController extends Controller {
 		private ProjectMapper $projectMapper,
 		private ProjectAccessService $access,
 		private ProjectHandoverStepService $handover,
+		?IL10N $l = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	#[NoAdminRequired]
@@ -56,12 +62,12 @@ class HandoverApiController extends Controller {
 	private function requireHandoverProject(int $projectId, IUser $user): Project {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException('Project not found');
+			throw new OCSNotFoundException($this->l->t('Project not found'));
 		}
 		$this->access->assertCanView($user->getUID(), $project);
 		$isOwner = trim((string)$project->getOwnerId()) === $user->getUID();
 		if (!$isOwner && !$this->access->canAdminister($user->getUID(), $project)) {
-			throw new OCSForbiddenException('Only the project owner and organization administrators can hand a project over.');
+			throw new OCSForbiddenException($this->l->t('Only the project owner and organization administrators can hand a project over.'));
 		}
 		return $project;
 	}
@@ -71,7 +77,7 @@ class HandoverApiController extends Controller {
 		try {
 			$user = $this->userSession->getUser();
 			if ($user === null) {
-				throw new OCSForbiddenException('Authentication required');
+				throw new OCSForbiddenException($this->l->t('Authentication required'));
 			}
 			return $action($user);
 		} catch (OCSException $e) {

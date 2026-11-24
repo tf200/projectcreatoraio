@@ -12,6 +12,7 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\IL10N;
 
 /**
  * Named What-If scenarios saved on a project. Every member can see and load them; the
@@ -22,11 +23,15 @@ class TimelineScenarioLibraryService
 	public const MAX_SCENARIOS_PER_PROJECT = 50;
 	private const MAX_NAME_LENGTH = 120;
 
+	private IL10N $l;
+
 	public function __construct(
 		private readonly TimelineScenarioMapper $mapper,
 		private readonly TimelineScenarioService $scenarioService,
 		private readonly IUserManager $userManager,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/**
@@ -58,7 +63,7 @@ class TimelineScenarioLibraryService
 	{
 		$projectId = (int)$project->getId();
 		if ($this->mapper->countByProject($projectId) >= self::MAX_SCENARIOS_PER_PROJECT) {
-			throw new \InvalidArgumentException('A project can keep at most ' . self::MAX_SCENARIOS_PER_PROJECT . ' saved scenarios. Delete one first.');
+			throw new \InvalidArgumentException($this->l->t('A project can keep at most %s saved scenarios. Delete one first.', [self::MAX_SCENARIOS_PER_PROJECT]));
 		}
 
 		$scenario = new TimelineScenario();
@@ -100,10 +105,10 @@ class TimelineScenarioLibraryService
 	{
 		$scenario = $this->mapper->findInProject((int)$project->getId(), $id);
 		if ($scenario === null) {
-			throw new OCSNotFoundException('Scenario not found');
+			throw new OCSNotFoundException($this->l->t('Scenario not found'));
 		}
 		if (!$this->canEdit($project, $scenario, $user)) {
-			throw new OCSForbiddenException('Only the person who saved this scenario or the project owner can change it');
+			throw new OCSForbiddenException($this->l->t('Only the person who saved this scenario or the project owner can change it'));
 		}
 		return $scenario;
 	}
@@ -117,7 +122,7 @@ class TimelineScenarioLibraryService
 	{
 		$name = is_string($name) ? trim($name) : '';
 		if ($name === '' || mb_strlen($name) > self::MAX_NAME_LENGTH) {
-			throw new \InvalidArgumentException('Give the scenario a name of at most ' . self::MAX_NAME_LENGTH . ' characters');
+			throw new \InvalidArgumentException($this->l->t('Give the scenario a name of at most %s characters', [self::MAX_NAME_LENGTH]));
 		}
 		return $name;
 	}
@@ -130,7 +135,7 @@ class TimelineScenarioLibraryService
 	private function encodeChanges(Project $project, array $changes): string
 	{
 		if ($changes === []) {
-			throw new \InvalidArgumentException('An empty scenario is the live plan; add a change before saving it');
+			throw new \InvalidArgumentException($this->l->t('An empty scenario is the live plan; add a change before saving it'));
 		}
 		$normalized = $this->scenarioService->simulate($project, $changes)['changes'];
 		$stored = array_map(static function (array $change): array {

@@ -1,9 +1,27 @@
-export const CLIENT_ROLE_OPTIONS = [
-	{ value: 'project_sponsor', label: 'Project Sponsor' },
-	{ value: 'project_owner', label: 'Project Owner' },
-	{ value: 'key_stakeholder', label: 'Key Stakeholder' },
-	{ value: 'business_contact', label: 'Business Contact' },
-]
+import { t } from '../new/l10n.mjs'
+
+/**
+ * The client role's display name. The value is the stored code; an unknown
+ * code is shown as it is. Translated at call time, never at module load.
+ */
+export function clientRoleLabel(value) {
+	switch (value) {
+	case 'project_sponsor': return t('Project Sponsor')
+	case 'project_owner': return t('Project Owner')
+	case 'key_stakeholder': return t('Key Stakeholder')
+	case 'business_contact': return t('Business Contact')
+	default: return value
+	}
+}
+
+// `label` is a getter so each read is translated in the user's language.
+export const CLIENT_ROLE_OPTIONS = ['project_sponsor', 'project_owner', 'key_stakeholder', 'business_contact']
+	.map((value) => ({
+		value,
+		get label() {
+			return clientRoleLabel(value)
+		},
+	}))
 
 export function normalizeClientRoles(value) {
 	let roles = []

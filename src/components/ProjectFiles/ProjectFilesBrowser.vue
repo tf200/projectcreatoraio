@@ -7,7 +7,7 @@
 					class="project-files__tab"
 					:class="{ 'project-files__tab--active': scope === 'shared' }"
 					@click="setScope('shared')">
-					Shared
+					{{ t('Shared') }}
 					<span class="project-files__tab-pill">{{ sharedFileCount }}</span>
 				</button>
 				<button
@@ -15,7 +15,7 @@
 					class="project-files__tab"
 					:class="{ 'project-files__tab--active': scope === 'private' }"
 					@click="setScope('private')">
-					Private
+					{{ t('Private') }}
 					<span class="project-files__tab-pill">{{ privateFileCount }}</span>
 				</button>
 			</div>
@@ -23,9 +23,9 @@
 			<div class="project-files__tools">
 				<NcTextField
 					v-model="search"
-					label="Search files"
-					input-label="Search files"
-					placeholder="Search names">
+					:label="t('Search files')"
+					:input-label="t('Search files')"
+					:placeholder="t('Search names')">
 					<template #icon>
 						<Magnify :size="18" />
 					</template>
@@ -35,19 +35,19 @@
 					:type="'button'"
 					class="project-files__clear"
 					@click="clearSearch">
-					Clear
+					{{ t('Clear') }}
 				</button>
 			</div>
 		</div>
 
 		<div v-if="documentTypesLoading" class="project-files__muted">
-			Loading OCR document types...
+			{{ t('Loading OCR document types…') }}
 		</div>
 		<div v-else-if="documentTypesError" class="project-files__muted">
 			{{ documentTypesError }}
 		</div>
 		<div v-if="loading" class="project-files__muted">
-			Loading file structure...
+			{{ t('Loading file structure...') }}
 		</div>
 		<div v-else-if="error" class="project-files__muted">
 			{{ error }}
@@ -55,10 +55,10 @@
 		<div v-else class="project-files__grid">
 			<div class="project-files__pane project-files__pane--left">
 				<div class="project-files__pane-title">
-					Folders
+					{{ t('Folders') }}
 				</div>
 				<div v-if="activeRoots.length === 0" class="project-files__empty">
-					No folders found.
+					{{ t('No folders found.') }}
 				</div>
 				<div v-else class="project-files__tree">
 					<FolderTreeItem
@@ -85,7 +85,7 @@
 							@click="selectFolder(crumb)">
 							{{ crumb.name }}
 						</button>
-						<span v-if="selectedChain.length === 0" class="project-files__muted">No folder selected</span>
+						<span v-if="selectedChain.length === 0" class="project-files__muted">{{ t('No folder selected') }}</span>
 					</div>
 
 					<div class="project-files__actions">
@@ -95,7 +95,7 @@
 							:disabled="!selectedFolderNode"
 							@click="openNodeInFiles(selectedFolderNode)">
 							<OpenInNew :size="18" />
-							Open in Files
+							{{ t('Open in Files') }}
 						</button>
 						<button
 							:type="'button'"
@@ -103,7 +103,7 @@
 							:disabled="!selectedFolderNode || uploadBusy || documentTypesLoading || documentTypes.length === 0"
 							@click="triggerUpload">
 							<Upload :size="18" />
-							{{ uploadBusy ? 'Uploading...' : 'Upload for OCR' }}
+							{{ uploadBusy ? t('Uploading…') : t('Upload for OCR') }}
 						</button>
 						<button
 							:type="'button'"
@@ -111,7 +111,7 @@
 							:disabled="!selectedFolderNode || signingUploadBusy"
 							@click="triggerSigningUpload">
 							<FileDocumentOutline :size="18" />
-							{{ signingUploadBusy ? 'Uploading...' : 'Upload for signing' }}
+							{{ signingUploadBusy ? t('Uploading…') : t('Upload for signing') }}
 						</button>
 						<button
 							:type="'button'"
@@ -119,7 +119,7 @@
 							:disabled="!selectedFolderNode"
 							@click="downloadFolderZip(selectedFolderNode)">
 							<Download :size="18" />
-							Download ZIP
+							{{ t('Download ZIP') }}
 						</button>
 					</div>
 				</div>
@@ -142,7 +142,7 @@
 					<div class="project-files__modal project-files__upload-modal" @click.stop>
 						<div class="project-files__modal-header">
 							<h3 class="project-files__modal-title">
-								Upload Files
+								{{ t('Upload Files') }}
 							</h3>
 							<button class="project-files__modal-close" @click="closeUploadModal">
 								<Close :size="20" />
@@ -150,16 +150,16 @@
 						</div>
 						<div class="project-files__modal-content">
 							<div class="project-files__modal-filename">
-								{{ selectedFolderNode?.name || 'Selected folder' }}
+								{{ selectedFolderNode?.name || t('Selected folder') }}
 							</div>
-							<label class="project-files__upload-modal-label" for="project-files-upload-type">Document type</label>
+							<label class="project-files__upload-modal-label" for="project-files-upload-type">{{ t('Document type') }}</label>
 							<select
 								id="project-files-upload-type"
 								v-model="uploadDocumentTypeId"
 								class="project-files__upload-type-select"
 								:disabled="documentTypesLoading || documentTypes.length === 0 || uploadBusy">
 								<option value="">
-									{{ documentTypes.length === 0 ? 'No document types' : 'Select document type...' }}
+									{{ documentTypes.length === 0 ? t('No document types') : t('Select document type...') }}
 								</option>
 								<option v-for="type in documentTypes" :key="`upload-doc-type-${type.id}`" :value="String(type.id)">
 									{{ type.name }}
@@ -171,10 +171,10 @@
 									class="project-files__btn"
 									:disabled="uploadBusy"
 									@click="$refs.uploadInput?.click?.()">
-									Choose files
+									{{ t('Choose files') }}
 								</button>
 								<span class="project-files__upload-modal-hint">
-									{{ selectedUploadFiles.length === 0 ? 'No files selected yet.' : `${selectedUploadFiles.length} file${selectedUploadFiles.length === 1 ? '' : 's'} selected.` }}
+									{{ selectedUploadFiles.length === 0 ? t('No files selected yet.') : n('%n file selected.', '%n files selected.', selectedUploadFiles.length) }}
 								</span>
 							</div>
 							<ul v-if="selectedUploadFiles.length > 0" class="project-files__upload-file-list">
@@ -189,14 +189,14 @@
 									class="project-files__btn"
 									:disabled="uploadBusy"
 									@click="closeUploadModal">
-									Cancel
+									{{ t('Cancel') }}
 								</button>
 								<button
 									:type="'button'"
 									class="project-files__btn project-files__btn--primary"
 									:disabled="uploadBusy || !uploadDocumentTypeId || selectedUploadFiles.length === 0"
 									@click="uploadSelectedFiles">
-									{{ uploadBusy ? 'Uploading...' : 'Upload and process' }}
+									{{ uploadBusy ? t('Uploading…') : t('Upload and process') }}
 								</button>
 							</div>
 						</div>
@@ -207,7 +207,7 @@
 					<div class="project-files__modal project-files__upload-modal" @click.stop>
 						<div class="project-files__modal-header">
 							<h3 class="project-files__modal-title">
-								Upload for Signing
+								{{ t('Upload for Signing') }}
 							</h3>
 							<button class="project-files__modal-close" @click="closeSigningUploadModal">
 								<Close :size="20" />
@@ -215,20 +215,20 @@
 						</div>
 						<div class="project-files__modal-content">
 							<div class="project-files__modal-filename">
-								{{ selectedFolderNode?.name || 'Selected folder' }}
+								{{ selectedFolderNode?.name || t('Selected folder') }}
 							</div>
 							<div class="project-files__signer-picker">
 								<div class="project-files__upload-modal-label">
-									Project members
+									{{ t('Project members') }}
 								</div>
 								<div v-if="projectMembersLoading" class="project-files__muted">
-									Loading members...
+									{{ t('Loading members…') }}
 								</div>
 								<div v-else-if="projectMembersError" class="project-files__muted">
 									{{ projectMembersError }}
 								</div>
 								<div v-else-if="projectMembers.length === 0" class="project-files__muted">
-									No project members found.
+									{{ t('No project members found.') }}
 								</div>
 								<label v-for="member in projectMembers"
 									v-else
@@ -242,19 +242,19 @@
 									<span class="project-files__member-sub">{{ member.id }}</span>
 								</label>
 							</div>
-							<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">Signing flow</label>
+							<label class="project-files__upload-modal-label" for="project-files-signing-upload-flow">{{ t('Signing flow') }}</label>
 							<select id="project-files-signing-upload-flow"
 								v-model="signingUploadDraft.flow"
 								class="project-files__upload-type-select"
 								:disabled="signingUploadBusy">
 								<option value="parallel">
-									Parallel
+									{{ t('Parallel') }}
 								</option>
 								<option value="ordered_numeric">
-									Ordered
+									{{ t('Ordered') }}
 								</option>
 							</select>
-							<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">External signer emails</label>
+							<label class="project-files__upload-modal-label" for="project-files-signing-upload-signers">{{ t('External signer emails') }}</label>
 							<textarea
 								id="project-files-signing-upload-signers"
 								v-model="signingUploadDraft.signersText"
@@ -262,23 +262,23 @@
 								:disabled="signingUploadBusy"
 								placeholder="client@example.com\nmanager@example.com" />
 							<div class="project-files__hint">
-								Upload PDF files and immediately send them for signatures.
+								{{ t('Upload PDF files and immediately send them for signatures.') }}
 							</div>
 							<div v-if="signingUploadSigners.length > 0" class="project-files__placement-section">
 								<div class="project-files__placement-header-row">
 									<div>
 										<div class="project-files__upload-modal-label">
-											Signature Placements
+											{{ t('Signature Placements') }}
 										</div>
 										<div class="project-files__placement-status-text">
-											Placed {{ Object.keys(signingUploadDraft.placements).length }} of {{ signingUploadSigners.length }} signers.
+											{{ n('Placed {placed} of %n signer.', 'Placed {placed} of %n signers.', signingUploadSigners.length, { placed: Object.keys(signingUploadDraft.placements).length }) }}
 										</div>
 									</div>
 									<button type="button"
 										class="project-files__btn project-files__btn--accent"
 										:disabled="selectedSigningUploadFiles.length === 0"
 										@click="showUploadPlacementStudio = true">
-										Open Placement Studio
+										{{ t('Open Placement Studio') }}
 									</button>
 								</div>
 
@@ -289,7 +289,7 @@
 										<div class="project-files__summary-details">
 											<strong>{{ signer.displayName || signer.email || signer.userId }}</strong>
 											<span class="project-files__summary-status" :class="signingUploadDraft.placements[signer.signerKey] ? 'placed' : 'pending'">
-												{{ signingUploadDraft.placements[signer.signerKey] ? `Placed (Page ${signingUploadDraft.placements[signer.signerKey].page})` : 'Not placed yet' }}
+												{{ signingUploadDraft.placements[signer.signerKey] ? t('Placed (Page {page})', { page: signingUploadDraft.placements[signer.signerKey].page }) : t('Not placed yet') }}
 											</span>
 										</div>
 									</div>
@@ -301,10 +301,10 @@
 									class="project-files__btn"
 									:disabled="signingUploadBusy"
 									@click="$refs.signingUploadInput?.click?.()">
-									Choose PDFs
+									{{ t('Choose PDFs') }}
 								</button>
 								<span class="project-files__upload-modal-hint">
-									{{ selectedSigningUploadFiles.length === 0 ? 'No PDFs selected yet.' : `${selectedSigningUploadFiles.length} PDF${selectedSigningUploadFiles.length === 1 ? '' : 's'} selected.` }}
+									{{ selectedSigningUploadFiles.length === 0 ? t('No PDFs selected yet.') : n('%n PDF selected.', '%n PDFs selected.', selectedSigningUploadFiles.length) }}
 								</span>
 							</div>
 							<ul v-if="selectedSigningUploadFiles.length > 0" class="project-files__upload-file-list">
@@ -321,13 +321,13 @@
 									class="project-files__btn"
 									:disabled="signingUploadBusy"
 									@click="closeSigningUploadModal">
-									Cancel
+									{{ t('Cancel') }}
 								</button>
 								<button :type="'button'"
 									class="project-files__btn project-files__btn--primary"
 									:disabled="signingUploadBusy || selectedSigningUploadFiles.length === 0"
 									@click="uploadSigningFiles">
-									{{ signingUploadBusy ? 'Uploading...' : 'Upload and send' }}
+									{{ signingUploadBusy ? t('Uploading…') : t('Upload and send') }}
 								</button>
 							</div>
 						</div>
@@ -347,10 +347,10 @@
 				<div class="project-files__list">
 					<div v-if="showSearch" class="project-files__results">
 						<div class="project-files__pane-title">
-							Search results
+							{{ t('Search results') }}
 						</div>
 						<div v-if="searchResults.length === 0" class="project-files__empty">
-							No matches.
+							{{ t('No matches.') }}
 						</div>
 						<ul v-else class="project-files__rows">
 							<li v-for="hit in searchResults" :key="`hit-${hit.node.id}`" class="project-files__row">
@@ -359,7 +359,7 @@
 									<FileOutline v-else :size="20" class="project-files__row-icon" />
 									<div class="project-files__row-info">
 										<span class="project-files__row-name">{{ hit.node.name }}</span>
-										<span class="project-files__row-sub">{{ hit.pathLabel || 'Root' }}</span>
+										<span class="project-files__row-sub">{{ hit.pathLabel || t('Root') }}</span>
 									</div>
 								</div>
 							</li>
@@ -368,13 +368,13 @@
 
 					<div v-else>
 						<div class="project-files__pane-title">
-							Contents
+							{{ t('Contents') }}
 						</div>
 						<div v-if="!selectedFolderNode" class="project-files__empty">
-							Select a folder to view its contents.
+							{{ t('Select a folder to view its contents.') }}
 						</div>
 						<div v-else-if="sortedEntries.length === 0" class="project-files__empty">
-							This folder is empty.
+							{{ t('This folder is empty.') }}
 						</div>
 						<ul v-else class="project-files__rows">
 							<li
@@ -391,7 +391,7 @@
 									<div class="project-files__row-info">
 										<span class="project-files__row-name">{{ entry.name }}</span>
 										<span class="project-files__row-sub">
-											<span v-if="entry.type === 'folder'">{{ countFiles(entry) }} files</span>
+											<span v-if="entry.type === 'folder'">{{ n('%n file', '%n files', countFiles(entry)) }}</span>
 											<span v-else>{{ formatBytes(entry.size) }}</span>
 										</span>
 									</div>
@@ -413,7 +413,7 @@
 										v-if="isSupportedFile(entry) && canOpenExtractedDataModal(entry.id)"
 										:type="'button'"
 										class="project-files__icon-btn"
-										title="View Extracted Data"
+										:title="t('View Extracted Data')"
 										@click="openExtractedDataModal(entry.id)">
 										<EyeOutline :size="18" />
 									</button>
@@ -421,7 +421,7 @@
 										v-if="isSupportedFile(entry) && canReprocess(entry.id)"
 										:type="'button'"
 										class="project-files__icon-btn"
-										title="Reprocess OCR"
+										:title="t('Reprocess OCR')"
 										@click="reprocessFile(entry)">
 										<Refresh :size="18" />
 									</button>
@@ -445,7 +445,7 @@
 									<button
 										:type="'button'"
 										class="project-files__icon-btn"
-										title="Open in Files"
+										:title="t('Open in Files')"
 										@click="openNodeInFiles(entry)">
 										<OpenInNew :size="18" />
 									</button>
@@ -453,7 +453,7 @@
 										v-if="entry.type === 'file'"
 										:type="'button'"
 										class="project-files__icon-btn"
-										title="Download"
+										:title="t('Download')"
 										@click="downloadFile(entry)">
 										<Download :size="18" />
 									</button>
@@ -470,7 +470,7 @@
 			<div class="project-files__modal" @click.stop>
 				<div class="project-files__modal-header">
 					<h3 class="project-files__modal-title">
-						Request Signature
+						{{ t('Request Signature') }}
 					</h3>
 					<button class="project-files__modal-close" @click="closeSigningModal">
 						<Close :size="20" />
@@ -482,16 +482,16 @@
 					</div>
 					<div class="project-files__signer-picker">
 						<div class="project-files__upload-modal-label">
-							Project members
+							{{ t('Project members') }}
 						</div>
 						<div v-if="projectMembersLoading" class="project-files__muted">
-							Loading members...
+							{{ t('Loading members…') }}
 						</div>
 						<div v-else-if="projectMembersError" class="project-files__muted">
 							{{ projectMembersError }}
 						</div>
 						<div v-else-if="projectMembers.length === 0" class="project-files__muted">
-							No project members found.
+							{{ t('No project members found.') }}
 						</div>
 						<label v-for="member in projectMembers"
 							v-else
@@ -505,20 +505,20 @@
 							<span class="project-files__member-sub">{{ member.id }}</span>
 						</label>
 					</div>
-					<label class="project-files__upload-modal-label" for="project-files-signing-flow">Signing flow</label>
+					<label class="project-files__upload-modal-label" for="project-files-signing-flow">{{ t('Signing flow') }}</label>
 					<select id="project-files-signing-flow"
 						v-model="signingDraft.flow"
 						class="project-files__upload-type-select"
 						:disabled="signingBusy">
 						<option value="parallel">
-							Parallel
+							{{ t('Parallel') }}
 						</option>
 						<option value="ordered_numeric">
-							Ordered
+							{{ t('Ordered') }}
 						</option>
 					</select>
 
-					<label class="project-files__upload-modal-label" for="project-files-signing-signers">External signer emails</label>
+					<label class="project-files__upload-modal-label" for="project-files-signing-signers">{{ t('External signer emails') }}</label>
 					<textarea
 						id="project-files-signing-signers"
 						v-model="signingDraft.signersText"
@@ -526,20 +526,20 @@
 						:disabled="signingBusy"
 						placeholder="client@example.com\nmanager@example.com" />
 					<div class="project-files__hint">
-						Add one signer email per line. Signatures will send the signing flow.
+						{{ t('Add one signer email per line. Signatures will send the signing flow.') }}
 					</div>
 					<div v-if="signingSigners.length > 0" class="project-files__placement-section">
 						<div class="project-files__placement-header-row">
 							<div>
 								<div class="project-files__upload-modal-label">
-									Signature Placements
+									{{ t('Signature Placements') }}
 								</div>
 								<div class="project-files__placement-status-text">
-									Placed {{ Object.keys(signingDraft.placements).length }} of {{ signingSigners.length }} signers.
+									{{ n('Placed {placed} of %n signer.', 'Placed {placed} of %n signers.', signingSigners.length, { placed: Object.keys(signingDraft.placements).length }) }}
 								</div>
 							</div>
 							<button type="button" class="project-files__btn project-files__btn--accent" @click="showPlacementStudio = true">
-								Open Placement Studio
+								{{ t('Open Placement Studio') }}
 							</button>
 						</div>
 
@@ -550,7 +550,7 @@
 								<div class="project-files__summary-details">
 									<strong>{{ signer.displayName || signer.email || signer.userId }}</strong>
 									<span class="project-files__summary-status" :class="signingDraft.placements[signer.signerKey] ? 'placed' : 'pending'">
-										{{ signingDraft.placements[signer.signerKey] ? `Placed (Page ${signingDraft.placements[signer.signerKey].page})` : 'Not placed yet' }}
+										{{ signingDraft.placements[signer.signerKey] ? t('Placed (Page {page})', { page: signingDraft.placements[signer.signerKey].page }) : t('Not placed yet') }}
 									</span>
 								</div>
 							</div>
@@ -564,13 +564,13 @@
 							class="project-files__btn"
 							:disabled="signingBusy"
 							@click="closeSigningModal">
-							Cancel
+							{{ t('Cancel') }}
 						</button>
 						<button :type="'button'"
 							class="project-files__btn project-files__btn--primary"
 							:disabled="signingBusy"
 							@click="createSigningRequest">
-							{{ signingBusy ? 'Sending...' : 'Send signing request' }}
+							{{ signingBusy ? t('Sending…') : t('Send signing request') }}
 						</button>
 					</div>
 				</div>
@@ -582,7 +582,7 @@
 			<div class="project-files__modal" @click.stop>
 				<div class="project-files__modal-header">
 					<h3 class="project-files__modal-title">
-						Extracted Data
+						{{ t('Extracted Data') }}
 					</h3>
 					<button class="project-files__modal-close" @click="closeExtractedDataModal">
 						<Close :size="20" />
@@ -593,17 +593,17 @@
 						{{ activeExtractedFileName }}
 					</div>
 					<div v-if="activeExtractedData.length === 0" class="project-files__empty">
-						No data extracted yet.
+						{{ t('No data extracted yet.') }}
 					</div>
 					<div v-if="activeExtractedData.length > 0 && activeMissingFieldsCount > 0" class="project-files__modal-warning">
-						{{ activeMissingFieldsCount }} field{{ activeMissingFieldsCount === 1 ? '' : 's' }} still missing.
+						{{ n('%n field still missing.', '%n fields still missing.', activeMissingFieldsCount) }}
 					</div>
 					<table v-if="activeExtractedData.length > 0" class="project-files__data-table">
 						<tbody>
 							<tr v-for="item in activeExtractedData" :key="item.key">
 								<th>
 									{{ item.name }}
-									<span v-if="item.missing" class="project-files__missing-pill">Missing</span>
+									<span v-if="item.missing" class="project-files__missing-pill">{{ t('Missing') }}</span>
 								</th>
 								<td>
 									<input
@@ -620,7 +620,7 @@
 							class="project-files__btn project-files__btn--primary"
 							:disabled="isSavingExtracted(activeExtractedFileId)"
 							@click="saveActiveExtractedData">
-							{{ isSavingExtracted(activeExtractedFileId) ? 'Saving...' : 'Save extracted fields' }}
+							{{ isSavingExtracted(activeExtractedFileId) ? t('Saving...') : t('Save extracted fields') }}
 						</button>
 					</div>
 				</div>
@@ -680,6 +680,7 @@ import Upload from 'vue-material-design-icons/Upload.vue'
 import { ProjectsService } from '../../Services/projects.js'
 import FolderTreeItem from './FolderTreeItem.vue'
 import PdfPlacementStudio from './PdfPlacementStudio.vue'
+import { t, n, formatNumber } from '../../new/l10n.mjs'
 
 function getRequestToken() {
 	// Nextcloud exposes it on `OC.requestToken` and as a meta tag.
@@ -955,6 +956,8 @@ export default {
 		this.ensureSelection('private')
 	},
 	methods: {
+		t,
+		n,
 		resetOcrState() {
 			this.documentTypes = []
 			this.documentTypesLoading = false
@@ -1063,7 +1066,7 @@ export default {
 			}
 			this.selectedSigningUploadFiles = files.filter((file) => this.isPdfUploadFile(file))
 			if (this.selectedSigningUploadFiles.length !== files.length) {
-				this.signingUploadError = 'Only PDF files can be uploaded for signing.'
+				this.signingUploadError = t('Only PDF files can be uploaded for signing.')
 			}
 		},
 		async uploadSelectedFiles() {
@@ -1073,13 +1076,13 @@ export default {
 
 			const uploadDocumentTypeId = Number(this.uploadDocumentTypeId)
 			if (!Number.isFinite(uploadDocumentTypeId) || uploadDocumentTypeId <= 0) {
-				this.uploadError = 'Select a document type before uploading.'
+				this.uploadError = t('Select a document type before uploading.')
 				return
 			}
 
 			const folderDavPath = this.normalizedDavPath(this.selectedFolderNode.path)
 			if (!folderDavPath) {
-				this.uploadError = 'Could not resolve destination folder.'
+				this.uploadError = t('Could not resolve destination folder.')
 				return
 			}
 
@@ -1095,7 +1098,7 @@ export default {
 			for (const file of this.selectedUploadFiles) {
 				const name = String(file?.name || '').trim()
 				if (name === '' || name.includes('/')) {
-					failures.push(name || '(unnamed file)')
+					failures.push(name || t('(unnamed file)'))
 					continue
 				}
 				const uploadName = this.uniqueUploadName(name, reservedNames)
@@ -1127,14 +1130,13 @@ export default {
 					...this.pendingUploadTargets,
 					...uploadedTargets,
 				]
-				this.uploadMessage = `Uploaded ${uploaded} file${uploaded === 1 ? '' : 's'}.`
+				this.uploadMessage = n('Uploaded %n file.', 'Uploaded %n files.', uploaded)
 				this.showUploadModal = false
 				this.selectedUploadFiles = []
 				this.$emit('refresh')
 			}
 			if (failures.length > 0) {
-				const label = failures.length === 1 ? failures[0] : `${failures.length} files`
-				this.uploadError = `Failed to upload ${label}.`
+				this.uploadError = this.uploadFailureMessage(failures)
 			}
 		},
 		async uploadSigningFiles() {
@@ -1143,13 +1145,13 @@ export default {
 			}
 			const signers = this.buildSignerPayload(this.signingUploadDraft.memberIds, this.signingUploadDraft.signersText)
 			if (signers.length === 0) {
-				this.signingUploadError = 'Select at least one project member or add an external signer email.'
+				this.signingUploadError = t('Select at least one project member or add an external signer email.')
 				return
 			}
 
 			const folderDavPath = this.normalizedDavPath(this.selectedFolderNode.path)
 			if (!folderDavPath) {
-				this.signingUploadError = 'Could not resolve destination folder.'
+				this.signingUploadError = t('Could not resolve destination folder.')
 				return
 			}
 
@@ -1164,7 +1166,7 @@ export default {
 			for (const file of this.selectedSigningUploadFiles) {
 				const name = String(file?.name || '').trim()
 				if (name === '' || name.includes('/') || !this.isPdfUploadFile(file)) {
-					failures.push(name || '(unnamed file)')
+					failures.push(name || t('(unnamed file)'))
 					continue
 				}
 				const uploadName = this.uniqueUploadName(name, reservedNames)
@@ -1195,15 +1197,20 @@ export default {
 					...this.pendingSigningUploadTargets,
 					...uploadedTargets,
 				]
-				this.signingUploadMessage = `Uploaded ${uploaded} PDF${uploaded === 1 ? '' : 's'}. Sending signature request...`
+				this.signingUploadMessage = n('Uploaded %n PDF. Sending signature request...', 'Uploaded %n PDFs. Sending signature request...', uploaded)
 				this.showSigningUploadModal = false
 				this.selectedSigningUploadFiles = []
 				this.$emit('refresh')
 			}
 			if (failures.length > 0) {
-				const label = failures.length === 1 ? failures[0] : `${failures.length} files`
-				this.signingUploadError = `Failed to upload ${label}.`
+				this.signingUploadError = this.uploadFailureMessage(failures)
 			}
+		},
+		// One file by name, or how many: "Failed to upload plan.pdf." / "Failed to upload 3 files."
+		uploadFailureMessage(failures) {
+			return failures.length === 1
+				? t('Failed to upload {name}.', { name: failures[0] })
+				: n('Failed to upload %n file.', 'Failed to upload %n files.', failures.length)
 		},
 		readFileAsArrayBuffer(file) {
 			if (file?.arrayBuffer) {
@@ -1212,7 +1219,7 @@ export default {
 			// Fallback for older browsers
 			return new Promise((resolve, reject) => {
 				const reader = new FileReader()
-				reader.onerror = () => reject(reader.error || new Error('Could not read file'))
+				reader.onerror = () => reject(reader.error || new Error(t('Could not read file')))
 				reader.onload = () => resolve(reader.result)
 				reader.readAsArrayBuffer(file)
 			})
@@ -1250,7 +1257,7 @@ export default {
 				this.queueVisibleProcessingLoad()
 			} catch (error) {
 				this.documentTypes = []
-				this.documentTypesError = error?.response?.data?.message || 'Could not load OCR document types.'
+				this.documentTypesError = error?.response?.data?.message || t('Could not load OCR document types.')
 			} finally {
 				this.documentTypesLoading = false
 			}
@@ -1266,7 +1273,7 @@ export default {
 				this.projectMembers = await projectsService.listMembers(projectId)
 			} catch (error) {
 				this.projectMembers = []
-				this.projectMembersError = error?.response?.data?.message || 'Could not load project members.'
+				this.projectMembersError = error?.response?.data?.message || t('Could not load project members.')
 			} finally {
 				this.projectMembersLoading = false
 			}
@@ -1309,7 +1316,7 @@ export default {
 					this.$set(this.processingByFileId, key, payload.processing)
 				}
 			} catch (error) {
-				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || 'Could not load OCR status.')
+				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || t('Could not load OCR status.'))
 			} finally {
 				this.$set(this.processingLoadingByFileId, key, false)
 			}
@@ -1542,7 +1549,7 @@ export default {
 			this.pendingSigningUploadTargets = remaining
 			this.resolvingPendingSigningUploads = false
 			if (sent > 0) {
-				this.signingUploadMessage = `Sent ${sent} signing request${sent === 1 ? '' : 's'}.`
+				this.signingUploadMessage = n('Sent %n signing request.', 'Sent %n signing requests.', sent)
 			}
 		},
 		formatBytes(bytes) {
@@ -1558,7 +1565,8 @@ export default {
 				i += 1
 			}
 			const digits = i === 0 ? 0 : (v < 10 ? 1 : 0)
-			return `${v.toFixed(digits)} ${units[i]}`
+			// 1.5 MB in English, 1,5 MB in Dutch.
+			return `${formatNumber(v, digits)} ${units[i]}`
 		},
 		countFiles(node) {
 			if (!node) {
@@ -1626,15 +1634,15 @@ export default {
 		},
 		signingTitle(fileId) {
 			const request = this.signingByFileId[String(fileId)] || null
-			return request ? `Signing: ${this.signingStatusLabel(fileId)}` : 'Request signature'
+			return request ? t('Signing: {status}', { status: this.signingStatusLabel(fileId) }) : t('Request signature')
 		},
 		signingStatusLabel(fileId) {
 			const request = this.signingByFileId[String(fileId)] || null
-			if (!request) return 'Not sent'
-			if (request.status === 'failed') return 'Signing failed'
-			if (request.status === 'completed' || request.status === 'signed') return 'Signed'
-			if (request.status === 'cancelled') return 'Cancelled'
-			return 'Signing pending'
+			if (!request) return t('Not sent')
+			if (request.status === 'failed') return t('Signing failed')
+			if (request.status === 'completed' || request.status === 'signed') return t('Signed')
+			if (request.status === 'cancelled') return t('Cancelled')
+			return t('Signing pending')
 		},
 		signingBadgeClass(fileId) {
 			const request = this.signingByFileId[String(fileId)] || null
@@ -1776,11 +1784,11 @@ export default {
 				})
 				if (payload?.request) {
 					this.$set(this.signingByFileId, String(normalizedFileId), payload.request)
-					this.$set(this.feedbackByFileId, String(normalizedFileId), 'Signing request sent.')
+					this.$set(this.feedbackByFileId, String(normalizedFileId), t('Signing request sent.'))
 					return payload.request
 				}
 			} catch (error) {
-				const message = error?.response?.data?.message || 'Could not send signing request.'
+				const message = error?.response?.data?.message || t('Could not send signing request.')
 				this.$set(this.feedbackByFileId, String(normalizedFileId), message)
 				this.signingUploadError = message
 				if (String(this.activeSigningFile?.id || '') === String(normalizedFileId)) {
@@ -1797,7 +1805,7 @@ export default {
 			}
 			const signers = this.parseSigningSigners()
 			if (signers.length === 0) {
-				this.signingError = 'Select at least one project member or add an external signer email.'
+				this.signingError = t('Select at least one project member or add an external signer email.')
 				return
 			}
 			this.signingBusy = true
@@ -1808,7 +1816,7 @@ export default {
 					this.activeSigningFile = null
 				}
 			} catch (error) {
-				this.signingError = error?.response?.data?.message || 'Could not send signing request.'
+				this.signingError = error?.response?.data?.message || t('Could not send signing request.')
 			} finally {
 				this.signingBusy = false
 			}
@@ -1821,37 +1829,37 @@ export default {
 			const record = this.processingByFileId[String(fileId)] || null
 			const documentTypeId = Number(record?.document_type_id ?? 0)
 			if (!Number.isFinite(documentTypeId) || documentTypeId <= 0) {
-				return 'No type'
+				return t('No type')
 			}
 			const documentType = this.documentTypes.find((type) => Number(type?.id) === documentTypeId) || null
-			return documentType?.name || 'Unknown type'
+			return documentType?.name || t('Unknown type')
 		},
-		statusLabel(fileId) {
+		// The file's OCR state as a code; statusLabel() words it.
+		statusCode(fileId) {
 			const record = this.processingByFileId[String(fileId)] || null
 			if (!record) {
-				return 'Not processed'
+				return 'none'
 			}
-			if (record.ocr_status === 'failed') {
-				return 'Failed'
-			}
-			if (record.ocr_status === 'aborted') {
-				const missingCount = this.missingFieldsCount(fileId)
-				return missingCount > 0 ? `Aborted (${missingCount} missing)` : 'Aborted'
-			}
-			if (record.ocr_status === 'stale') {
-				return 'Stale'
-			}
-			if (record.ocr_status === 'processing') {
-				return 'Processing'
+			if (['failed', 'aborted', 'stale', 'processing'].includes(record.ocr_status)) {
+				return record.ocr_status
 			}
 			if (record.ocr_status === 'done') {
-				if (this.hasPartialExtraction(fileId)) {
-					const missingCount = this.missingFieldsCount(fileId)
-					return missingCount > 0 ? `Partial (${missingCount} missing)` : 'Partial'
-				}
-				return 'Ready'
+				return this.hasPartialExtraction(fileId) ? 'partial' : 'ready'
 			}
-			return 'Queued'
+			return 'queued'
+		},
+		statusLabel(fileId) {
+			const missingCount = this.missingFieldsCount(fileId)
+			switch (this.statusCode(fileId)) {
+			case 'none': return t('Not processed')
+			case 'failed': return t('Failed')
+			case 'aborted': return missingCount > 0 ? n('Aborted (%n missing)', 'Aborted (%n missing)', missingCount) : t('Aborted')
+			case 'stale': return t('Stale')
+			case 'processing': return t('Processing')
+			case 'partial': return missingCount > 0 ? n('Partial (%n missing)', 'Partial (%n missing)', missingCount) : t('Partial')
+			case 'ready': return t('Ready')
+			default: return t('Queued')
+			}
 		},
 		isProcessingBusy(fileId) {
 			const key = String(fileId)
@@ -1972,31 +1980,24 @@ export default {
 			if (record.ocr_status === 'processing') return 'project-files__status-inline--spin'
 			return 'project-files__status-inline--pending'
 		},
-		isErrorFeedback(fileId) {
-			const feedback = this.fileFeedback(fileId)
-			if (!feedback) {
-				return false
-			}
-			return feedback.toLowerCase().includes('could not') || feedback.toLowerCase().includes('failed')
-		},
 		setProcessingResult(fileId, payload, successMessage, queuedMessage) {
 			const key = String(fileId)
 			if (payload?.processing) {
 				this.$set(this.processingByFileId, key, payload.processing)
 			}
 
-			const nextStatus = this.statusLabel(fileId)
-			if (nextStatus.startsWith('Aborted')) {
-				return payload?.processing?.error_message || 'Document processing aborted due to missing fields.'
+			const nextStatus = this.statusCode(fileId)
+			if (nextStatus === 'aborted') {
+				return payload?.processing?.error_message || t('Document processing aborted due to missing fields.')
 			}
-			if (nextStatus.startsWith('Partial')) {
-				return 'Document processed with missing fields.'
+			if (nextStatus === 'partial') {
+				return t('Document processed with missing fields.')
 			}
-			if (nextStatus === 'Ready') {
+			if (nextStatus === 'ready') {
 				return successMessage
 			}
-			if (nextStatus === 'Failed') {
-				return payload?.processing?.error_message || 'OCR processing failed.'
+			if (nextStatus === 'failed') {
+				return payload?.processing?.error_message || t('OCR processing failed.')
 			}
 			return queuedMessage
 		},
@@ -2037,14 +2038,14 @@ export default {
 				const message = this.setProcessingResult(
 					node.id,
 					payload,
-					'Document processed successfully.',
-					'Document type assigned. OCR is queued.',
+					t('Document processed successfully.'),
+					t('Document type assigned. OCR is queued.'),
 				)
 				if (!silent || message) {
 					this.$set(this.feedbackByFileId, key, message)
 				}
 			} catch (error) {
-				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || 'Could not assign document type.')
+				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || t('Could not assign document type.'))
 			} finally {
 				this.$set(this.assigningByFileId, key, false)
 			}
@@ -2065,12 +2066,12 @@ export default {
 				const message = this.setProcessingResult(
 					node.id,
 					payload,
-					'Document reprocessed successfully.',
-					'Document reprocessing is queued.',
+					t('Document reprocessed successfully.'),
+					t('Document reprocessing is queued.'),
 				)
 				this.$set(this.feedbackByFileId, key, message)
 			} catch (error) {
-				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || 'Could not reprocess OCR for this file.')
+				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || t('Could not reprocess OCR for this file.'))
 			} finally {
 				this.$set(this.assigningByFileId, key, false)
 			}
@@ -2103,9 +2104,9 @@ export default {
 				if (payload?.processing) {
 					this.$set(this.processingByFileId, key, payload.processing)
 				}
-				this.$set(this.feedbackByFileId, key, 'Extracted fields saved.')
+				this.$set(this.feedbackByFileId, key, t('Extracted fields saved.'))
 			} catch (error) {
-				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || 'Could not save extracted fields.')
+				this.$set(this.feedbackByFileId, key, error?.response?.data?.message || t('Could not save extracted fields.'))
 			} finally {
 				this.savingExtractedFileId = null
 			}

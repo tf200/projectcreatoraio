@@ -4,6 +4,7 @@ namespace OCA\ProjectCreatorAIO\Service;
 
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCP\AppFramework\OCS\OCSException;
+use OCP\IL10N;
 
 /**
  * Shared logic for the Combi intake form (card visibility questionnaire).
@@ -25,38 +26,42 @@ class CardVisibility
 	private static ?array $showMap = null;
 
 	/**
+	 * The questions in the language of $l (the user's language when omitted).
+	 * Logic uses the field keys and option values only, never the texts.
+	 *
 	 * @return array<int, array{field: string, category: string, question: string, options: array<int, array{label: string, value: int, show: int}>>>
 	 */
-	public static function getQuestions(): array
+	public static function getQuestions(?IL10N $l = null): array
 	{
+		$l ??= DefaultLanguageL10n::userL10n();
 		return [
 			[
 				'field' => self::FIELD_OBJECT_OWNERSHIP,
-				'category' => 'Eigendoms situatie te realiseren object',
-				'question' => 'Eigendoms situatie te realiseren object (antwoord met ja op de situatie die van toepassing is).',
+				'category' => $l->t('Eigendoms situatie te realiseren object'),
+				'question' => $l->t('Eigendoms situatie te realiseren object (antwoord met ja op de situatie die van toepassing is).'),
 				'options' => [
 					[
-						'label' => 'Het object(en) komt op eigen grond te staan en de gevel grenst direct aan gemeentegrond.',
+						'label' => $l->t('Het object(en) komt op eigen grond te staan en de gevel grenst direct aan gemeentegrond.'),
 						'value' => 201,
 						'show' => 0,
 					],
 					[
-						'label' => 'Het object komt op eigen grond te staan maar de gevel grenst niet direct aan gemeentegrond.',
+						'label' => $l->t('Het object komt op eigen grond te staan maar de gevel grenst niet direct aan gemeentegrond.'),
 						'value' => 202,
 						'show' => 2,
 					],
 					[
-						'label' => 'Het object komt op eigen grond te staan en de grond wordt overgedragen aan de gemeente.',
+						'label' => $l->t('Het object komt op eigen grond te staan en de grond wordt overgedragen aan de gemeente.'),
 						'value' => 203,
 						'show' => 2,
 					],
 					[
-						'label' => 'Het object komt op openbare grond te staan.',
+						'label' => $l->t('Het object komt op openbare grond te staan.'),
 						'value' => 204,
 						'show' => 0,
 					],
 					[
-						'label' => 'Ik weet het nog niet.',
+						'label' => $l->t('Ik weet het nog niet.'),
 						'value' => 205,
 						'show' => 2,
 					],
@@ -64,26 +69,26 @@ class CardVisibility
 			],
 			[
 				'field' => self::FIELD_TRACE_OWNERSHIP,
-				'category' => 'Eigendoms situatie kabel en leidingen tracé',
-				'question' => 'Eigendoms situatie kabel en leidingen tracé (antwoord met ja op de situatie die van toepassing is).',
+				'category' => $l->t('Eigendoms situatie kabel en leidingen tracé'),
+				'question' => $l->t('Eigendoms situatie kabel en leidingen tracé (antwoord met ja op de situatie die van toepassing is).'),
 				'options' => [
 					[
-						'label' => 'Het vrije tracé komt in eigen grond te liggen.',
+						'label' => $l->t('Het vrije tracé komt in eigen grond te liggen.'),
 						'value' => 211,
 						'show' => 2,
 					],
 					[
-						'label' => 'Het vrije tracé komt in openbare grond te liggen.',
+						'label' => $l->t('Het vrije tracé komt in openbare grond te liggen.'),
 						'value' => 212,
 						'show' => 0,
 					],
 					[
-						'label' => 'Het vrije tracé komt zowel in eigen grond als in openbare grond te liggen.',
+						'label' => $l->t('Het vrije tracé komt zowel in eigen grond als in openbare grond te liggen.'),
 						'value' => 213,
 						'show' => 2,
 					],
 					[
-						'label' => 'Ik weet het nog niet.',
+						'label' => $l->t('Ik weet het nog niet.'),
 						'value' => 214,
 						'show' => 2,
 					],
@@ -91,26 +96,26 @@ class CardVisibility
 			],
 			[
 				'field' => self::FIELD_BUILDING_TYPE,
-				'category' => 'Grondgebonden woningen/ hoogbouw/ bedrijfsunits',
-				'question' => 'Grondgebonden woningen/ hoogbouw/ bedrijfsunits (antwoord met ja op de situatie die van toepassing is).',
+				'category' => $l->t('Grondgebonden woningen/ hoogbouw/ bedrijfsunits'),
+				'question' => $l->t('Grondgebonden woningen/ hoogbouw/ bedrijfsunits (antwoord met ja op de situatie die van toepassing is).'),
 				'options' => [
 					[
-						'label' => 'U realiseert grondgebonden woningen.',
+						'label' => $l->t('U realiseert grondgebonden woningen.'),
 						'value' => 121,
 						'show' => 0,
 					],
 					[
-						'label' => 'U realiseert appartementen.',
+						'label' => $l->t('U realiseert appartementen.'),
 						'value' => 122,
 						'show' => 1,
 					],
 					[
-						'label' => 'U realiseert zowel grondgebonden woningen als appartementen.',
+						'label' => $l->t('U realiseert zowel grondgebonden woningen als appartementen.'),
 						'value' => 123,
 						'show' => 1,
 					],
 					[
-						'label' => 'U realiseert bedrijfsunits.',
+						'label' => $l->t('U realiseert bedrijfsunits.'),
 						'value' => 124,
 						'show' => 0,
 					],
@@ -118,26 +123,26 @@ class CardVisibility
 			],
 			[
 				'field' => self::FIELD_AVP_LOCATION,
-				'category' => 'AVP Locatie',
-				'question' => 'AVP locatie (antwoord met ja op de situatie die van toepassing is).',
+				'category' => $l->t('AVP Locatie'),
+				'question' => $l->t('AVP locatie (antwoord met ja op de situatie die van toepassing is).'),
 				'options' => [
 					[
-						'label' => 'Ik heb nog niet nagedacht over een mogelijke AVP.',
+						'label' => $l->t('Ik heb nog niet nagedacht over een mogelijke AVP.'),
 						'value' => 221,
 						'show' => 2,
 					],
 					[
-						'label' => 'Ik realiseer grondgebonden woningen en/of hoogbouw en/of bedrijfsunits. Er is rekening gehouden met een AVP op eigen grond.',
+						'label' => $l->t('Ik realiseer grondgebonden woningen en/of hoogbouw en/of bedrijfsunits. Er is rekening gehouden met een AVP op eigen grond.'),
 						'value' => 222,
 						'show' => 0,
 					],
 					[
-						'label' => 'Ik realiseer grondgebonden woningen en/of hoogbouw en/of bedrijfsunits. Er is geen rekening gehouden met een AVP op eigen grond.',
+						'label' => $l->t('Ik realiseer grondgebonden woningen en/of hoogbouw en/of bedrijfsunits. Er is geen rekening gehouden met een AVP op eigen grond.'),
 						'value' => 223,
 						'show' => 2,
 					],
 					[
-						'label' => 'Bij hoogbouw is de eis dat het AVP inpandig wordt opgenomen en daar is geen rekening mee gehouden.',
+						'label' => $l->t('Bij hoogbouw is de eis dat het AVP inpandig wordt opgenomen en daar is geen rekening mee gehouden.'),
 						'value' => 224,
 						'show' => 2,
 					],
@@ -198,7 +203,7 @@ class CardVisibility
 	/**
 	 * @param mixed $value
 	 */
-	public static function normalizeAnswer(mixed $value, string $field, bool $allowNull = false): ?int
+	public static function normalizeAnswer(mixed $value, string $field, bool $allowNull = false, ?IL10N $l = null): ?int
 	{
 		if ($value === null) {
 			return $allowNull ? null : 0;
@@ -222,7 +227,8 @@ class CardVisibility
 		$allowed = array_values(array_unique($allowed));
 
 		if (!is_int($value) || !in_array($value, $allowed, true)) {
-			throw new OCSException(sprintf('Invalid value for %s. Allowed values: null, 0, 1, 2 or one of the configured option values.', $field), 400);
+			$l ??= DefaultLanguageL10n::userL10n();
+			throw new OCSException($l->t('Invalid value for %s. Allowed values: null, 0, 1, 2 or one of the configured option values.', [$field]), 400);
 		}
 
 		return $value;

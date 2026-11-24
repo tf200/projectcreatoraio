@@ -3,19 +3,34 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { t } from '../new/l10n.mjs'
+
 export const DEFAULT_NOTE_TYPE = 'general'
 
-export const NOTE_TYPES = [
-	{ value: 'general', label: t('projectcreatoraio', 'General note') },
-	{ value: 'customer', label: t('projectcreatoraio', 'Customer note') },
-	{ value: 'internal', label: t('projectcreatoraio', 'Internal note') },
-	{ value: 'decision', label: t('projectcreatoraio', 'Decision') },
-	{ value: 'risk_blocker', label: t('projectcreatoraio', 'Risk / blocker') },
-	{ value: 'action_point', label: t('projectcreatoraio', 'Action point') },
-	{ value: 'technical', label: t('projectcreatoraio', 'Technical note') },
-	{ value: 'audit', label: t('projectcreatoraio', 'Audit note') },
-]
+// The value is the stored code; `label` is a getter so it is translated when a
+// view reads it, after Nextcloud has registered the app's translations, never
+// when this module loads.
+function noteTypeName(value) {
+	switch (value) {
+	case 'customer': return t('Customer note')
+	case 'internal': return t('Internal note')
+	case 'decision': return t('Decision')
+	case 'risk_blocker': return t('Risk / blocker')
+	case 'action_point': return t('Action point')
+	case 'technical': return t('Technical note')
+	case 'audit': return t('Audit note')
+	default: return t('General note')
+	}
+}
+
+export const NOTE_TYPES = ['general', 'customer', 'internal', 'decision', 'risk_blocker', 'action_point', 'technical', 'audit']
+	.map((value) => ({
+		value,
+		get label() {
+			return noteTypeName(value)
+		},
+	}))
 
 export function noteTypeLabel(value) {
-	return NOTE_TYPES.find((type) => type.value === value)?.label || NOTE_TYPES[0].label
+	return noteTypeName(NOTE_TYPES.some((type) => type.value === value) ? value : DEFAULT_NOTE_TYPE)
 }

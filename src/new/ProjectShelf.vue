@@ -1,15 +1,15 @@
 <template>
- <section class="pc-project-navigation" :aria-label="t('projectcreatoraio', 'Project navigation')">
+ <section class="pc-project-navigation" :aria-label="t('Project navigation')">
   <div class="pc-shelf-toolbar">
-   <strong class="pc-shelf-label">{{ t('projectcreatoraio', 'Projects') }}</strong>
-   <button class="pc-secondary pc-mobile-project" @click="openPicker">{{ selectedName || t('projectcreatoraio', 'Choose a project') }} <ChevronDown :size="18" /></button>
-   <input class="pc-shelf-search" type="search" :value="filters.query" :aria-label="t('projectcreatoraio', 'Search projects')" :placeholder="t('projectcreatoraio', 'Search projects…')" @input="$emit('filter', { key: 'query', value: $event.target.value })">
-   <button ref="expand" class="pc-secondary pc-shelf-expand" aria-haspopup="dialog" @click="openPicker"><ArrowExpand :size="18" />{{ t('projectcreatoraio', 'Expand') }}</button>
-   <button v-if="selectedId" class="pc-secondary pc-shelf-toggle" :aria-expanded="String(!folded)" @click="collapsed = !collapsed">{{ folded ? t('projectcreatoraio', 'Show shelf') : t('projectcreatoraio', 'Hide') }}<component :is="folded ? 'ChevronDown' : 'ChevronUp'" :size="18" /></button>
-   <a v-if="canCreate" class="pc-button pc-shelf-create" :href="base + '/create'" @click.prevent="$emit('create')">+ {{ t('projectcreatoraio', 'New project') }}</a>
+   <strong class="pc-shelf-label">{{ t('Projects') }}</strong>
+   <button class="pc-secondary pc-mobile-project" @click="openPicker">{{ selectedName || t('Choose a project') }} <ChevronDown :size="18" /></button>
+   <input class="pc-shelf-search" type="search" :value="filters.query" :aria-label="t('Search projects')" :placeholder="t('Search projects…')" @input="$emit('filter', { key: 'query', value: $event.target.value })">
+   <button ref="expand" class="pc-secondary pc-shelf-expand" aria-haspopup="dialog" @click="openPicker"><ArrowExpand :size="18" />{{ t('Expand') }}</button>
+   <button v-if="selectedId" class="pc-secondary pc-shelf-toggle" :aria-expanded="String(!folded)" @click="collapsed = !collapsed">{{ folded ? t('Show shelf') : t('Hide') }}<component :is="folded ? 'ChevronDown' : 'ChevronUp'" :size="18" /></button>
+   <a v-if="canCreate" class="pc-button pc-shelf-create" :href="base + '/create'" @click.prevent="$emit('create')">+ {{ t('New project') }}</a>
   </div>
-  <div v-if="loading" class="pc-shelf-message" role="status">{{ t('projectcreatoraio', 'Loading projects…') }}</div>
-  <div v-else-if="error" class="pc-shelf-message" role="alert"><span>{{ error }}</span><button class="pc-secondary" @click="$emit('retry')">{{ t('projectcreatoraio', 'Try again') }}</button></div>
+  <div v-if="loading" class="pc-shelf-message" role="status">{{ t('Loading projects…') }}</div>
+  <div v-else-if="error" class="pc-shelf-message" role="alert"><span>{{ error }}</span><button class="pc-secondary" @click="$emit('retry')">{{ t('Try again') }}</button></div>
   <div v-else v-show="!folded" class="pc-shelf-content">
    <div v-if="visible.length" ref="cards" class="pc-shelf-cards">
     <a v-for="p in visible" :key="p.id" class="pc-shelf-card" :href="projectUrl(p.id)" :aria-current="Number(p.id) === selectedId ? 'page' : null" @click.prevent="select(p.id)">
@@ -17,11 +17,11 @@
      <span class="pc-shelf-card-text"><strong>{{ p.name }}</strong><small>#{{ p.number }} · {{ p.loc_city || p.client_name || statusLabel(p.status) }}</small><span class="pc-shelf-status">{{ statusLabel(p.status) }}</span></span>
     </a>
    </div>
-   <p v-else class="pc-shelf-message">{{ t('projectcreatoraio', 'No projects found. Adjust the filters or create a new project.') }}</p>
-   <div class="pc-shelf-caption"><span>{{ t('projectcreatoraio', '{count} projects', { count: visible.length }) }}</span><button v-if="hasFilters" class="pc-link" @click="clearFilters">{{ t('projectcreatoraio', 'Clear filters') }}</button></div>
+   <p v-else class="pc-shelf-message">{{ t('No projects found. Adjust the filters or create a new project.') }}</p>
+   <div class="pc-shelf-caption"><span>{{ n('%n project', '%n projects', visible.length) }}</span><button v-if="hasFilters" class="pc-link" @click="clearFilters">{{ t('Clear filters') }}</button></div>
   </div>
-  <dialog ref="picker" class="pc-project-picker" :aria-label="t('projectcreatoraio', 'Choose a project')" @cancel.prevent="closePicker" @keydown.esc.prevent.stop="closePicker" @click="onBackdropClick">
-   <div class="pc-picker-top"><span>{{ t('projectcreatoraio', 'Choose a project to return to your workspace.') }}</span><button class="pc-secondary" @click="closePicker"><Close :size="18" />{{ t('projectcreatoraio', 'Close') }}</button></div>
+  <dialog ref="picker" class="pc-project-picker" :aria-label="t('Choose a project')" @cancel.prevent="closePicker" @keydown.esc.prevent.stop="closePicker" @click="onBackdropClick">
+   <div class="pc-picker-top"><span>{{ t('Choose a project to return to your workspace.') }}</span><button class="pc-secondary" @click="closePicker"><Close :size="18" />{{ t('Close') }}</button></div>
    <ProjectList :projects="projects" :selected-id="selectedId" :loading="loading" :error="error" :filters="filters" :base="base" :is-global-admin="isGlobalAdmin" :is-organization-admin="isOrganizationAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" :can-create="canCreate" @filter="$emit('filter', $event)" @open="select" @retry="$emit('retry')" @create="$emit('create')" />
   </dialog>
  </section>

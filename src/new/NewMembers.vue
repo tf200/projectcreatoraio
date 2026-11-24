@@ -1,33 +1,33 @@
 <template>
-	<section class="pc-view iz-app" aria-label="Project members">
+	<section class="pc-view iz-app" :aria-label="t('Project members')">
 		<header class="pc-view__head">
 			<div class="pc-view__heading">
 				<h2 class="pc-view__title">
-					Members
+					{{ t('Members') }}
 				</h2>
 				<p class="pc-view__lede">
-					Who works on this project, their DRASCIVS responsibilities and their project role.
+					{{ t('Who works on this project, their DRASCIVS responsibilities and their project role.') }}
 				</p>
 			</div>
 			<div v-if="canManage && !adding && !inviting && !loading && !error" class="pc-view__head-actions">
 				<button type="button"
 					class="iz-btn"
-					title="Hand the project to the people who carry it out"
+					:title="t('Hand the project to the people who carry it out')"
 					@click="handingOver = true">
 					<HandshakeOutline :size="16" />
-					Hand over…
+					{{ t('Hand over…') }}
 				</button>
 				<button type="button"
 					class="iz-btn"
 					@click="openInvite">
 					<EmailPlusOutline :size="16" />
-					Invite external
+					{{ t('Invite external') }}
 				</button>
 				<button type="button"
 					class="iz-btn iz-btn--primary"
 					@click="openAdd">
 					<Plus :size="16" />
-					Add member
+					{{ t('Add member') }}
 				</button>
 			</div>
 		</header>
@@ -37,19 +37,19 @@
 			{{ notice }}
 		</p>
 		<div v-if="inviteLink" class="pc-view__notice pc-invite-link" role="alert">
-			<span>The email could not be sent. Send this link to {{ inviteLink.name }} yourself; it works for 7 days.</span>
+			<span>{{ t('The email could not be sent. Send this link to {name} yourself; it works for 7 days.', { name: inviteLink.name }) }}</span>
 			<input class="iz-input pc-invite-link__url"
 				type="text"
 				readonly
 				:value="inviteLink.url"
-				aria-label="Invitation link"
+				:aria-label="t('Invitation link')"
 				@focus="$event.target.select()">
 			<button type="button" class="iz-btn iz-btn--sm" @click="copyInviteLink">
-				{{ inviteLinkCopied ? 'Copied' : 'Copy link' }}
+				{{ inviteLinkCopied ? t('Copied') : t('Copy link') }}
 			</button>
 			<button type="button"
 				class="iz-btn iz-btn--ghost pc-icon-btn"
-				aria-label="Dismiss"
+				:aria-label="t('Dismiss')"
 				@click="inviteLink = null">
 				<Close :size="14" />
 			</button>
@@ -58,11 +58,11 @@
 		<section v-if="inviting" class="iz-panel pc-member-add" aria-labelledby="pc-invite-title">
 			<div class="pc-member-add__head">
 				<h3 id="pc-invite-title" class="pc-member-add__title">
-					Invite an external collaborator
+					{{ t('Invite an external collaborator') }}
 				</h3>
 				<button type="button"
 					class="iz-btn iz-btn--ghost pc-icon-btn"
-					aria-label="Close"
+					:aria-label="t('Close')"
 					@click="closeInvite">
 					<Close :size="16" />
 				</button>
@@ -70,43 +70,43 @@
 
 			<div class="pc-member-add__grid">
 				<div class="pc-member-add__person">
-					<label for="pc-invite-email" class="iz-label pc-member-add__label">Email</label>
+					<label for="pc-invite-email" class="iz-label pc-member-add__label">{{ t('Email') }}</label>
 					<input id="pc-invite-email"
 						v-model="inviteDraft.email"
 						class="iz-input"
 						type="email"
 						autocomplete="off"
-						placeholder="name@company.com">
-					<label for="pc-invite-name" class="iz-label pc-member-add__label">Name</label>
+						:placeholder="t('name@company.com')">
+					<label for="pc-invite-name" class="iz-label pc-member-add__label">{{ t('Name') }}</label>
 					<input id="pc-invite-name"
 						v-model="inviteDraft.name"
 						class="iz-input"
 						type="text"
 						autocomplete="off">
-					<label for="pc-invite-company" class="iz-label pc-member-add__label">Company <span class="pc-optional">(optional)</span></label>
+					<label for="pc-invite-company" class="iz-label pc-member-add__label">{{ t('Company') }} <span class="pc-optional">{{ t('(optional)') }}</span></label>
 					<input id="pc-invite-company"
 						v-model="inviteDraft.company"
 						class="iz-input"
 						type="text"
 						autocomplete="off">
-					<label for="pc-invite-end" class="iz-label pc-member-add__label">Access ends <span class="pc-optional">(optional)</span></label>
+					<label for="pc-invite-end" class="iz-label pc-member-add__label">{{ t('Access ends') }} <span class="pc-optional">{{ t('(optional)') }}</span></label>
 					<input id="pc-invite-end"
 						v-model="inviteDraft.expiresAt"
 						class="iz-input"
 						type="date"
 						:min="tomorrow">
 					<p class="pc-member-hint">
-						Without a date, access ends at the planned end of work on site, or after 90 days. An external takes one member seat of the organisation and sees only this project.
+						{{ t('Without a date, access ends at the planned end of work on site, or after 90 days. An external takes one member seat of the organisation and sees only this project.') }}
 					</p>
 				</div>
 				<div class="pc-member-add__roles">
-					<RoleChips label="DRASCIVS"
+					<RoleChips :label="t('DRASCIVS')"
 						label-id="pc-invite-drascivs"
 						:options="drascivsOptions"
 						:selected="inviteDraft.drascivs"
 						:disabled="inviteSaving"
 						@toggle="inviteDraft.drascivs = toggled(inviteDraft.drascivs, $event)" />
-					<RoleChips label="Project role (optional)"
+					<RoleChips :label="t('Project role (optional)')"
 						label-id="pc-invite-functional"
 						:options="roleOptions"
 						:selected="inviteDraft.functional"
@@ -125,13 +125,13 @@
 					class="iz-btn iz-btn--ghost"
 					:disabled="inviteSaving"
 					@click="closeInvite">
-					Cancel
+					{{ t('Cancel') }}
 				</button>
 				<button type="button"
 					class="iz-btn iz-btn--primary"
 					:disabled="!!inviteProblem || inviteSaving"
 					@click="invite">
-					{{ inviteSaving ? 'Sending…' : 'Send invitation' }}
+					{{ inviteSaving ? t('Sending…') : t('Send invitation') }}
 				</button>
 			</div>
 		</section>
@@ -139,11 +139,11 @@
 		<section v-if="adding" class="iz-panel pc-member-add" aria-labelledby="pc-member-add-title">
 			<div class="pc-member-add__head">
 				<h3 id="pc-member-add-title" class="pc-member-add__title">
-					Add a member
+					{{ t('Add a member') }}
 				</h3>
 				<button type="button"
 					class="iz-btn iz-btn--ghost pc-icon-btn"
-					aria-label="Close"
+					:aria-label="t('Close')"
 					@click="closeAdd">
 					<Close :size="16" />
 				</button>
@@ -151,7 +151,7 @@
 
 			<div class="pc-member-add__grid">
 				<div class="pc-member-add__person">
-					<label for="pc-member-search" class="iz-label pc-member-add__label">Person</label>
+					<label for="pc-member-search" class="iz-label pc-member-add__label">{{ t('Person') }}</label>
 					<div v-if="candidate" class="pc-member-picked">
 						<NcAvatar :user="candidate.id"
 							:display-name="candidate.label"
@@ -163,7 +163,7 @@
 						</div>
 						<button type="button"
 							class="iz-btn iz-btn--ghost pc-icon-btn"
-							:aria-label="'Choose someone other than ' + candidate.label"
+							:aria-label="t('Choose someone other than {name}', { name: candidate.label })"
 							@click="clearCandidate">
 							<Close :size="14" />
 						</button>
@@ -174,9 +174,9 @@
 							class="iz-input"
 							type="search"
 							autocomplete="off"
-							placeholder="Search organisation members"
+							:placeholder="t('Search organisation members')"
 							@input="search">
-						<ul v-if="results.length" class="pc-member-results" aria-label="Search results">
+						<ul v-if="results.length" class="pc-member-results" :aria-label="t('Search results')">
 							<li v-for="user in results" :key="user.id">
 								<button type="button" class="pc-member-result" @click="pick(user)">
 									<NcAvatar :user="user.id"
@@ -191,27 +191,27 @@
 							</li>
 						</ul>
 						<p v-else-if="searching" class="pc-member-hint" role="status">
-							Searching…
+							{{ t('Searching…') }}
 						</p>
 						<p v-else-if="searchError" class="pc-member-hint pc-member-hint--error" role="alert">
 							{{ searchError }}
 						</p>
 						<p v-else-if="searchedFor && searchedFor === query.trim()" class="pc-member-hint">
-							No one found who is not already on the project.
+							{{ t('No one found who is not already on the project.') }}
 						</p>
 					</template>
 					<p class="pc-member-hint">
-						Only people in this organisation who are not on the project yet.
+						{{ t('Only people in this organisation who are not on the project yet.') }}
 					</p>
 				</div>
 				<div class="pc-member-add__roles">
-					<RoleChips label="DRASCIVS"
+					<RoleChips :label="t('DRASCIVS')"
 						label-id="pc-add-drascivs"
 						:options="drascivsOptions"
 						:selected="addDraft.drascivs"
 						:disabled="addSaving"
 						@toggle="addDraft.drascivs = toggled(addDraft.drascivs, $event)" />
-					<RoleChips label="Project role"
+					<RoleChips :label="t('Project role')"
 						label-id="pc-add-functional"
 						:options="roleOptions"
 						:selected="addDraft.functional"
@@ -230,33 +230,33 @@
 					class="iz-btn iz-btn--ghost"
 					:disabled="addSaving"
 					@click="closeAdd">
-					Cancel
+					{{ t('Cancel') }}
 				</button>
 				<button type="button"
 					class="iz-btn iz-btn--primary"
 					:disabled="!!addProblem || addSaving"
 					@click="add">
-					{{ addSaving ? 'Adding…' : 'Add to project' }}
+					{{ addSaving ? t('Adding…') : t('Add to project') }}
 				</button>
 			</div>
 		</section>
 
 		<div v-if="loading" class="iz-empty" role="status">
-			Loading members…
+			{{ t('Loading members…') }}
 		</div>
 		<div v-else-if="error" class="iz-empty pc-view__failure" role="alert">
 			<span>{{ error }}</span>
 			<button type="button" class="iz-btn" @click="load">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</div>
-		<section v-else class="iz-panel iz-panel--list pc-members" aria-label="Project members">
+		<section v-else class="iz-panel iz-panel--list pc-members" :aria-label="t('Project members')">
 			<div v-if="!members.length" class="pc-members__empty">
-				No members yet.
+				{{ t('No members yet.') }}
 			</div>
 			<template v-else>
 				<div class="pc-members__head pc-members__grid" aria-hidden="true">
-					<span>Member</span>
+					<span>{{ t('Member') }}</span>
 					<span v-for="column in columns"
 						:key="column.value"
 						class="pc-members__role-head"
@@ -264,8 +264,8 @@
 						<span class="pc-members__letter">{{ column.letter }}</span>
 						<span class="pc-members__role-name">{{ column.label }}</span>
 					</span>
-					<span>Project role</span>
-					<span class="pc-members__actions-head">Actions</span>
+					<span>{{ t('Project role') }}</span>
+					<span class="pc-members__actions-head">{{ t('Actions') }}</span>
 				</div>
 				<ul class="pc-members__list">
 					<li v-for="member in members"
@@ -281,11 +281,11 @@
 								<div class="pc-member__identity">
 									<div class="pc-member__name-line">
 										<span class="pc-member__name">{{ member.displayName || member.id }}</span>
-										<span v-if="member.isOwner" class="iz-pill iz-pill--accent pc-member__owner">Owner</span>
+										<span v-if="member.isOwner" class="iz-pill iz-pill--accent pc-member__owner">{{ t('Owner') }}</span>
 										<span v-if="member.external" class="iz-pill pc-pill pc-member__external">{{ externalLabel(member.external) }}</span>
 										<span v-if="member.external && member.external.expiresAt"
 											class="iz-pill pc-pill"
-											:class="{ 'iz-pill--warning': endsSoon(member.external) }">Ends {{ shortDate(member.external.expiresAt) }}</span>
+											:class="{ 'iz-pill--warning': endsSoon(member.external) }">{{ t('Ends {date}', { date: shortDate(member.external.expiresAt) }) }}</span>
 									</div>
 									<span class="pc-member__meta">{{ memberMeta(member) }}</span>
 								</div>
@@ -296,7 +296,7 @@
 									type="button"
 									class="pc-cell pc-cell--toggle"
 									:aria-pressed="String(editDraft.drascivs.includes(role.value))"
-									:aria-label="role.label + ' — ' + (member.displayName || member.id)"
+									:aria-label="t('{role} — {name}', { role: role.label, name: member.displayName || member.id })"
 									:title="role.label"
 									:disabled="editSaving"
 									@click="editDraft.drascivs = toggled(editDraft.drascivs, role.value)">
@@ -306,21 +306,21 @@
 								<span v-else
 									:key="'cell-' + role.value"
 									class="pc-cell"
-									:title="(member.displayName || member.id) + (holds(member, role.value) ? ' is ' : ' is not ') + role.label">
+									:title="holds(member, role.value) ? t('{name} is {role}', { name: member.displayName || member.id, role: role.label }) : t('{name} is not {role}', { name: member.displayName || member.id, role: role.label })">
 									<span v-if="holds(member, role.value)" class="pc-tick"><Check :size="14" /><span class="pc-sr-only">{{ role.label }}</span></span>
 									<span v-else class="pc-dot-off" aria-hidden="true" />
 								</span>
 							</template>
-							<div class="pc-member__pills pc-member__pills--drascivs" :aria-label="'DRASCIVS roles of ' + (member.displayName || member.id)">
+							<div class="pc-member__pills pc-member__pills--drascivs" :aria-label="t('DRASCIVS roles of {name}', { name: member.displayName || member.id })">
 								<span v-for="role in rolesOf(editingId === member.id ? { drascivsRoles: editDraft.drascivs } : member)" :key="role" class="iz-pill pc-pill">{{ drascivsLabel(role) }}</span>
-								<span v-if="editingId !== member.id && !rolesOf(member).length" class="pc-member__none">No DRASCIVS role</span>
+								<span v-if="editingId !== member.id && !rolesOf(member).length" class="pc-member__none">{{ t('No DRASCIVS role') }}</span>
 							</div>
-							<div class="pc-member__pills" :aria-label="'Project roles of ' + (member.displayName || member.id)">
+							<div class="pc-member__pills" :aria-label="t('Project roles of {name}', { name: member.displayName || member.id })">
 								<span v-for="role in projectRolesOf(editingId === member.id ? { functionalRoleKeys: editDraft.functional } : member)"
 									:key="role.value"
 									class="iz-pill pc-pill"
 									:class="'pc-tone--' + role.tone">{{ role.label }}</span>
-								<span v-if="editingId !== member.id && !projectRolesOf(member).length" class="pc-member__none">None</span>
+								<span v-if="editingId !== member.id && !projectRolesOf(member).length" class="pc-member__none">{{ t('None') }}</span>
 							</div>
 							<div class="pc-member__actions">
 								<template v-if="editingId === member.id">
@@ -328,13 +328,13 @@
 										class="iz-btn iz-btn--ghost iz-btn--sm"
 										:disabled="editSaving"
 										@click="cancelEdit">
-										Cancel
+										{{ t('Cancel') }}
 									</button>
 									<button type="button"
 										class="iz-btn iz-btn--primary iz-btn--sm"
 										:disabled="!!editProblem || editSaving"
 										@click="saveEdit(member)">
-										{{ editSaving ? 'Saving…' : 'Save' }}
+										{{ editSaving ? t('Saving…') : t('Save') }}
 									</button>
 								</template>
 								<template v-else-if="removingId === member.id">
@@ -342,13 +342,13 @@
 										class="iz-btn iz-btn--ghost iz-btn--sm"
 										:disabled="removeSaving"
 										@click="cancelRemove">
-										Cancel
+										{{ t('Cancel') }}
 									</button>
 									<button type="button"
 										class="iz-btn iz-btn--danger iz-btn--sm"
 										:disabled="removeSaving"
 										@click="remove(member)">
-										{{ removeSaving ? 'Removing…' : (member.external ? 'Revoke' : 'Remove') }}
+										{{ removeSaving ? t('Removing…') : (member.external ? t('Revoke') : t('Remove')) }}
 									</button>
 								</template>
 								<template v-else-if="endDateId === member.id">
@@ -356,39 +356,39 @@
 										class="iz-btn iz-btn--ghost iz-btn--sm"
 										:disabled="endDateSaving"
 										@click="cancelEndDate">
-										Cancel
+										{{ t('Cancel') }}
 									</button>
 									<button type="button"
 										class="iz-btn iz-btn--primary iz-btn--sm"
 										:disabled="!endDateDraft || endDateSaving"
 										@click="saveEndDate(member.external, member.displayName || member.id)">
-										{{ endDateSaving ? 'Saving…' : 'Save' }}
+										{{ endDateSaving ? t('Saving…') : t('Save') }}
 									</button>
 								</template>
 								<template v-else>
 									<button v-if="!isSelf(member)"
 										type="button"
 										class="iz-btn iz-btn--ghost iz-btn--sm"
-										:aria-label="'Chat with ' + (member.displayName || member.id)"
+										:aria-label="t('Chat with {name}', { name: member.displayName || member.id })"
 										@click="$emit('open-direct-chat', member)">
 										<ChatOutline :size="14" />
-										Chat
+										{{ t('Chat') }}
 									</button>
 									<button v-if="canManage"
 										type="button"
 										class="iz-btn iz-btn--sm"
 										:disabled="editingId !== null"
-										:aria-label="'Edit roles of ' + (member.displayName || member.id)"
+										:aria-label="t('Edit roles of {name}', { name: member.displayName || member.id })"
 										@click="startEdit(member)">
-										Edit
+										{{ t('Edit') }}
 									</button>
 									<button v-if="canManage && member.external"
 										type="button"
 										class="iz-btn iz-btn--sm"
 										:disabled="editingId !== null"
-										:aria-label="'Change when access ends for ' + (member.displayName || member.id)"
+										:aria-label="t('Change when access ends for {name}', { name: member.displayName || member.id })"
 										@click="startEndDate(member.external)">
-										End date
+										{{ t('End date') }}
 									</button>
 									<button v-if="canManage && !member.isOwner"
 										type="button"
@@ -405,14 +405,14 @@
 						<div v-if="removingId === member.id" class="pc-member__editor" role="alert">
 							<p class="pc-member-problem">
 								<InformationOutline :size="15" />
-								{{ member.displayName || member.id }} loses access to the board, files and chat of this project. Their private project files move to the project owner.
+								{{ t('{name} loses access to the board, files and chat of this project. Their private project files move to the project owner.', { name: member.displayName || member.id }) }}
 							</p>
 							<p v-if="removeError" class="pc-member-problem pc-member-problem--error">
 								{{ removeError }}
 							</p>
 						</div>
 						<div v-if="endDateId === member.id" class="pc-member__editor">
-							<label :for="'pc-end-' + member.id" class="iz-label">Access ends</label>
+							<label :for="'pc-end-' + member.id" class="iz-label">{{ t('Access ends') }}</label>
 							<input :id="'pc-end-' + member.id"
 								v-model="endDateDraft"
 								class="iz-input pc-end-date"
@@ -425,16 +425,16 @@
 						</div>
 						<div v-if="editingId === member.id" class="pc-member__editor">
 							<p class="pc-member__editor-hint">
-								Tick the responsibilities in the row above.
+								{{ t('Tick the responsibilities in the row above.') }}
 							</p>
 							<RoleChips class="pc-member__editor-drascivs"
-								label="DRASCIVS"
+								:label="t('DRASCIVS')"
 								:label-id="'pc-edit-drascivs-' + member.id"
 								:options="drascivsOptions"
 								:selected="editDraft.drascivs"
 								:disabled="editSaving"
 								@toggle="editDraft.drascivs = toggled(editDraft.drascivs, $event)" />
-							<RoleChips label="Project role"
+							<RoleChips :label="t('Project role')"
 								:label-id="'pc-edit-functional-' + member.id"
 								:options="roleOptions"
 								:selected="editDraft.functional"
@@ -451,7 +451,7 @@
 					</li>
 				</ul>
 				<div class="pc-members__foot pc-members__grid">
-					<span class="pc-members__count">{{ members.length === 1 ? '1 member' : members.length + ' members' }}<span class="pc-members__count-hint" aria-hidden="true"> · holders per responsibility</span></span>
+					<span class="pc-members__count">{{ members.length === 1 ? t('1 member') : t('{n} members', { n: members.length }) }}<span class="pc-members__count-hint" aria-hidden="true"> {{ t('· holders per responsibility') }}</span></span>
 					<span v-for="column in columns"
 						:key="column.value"
 						class="pc-members__holders"
@@ -459,8 +459,8 @@
 						<span class="iz-pill pc-pill" :class="{ 'iz-pill--warning': !column.count }">{{ column.count }}</span>
 					</span>
 					<span class="pc-members__unassigned">
-						<template v-if="unassigned.length">Not assigned: {{ unassigned.join(', ') }}</template>
-						<template v-else>Every responsibility is held</template>
+						<template v-if="unassigned.length">{{ t('Not assigned: {roles}', { roles: unassigned.join(', ') }) }}</template>
+						<template v-else>{{ t('Every responsibility is held') }}</template>
 					</span>
 				</div>
 			</template>
@@ -468,7 +468,7 @@
 
 		<section v-if="!loading && !error && invited.length" class="iz-panel iz-panel--list pc-invited" aria-labelledby="pc-invited-title">
 			<h3 id="pc-invited-title" class="pc-invited__title">
-				Invited, not accepted yet
+				{{ t('Invited, not accepted yet') }}
 			</h3>
 			<ul class="pc-members__list">
 				<li v-for="person in invited" :key="person.userId" class="pc-member">
@@ -482,7 +482,7 @@
 								<div class="pc-member__name-line">
 									<span class="pc-member__name">{{ person.displayName || person.email }}</span>
 									<span class="iz-pill pc-pill pc-member__external">{{ externalLabel(person) }}</span>
-									<span class="iz-pill pc-pill iz-pill--warning">Invitation pending</span>
+									<span class="iz-pill pc-pill iz-pill--warning">{{ t('Invitation pending') }}</span>
 								</div>
 								<span class="pc-member__meta">{{ invitedMeta(person) }}</span>
 							</div>
@@ -493,13 +493,13 @@
 									class="iz-btn iz-btn--ghost iz-btn--sm"
 									:disabled="invitedBusy"
 									@click="cancellingId = null">
-									Keep
+									{{ t('Keep') }}
 								</button>
 								<button type="button"
 									class="iz-btn iz-btn--danger iz-btn--sm"
 									:disabled="invitedBusy"
 									@click="cancelInvitation(person)">
-									{{ invitedBusy ? 'Cancelling…' : 'Cancel invitation' }}
+									{{ invitedBusy ? t('Cancelling…') : t('Cancel invitation') }}
 								</button>
 							</template>
 							<template v-else-if="endDateId === person.userId">
@@ -507,13 +507,13 @@
 									class="iz-btn iz-btn--ghost iz-btn--sm"
 									:disabled="endDateSaving"
 									@click="cancelEndDate">
-									Cancel
+									{{ t('Cancel') }}
 								</button>
 								<button type="button"
 									class="iz-btn iz-btn--primary iz-btn--sm"
 									:disabled="!endDateDraft || endDateSaving"
 									@click="saveEndDate(person, person.displayName || person.email)">
-									{{ endDateSaving ? 'Saving…' : 'Save' }}
+									{{ endDateSaving ? t('Saving…') : t('Save') }}
 								</button>
 							</template>
 							<template v-else>
@@ -521,19 +521,19 @@
 									class="iz-btn iz-btn--sm"
 									:disabled="invitedBusy"
 									@click="resend(person)">
-									{{ resendingId === person.userId ? 'Sending…' : 'Resend' }}
+									{{ resendingId === person.userId ? t('Sending…') : t('Resend') }}
 								</button>
 								<button type="button"
 									class="iz-btn iz-btn--sm"
 									:disabled="invitedBusy"
 									@click="startEndDate(person)">
-									End date
+									{{ t('End date') }}
 								</button>
 								<button type="button"
 									class="iz-btn iz-btn--ghost iz-btn--sm pc-icon-btn"
 									:disabled="invitedBusy"
-									:title="'Cancel the invitation of ' + (person.displayName || person.email)"
-									:aria-label="'Cancel the invitation of ' + (person.displayName || person.email)"
+									:title="t('Cancel the invitation of {name}', { name: person.displayName || person.email })"
+									:aria-label="t('Cancel the invitation of {name}', { name: person.displayName || person.email })"
 									@click="startCancel(person)">
 									<AccountRemoveOutline :size="16" />
 								</button>
@@ -541,7 +541,7 @@
 						</div>
 					</div>
 					<div v-if="endDateId === person.userId" class="pc-member__editor">
-						<label :for="'pc-end-' + person.userId" class="iz-label">Access ends</label>
+						<label :for="'pc-end-' + person.userId" class="iz-label">{{ t('Access ends') }}</label>
 						<input :id="'pc-end-' + person.userId"
 							v-model="endDateDraft"
 							class="iz-input pc-end-date"
@@ -581,6 +581,7 @@ import HandshakeOutline from 'vue-material-design-icons/HandshakeOutline.vue'
 import HandoverDialog from './HandoverDialog.vue'
 import RoleChips from './RoleChips.vue'
 import { api, errorMessage, actionMessage } from './api.js'
+import { t } from './l10n.mjs'
 import { DRASCIVS, rolesOf, drascivsLabel, projectRoleOptions, coverage, draftProblem, toggled, inviteProblem, externalLabel, shortDate, endsSoon, isoDay } from './members.js'
 
 function emptyInvite() {
@@ -676,9 +677,9 @@ export default {
 		holds(member, role) { return rolesOf(member).includes(role) },
 		isSelf(member) { return !!this.currentUserId && String(member.id) === this.currentUserId },
 		memberMeta(member) {
-			if (this.editingId === member.id) return member.id + ' · editing'
-			if (member.external) return member.external.email || 'External collaborator'
-			return this.isSelf(member) ? member.id + ' · you' : member.id
+			if (this.editingId === member.id) return t('{id} · editing', { id: member.id })
+			if (member.external) return member.external.email || t('External collaborator')
+			return this.isSelf(member) ? t('{id} · you', { id: member.id }) : member.id
 		},
 		projectRolesOf(member) {
 			const keys = member.functionalRoleKeys || []
@@ -705,7 +706,7 @@ export default {
 		},
 		removeLabel(member) {
 			const name = member.displayName || member.id
-			return member.external ? 'Revoke the access of ' + name : 'Remove ' + name + ' from the project'
+			return member.external ? t('Revoke the access of {name}', { name }) : t('Remove {name} from the project', { name })
 		},
 		openAdd() {
 			this.notice = ''
@@ -744,11 +745,11 @@ export default {
 				})
 				this.closeInvite()
 				this.showSent(name, result, result?.activated
-					? `${name} already has a guest account and was added to the project.`
-					: `An invitation was sent to ${name}.`)
+					? t('{name} already has a guest account and was added to the project.', { name })
+					: t('An invitation was sent to {name}.', { name }))
 				await this.load()
 			} catch (e) {
-				this.inviteError = actionMessage(e, 'The invitation could not be sent.')
+				this.inviteError = actionMessage(e, t('The invitation could not be sent.'))
 			} finally {
 				this.inviteSaving = false
 			}
@@ -775,8 +776,8 @@ export default {
 		invitedMeta(person) {
 			return [
 				person.email,
-				person.invitedAt && 'invited ' + shortDate(person.invitedAt),
-				person.expiresAt && 'access until ' + shortDate(person.expiresAt),
+				person.invitedAt && t('invited {date}', { date: shortDate(person.invitedAt) }),
+				person.expiresAt && t('access until {date}', { date: shortDate(person.expiresAt) }),
 			].filter(Boolean).join(' · ')
 		},
 		failInvited(person, e, fallback) {
@@ -791,9 +792,9 @@ export default {
 			this.invitedError = ''
 			try {
 				const result = await api.resendExternal(this.projectId, person.userId)
-				this.showSent(name, result, `A new invitation was sent to ${name}. The previous link no longer works.`)
+				this.showSent(name, result, t('A new invitation was sent to {name}. The previous link no longer works.', { name }))
 			} catch (e) {
-				this.failInvited(person, e, 'The invitation could not be sent again.')
+				this.failInvited(person, e, t('The invitation could not be sent again.'))
 			} finally {
 				this.invitedBusy = false
 				this.resendingId = null
@@ -811,10 +812,10 @@ export default {
 			try {
 				await api.revokeExternal(this.projectId, person.userId)
 				this.invited = this.invited.filter(existing => existing.userId !== person.userId)
-				this.notice = `The invitation of ${person.displayName || person.email} was cancelled.`
+				this.notice = t('The invitation of {name} was cancelled.', { name: person.displayName || person.email })
 				this.cancellingId = null
 			} catch (e) {
-				this.failInvited(person, e, 'The invitation could not be cancelled.')
+				this.failInvited(person, e, t('The invitation could not be cancelled.'))
 			} finally {
 				this.invitedBusy = false
 			}
@@ -844,10 +845,10 @@ export default {
 					? { ...member, external: { ...member.external, expiresAt } }
 					: member)
 				this.invited = this.invited.map(person => person.userId === external.userId ? { ...person, expiresAt } : person)
-				this.notice = `The access of ${name} now ends on ${shortDate(expiresAt)}.`
+				this.notice = t('The access of {name} now ends on {date}.', { name, date: shortDate(expiresAt) })
 				this.cancelEndDate()
 			} catch (e) {
-				this.endDateError = actionMessage(e, 'The end date could not be changed.')
+				this.endDateError = actionMessage(e, t('The end date could not be changed.'))
 			} finally {
 				this.endDateSaving = false
 			}
@@ -889,7 +890,7 @@ export default {
 				} catch (e) {
 					if (request !== this.searchRequest) return
 					this.results = []
-					this.searchError = actionMessage(e, 'Organisation members could not be searched.')
+					this.searchError = actionMessage(e, t('Organisation members could not be searched.'))
 				} finally {
 					if (request === this.searchRequest) this.searching = false
 				}
@@ -914,10 +915,10 @@ export default {
 			try {
 				const result = await api.addMember(this.projectId, candidate.id, this.addDraft.drascivs, this.addDraft.functional)
 				this.closeAdd()
-				this.notice = result?.alreadyMember ? `${candidate.label} is already on this project.` : `${candidate.label} was added to the project.`
+				this.notice = result?.alreadyMember ? t('{name} is already on this project.', { name: candidate.label }) : t('{name} was added to the project.', { name: candidate.label })
 				await this.load()
 			} catch (e) {
-				this.addError = actionMessage(e, 'The member could not be added.')
+				this.addError = actionMessage(e, t('The member could not be added.'))
 			} finally {
 				this.addSaving = false
 			}
@@ -945,11 +946,11 @@ export default {
 				}
 				this.members = this.members.filter(existing => String(existing.id) !== String(member.id))
 				this.notice = member.external
-					? `The access of ${member.displayName || member.id} was revoked.`
-					: `${member.displayName || member.id} was removed from the project.`
+					? t('The access of {name} was revoked.', { name: member.displayName || member.id })
+					: t('{name} was removed from the project.', { name: member.displayName || member.id })
 				this.cancelRemove()
 			} catch (e) {
-				this.removeError = actionMessage(e, 'The member could not be removed.')
+				this.removeError = actionMessage(e, t('The member could not be removed.'))
 			} finally {
 				this.removeSaving = false
 			}
@@ -975,10 +976,10 @@ export default {
 				const result = await api.updateMemberRoles(this.projectId, member.id, this.editDraft.drascivs, this.editDraft.functional)
 				const updated = result?.member || { drascivsRoles: this.editDraft.drascivs, functionalRoleKeys: this.editDraft.functional }
 				this.members = this.members.map(existing => String(existing.id) === String(member.id) ? { ...existing, ...updated } : existing)
-				this.notice = `Roles updated for ${member.displayName || member.id}.`
+				this.notice = t('Roles updated for {name}.', { name: member.displayName || member.id })
 				this.cancelEdit()
 			} catch (e) {
-				this.editError = actionMessage(e, 'The roles could not be saved.')
+				this.editError = actionMessage(e, t('The roles could not be saved.'))
 			} finally {
 				this.editSaving = false
 			}

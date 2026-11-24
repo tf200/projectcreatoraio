@@ -23,6 +23,8 @@ use OCP\IRequest;
 
 class ProjectDeckOcrAttachmentService
 {
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private IRequest $request,
 		private IL10N $l10n,
@@ -35,7 +37,9 @@ class ProjectDeckOcrAttachmentService
 		private ProjectMapper $projectMapper,
 		private CardFileAttachmentService $cardFileAttachmentService,
 		private AttachmentService $attachmentService,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	public function uploadAndAttach(Project $project, string $userId, int $cardId, int $documentTypeId): array
@@ -55,7 +59,7 @@ class ProjectDeckOcrAttachmentService
 
 				return [
 					'status' => 'rejected',
-					'message' => $record->getErrorMessage() ?: 'Upload rejected because OCR could not extract all required fields.',
+					'message' => $record->getErrorMessage() ?: $this->l10n->t('Upload rejected because OCR could not extract all required fields.'),
 					'missing_fields' => $missingFields,
 					'processing' => $record->jsonSerialize(),
 				];
@@ -88,7 +92,7 @@ class ProjectDeckOcrAttachmentService
 
 		$record = $this->processingMapper->find($processingId);
 		if (!$record instanceof ProjectFileProcessing || (int) $record->getProjectId() !== (int) $project->getId()) {
-			throw new OCSException('OCR processing record not found.', 404);
+			throw new OCSException($this->l10n->t('OCR processing record not found.'), 404);
 		}
 
 		$file = $this->resolveFileNode((int) $record->getFileId());
@@ -96,7 +100,7 @@ class ProjectDeckOcrAttachmentService
 		if ($record->getOcrStatus() !== 'done') {
 			return [
 				'status' => 'rejected',
-				'message' => $record->getErrorMessage() ?: 'Upload rejected because OCR could not extract all required fields.',
+				'message' => $record->getErrorMessage() ?: $this->l10n->t('Upload rejected because OCR could not extract all required fields.'),
 				'missing_fields' => $this->extractMissingFields($record),
 				'processing' => $record->jsonSerialize(),
 			];
@@ -125,7 +129,7 @@ class ProjectDeckOcrAttachmentService
 	{
 		$boardId = $this->cardMapper->findBoardId($cardId);
 		if ($boardId === null || (int) $project->getBoardId() !== $boardId) {
-			throw new OCSException('Card does not belong to the requested project.', 404);
+			throw new OCSException($this->l10n->t('Card does not belong to the requested project.'), 404);
 		}
 		$this->permissionService->checkPermission($this->cardMapper, $cardId, Acl::PERMISSION_EDIT);
 	}
@@ -140,7 +144,7 @@ class ProjectDeckOcrAttachmentService
 
 		$content = fopen($uploaded['tmp_name'], 'rb');
 		if ($content === false) {
-			throw new OCSException('Could not read uploaded file content.', 500);
+			throw new OCSException($this->l10n->t('Could not read uploaded file content.'), 500);
 		}
 
 		$target->putContent($content);
@@ -159,7 +163,7 @@ class ProjectDeckOcrAttachmentService
 		$targetPath = rtrim($destinationFolder->getPath(), '/') . '/' . $targetName;
 		$moved = $file->move($targetPath);
 		if (!$moved instanceof File) {
-			throw new OCSException('Could not finalize uploaded file.', 500);
+			throw new OCSException($this->l10n->t('Could not finalize uploaded file.'), 500);
 		}
 		return $moved;
 	}
@@ -170,14 +174,14 @@ class ProjectDeckOcrAttachmentService
 		if ($storageScope === 'private') {
 			$privateRoot = $this->resolvePrivateRootFolderName($project, $userId);
 			if ($privateRoot === '') {
-				throw new OCSException('Private project folder is missing for this user.', 400);
+				throw new OCSException($this->l10n->t('Private project folder is missing for this user.'), 400);
 			}
 			return $privateRoot . '/Scrumban/' . $this->resolveCardFolderName($cardId);
 		}
 
 		$projectFolderPath = trim((string) $project->getFolderPath(), '/');
 		if ($projectFolderPath === '') {
-			throw new OCSException('Project folder path is missing.', 400);
+			throw new OCSException($this->l10n->t('Project folder path is missing.'), 400);
 		}
 
 		return basename($projectFolderPath) . '/Scrumban/' . $this->resolveCardFolderName($cardId);
@@ -187,7 +191,8 @@ class ProjectDeckOcrAttachmentService
 	{
 		$card = $this->cardMapper->find($cardId, false);
 		$cardFolderName = $this->toSafeFolderName((string) $card->getTitle());
-		return $cardFolderName !== '' ? $cardFolderName : 'Card';
+		// Folder in the shared project folder: server default language.
+		return $cardFolderName !== '' ? $cardFolderName : $this->contentL10n->get()->t('Card');
 	}
 
 	private function resolvePrivateRootFolderName(Project $project, string $userId): string
@@ -235,7 +240,7 @@ class ProjectDeckOcrAttachmentService
 			}
 			$node = $currentFolder->get($part);
 			if (!$node instanceof Folder) {
-				throw new OCSException(sprintf('A file exists where a folder was expected: %s', $node->getPath()), 500);
+				throw new OCSException($this->l10n->t('A file exists where a folder was expected: %s', [$node->getPath()]), 500);
 			}
 			$currentFolder = $node;
 		}
@@ -292,7 +297,7 @@ class ProjectDeckOcrAttachmentService
 			}
 		}
 
-		throw new OCSException('OCR source file no longer exists.', 404);
+		throw new OCSException($this->l10n->t('OCR source file no longer exists.'), 404);
 	}
 
 	private function getUploadedFile(): array

@@ -1,6 +1,8 @@
 // The What-If scenario is a list of changes the server lays over the live plan.
 // These helpers keep that list tidy as the user edits it and describe it in words.
 
+import { t, n } from '../../../new/l10n.mjs'
+
 const TASK_LENGTH_TYPES = ['duration', 'endDate']
 
 /**
@@ -8,12 +10,11 @@ const TASK_LENGTH_TYPES = ['duration', 'endDate']
  * @param {number} days number of days; the sign is ignored
  */
 export function formatDays(days) {
-	const n = Math.abs(days)
-	if (n >= 7 && n % 7 === 0) {
-		const weeks = n / 7
-		return `${weeks} ${weeks === 1 ? 'week' : 'weeks'}`
+	const abs = Math.abs(days)
+	if (abs >= 7 && abs % 7 === 0) {
+		return n('%n week', '%n weeks', abs / 7)
 	}
-	return `${n} ${n === 1 ? 'day' : 'days'}`
+	return n('%n day', '%n days', abs)
 }
 
 /**
@@ -24,8 +25,8 @@ export function formatShiftBadge(days) {
 	if (!days) {
 		return ''
 	}
-	const n = Math.abs(days)
-	const amount = n >= 7 && n % 7 === 0 ? `${n / 7}w` : `${n}d`
+	const abs = Math.abs(days)
+	const amount = abs >= 7 && abs % 7 === 0 ? t('{n}w', { n: abs / 7 }) : t('{n}d', { n: abs })
 	return `${days > 0 ? '+' : '−'}${amount}`
 }
 
@@ -83,32 +84,32 @@ export function describeChange(change, labelOf, formatDate) {
 	switch (change.type) {
 	case 'delay':
 		return change.days > 0
-			? `Delay “${labelOf(change.taskId)}” by ${formatDays(change.days)}`
-			: `Finish “${labelOf(change.taskId)}” ${formatDays(change.days)} earlier`
+			? t('Delay “{card}” by {duration}', { card: labelOf(change.taskId), duration: formatDays(change.days) })
+			: t('Finish “{card}” {duration} earlier', { card: labelOf(change.taskId), duration: formatDays(change.days) })
 	case 'duration':
-		return `“${labelOf(change.taskId)}” takes ${formatDays(change.days)}`
+		return t('“{card}” takes {duration}', { card: labelOf(change.taskId), duration: formatDays(change.days) })
 	case 'endDate':
-		return `“${labelOf(change.taskId)}” ends on ${formatDate(change.date)}`
+		return t('“{card}” ends on {date}', { card: labelOf(change.taskId), date: formatDate(change.date) })
 	case 'startNotBefore':
 		return change.date
-			? `“${labelOf(change.taskId)}” can’t start before ${formatDate(change.date)}`
-			: `“${labelOf(change.taskId)}” has no start limit`
+			? t('“{card}” can’t start before {date}', { card: labelOf(change.taskId), date: formatDate(change.date) })
+			: t('“{card}” has no start limit', { card: labelOf(change.taskId) })
 	case 'overlap':
 		return change.days > 0
-			? `“${labelOf(change.successorId)}” starts ${formatDays(change.days)} before “${labelOf(change.predecessorId)}” ends`
-			: `“${labelOf(change.successorId)}” waits for “${labelOf(change.predecessorId)}” to finish`
+			? t('“{card}” starts {duration} before “{other}” ends', { card: labelOf(change.successorId), duration: formatDays(change.days), other: labelOf(change.predecessorId) })
+			: t('“{card}” waits for “{other}” to finish', { card: labelOf(change.successorId), other: labelOf(change.predecessorId) })
 	case 'planning': {
 		const parts = []
 		if ('desiredStartDate' in change) {
-			parts.push(change.desiredStartDate ? `Desired start on ${formatDate(change.desiredStartDate)}` : 'No desired start')
+			parts.push(change.desiredStartDate ? t('Desired start on {date}', { date: formatDate(change.desiredStartDate) }) : t('No desired start'))
 		}
 		if ('requiredPreparationWeeks' in change) {
-			parts.push(`Preparation takes ${formatDays(change.requiredPreparationWeeks * 7)}`)
+			parts.push(t('Preparation takes {duration}', { duration: formatDays(change.requiredPreparationWeeks * 7) }))
 		}
 		return parts.join(' · ')
 	}
 	default:
-		return 'Unknown change'
+		return t('Unknown change')
 	}
 }
 
@@ -173,8 +174,8 @@ export function changesForMove(task, days, incoming) {
 		return {
 			changes,
 			reason: incoming.length
-				? `“${task.label}” already starts as early as the cards before it allow.`
-				: `“${task.label}” doesn’t wait for another card, so it can’t start earlier in a scenario. Change its start date in Deck instead.`,
+				? t('“{card}” already starts as early as the cards before it allow.', { card: task.label })
+				: t('“{card}” doesn’t wait for another card, so it can’t start earlier in a scenario. Change its start date in Deck instead.', { card: task.label }),
 		}
 	}
 	return { changes, reason: '' }

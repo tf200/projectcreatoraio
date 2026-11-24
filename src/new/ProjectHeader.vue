@@ -1,18 +1,18 @@
 <template>
  <header class="pc-project-header">
   <div class="pc-header-main">
-   <div class="pc-project-identity"><h1>{{ project.name }}</h1><div class="pc-project-meta"><span>#{{ project.number }}</span><span>{{ projectType }} project</span><span v-if="project.loc_city" ref="location" class="pc-location"><button ref="locationButton" type="button" class="pc-location__btn" :aria-expanded="String(locationOpen)" aria-controls="pc-location-pop" @click="toggleLocation"><MapMarkerOutline :size="17" />{{ project.loc_city }}<ChevronDown :size="14" class="pc-location__caret" /></button><div v-if="locationOpen" id="pc-location-pop" class="pc-location__pop" role="dialog" :aria-label="t('projectcreatoraio', 'Project location')"><LocationMenu :street="project.loc_street || ''" :city="project.loc_city || ''" :zip="project.loc_zip || ''" :search-url="locationUrl" @edit="editLocation" /></div></span><span>{{ project.client_name }}</span></div></div>
+   <div class="pc-project-identity"><h1>{{ project.name }}</h1><div class="pc-project-meta"><span>#{{ project.number }}</span><span>{{ t('{type} project', { type: projectType }) }}</span><span v-if="project.loc_city" ref="location" class="pc-location"><button ref="locationButton" type="button" class="pc-location__btn" :aria-expanded="String(locationOpen)" aria-controls="pc-location-pop" @click="toggleLocation"><MapMarkerOutline :size="17" />{{ project.loc_city }}<ChevronDown :size="14" class="pc-location__caret" /></button><div v-if="locationOpen" id="pc-location-pop" class="pc-location__pop" role="dialog" :aria-label="t('Project location')"><LocationMenu :street="project.loc_street || ''" :city="project.loc_city || ''" :zip="project.loc_zip || ''" :search-url="locationUrl" @edit="editLocation" /></div></span><span>{{ project.client_name }}</span></div></div>
    <ProjectActions ref="actions" class="pc-header-actions" :project="project" :context="context" :chat-url="chatUrl" @navigate="$emit('navigate', $event)" @updated="$emit('updated')" @deleted="$emit('deleted', $event)" />
   </div>
   <div class="pc-badges">
    <span class="pc-badge" :class="{ 'pc-positive': Number(project.status) === 1 }"><CircleOutline :size="15" />{{ statusLabel }}</span>
-   <button class="pc-badge" @click="$emit('navigate', 'planning')">{{ overview.planning.loading ? 'Loading phase…' : overview.planning.error ? 'Phase unavailable' : planning.currentPhase || 'Phase not set' }}</button>
-   <button class="pc-badge pc-primary-tint" @click="$emit('navigate', 'planning')"><ChartDonut :size="18" />{{ overview.planning.loading ? 'Loading progress…' : progress.percent === null ? 'Progress unavailable' : progress.percent + '% checklist completed' }}</button>
-   <button v-if="planning.conflict" class="pc-badge pc-tone-danger" @click="$emit('navigate', 'planning')"><AlertCircleOutline :size="17" />1 planning conflict</button>
-   <button v-if="riskCount !== null" class="pc-badge pc-tone-warning" @click="$emit('navigate', 'notes')"><FlagOutline :size="17" />{{ riskCount }} risk {{ riskCount === 1 ? 'note' : 'notes' }}</button>
+   <button class="pc-badge" @click="$emit('navigate', 'planning')">{{ overview.planning.loading ? t('Loading phase…') : overview.planning.error ? t('Phase unavailable') : planning.currentPhase || t('Phase not set') }}</button>
+   <button class="pc-badge pc-primary-tint" @click="$emit('navigate', 'planning')"><ChartDonut :size="18" />{{ overview.planning.loading ? t('Loading progress…') : progress.percent === null ? t('Progress unavailable') : t('{percent}% checklist completed', { percent: progress.percent }) }}</button>
+   <button v-if="planning.conflict" class="pc-badge pc-tone-danger" @click="$emit('navigate', 'planning')"><AlertCircleOutline :size="17" />{{ t('1 planning conflict') }}</button>
+   <button v-if="riskCount !== null" class="pc-badge pc-tone-warning" @click="$emit('navigate', 'notes')"><FlagOutline :size="17" />{{ n('%n risk note', '%n risk notes', riskCount) }}</button>
    <button class="pc-badge pc-badge--milestone" :class="{ 'pc-tone-danger': milestone && milestone.state === 'overdue', 'pc-tone-warning': milestone && milestone.state === 'today' }" :title="milestoneHint" @click="$emit('navigate', 'tasks')"><AlertCircleOutline v-if="milestone && milestone.state === 'overdue'" :size="17" /><CalendarMonthOutline v-else :size="17" />{{ milestoneText }}<span v-if="milestone && milestone.more" class="pc-badge-more">+{{ milestone.more }}</span></button>
   </div>
-  <nav class="pc-tabs" :aria-label="t('projectcreatoraio', 'Project sections')"><a v-for="item in availableTabs" :key="item.id" :href="tabUrl(item.id)" :aria-current="tab === item.id ? 'page' : null" @click.prevent="$emit('navigate', item.id)"><component :is="item.icon" :size="18" />{{ item.label }}</a></nav>
+  <nav class="pc-tabs" :aria-label="t('Project sections')"><a v-for="item in availableTabs" :key="item.id" :href="tabUrl(item.id)" :aria-current="tab === item.id ? 'page' : null" @click.prevent="$emit('navigate', item.id)"><component :is="item.icon" :size="18" />{{ item.label }}</a></nav>
  </header>
 </template>
 <script>
@@ -35,7 +35,7 @@ import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import Draw from 'vue-material-design-icons/Draw.vue'
 import AccountGroupOutline from 'vue-material-design-icons/AccountGroupOutline.vue'
 import History from 'vue-material-design-icons/History.vue'
-import { t } from '@nextcloud/l10n'
+import { t, n } from './l10n.mjs'
 import { PROJECT_TYPES } from '../macros/project-types.js'
 import { getProjectStatusLabel } from '../constants/project-statuses.js'
 import { interfaceUrl } from './navigation.js'
@@ -50,14 +50,14 @@ export default {
   // The open task whose due date comes up first (overview.js, nextMilestoneOf).
   milestone() { return this.overview.tasks?.data ? nextMilestoneOf(this.overview.tasks.data) : null },
   milestoneText() {
-   if (this.overview.tasks?.loading) return 'Loading milestone…'
-   if (this.overview.tasks?.error) return 'Milestone unavailable'
-   return this.milestone ? 'Next milestone: ' + this.milestone.title + ' · ' + this.milestone.when : 'Next milestone not scheduled'
+   if (this.overview.tasks?.loading) return t('Loading milestone…')
+   if (this.overview.tasks?.error) return t('Milestone unavailable')
+   return this.milestone ? t('Next milestone: {title} · {when}', { title: this.milestone.title, when: this.milestone.when }) : t('Next milestone not scheduled')
   },
   // Hovering lists the tasks the number counts.
   milestoneHint() {
-   if (!this.milestone || !this.milestone.more) return 'Open Tasks'
-   const heading = this.milestone.state === 'overdue' ? 'Overdue' : this.milestone.state === 'today' ? 'Due today' : 'Due ' + this.milestone.when
+   if (!this.milestone || !this.milestone.more) return t('Open Tasks')
+   const heading = this.milestone.state === 'overdue' ? t('Overdue') : this.milestone.state === 'today' ? t('Due today') : t('Due {date}', { date: this.milestone.when })
    return heading + ':\n' + this.milestone.tasks.map(title => '• ' + title).join('\n')
   },
   riskCount() { const count = this.overview.notes.data?.risks; return Number.isFinite(count) ? count : null },
@@ -66,16 +66,16 @@ export default {
   locationUrl() { return 'https://www.openstreetmap.org/search?query=' + encodeURIComponent([this.project.loc_street, this.project.loc_zip, this.project.loc_city].filter(Boolean).join(' ')) },
   availableTabs() {
    return [
-    { id: 'overview', label: t('projectcreatoraio', 'Overview'), icon: ViewDashboardOutline },
-    { id: 'tasks', label: t('projectcreatoraio', 'Tasks'), icon: ClipboardCheckOutline },
-    { id: 'notes', label: t('projectcreatoraio', 'Notes'), icon: NoteTextOutline },
-    { id: 'planning', label: t('projectcreatoraio', 'Planning'), icon: CalendarMonthOutline },
-    { id: 'documents', label: t('projectcreatoraio', 'Documents'), icon: FolderOutline },
-    ...(Number(this.project.type) === 0 ? [{ id: 'intake', label: t('projectcreatoraio', 'Intake form'), icon: ClipboardCheckOutline }] : []),
-    { id: 'whiteboard', label: t('projectcreatoraio', 'Whiteboard'), icon: Draw },
-    { id: 'members', label: t('projectcreatoraio', 'Members'), icon: AccountGroupOutline },
-    { id: 'activity', label: t('projectcreatoraio', 'Activity'), icon: History },
-    { id: 'agenda', label: t('projectcreatoraio', 'Calendar'), icon: CalendarMonthOutline },
+    { id: 'overview', label: t('Overview'), icon: ViewDashboardOutline },
+    { id: 'tasks', label: t('Tasks'), icon: ClipboardCheckOutline },
+    { id: 'notes', label: t('Notes'), icon: NoteTextOutline },
+    { id: 'planning', label: t('Planning'), icon: CalendarMonthOutline },
+    { id: 'documents', label: t('Documents'), icon: FolderOutline },
+    ...(Number(this.project.type) === 0 ? [{ id: 'intake', label: t('Intake form'), icon: ClipboardCheckOutline }] : []),
+    { id: 'whiteboard', label: t('Whiteboard'), icon: Draw },
+    { id: 'members', label: t('Members'), icon: AccountGroupOutline },
+    { id: 'activity', label: t('Activity'), icon: History },
+    { id: 'agenda', label: t('Calendar'), icon: CalendarMonthOutline },
    ].filter(item => !this.disabledTabs.includes(item.id))
   },
   // Sections whose app this person cannot use, e.g. Calendar for an external collaborator.
@@ -96,6 +96,7 @@ export default {
  },
  methods: {
   t,
+  n,
   tabUrl(tab) { return interfaceUrl(this.base, { projectId: this.project.id, tab }) },
   // The city opens the location menu; a keyboard user lands on its first link.
   toggleLocation(event) {

@@ -24,6 +24,8 @@ class DeckDefaultCardsService
 	private const IMPORTANT_LABEL_COLOR = 'FF0000';
 	private const DEFAULT_CARD_DEADLINE_INTERVAL = 'P3M';
 
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private readonly CardService $cardService,
 		private readonly LabelService $labelService,
@@ -31,7 +33,9 @@ class DeckDefaultCardsService
 		private readonly BoardService $boardService,
 		private readonly LoggerInterface $logger,
 		private readonly ?IDBConnection $db = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/** @return array<string, \OCA\Deck\Db\Card> */
@@ -200,8 +204,9 @@ class DeckDefaultCardsService
 		$seededCards = [];
 		foreach ($cards as $index => $cardTemplate) {
 			try {
+				// Cards are shared by the whole project: title in the server default language.
 				$card = $this->cardService->create(
-					$cardTemplate['title'],
+					ProjectTypeDeckDefaults::translateTitle($cardTemplate['title'], $this->contentL10n->get()),
 					(int)$stack->getId(),
 					'plain',
 					(int)$index,

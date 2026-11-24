@@ -2,8 +2,10 @@
 namespace OCA\ProjectCreatorAIO\Db;
 
 use DateTime;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
 use OCP\AppFramework\Db\Entity;
 use OCP\DB\Types;
+use OCP\IL10N;
 use JsonSerializable;
 
 class Project extends Entity implements JsonSerializable {
@@ -115,13 +117,15 @@ class Project extends Entity implements JsonSerializable {
      *
      * @throws \InvalidArgumentException for anything that is not a list of known keys
      */
-    public static function encodeDisciplines(mixed $disciplines): string {
+    public static function encodeDisciplines(mixed $disciplines, ?IL10N $l = null): string {
         if (!is_array($disciplines)) {
-            throw new \InvalidArgumentException('Disciplines must be a list.');
+            $l ??= DefaultLanguageL10n::userL10n();
+            throw new \InvalidArgumentException($l->t('Disciplines must be a list.'));
         }
         foreach ($disciplines as $discipline) {
             if (!is_string($discipline) || !in_array($discipline, self::DISCIPLINES, true)) {
-                throw new \InvalidArgumentException('Unknown discipline: ' . (is_scalar($discipline) ? (string)$discipline : gettype($discipline)));
+                $l ??= DefaultLanguageL10n::userL10n();
+                throw new \InvalidArgumentException($l->t('Unknown discipline: %s', [is_scalar($discipline) ? (string)$discipline : gettype($discipline)]));
             }
         }
 

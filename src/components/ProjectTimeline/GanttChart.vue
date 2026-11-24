@@ -20,29 +20,29 @@
 			<div class="timeline-v2__title-group">
 				<div class="title-with-badge">
 					<h3 class="timeline-v2__title">
-						Project Timeline
+						{{ t('Project Timeline') }}
 					</h3>
-					<span v-if="hasActiveDelays" class="delay-warning-badge" title="Schedule slippage detected">
+					<span v-if="hasActiveDelays" class="delay-warning-badge" :title="t('Schedule slippage detected')">
 						<AlertCircle :size="14" />
-						Delays Detected
+						{{ t('Delays Detected') }}
 					</span>
 				</div>
 				<p class="timeline-v2__subtitle">
-					Plan and track phases, deck card dependencies, and milestones
+					{{ t('Plan and track phases, deck card dependencies, and milestones') }}
 				</p>
 			</div>
 
 			<div class="timeline-v2__controls">
 				<div class="control-group">
-					<NcButton type="tertiary" aria-label="Previous" @click="navigatePrev">
+					<NcButton type="tertiary" :aria-label="t('Previous')" @click="navigatePrev">
 						<template #icon>
 							<ChevronLeft :size="20" />
 						</template>
 					</NcButton>
 					<NcButton type="tertiary" class="today-btn" @click="navigateToday">
-						Today
+						{{ t('Today') }}
 					</NcButton>
-					<NcButton type="tertiary" aria-label="Next" @click="navigateNext">
+					<NcButton type="tertiary" :aria-label="t('Next')" @click="navigateNext">
 						<template #icon>
 							<ChevronRight :size="20" />
 						</template>
@@ -50,13 +50,13 @@
 				</div>
 
 				<div class="control-group">
-					<NcButton type="tertiary" title="Zoom out" @click="zoomOut">
+					<NcButton type="tertiary" :title="t('Zoom out')" @click="zoomOut">
 						<template #icon>
 							<MagnifyMinusOutline :size="18" />
 						</template>
 					</NcButton>
-					<span class="zoom-indicator">{{ dayWidth }}px/d</span>
-					<NcButton type="tertiary" title="Zoom in" @click="zoomIn">
+					<span class="zoom-indicator">{{ t('{n}px/d', { n: dayWidth }) }}</span>
+					<NcButton type="tertiary" :title="t('Zoom in')" @click="zoomIn">
 						<template #icon>
 							<MagnifyPlusOutline :size="18" />
 						</template>
@@ -67,19 +67,19 @@
 					v-if="!whatIf.active"
 					type="secondary"
 					class="whatif-btn"
-					title="Try delays and fixes on a copy of the plan"
+					:title="t('Try delays and fixes on a copy of the plan')"
 					@click="startWhatIf()">
 					<template #icon>
 						<FlaskOutline :size="18" />
 					</template>
-					What-If Mode
+					{{ t('What-If Mode') }}
 				</NcButton>
 
 				<NcButton v-if="isAdmin && !whatIf.active" type="primary" @click="openAddModal">
 					<template #icon>
 						<Plus :size="18" />
 					</template>
-					Add Item
+					{{ t('Add Item') }}
 				</NcButton>
 			</div>
 		</header>
@@ -87,15 +87,15 @@
 		<div class="timeline-v2__container">
 			<div v-if="loading" class="timeline-v2__loading">
 				<NcLoadingIcon :size="32" />
-				<p>Syncing timeline data...</p>
+				<p>{{ t('Syncing timeline data...') }}</p>
 			</div>
 
 			<div v-else-if="!hasTimelineContent" class="timeline-v2__empty">
 				<ChartGantt :size="48" class="empty-icon" />
-				<h4>No timeline items defined</h4>
-				<p>Start by adding phases and milestones to visualize the timeline.</p>
+				<h4>{{ t('No timeline items defined') }}</h4>
+				<p>{{ t('Start by adding phases and milestones to visualize the timeline.') }}</p>
 				<NcButton v-if="isAdmin" type="primary" @click="openAddModal">
-					Create first item
+					{{ t('Create first item') }}
 				</NcButton>
 			</div>
 
@@ -108,18 +108,18 @@
 					<!-- Column 1: Sidebar (WBS Hierarchy) -->
 					<div ref="sidebarEl" class="gantt-v2__sidebar">
 						<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
-							Timeline details
+							{{ t('Timeline details') }}
 						</div>
 
 						<!-- Row 1: System Planning (Calculated) -->
-						<div v-if="systemPlanningData" class="phase-row phase-row--system-planning" title="System Planning (calculated)">
+						<div v-if="systemPlanningData" class="phase-row phase-row--system-planning" :title="t('System Planning (calculated)')">
 							<div class="sp-sidebar-badge">1</div>
 							<div class="sp-sidebar-icon">
 								<Cog :size="16" />
 							</div>
 							<div class="phase-row__content">
 								<div class="phase-row__top">
-									<span class="phase-row__name">System Planning</span>
+									<span class="phase-row__name">{{ t('System Planning') }}</span>
 									<span class="phase-row__duration">{{ systemPlanningDurationBadge }}</span>
 								</div>
 								<div class="phase-row__dates">{{ systemPlanningDatesText }}</div>
@@ -142,7 +142,7 @@
 							<template v-if="row.type === 'phase'">
 								<button
 									class="phase-toggle-btn"
-									:aria-label="row.isExpanded ? 'Collapse phase' : 'Expand phase'"
+									:aria-label="row.isExpanded ? t('Collapse phase') : t('Expand phase')"
 									@click.stop="togglePhase(row.phase.category || row.phase.id)">
 									<ChevronDown v-if="row.isExpanded" :size="16" />
 									<ChevronRight v-else :size="16" />
@@ -159,7 +159,7 @@
 										{{ formatDate(row.phase.startDate) }} – {{ formatDate(row.phase.endDate) }}
 									</div>
 									<div v-else class="phase-row__dates">
-										No tasks scheduled
+										{{ t('No tasks scheduled') }}
 									</div>
 								</div>
 							</template>
@@ -170,7 +170,7 @@
 									<div class="tree-line-v" />
 									<div class="tree-line-h" />
 								</div>
-								<div v-if="row.task.deckCardId" class="task-deck-icon" title="Deck Card">
+								<div v-if="row.task.deckCardId" class="task-deck-icon" :title="t('Deck Card')">
 									<CardsVariant :size="14" />
 								</div>
 								<div class="phase-row__content">
@@ -188,13 +188,13 @@
 											v-if="whatIf.active && row.task.whatIf && row.task.whatIf.endShiftDays"
 											class="task-shift-tag"
 											:class="row.task.whatIf.endShiftDays > 0 ? 'task-shift-tag--later' : 'task-shift-tag--earlier'"
-											:title="`Ends ${formatDays(row.task.whatIf.endShiftDays)} ${row.task.whatIf.endShiftDays > 0 ? 'later' : 'earlier'} than in the live plan`">
+											:title="row.task.whatIf.endShiftDays > 0 ? t('Ends {duration} later than in the live plan', { duration: formatDays(row.task.whatIf.endShiftDays) }) : t('Ends {duration} earlier than in the live plan', { duration: formatDays(row.task.whatIf.endShiftDays) })">
 											{{ formatShiftBadge(row.task.whatIf.endShiftDays) }}
 										</span>
 										<span v-else-if="!whatIf.active && row.task.delayDays > 0" class="task-delay-tag">
 											+{{ formatDelayBadge(row.task.delayDays) }}
 										</span>
-										<span v-else class="phase-row__duration">{{ row.task.durationDays }}d</span>
+										<span v-else class="phase-row__duration">{{ t('{n}d', { n: row.task.durationDays }) }}</span>
 									</div>
 									<div class="phase-row__dates">
 										{{ formatDate(row.task.startDate) }} – {{ formatDate(row.task.endDate) }}
@@ -204,7 +204,7 @@
 
 							<!-- Custom User Item -->
 							<template v-else>
-								<div v-if="isAdmin" class="drag-handle" title="Custom timeline item">
+								<div v-if="isAdmin" class="drag-handle" :title="t('Custom timeline item')">
 									<DragVariant :size="16" />
 								</div>
 								<div class="phase-row__content">
@@ -329,7 +329,7 @@
 								<div class="today-marker" :style="{ left: todayOffset + 'px' }">
 									<div class="today-line" />
 									<div class="today-badge">
-										Today
+										{{ t('Today') }}
 									</div>
 								</div>
 
@@ -370,7 +370,7 @@
 											v-if="hasPhaseSchedule(row.phase)"
 											class="phase-summary-bar"
 											:style="getPhaseBarStyle(row.phase)"
-											:title="`${row.phase.name}: ${formatDate(row.phase.startDate)} – ${formatDate(row.phase.endDate)}`">
+											:title="t('{phase}: {start} – {end}', { phase: row.phase.name, start: formatDate(row.phase.startDate), end: formatDate(row.phase.endDate) })">
 											<span v-if="getPhaseDurationDays(row.phase) * dayWidth > 90" class="phase-summary-bar__label">
 												{{ row.phase.name }}
 											</span>
@@ -379,7 +379,7 @@
 											v-if="row.phase.milestone"
 											class="phase-milestone-marker"
 											:style="getPhaseMilestoneStyle(row.phase)"
-											:title="`Milestone: ${row.phase.milestone.label} (${formatDate(row.phase.milestone.date)})`">
+											:title="t('Milestone: {label} ({date})', { label: row.phase.milestone.label, date: formatDate(row.phase.milestone.date) })">
 											<div class="phase-milestone-diamond" :style="{ backgroundColor: row.phase.color }" />
 											<span class="phase-milestone-label">{{ row.phase.milestone.label }}</span>
 										</div>
@@ -392,7 +392,7 @@
 											v-if="hasGhostBar(row.task)"
 											class="timeline-bar timeline-bar--ghost"
 											:style="getTaskGhostBarStyle(row.task)"
-											:title="whatIf.active ? `Live plan: ${formatDate(row.task.whatIf.baselineStartDate)} – ${formatDate(row.task.whatIf.baselineEndDate)}` : 'Original baseline schedule'" />
+											:title="whatIf.active ? t('Live plan: {start} – {end}', { start: formatDate(row.task.whatIf.baselineStartDate), end: formatDate(row.task.whatIf.baselineEndDate) }) : t('Original baseline schedule')" />
 
 										<div
 											class="timeline-bar timeline-bar--task"
@@ -423,7 +423,7 @@
 											<span
 												v-if="whatIf.active && !row.task.isDone"
 												class="timeline-bar__resize"
-												title="Drag to change the length"
+												:title="t('Drag to change the length')"
 												@pointerdown.stop="onBarPointerDown($event, row.task, 'resize')" />
 											<span v-if="row.task.durationDays * dayWidth > 40" class="timeline-bar__label">
 												{{ row.task.label }}
@@ -434,7 +434,7 @@
 												:class="{ 'task-delay-badge--earlier': row.task.whatIf.endShiftDays < 0 }">
 												{{ formatShiftBadge(row.task.whatIf.endShiftDays) }}
 											</span>
-											<span v-else-if="!whatIf.active && row.task.delayDays > 0" class="task-delay-badge" title="Schedule slippage">
+											<span v-else-if="!whatIf.active && row.task.delayDays > 0" class="task-delay-badge" :title="t('Schedule slippage')">
 												+{{ formatDelayBadge(row.task.delayDays) }}
 											</span>
 										</div>
@@ -446,7 +446,7 @@
 											v-if="isMilestone(row.item)"
 											class="timeline-milestone"
 											:style="getMilestoneStyle(row.item)"
-											:title="`${row.item.label}: ${formatDate(row.item.startDate)}`" />
+											:title="t('{label}: {date}', { label: row.item.label, date: formatDate(row.item.startDate) })" />
 										<div
 											v-else
 											class="timeline-bar"
@@ -467,7 +467,7 @@
 					<!-- Column 3: STATUS Column (Right-Hand Traffic Light) -->
 					<div ref="statusEl" class="gantt-v2__status">
 						<div class="gantt-v2__header-cell gantt-v2__header-cell--center" :style="{ height: timelineHeaderHeight + 'px' }">
-							Status
+							{{ t('Status') }}
 						</div>
 
 						<!-- System Planning Status Row -->
@@ -516,10 +516,10 @@
 					<!-- Column 4: Actions Column (Admin only) -->
 					<div v-if="isAdmin" ref="actionsEl" class="gantt-v2__actions">
 						<div class="gantt-v2__header-cell" :style="{ height: timelineHeaderHeight + 'px' }">
-							Actions
+							{{ t('Actions') }}
 						</div>
 						<!-- System Planning Action Placeholder -->
-						<div v-if="systemPlanningData" class="action-row action-row--system-planning" title="System calculated planning row">
+						<div v-if="systemPlanningData" class="action-row action-row--system-planning" :title="t('System calculated planning row')">
 							<span class="action-row__locked-hint">
 								<Lock :size="14" />
 							</span>
@@ -535,7 +535,7 @@
 							}"
 							:style="{ height: row.height + 'px' }">
 							<template v-if="row.type === 'phase'">
-								<span class="action-row__locked-hint" title="System defined lifecycle phase">
+								<span class="action-row__locked-hint" :title="t('System defined lifecycle phase')">
 									<Lock :size="14" />
 								</span>
 							</template>
@@ -543,16 +543,16 @@
 								<NcButton
 									v-if="row.task.deckCardId && !row.task.isDone"
 									type="tertiary"
-									:title="whatIf.active ? 'Change this card in the scenario' : 'Edit Deck card schedule'"
+									:title="whatIf.active ? t('Change this card in the scenario') : t('Edit Deck card schedule')"
 									@click="whatIf.active ? openWhatIfEditor(row.task) : openDeckTaskModal(row.task)">
 									<template #icon>
 										<Pencil :size="16" />
 									</template>
 								</NcButton>
-								<span v-else-if="row.task.deckCardId" class="action-row__locked-hint" title="Completed Deck card">
+								<span v-else-if="row.task.deckCardId" class="action-row__locked-hint" :title="t('Completed Deck card')">
 									<Lock :size="14" />
 								</span>
-								<span v-else class="action-row__locked-hint" title="Phase Task">
+								<span v-else class="action-row__locked-hint" :title="t('Phase Task')">
 									<Lock :size="14" />
 								</span>
 							</template>
@@ -560,7 +560,7 @@
 								<NcButton
 									v-if="canEditItem(row.item)"
 									type="tertiary"
-									title="Edit item"
+									:title="t('Edit item')"
 									@click="openEditModal(row.item)">
 									<template #icon>
 										<Pencil :size="16" />
@@ -569,7 +569,7 @@
 								<NcButton
 									v-if="!isSystemItem(row.item)"
 									type="error"
-									title="Delete item"
+									:title="t('Delete item')"
 									@click="confirmDelete(row.item)">
 									<template #icon>
 										<Delete :size="16" />
@@ -617,14 +617,14 @@
 			<!-- Footer: Phase Jumper -->
 			<footer v-if="hasTimelineContent" class="timeline-v2__footer">
 				<div class="phase-jumper">
-					<span class="jumper-label">Focus on:</span>
+					<span class="jumper-label">{{ t('Focus on:') }}</span>
 					<div class="jumper-chips">
 						<button
 							v-if="systemPlanningData"
 							class="phase-chip"
 							:style="{ '--phase-color': '#3b82f6' }"
 							@click="navigateToDate(systemPlanningData.deckTasks?.startDate || systemPlanningData.requestDate)">
-							System Planning
+							{{ t('System Planning') }}
 						</button>
 						<button
 							v-for="phase in effectivePhases"
@@ -679,28 +679,28 @@
 					<div class="form-field">
 						<NcTextField
 							v-model="form.label"
-							label="Label"
+							:label="t('Label')"
 							:show-label="true"
 							:disabled="isEditingSystemItem || isEditingDeckTask"
-							placeholder="e.g., Design, Approval" />
+							:placeholder="t('e.g., Design, Approval')" />
 					</div>
 
 					<div v-if="!isEditingDeckTask" class="form-row">
 						<div class="form-field form-field--inline">
-							<label class="form-label" :for="`timeline-type-${projectId}`">Type</label>
+							<label class="form-label" :for="`timeline-type-${projectId}`">{{ t('Type') }}</label>
 							<select
 								:id="`timeline-type-${projectId}`"
 								v-model="form.itemType"
 								class="form-select"
 								:disabled="isEditingSystemItem">
-								<option value="phase">Phase</option>
-								<option value="milestone">Milestone</option>
+								<option value="phase">{{ t('Phase') }}</option>
+								<option value="milestone">{{ t('Milestone') }}</option>
 							</select>
 						</div>
 						<div v-if="form.itemType === 'phase'" class="form-field form-field--inline form-field--checkbox">
 							<label class="form-checkbox">
 								<input v-model="form.isOngoing" type="checkbox" :disabled="isEditingSystemItem">
-								<span>Ongoing</span>
+								<span>{{ t('Ongoing') }}</span>
 							</label>
 						</div>
 					</div>
@@ -709,13 +709,13 @@
 						<NcTextField
 							v-model="form.startDate"
 							type="date"
-							:label="form.itemType === 'milestone' ? 'Date' : 'Start Date'"
+							:label="form.itemType === 'milestone' ? t('Date') : t('Start Date')"
 							:show-label="true" />
 						<NcTextField
 							v-if="form.itemType === 'phase'"
 							v-model="form.endDate"
 							type="date"
-							label="End Date"
+							:label="t('End Date')"
 							:min="form.startDate || undefined"
 							:disabled="form.isOngoing"
 							:error="!!itemDateProblem"
@@ -724,7 +724,7 @@
 					</div>
 
 					<div v-if="!isEditingDeckTask" class="form-field">
-						<label class="form-label">Color</label>
+						<label class="form-label">{{ t('Color') }}</label>
 						<div class="color-grid">
 							<button
 								v-for="color in colorOptions"
@@ -740,13 +740,13 @@
 
 				<footer class="phase-form__footer">
 					<NcButton type="secondary" @click="closeModal">
-						Cancel
+						{{ t('Cancel') }}
 					</NcButton>
 					<NcButton
 						type="primary"
 						:disabled="!canSave || saving"
 						@click="saveItem">
-						{{ saving ? 'Saving...' : (editingItem ? 'Update Item' : 'Create Item') }}
+						{{ saving ? t('Saving...') : (editingItem ? t('Update Item') : t('Create Item')) }}
 					</NcButton>
 				</footer>
 			</div>
@@ -765,6 +765,7 @@ import { showError, showSuccess, showWarning } from '@nextcloud/dialogs'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import { NcButton, NcLoadingIcon, NcModal, NcTextField } from '@nextcloud/vue'
+import { t, n, tc, formatNumber, locale } from '../../new/l10n.mjs'
 
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
@@ -1144,18 +1145,18 @@ export default {
 			const d = this.systemPlanningData
 			if (!d) return ''
 			const totalWeeks = (Number(d.deckTasks?.weeks) || 0) + (Number(d.preparation?.weeks) || 0)
-			return `${totalWeeks}w`
+			return t('{n}w', { n: formatNumber(totalWeeks) })
 		},
 		systemPlanningDatesText() {
 			const d = this.systemPlanningData
-			if (!d) return 'Automatically calculated'
+			if (!d) return t('Automatically calculated')
 			const start = this.formatDate(d.deckTasks?.startDate || d.requestDate)
 			const end = this.formatDate(d.desiredStart?.date || d.minimumStart?.date)
-			return `${start} – ${end}`
+			return t('{start} – {end}', { start, end })
 		},
 		itemDateProblem() {
 			if (this.form.itemType !== 'phase' || this.form.isOngoing || !this.form.startDate || !this.form.endDate) return ''
-			return this.form.endDate < this.form.startDate ? 'The end can’t be before the start.' : ''
+			return this.form.endDate < this.form.startDate ? t('The end can’t be before the start.') : ''
 		},
 		canSave() {
 			const labelOk = this.form.label.trim() !== ''
@@ -1178,14 +1179,14 @@ export default {
 			return !!this.editingItem?.deckCardId
 		},
 		modalTitle() {
-			if (this.isEditingDeckTask) return 'Edit Deck Card Schedule'
-			return this.editingItem ? 'Edit Item' : 'Add New Item'
+			if (this.isEditingDeckTask) return t('Edit Deck Card Schedule')
+			return this.editingItem ? t('Edit Item') : t('Add New Item')
 		},
 		modalDescription() {
-			if (this.isEditingDeckTask) return 'Update the card schedule. Starts before a predecessor finishes are moved to the first valid day, and dependent cards are updated in Deck.'
+			if (this.isEditingDeckTask) return t('Update the card schedule. Starts before a predecessor finishes are moved to the first valid day, and dependent cards are updated in Deck.')
 			return this.editingItem
-				? 'Update the details for this timeline item.'
-				: 'Add a phase or milestone to your project timeline.'
+				? t('Update the details for this timeline item.')
+				: t('Add a phase or milestone to your project timeline.')
 		},
 		timelineRange() {
 			let minDate = null
@@ -1233,13 +1234,13 @@ export default {
 						if (!maxDate || md > maxDate) maxDate = md
 					}
 					if (phase.tasks && phase.tasks.length > 0) {
-						for (const t of phase.tasks) {
-							if (t.startDate) {
-								const ts = this.parseDateOnly(t.startDate)
+						for (const task of phase.tasks) {
+							if (task.startDate) {
+								const ts = this.parseDateOnly(task.startDate)
 								if (!minDate || ts < minDate) minDate = ts
 							}
-							if (t.endDate) {
-								const te = this.parseDateOnly(t.endDate)
+							if (task.endDate) {
+								const te = this.parseDateOnly(task.endDate)
 								if (!maxDate || te > maxDate) maxDate = te
 							}
 						}
@@ -1282,7 +1283,7 @@ export default {
 				const labelFormat = this.spanMultipleYears ? { month: 'short' } : { month: 'short', year: 'numeric' }
 				months.push({
 					key: `${cursor.getFullYear()}-${cursor.getMonth()}`,
-					label: cursor.toLocaleDateString('default', labelFormat),
+					label: cursor.toLocaleDateString(locale(), labelFormat),
 					width,
 					year: cursor.getFullYear(),
 				})
@@ -1324,8 +1325,8 @@ export default {
 				sunday.setDate(sunday.getDate() + 6)
 				weeks.push({
 					key: `${weekInfo.isoYear}-W${weekInfo.isoWeek}`,
-					label: `W${weekInfo.isoWeek}`,
-					tooltip: `Week ${weekInfo.isoWeek} · ${formatShortDate(monday, false)} – ${formatShortDate(sunday)}`,
+					label: t('W{week}', { week: weekInfo.isoWeek }),
+					tooltip: t('Week {week} · {start} – {end}', { week: weekInfo.isoWeek, start: formatShortDate(monday, false), end: formatShortDate(sunday) }),
 					width: spanDays * this.dayWidth,
 				})
 				cursor = new Date(cursor)
@@ -1368,12 +1369,12 @@ export default {
 			const d = this.systemPlanningData
 			if (!d) return []
 			const candidates = [
-				{ key: 'min-start', label: 'Min start', date: d.minimumStart?.date, offset: this.minStartOffset },
-				{ key: 'desired-start', label: 'Desired start', date: d.desiredStart?.date, offset: this.desiredStartOffset },
-				{ key: 'actual-start', label: 'Actual start', date: d.actualStart?.date, offset: this.actualStartOffset },
-				{ key: 'handover', label: 'Handover', date: d.actualHandover?.date, offset: this.actualHandoverOffset },
-				{ key: 'end', label: d.actualEnd?.date ? 'End' : 'End (planned)', date: this.endDate, offset: this.dateOffset(this.endDate) },
-				{ key: 'min-start-plan', label: 'Min start (live plan)', date: this.whatIfBaselineMinStart, offset: this.dateOffset(this.whatIfBaselineMinStart) },
+				{ key: 'min-start', label: t('Min start'), date: d.minimumStart?.date, offset: this.minStartOffset },
+				{ key: 'desired-start', label: t('Desired start'), date: d.desiredStart?.date, offset: this.desiredStartOffset },
+				{ key: 'actual-start', label: t('Actual start'), date: d.actualStart?.date, offset: this.actualStartOffset },
+				{ key: 'handover', label: t('Handover'), date: d.actualHandover?.date, offset: this.actualHandoverOffset },
+				{ key: 'end', label: d.actualEnd?.date ? t('End') : t('End (planned)'), date: this.endDate, offset: this.dateOffset(this.endDate) },
+				{ key: 'min-start-plan', label: t('Min start (live plan)'), date: this.whatIfBaselineMinStart, offset: this.dateOffset(this.whatIfBaselineMinStart) },
 			].filter(m => m.offset !== null)
 				.sort((a, b) => a.offset - b.offset)
 			// Stack flags that would overlap their left neighbour
@@ -1436,6 +1437,10 @@ export default {
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		isPhaseExpanded(phaseKey) {
 			if (this.expandedPhases[phaseKey] !== undefined) {
 				return !!this.expandedPhases[phaseKey]
@@ -1471,7 +1476,7 @@ export default {
 		},
 		formatDelayBadge(days) {
 			const w = Math.round(days / 7)
-			return w >= 1 ? `${w}w` : `${days}d`
+			return w >= 1 ? t('{n}w', { n: w }) : t('{n}d', { n: days })
 		},
 		formatDays,
 		formatShiftBadge,
@@ -1480,7 +1485,7 @@ export default {
 			return Math.floor((this.parseDateOnly(dateStr) - this.timelineRange.start) / (1000 * 60 * 60 * 24)) * this.dayWidth
 		},
 		taskLabel(id) {
-			const task = this.effectiveTasks.find(t => String(t.id) === String(id))
+			const task = this.effectiveTasks.find(candidate => String(candidate.id) === String(id))
 			return task ? task.label : `#${id}`
 		},
 		whatIfUrl(path = '') {
@@ -1502,7 +1507,7 @@ export default {
 				this.savedScenarios.list = data.scenarios || []
 				this.savedScenarios.livePlan = data.livePlan || null
 			} catch (error) {
-				showError(error.response?.data?.error || 'Saved scenarios could not be loaded.')
+				showError(error.response?.data?.error || t('Saved scenarios could not be loaded.'))
 			} finally {
 				this.savedScenarios.loading = false
 			}
@@ -1512,10 +1517,10 @@ export default {
 			try {
 				const { data } = await axios.post(this.savedScenariosUrl(), { name, changes: this.whatIf.changes })
 				this.savedScenarios.activeId = data.id
-				showSuccess(`Saved “${data.name}”`)
+				showSuccess(t('Saved “{name}”', { name: data.name }))
 				await this.loadSavedScenarios()
 			} catch (error) {
-				showError(error.response?.data?.error || 'The scenario could not be saved.')
+				showError(error.response?.data?.error || t('The scenario could not be saved.'))
 			} finally {
 				this.savedScenarios.saving = false
 			}
@@ -1524,10 +1529,10 @@ export default {
 			this.savedScenarios.saving = true
 			try {
 				await axios.put(this.savedScenariosUrl(scenario.id), { changes: this.whatIf.changes })
-				showSuccess(`Saved changes to “${scenario.name}”`)
+				showSuccess(t('Saved changes to “{name}”', { name: scenario.name }))
 				await this.loadSavedScenarios()
 			} catch (error) {
-				showError(error.response?.data?.error || 'The scenario could not be saved.')
+				showError(error.response?.data?.error || t('The scenario could not be saved.'))
 			} finally {
 				this.savedScenarios.saving = false
 			}
@@ -1545,7 +1550,7 @@ export default {
 				}
 				await this.loadSavedScenarios()
 			} catch (error) {
-				showError(error.response?.data?.error || 'The scenario could not be deleted.')
+				showError(error.response?.data?.error || t('The scenario could not be deleted.'))
 			}
 		},
 		exitWhatIf() {
@@ -1589,7 +1594,7 @@ export default {
 			this.suppressTaskClick = true
 			setTimeout(() => { this.suppressTaskClick = false }, 0)
 
-			const task = this.effectiveTasks.find(t => String(t.id) === String(drag.taskId))
+			const task = this.effectiveTasks.find(candidate => String(candidate.id) === String(drag.taskId))
 			if (!task || !drag.deltaDays) return
 			let changes = []
 			if (drag.mode === 'resize') {
@@ -1611,7 +1616,7 @@ export default {
 			return (this.whatIf.result?.dependencies || [])
 				.filter(dep => String(dep.successorId) === String(task.id))
 				.map(dep => {
-					const predecessor = this.effectiveTasks.find(t => String(t.id) === String(dep.predecessorId))
+					const predecessor = this.effectiveTasks.find(candidate => String(candidate.id) === String(dep.predecessorId))
 					return predecessor ? { predecessorId: dep.predecessorId, predecessorEndDate: predecessor.endDate, overlapDays: dep.overlapDays || 0 } : null
 				})
 				.filter(Boolean)
@@ -1620,9 +1625,9 @@ export default {
 			const drag = this.barDrag
 			if (drag.mode === 'resize') {
 				const length = Math.max(1, task.durationDays + drag.deltaDays)
-				return `Ends ${this.formatDate(shiftDate(task.startDate, length - 1))} · ${formatDays(length)}`
+				return t('Ends {date} · {duration}', { date: this.formatDate(shiftDate(task.startDate, length - 1)), duration: formatDays(length) })
 			}
-			return `Starts ${this.formatDate(shiftDate(task.startDate, drag.deltaDays))} (${formatShiftBadge(drag.deltaDays)})`
+			return t('Starts {date} ({shift})', { date: this.formatDate(shiftDate(task.startDate, drag.deltaDays)), shift: formatShiftBadge(drag.deltaDays) })
 		},
 		openWhatIfEditor(task) {
 			this.whatIf.editorTaskId = task.id
@@ -1661,7 +1666,7 @@ export default {
 				this.loadWhatIfFixes(request, data)
 			} catch (error) {
 				if (request !== this.whatIfRequest) return
-				const message = error.response?.data?.error || 'The scenario could not be calculated.'
+				const message = error.response?.data?.error || t('The scenario could not be calculated.')
 				if (error.response?.status === 400 && previousChanges) {
 					this.whatIf.changes = previousChanges
 					showError(message)
@@ -1706,16 +1711,16 @@ export default {
 				this.whatIf.confirmingApply = false
 				this.exitWhatIf()
 				if (data.mismatches?.length) {
-					showWarning(`Scenario applied, but ${data.mismatches.length} ${data.mismatches.length === 1 ? 'card does' : 'cards do'} not match the preview. Please check the timeline.`)
+					showWarning(n('Scenario applied, but %n card does not match the preview. Please check the timeline.', 'Scenario applied, but %n cards do not match the preview. Please check the timeline.', data.mismatches.length))
 				} else {
 					showSuccess(data.deckCardsUpdated
-						? `Scenario applied: ${data.deckCardsUpdated} Deck ${data.deckCardsUpdated === 1 ? 'card' : 'cards'} updated`
-						: 'Scenario applied')
+						? n('Scenario applied: %n Deck card updated', 'Scenario applied: %n Deck cards updated', data.deckCardsUpdated)
+						: t('Scenario applied'))
 				}
 				await this.loadItems()
 			} catch (error) {
 				this.whatIf.confirmingApply = false
-				showError(error.response?.data?.error || 'The scenario could not be applied.')
+				showError(error.response?.data?.error || t('The scenario could not be applied.'))
 				if (error.response?.status === 409) {
 					this.runWhatIf()
 				}
@@ -1726,16 +1731,16 @@ export default {
 		getStatusLabel(status) {
 			switch (status) {
 			case 'behind_at_risk':
-				return 'At risk'
+				return t('At risk')
 			case 'attention_needed':
-				return 'Attention'
+				return t('Attention')
 			case 'completed':
-				return 'Done'
+				return t('Done')
 			case 'not_started':
-				return 'Not started'
+				return t('Not started')
 			case 'on_track':
 			default:
-				return 'On track'
+				return t('On track')
 			}
 		},
 		getStatusClass(status, isDone = false) {
@@ -1753,7 +1758,7 @@ export default {
 			}
 		},
 		getTaskStatusLabel(task) {
-			if (task.isDone) return 'Done'
+			if (task.isDone) return t('Done')
 			return this.getStatusLabel(task.status)
 		},
 		hasPhaseSchedule(phase) {
@@ -1768,9 +1773,9 @@ export default {
 		formatPhaseDuration(phase) {
 			const days = this.getPhaseDurationDays(phase)
 			const weeks = days / 7
-			if (weeks < 1) return `${days}d`
+			if (weeks < 1) return t('{n}d', { n: days })
 			const fixed = Math.abs(weeks - Math.round(weeks)) < 1e-9 ? String(Math.round(weeks)) : weeks.toFixed(1)
-			return `${fixed}w`
+			return t('{n}w', { n: formatNumber(Number(fixed)) })
 		},
 		getPhaseBarStyle(phase) {
 			const { start } = this.timelineRange
@@ -1823,26 +1828,26 @@ export default {
 			}
 		},
 		getTaskBarTitle(task) {
-			const dates = `${task.label}: ${this.formatDate(task.startDate)} – ${this.formatDate(task.endDate)} (${task.durationDays}d)`
+			const vars = { label: task.label, start: this.formatDate(task.startDate), end: this.formatDate(task.endDate), n: task.durationDays }
 			if (this.whatIf.active && task.whatIf) {
 				const info = task.whatIf
-				const parts = [dates]
+				const parts = [t('{label}: {start} – {end} ({n}d)', vars)]
 				if (info.startShiftDays || info.endShiftDays) {
-					parts.push(`Live plan: ${this.formatDate(info.baselineStartDate)} – ${this.formatDate(info.baselineEndDate)}`)
+					parts.push(t('Live plan: {start} – {end}', { start: this.formatDate(info.baselineStartDate), end: this.formatDate(info.baselineEndDate) }))
 				}
 				if (info.isCritical) {
-					parts.push('On the critical path')
+					parts.push(t('On the critical path'))
 				} else if (info.floatDays !== null) {
-					parts.push(`Can slip ${formatDays(info.floatDays)}`)
+					parts.push(t('Can slip {duration}', { duration: formatDays(info.floatDays) }))
 				}
 				if (!task.isDone) {
-					parts.push('Click to change it in the scenario')
+					parts.push(t('Click to change it in the scenario'))
 				}
 				return parts.join(' • ')
 			}
 			const status = this.getTaskStatusLabel(task)
-			const delay = task.delayDays > 0 ? ` • Delayed by +${this.formatDelayBadge(task.delayDays)}` : ''
-			return `${dates} • ${status}${delay}`
+			const delay = task.delayDays > 0 ? ' ' + t('• Delayed by +{delay}', { delay: this.formatDelayBadge(task.delayDays) }) : ''
+			return t('{label}: {start} – {end} ({n}d) • {status}{delay}', { ...vars, status, delay })
 		},
 		isSystemItem(item) {
 			return !!(item && item.systemKey)
@@ -1916,7 +1921,13 @@ export default {
 				if (error.response?.status === 400 && message) {
 					this.dateRefusal = { field, message }
 				} else {
-					showError(message || `Could not save the ${label}. Please try again.`)
+					const failed = {
+						desiredStart: t('Could not save the desired start date. Please try again.'),
+						actualStart: t('Could not save the actual start date. Please try again.'),
+						handover: t('Could not save the handover date. Please try again.'),
+						end: t('Could not save the end date. Please try again.'),
+					}
+					showError(message || failed[field])
 				}
 			} finally {
 				this.savingDesiredDate = false
@@ -1930,7 +1941,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error updating execution weeks:', error)
-				showError(error.response?.data?.error || 'Could not save weeks on site. Please try again.')
+				showError(error.response?.data?.error || t('Could not save weeks on site. Please try again.'))
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1948,7 +1959,7 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error updating preparation weeks:', error)
-				showError(error.response?.data?.error || 'Could not save the preparation weeks. Please try again.')
+				showError(error.response?.data?.error || t('Could not save the preparation weeks. Please try again.'))
 			} finally {
 				this.savingDesiredDate = false
 			}
@@ -1959,24 +1970,25 @@ export default {
 			const day = date.getDate().toString().padStart(2, '0')
 			const month = (date.getMonth() + 1).toString().padStart(2, '0')
 			const year = date.getFullYear().toString().slice(-2)
-			return `${day}/${month}/${year}`
+			return t('{day}/{month}/{year}', { day, month, year })
 		},
 		formatItemDates(item) {
 			if (!item) return '-'
 			const futureHint = this.formatFutureStartHint(item)
 			if (this.isMilestone(item)) {
 				return futureHint
-					? `${this.formatDate(item.startDate)} • ${futureHint}`
+					? t('{span} • {hint}', { span: this.formatDate(item.startDate), hint: futureHint })
 					: this.formatDate(item.startDate)
 			}
 			const start = this.formatDate(item.startDate)
-			const end = this.isOngoing(item) ? 'Ongoing' : this.formatDate(item.endDate)
+			const end = this.isOngoing(item) ? t('Ongoing') : this.formatDate(item.endDate)
+			const span = t('{start} – {end}', { start, end })
 			return futureHint
-				? `${start} – ${end} • ${futureHint}`
-				: `${start} – ${end}`
+				? t('{span} • {hint}', { span, hint: futureHint })
+				: span
 		},
 		formatItemBadge(item) {
-			if (this.isMilestone(item)) return 'Milestone'
+			if (this.isMilestone(item)) return t('Milestone')
 			return this.formatWeeks(item)
 		},
 		parseDateOnly(value) {
@@ -1998,12 +2010,12 @@ export default {
 		formatWeekCountFromDays(days) {
 			const weeks = days / 7
 			const fixed = Math.abs(weeks - Math.round(weeks)) < 1e-9 ? String(Math.round(weeks)) : weeks.toFixed(1)
-			return `${fixed} week${weeks === 1 ? '' : 's'}`
+			return n('%n week', '%n weeks', Number(fixed))
 		},
 		formatFutureStartHint(item) {
 			const days = this.getDaysUntilStart(item)
 			if (!days) return ''
-			return `Starts in ${this.formatWeekCountFromDays(days)}`
+			return t('Starts in {weeks}', { weeks: this.formatWeekCountFromDays(days) })
 		},
 		getIsoWeekInfo(date) {
 			return getIsoWeekInfo(date)
@@ -2047,26 +2059,32 @@ export default {
 		formatWeeks(item) {
 			const days = this.getDurationDays(item)
 			const weeks = days / 7
-			if (weeks < 1) return `${days}d`
+			if (weeks < 1) return t('{n}d', { n: days })
 			const fixed = Math.abs(weeks - Math.round(weeks)) < 1e-9 ? String(Math.round(weeks)) : weeks.toFixed(1)
-			return `${fixed}w`
+			return t('{n}w', { n: formatNumber(Number(fixed)) })
 		},
 		formatWeeksLabel(item) {
 			const days = this.getDurationDays(item)
 			const weeks = days / 7
 			const fixed = Math.abs(weeks - Math.round(weeks)) < 1e-9 ? String(Math.round(weeks)) : weeks.toFixed(1)
-			return `${fixed} week${weeks === 1 ? '' : 's'} (${days} day${days === 1 ? '' : 's'})`
+			return n('{weeks} (%n day)', '{weeks} (%n days)', days, { weeks: n('%n week', '%n weeks', Number(fixed)) })
 		},
 		barTitle(item) {
 			const futureHint = this.formatFutureStartHint(item)
 			if (this.isMilestone(item)) {
 				return futureHint
-					? `${item.label}: ${this.formatDate(item.startDate)} (${futureHint})`
-					: `${item.label}: ${this.formatDate(item.startDate)}`
+					? t('{label}: {start} ({hint})', { label: item.label, start: this.formatDate(item.startDate), hint: futureHint })
+					: t('{label}: {date}', { label: item.label, date: this.formatDate(item.startDate) })
 			}
-			const endText = this.isOngoing(item) ? 'Ongoing' : this.formatDate(item.endDate)
-			const baseTitle = `${item.label}: ${this.formatDate(item.startDate)} - ${endText} (${this.formatWeeksLabel(item)})`
-			return futureHint ? `${baseTitle} (${futureHint})` : baseTitle
+			const vars = {
+				label: item.label,
+				start: this.formatDate(item.startDate),
+				end: this.isOngoing(item) ? t('Ongoing') : this.formatDate(item.endDate),
+				duration: this.formatWeeksLabel(item),
+			}
+			return futureHint
+				? t('{label}: {start} - {end} ({duration}) ({hint})', { ...vars, hint: futureHint })
+				: t('{label}: {start} - {end} ({duration})', vars)
 		},
 		openAddModal() {
 			this.editingItem = null
@@ -2137,14 +2155,14 @@ export default {
 				await this.loadItems()
 			} catch (error) {
 				console.error('Error saving timeline item:', error)
-				showError(error.response?.data?.error || 'Could not save the timeline item. Please try again.')
+				showError(error.response?.data?.error || t('Could not save the timeline item. Please try again.'))
 			} finally {
 				this.saving = false
 			}
 		},
 		async confirmDelete(item) {
 			if (this.isSystemItem(item)) return
-			if (!confirm(`Are you sure you want to delete "${item.label}"?`)) return
+			if (!confirm(t('Are you sure you want to delete "{label}"?', { label: item.label }))) return
 			try {
 				const url = generateUrl(`/apps/projectcreatoraio/api/v1/projects/${this.projectId}/timeline/${item.id}`)
 				await axios.delete(url)

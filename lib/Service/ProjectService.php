@@ -39,12 +39,19 @@ use OCP\Share\IManager as IShareManager;
 use OCP\Share\IShare;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 class ProjectService {
 	private const CV_FIELD_OBJECT_OWNERSHIP = 'cv_object_ownership';
 	private const CV_FIELD_TRACE_OWNERSHIP = 'cv_trace_ownership';
 	private const CV_FIELD_BUILDING_TYPE = 'cv_building_type';
 	private const CV_FIELD_AVP_LOCATION = 'cv_avp_location';
+
+	/** Name of the public notes folder in projects created before folder names were translated. */
+	private const PUBLIC_NOTES_FOLDER = 'Public Notes';
+
+	/** Order of the 'Done' stack among the default stacks of a new board. */
+	private const DONE_STACK_ORDER = 5;
 
 	public const DRASCI_ROLES = [
 		'driver' => 'Driver',
@@ -58,6 +65,10 @@ class ProjectService {
 	];
 
 	// Card-visibility helpers live in CardVisibility.
+
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
 
 	public function __construct(
 		protected IUserSession $userSession,
@@ -96,7 +107,12 @@ class ProjectService {
 		private readonly ?ProjectDirectChatMapper $directChatMapper = null,
 		private readonly ?ProjectMemberResolver $projectMemberResolver = null,
 		private readonly ?ProjectMemberSourceMapper $memberSourceMapper = null,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
+		private readonly ?TimelinePlanningService $planningService = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/**
@@ -136,10 +152,10 @@ class ProjectService {
 		try {
 			$owner = $this->userSession->getUser();
 			if ($owner === null) {
-				throw new OCSException('You must be logged in to create a project.');
+				throw new OCSException($this->l->t('You must be logged in to create a project.'));
 			}
 			if ($this->folderManager === null || $this->folderStorageManager === null) {
-				throw new OCSException('Team Folders must be enabled to create quota-managed projects.', 503);
+				throw new OCSException($this->l->t('Team Folders must be enabled to create quota-managed projects.'), 503);
 			}
 
 			$organization = null;
@@ -153,11 +169,9 @@ class ProjectService {
 				$count = $this->organizationMapper->getProjectsCount($organization->getId());
 
 				if ($count >= $plan->getMaxProjects()) {
-					throw new OCSException(sprintf(
-						'The maximum number of projects allowed for this plan (%d) has been reached. '
-						. 'You currently have %d projects. Please upgrade your plan to create additional projects.',
-						$plan->getMaxProjects(),
-						$count
+					throw new OCSException($this->l->t(
+						'The maximum number of projects allowed for this plan (%d) has been reached. You currently have %d projects. Please upgrade your plan to create additional projects.',
+						[$plan->getMaxProjects(), $count],
 					));
 				}
 			}
@@ -194,7 +208,7 @@ class ProjectService {
 			);
 
 			if ($createdWhiteBoardId <= 0) {
-				throw new OCSException('Whiteboard file creation failed.');
+				throw new OCSException($this->l->t('Whiteboard file creation failed.'));
 			}
 
 			$resolvedOrgId = $organization !== null ? $organization->getId() : $organizationId;
@@ -362,7 +376,7 @@ class ProjectService {
 
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new OCSException('You must be logged in to search users.');
+			throw new OCSException($this->l->t('You must be logged in to search users.'));
 		}
 
 		if ($this->organizationMapper === null) {
@@ -436,7 +450,7 @@ class ProjectService {
 	public function getProjectMembers(int $projectId): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$ownerId = trim((string)($project->getOwnerId() ?? ''));
@@ -486,7 +500,7 @@ class ProjectService {
 	public function getProjectFunctionalRoles(int $projectId): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$boardId = (int)($project->getBoardId() ?? 0);
@@ -508,7 +522,7 @@ class ProjectService {
 	public function getDeckAccessSummary(int $projectId, string $viewerId, bool $teamScope): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$members = $this->getProjectMembers($projectId);
@@ -533,13 +547,13 @@ class ProjectService {
 			|| !method_exists($this->cardMapper, 'findAllByBoardId')
 			|| $this->deckPermissionService === null
 			|| !method_exists($this->deckPermissionService, 'checkPermission')) {
-			throw new OCSException('Deck access information is unavailable because Deck is not enabled.', 503);
+			throw new OCSException($this->l->t('Deck access information is unavailable because Deck is not enabled.'), 503);
 		}
 
 		try {
 			$cards = $this->cardMapper->findAllByBoardId($boardId);
 		} catch (Throwable $e) {
-			throw new OCSException('The Deck board for this project is unavailable.', 503, $e);
+			throw new OCSException($this->l->t('The Deck board for this project is unavailable.'), 503, $e);
 		}
 
 		return $this->formatDeckAccessSummary($boardId, $cards, $members, $functionalRoleLabels, $teamScope);
@@ -666,14 +680,14 @@ class ProjectService {
 	): array {
 		$userId = trim($userId);
 		if ($userId === '') {
-			throw new OCSException('A user ID is required to add a project member.', 400);
+			throw new OCSException($this->l->t('A user ID is required to add a project member.'), 400);
 		}
 
 		$drasciRoles = $this->normalizeDrasciRoles($drasciRoles);
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$functionalRoles = $functionalRoleKeys === null
@@ -682,16 +696,16 @@ class ProjectService {
 
 		$groupGid = trim((string)($project->getProjectGroupGid() ?? ''));
 		if ($groupGid === '') {
-			throw new OCSException('This project cannot accept members because the member group is not configured.', 500);
+			throw new OCSException($this->l->t('This project cannot accept members because the member group is not configured.'), 500);
 		}
 
 		if (!$this->access->isEligibleProjectMember($userId, $project)) {
-			throw new OCSException('User does not belong to this organization.', 403);
+			throw new OCSException($this->l->t('User does not belong to this organization.'), 403);
 		}
 
 		$user = $this->userManager->get($userId);
 		if ($user === null) {
-			throw new OCSException(sprintf('User "%s" does not exist.', $userId), 404);
+			throw new OCSException($this->l->t('User "%s" does not exist.', [$userId]), 404);
 		}
 
 		$alreadyMember = $this->groupManager->isInGroup($userId, $groupGid);
@@ -702,7 +716,7 @@ class ProjectService {
 		if (!$alreadyMember) {
 			$group = $this->groupManager->get($groupGid);
 			if ($group === null) {
-				throw new OCSException('Project member group not found.', 404);
+				throw new OCSException($this->l->t('Project member group not found.'), 404);
 			}
 
 			$group->addUser($user);
@@ -804,7 +818,7 @@ class ProjectService {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$functionalRoles = $functionalRoleKeys === null
@@ -813,7 +827,7 @@ class ProjectService {
 
 		$groupGid = trim((string)($project->getProjectGroupGid() ?? ''));
 		if ($groupGid === '') {
-			throw new OCSException('This project cannot accept members because the member group is not configured.', 500);
+			throw new OCSException($this->l->t('This project cannot accept members because the member group is not configured.'), 500);
 		}
 
 		$organizationId = (int)$project->getOrganizationId();
@@ -845,7 +859,7 @@ class ProjectService {
 		foreach ($candidates as $uid) {
 			$membership = $memberships[$uid] ?? null;
 			if ($membership === null || (int)$membership['organization_id'] !== $organizationId) {
-				$rejected[] = ['userId' => $uid, 'reason' => 'User does not belong to this organization.'];
+				$rejected[] = ['userId' => $uid, 'reason' => $this->l->t('User does not belong to this organization.')];
 				continue;
 			}
 			$validCandidates[] = $uid;
@@ -867,14 +881,14 @@ class ProjectService {
 
 		$group = $this->groupManager->get($groupGid);
 		if ($group === null) {
-			throw new OCSException('Project member group not found.', 404);
+			throw new OCSException($this->l->t('Project member group not found.'), 404);
 		}
 
 		$usersById = [];
 		foreach ($toAdd as $uid) {
 			$user = $this->userManager->get($uid);
 			if ($user === null) {
-				$rejected[] = ['userId' => $uid, 'reason' => sprintf('User "%s" does not exist.', $uid)];
+				$rejected[] = ['userId' => $uid, 'reason' => $this->l->t('User "%s" does not exist.', [$uid])];
 				continue;
 			}
 			$usersById[$uid] = $user;
@@ -895,7 +909,7 @@ class ProjectService {
 					'userId' => $uid,
 					'exception' => $e,
 				]);
-				$rejected[] = ['userId' => $uid, 'reason' => 'Could not add user to project group.'];
+				$rejected[] = ['userId' => $uid, 'reason' => $this->l->t('Could not add user to project group.')];
 			}
 		}
 
@@ -916,7 +930,7 @@ class ProjectService {
 					}
 				} catch (Throwable) {
 				}
-				$rejected[] = ['userId' => $uid, 'reason' => 'Could not provision private files.'];
+				$rejected[] = ['userId' => $uid, 'reason' => $this->l->t('Could not provision private files.')];
 			}
 		}
 
@@ -1017,7 +1031,7 @@ class ProjectService {
 		$row = $result->fetch();
 		$result->closeCursor();
 		if ($row === false || (int)($row['organization_id'] ?? 0) !== $organizationId) {
-			throw new OCSException('Team does not belong to this organization.', 400);
+			throw new OCSException($this->l->t('Team does not belong to this organization.'), 400);
 		}
 
 		$qb = $this->db->getQueryBuilder();
@@ -1122,10 +1136,10 @@ class ProjectService {
 	): array {
 		$userId = trim($userId);
 		if ($userId === '') {
-			throw new OCSException('A user ID is required.', 400);
+			throw new OCSException($this->l->t('A user ID is required.'), 400);
 		}
 		if ($drasciRoles === null && $functionalRoleKeys === null) {
-			throw new OCSException('At least one role dimension must be provided.', 400);
+			throw new OCSException($this->l->t('At least one role dimension must be provided.'), 400);
 		}
 		if ($drasciRoles !== null) {
 			$drasciRoles = $this->normalizeDrasciRoles($drasciRoles);
@@ -1133,7 +1147,7 @@ class ProjectService {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$functionalRoles = $functionalRoleKeys === null
@@ -1145,16 +1159,16 @@ class ProjectService {
 
 		$isInGroup = $groupGid !== '' && $this->groupManager->isInGroup($userId, $groupGid);
 		if (!$isInGroup && $userId !== $ownerId) {
-			throw new OCSException('User is not a project member.', 404);
+			throw new OCSException($this->l->t('User is not a project member.'), 404);
 		}
 
 		if (!$this->access->isEligibleProjectMember($userId, $project)) {
-			throw new OCSException('User does not belong to this organization.', 403);
+			throw new OCSException($this->l->t('User does not belong to this organization.'), 403);
 		}
 
 		$user = $this->userManager->get($userId);
 		if ($user === null) {
-			throw new OCSException(sprintf('User "%s" does not exist.', $userId), 404);
+			throw new OCSException($this->l->t('User "%s" does not exist.', [$userId]), 404);
 		}
 
 		$this->db->beginTransaction();
@@ -1293,18 +1307,18 @@ class ProjectService {
 		$normalizedKeys = [];
 		foreach ($roleKeys as $roleKey) {
 			if (!is_string($roleKey) || trim($roleKey) === '') {
-				throw new OCSException('Functional role keys must be non-empty strings.', 400);
+				throw new OCSException($this->l->t('Functional role keys must be non-empty strings.'), 400);
 			}
 			$normalizedKeys[trim($roleKey)] = true;
 		}
 
 		if ($requireOne && $normalizedKeys === []) {
-			throw new OCSException('At least one functional project role is required.', 400);
+			throw new OCSException($this->l->t('At least one functional project role is required.'), 400);
 		}
 
 		$boardId = (int)($project->getBoardId() ?? 0);
 		if ($boardId <= 0) {
-			throw new OCSException('This project has no Deck board for functional role assignment.', 409);
+			throw new OCSException($this->l->t('This project has no Deck board for functional role assignment.'), 409);
 		}
 
 		$roles = [];
@@ -1317,7 +1331,7 @@ class ProjectService {
 
 		$unknownKeys = array_diff(array_keys($normalizedKeys), array_keys($roles));
 		if ($unknownKeys !== []) {
-			throw new OCSException('Unknown functional project roles: ' . implode(', ', $unknownKeys), 400);
+			throw new OCSException($this->l->t('Unknown functional project roles: %s', [implode(', ', $unknownKeys)]), 400);
 		}
 
 		ksort($roles);
@@ -1392,7 +1406,7 @@ class ProjectService {
 	private function ensurePrivateFolderForMember(Project $project, string $userId): array {
 		$projectId = (int)($project->getId() ?? 0);
 		if ($projectId <= 0) {
-			throw new OCSException('Invalid project while creating private folder.', 500);
+			throw new OCSException($this->l->t('Invalid project while creating private folder.'), 500);
 		}
 
 		$existingLink = $this->projectMapper->findPrivateFolderForUser($projectId, $userId);
@@ -1404,10 +1418,11 @@ class ProjectService {
 			$userFolder = $this->rootFolder->getUserFolder($userId);
 			$projectName = trim((string)($project->getName() ?? ''));
 			if ($projectName === '') {
-				$projectName = 'Project';
+				$projectName = $this->contentL10n->get()->t('Project');
 			}
 
-			$privateFolderName = $this->getUniqueFolderName($projectName, 'Private Files', $userFolder);
+			// Same name as at project creation: server default language.
+			$privateFolderName = $this->getUniqueFolderName($projectName, $this->contentL10n->get()->t('Private Files'), $userFolder);
 			$privateFolder = $userFolder->newFolder($privateFolderName);
 
 			$this->projectMapper->createPrivateFolderLink(
@@ -1424,7 +1439,7 @@ class ProjectService {
 				'userId' => $userId,
 				'exception' => $e,
 			]);
-			throw new OCSException('Unable to provision private files for invited member: ' . $e->getMessage(), 500, $e);
+			throw new OCSException($this->l->t('Unable to provision private files for invited member: %s', [$e->getMessage()]), 500, $e);
 		}
 	}
 
@@ -1460,7 +1475,7 @@ class ProjectService {
 		$userId = $user->getUID();
 		$drasciRoles = $this->sortDrasciRoles($drasciRoles);
 		$drasciRoleLabels = array_map(
-			static fn (string $role): string => self::DRASCI_ROLES[$role] ?? $role,
+			fn (string $role): string => $this->drasciRoleLabel($role),
 			$drasciRoles,
 		);
 		$legacyRole = $drasciRoles[0] ?? null;
@@ -1475,9 +1490,24 @@ class ProjectService {
 			'drasciRoles' => $drasciRoles,
 			'drasciRoleLabels' => $drasciRoleLabels,
 			'drasciRole' => $legacyRole,
-			'drasciRoleLabel' => $drasciRoleLabels[0] ?? 'Unassigned',
+			'drasciRoleLabel' => $drasciRoleLabels[0] ?? $this->l->t('Unassigned'),
 			'functionalRoleKeys' => array_values($functionalRoleKeys),
 		];
+	}
+
+	/** Display label of a D-RASCI-VS role key in the user's language; the keys stay the API values. */
+	private function drasciRoleLabel(string $role): string {
+		return match ($role) {
+			'driver' => $this->l->t('Driver'),
+			'responsible' => $this->l->t('Responsible'),
+			'accountable' => $this->l->t('Accountable'),
+			'supportive' => $this->l->t('Supportive'),
+			'consulted' => $this->l->t('Consulted'),
+			'informed' => $this->l->t('Informed'),
+			'verifier' => $this->l->t('Verifier'),
+			'signer' => $this->l->t('Signer'),
+			default => self::DRASCI_ROLES[$role] ?? $role,
+		};
 	}
 
 	/** @param mixed[] $drasciRoles */
@@ -1485,17 +1515,17 @@ class ProjectService {
 		$normalized = [];
 		foreach ($drasciRoles as $role) {
 			if (!is_string($role)) {
-				throw new OCSException('Every DRASCIVS role must be a string.', 400);
+				throw new OCSException($this->l->t('Every DRASCIVS role must be a string.'), 400);
 			}
 			$role = trim($role);
 			if (!array_key_exists($role, self::DRASCI_ROLES)) {
-				throw new OCSException('A valid DRASCIVS role is required. Allowed: ' . implode(', ', array_keys(self::DRASCI_ROLES)), 400);
+				throw new OCSException($this->l->t('A valid DRASCIVS role is required. Allowed: %s', [implode(', ', array_keys(self::DRASCI_ROLES))]), 400);
 			}
 			$normalized[$role] = true;
 		}
 
 		if ($normalized === []) {
-			throw new OCSException('At least one DRASCIVS role is required.', 400);
+			throw new OCSException($this->l->t('At least one DRASCIVS role is required.'), 400);
 		}
 
 		return $this->sortDrasciRoles(array_keys($normalized));
@@ -1537,7 +1567,7 @@ class ProjectService {
 	public function getCreationAllowance(?int $organizationId = null): array {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new OCSException('You must be logged in to create a project.');
+			throw new OCSException($this->l->t('You must be logged in to create a project.'));
 		}
 		if ($this->organizationMapper === null || $this->subscriptionMapper === null || $this->planMapper === null) {
 			return ['organizationId' => $organizationId, 'organizationName' => '', 'maxProjects' => null, 'projectsCount' => null, 'sharedStoragePerProject' => null];
@@ -1568,12 +1598,12 @@ class ProjectService {
 
 		if ($isAdmin) {
 			if ($organizationId === null) {
-				throw new OCSException('An organization ID is required for admins.');
+				throw new OCSException($this->l->t('An organization ID is required for admins.'));
 			}
 
 			$organization = $this->organizationMapper->find($organizationId);
 			if ($organization === null) {
-				throw new OCSException('The selected organization does not exist.');
+				throw new OCSException($this->l->t('The selected organization does not exist.'));
 			}
 
 			return $organization;
@@ -1581,22 +1611,22 @@ class ProjectService {
 
 		$membership = $this->access->getOrganizationMembership($userId);
 		if ($membership === null) {
-			throw new OCSException('No organization is assigned to your user account.');
+			throw new OCSException($this->l->t('No organization is assigned to your user account.'));
 		}
 
 		if ($mustBeOrgAdmin && $membership['role'] !== 'admin') {
-			throw new OCSException('Only organization admins can create projects.');
+			throw new OCSException($this->l->t('Only organization admins can create projects.'));
 		}
 
 		$resolvedOrganizationId = (int)$membership['organization_id'];
 
 		if ($organizationId !== null && $organizationId !== $resolvedOrganizationId) {
-			throw new OCSException('You can only manage projects for your own organization.');
+			throw new OCSException($this->l->t('You can only manage projects for your own organization.'));
 		}
 
 		$organization = $this->organizationMapper->find($resolvedOrganizationId);
 		if ($organization === null) {
-			throw new OCSException('No organization is assigned to your user account.');
+			throw new OCSException($this->l->t('No organization is assigned to your user account.'));
 		}
 
 		return $organization;
@@ -1608,9 +1638,9 @@ class ProjectService {
 	private function assertUsersBelongToOrganization(array $userIds, int $organizationId): void {
 		foreach ($userIds as $userId) {
 			if (!$this->access->belongsToOrganization((string)$userId, $organizationId)) {
-				throw new OCSException(sprintf(
+				throw new OCSException($this->l->t(
 					'User "%s" does not belong to the selected organization.',
-					(string)$userId,
+					[(string)$userId],
 				));
 			}
 		}
@@ -1623,7 +1653,7 @@ class ProjectService {
 		$createdGroup = $this->groupManager->createGroup($projectGroupName);
 
 		if ($createdGroup === null) {
-			throw new Exception("Failed to create project group '$projectGroupName'.");
+			throw new Exception($this->l->t("Failed to create project group '%s'.", [$projectGroupName]));
 		}
 
 		$this->logger->debug('Adding project members to project group through Nextcloud group API', [
@@ -1664,22 +1694,26 @@ class ProjectService {
 	 */
 	private function createBoardForProject(string $projectName, IUser $owner, string $projectGroupGid, int $projectType): Board {
 		$color = strtoupper(sprintf('%06X', random_int(0, 0xFFFFFF)));
-		$board = $this->boardService->create("{$projectName} - Main Board", $owner->getUID(), $color);
+		// The board, its stacks and folders are shared by the whole project:
+		// they are named in the server default language, never the creator's.
+		$cl = $this->contentL10n->get();
+		$board = $this->boardService->create($cl->t('%s - Main Board', [$projectName]), $owner->getUID(), $color);
 
 		if ($this->stackService !== null) {
 			$defaultStacks = [
-				0 => 'Process steps',
-				1 => 'Next priority',
-				2 => 'In progress',
-				3 => 'To review',
-				4 => 'Approved',
-				5 => 'Done',
+				0 => $cl->t('Process steps'),
+				1 => $cl->t('Next priority'),
+				2 => $cl->t('In progress'),
+				3 => $cl->t('To review'),
+				4 => $cl->t('Approved'),
+				5 => $cl->t('Done'),
 			];
 
+			// The done stack is recognised by its position, not by its (translated) title.
 			$doneStack = null;
 			foreach ($defaultStacks as $order => $title) {
 				$stack = $this->stackService->create($title, (int)$board->getId(), $order);
-				if ($title === 'Done') {
+				if ($order === self::DONE_STACK_ORDER) {
 					$doneStack = $stack;
 				}
 			}
@@ -1718,13 +1752,13 @@ class ProjectService {
 		?object $plan,
 	): array {
 		if ($this->folderManager === null || $this->folderStorageManager === null) {
-			throw new OCSException('Team Folders must be enabled to create quota-managed projects.', 503);
+			throw new OCSException($this->l->t('Team Folders must be enabled to create quota-managed projects.'), 503);
 		}
 		if ($plan === null) {
-			throw new OCSException('The organization plan is required to provision project storage.', 500);
+			throw new OCSException($this->l->t('The organization plan is required to provision project storage.'), 500);
 		}
 		if ($plan->getSharedStoragePerProject() <= 0) {
-			throw new OCSException('The organization plan must define a positive project storage quota.', 500);
+			throw new OCSException($this->l->t('The organization plan must define a positive project storage quota.'), 500);
 		}
 
 		$ownerFolder = $this->rootFolder->getUserFolder($owner->getUID());
@@ -1733,14 +1767,14 @@ class ProjectService {
 		// Create shared folders
 		$sharedFolderName = $this->getUniqueFolderName(
 			$projectName,
-			'Shared Files',
+			$this->contentL10n->get()->t('Shared Files'),
 			$ownerFolder
 		);
 
 		$groupFolderId = $this->folderManager->createFolder($sharedFolderName);
 		$folder = $this->folderManager->getFolder($groupFolderId);
 		if ($folder === null) {
-			throw new OCSException('The project Team Folder could not be loaded after creation.', 500);
+			throw new OCSException($this->l->t('The project Team Folder could not be loaded after creation.'), 500);
 		}
 		$rootId = $folder->rootId;
 
@@ -1761,7 +1795,7 @@ class ProjectService {
 			$memberFolder = $this->rootFolder->getUserFolder($memberId);
 			$privateFolderName = $this->getUniqueFolderName(
 				$projectName,
-				'Private Files',
+				$this->contentL10n->get()->t('Private Files'),
 				$memberFolder
 			);
 
@@ -1865,19 +1899,19 @@ class ProjectService {
 	public function getProjectFiles(int $projectId): array {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSException('Authentication required', 401);
+			throw new OCSException($this->l->t('Authentication required'), 401);
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new Exception("Project with ID $projectId not found.");
+			throw new Exception($this->l->t('Project with ID %s not found.', [$projectId]));
 		}
 
 		$userFolder = $this->rootFolder->getUserFolder($currentUser->getUID());
 		$sharedFiles = $userFolder->get($project->getFolderPath());
 
 		if (empty($sharedFiles)) {
-			throw new NotFoundException('Project folder node not found on the filesystem.');
+			throw new NotFoundException($this->l->t('Project folder node not found on the filesystem.'));
 		}
 
 		$sharedFilesTree = $this->fileTreeService->buildTree($sharedFiles);
@@ -1938,12 +1972,12 @@ class ProjectService {
 	public function getProjectNotes(int $projectId): array {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSException('Authentication required');
+			throw new OCSException($this->l->t('Authentication required'));
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$userFolder = $this->rootFolder->getUserFolder($currentUser->getUID());
@@ -1959,7 +1993,7 @@ class ProjectService {
 		}
 
 		$public = $projectRoot instanceof Folder
-			? $this->readOrCreateNoteFile($projectRoot, 'Public Notes', 'public-note.md')
+			? $this->readOrCreateNoteFile($projectRoot, $this->publicNotesFolderName($projectRoot), 'public-note.md')
 			: '';
 
 		$privateFolder = $this->resolvePrivateFolderForCurrentUser($userFolder, $projectId, $currentUser->getUID());
@@ -1997,12 +2031,12 @@ class ProjectService {
 	public function updateProjectNotes(int $projectId, ?string $publicNote = null, ?string $privateNote = null): array {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSException('Authentication required');
+			throw new OCSException($this->l->t('Authentication required'));
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$userFolder = $this->rootFolder->getUserFolder($currentUser->getUID());
@@ -2010,15 +2044,15 @@ class ProjectService {
 		if ($publicNote !== null) {
 			$projectRoot = $userFolder->get($project->getFolderPath());
 			if (!$projectRoot instanceof Folder) {
-				throw new OCSException('Project shared folder not found', 404);
+				throw new OCSException($this->l->t('Project shared folder not found'), 404);
 			}
-			$this->writeOrCreateNoteFile($projectRoot, 'Public Notes', 'public-note.md', $publicNote);
+			$this->writeOrCreateNoteFile($projectRoot, $this->publicNotesFolderName($projectRoot), 'public-note.md', $publicNote);
 		}
 
 		if ($privateNote !== null) {
 			$privateFolder = $this->resolvePrivateFolderForCurrentUser($userFolder, $projectId, $currentUser->getUID());
 			if ($privateFolder === null) {
-				throw new OCSException('Private note is not available for this user', 403);
+				throw new OCSException($this->l->t('Private note is not available for this user'), 403);
 			}
 			$this->writeOrCreateFile($privateFolder, 'private-note.md', $privateNote);
 		}
@@ -2049,7 +2083,7 @@ class ProjectService {
 	public function getProjectNotesList(int $projectId, string $userId, string $visibility = 'public', string $noteType = '', int $page = 1, int $limit = 12): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$offset = ($page - 1) * $limit;
@@ -2074,7 +2108,7 @@ class ProjectService {
 	public function getCardNotesList(int $projectId, string $userId, int $page = 1, int $limit = 12): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$boardId = $project->getBoardId();
@@ -2142,7 +2176,7 @@ class ProjectService {
 	public function getCardCommentsList(int $projectId, string $userId, int $page = 1, int $limit = 20): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$boardId = $project->getBoardId();
@@ -2282,12 +2316,27 @@ class ProjectService {
 		return is_string($content) ? $content : '';
 	}
 
+	/**
+	 * Name of the public notes folder: the one the project already has (the
+	 * original English name or a translated one), otherwise the name in the
+	 * server default language for a new folder.
+	 */
+	private function publicNotesFolderName(Folder $projectRoot): string {
+		$translated = $this->contentL10n->get()->t('Public Notes');
+		foreach (array_unique([self::PUBLIC_NOTES_FOLDER, $translated]) as $candidate) {
+			if ($projectRoot->nodeExists($candidate)) {
+				return $candidate;
+			}
+		}
+		return $translated;
+	}
+
 	private function readOrCreateNoteFile(Folder $projectRoot, string $notesFolderName, string $noteFileName): string {
 		$notesFolder = null;
 		if ($projectRoot->nodeExists($notesFolderName)) {
 			$notesFolder = $projectRoot->get($notesFolderName);
 			if (!$notesFolder instanceof Folder) {
-				throw new OCSException(sprintf('%s exists but is not a folder', $notesFolderName), 500);
+				throw new OCSException($this->l->t('%s exists but is not a folder', [$notesFolderName]), 500);
 			}
 		} else {
 			$notesFolder = $projectRoot->newFolder($notesFolderName);
@@ -2301,7 +2350,7 @@ class ProjectService {
 
 		$node = $notesFolder->get($noteFileName);
 		if (!$node instanceof File) {
-			throw new OCSException(sprintf('%s exists but is not a file', $noteFileName), 500);
+			throw new OCSException($this->l->t('%s exists but is not a file', [$noteFileName]), 500);
 		}
 
 		$content = $node->getContent();
@@ -2313,7 +2362,7 @@ class ProjectService {
 		if ($projectRoot->nodeExists($notesFolderName)) {
 			$notesFolder = $projectRoot->get($notesFolderName);
 			if (!$notesFolder instanceof Folder) {
-				throw new OCSException(sprintf('%s exists but is not a folder', $notesFolderName), 500);
+				throw new OCSException($this->l->t('%s exists but is not a folder', [$notesFolderName]), 500);
 			}
 		} else {
 			$notesFolder = $projectRoot->newFolder($notesFolderName);
@@ -2331,7 +2380,7 @@ class ProjectService {
 
 		$node = $folder->get($fileName);
 		if (!$node instanceof File) {
-			throw new OCSException(sprintf('%s exists but is not a file', $fileName), 500);
+			throw new OCSException($this->l->t('%s exists but is not a file', [$fileName]), 500);
 		}
 
 		$content = $node->getContent();
@@ -2347,7 +2396,7 @@ class ProjectService {
 
 		$node = $folder->get($fileName);
 		if (!$node instanceof File) {
-			throw new OCSException(sprintf('%s exists but is not a file', $fileName), 500);
+			throw new OCSException($this->l->t('%s exists but is not a file', [$fileName]), 500);
 		}
 
 		$node->putContent($content);
@@ -2369,7 +2418,7 @@ class ProjectService {
 	public function getProjectCardVisibility(int $projectId): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$projectType = (int)($project->getType() ?? -1);
@@ -2398,12 +2447,12 @@ class ProjectService {
 	public function updateProjectCardVisibility(int $projectId, array $payload): array {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$projectType = (int)($project->getType() ?? -1);
 		if ($projectType !== ProjectTypeDeckDefaults::TYPE_COMBI) {
-			throw new OCSException('Form configuration is only available for Combi projects.', 400);
+			throw new OCSException($this->l->t('Form configuration is only available for Combi projects.'), 400);
 		}
 
 		if (array_key_exists(self::CV_FIELD_OBJECT_OWNERSHIP, $payload)) {
@@ -2449,7 +2498,7 @@ class ProjectService {
 	 * @return array<int, array{field: string, category: string, question: string, options: array<int, array{label: string, value: int, show: int}>>>
 	 */
 	private function getCardVisibilityQuestions(): array {
-		return CardVisibility::getQuestions();
+		return CardVisibility::getQuestions($this->l);
 	}
 
 	/**
@@ -2471,7 +2520,7 @@ class ProjectService {
 	 * @param mixed $value
 	 */
 	private function normalizeCardVisibilityAnswer(mixed $value, string $field, bool $allowNull = false): ?int {
-		return CardVisibility::normalizeAnswer($value, $field, $allowNull);
+		return CardVisibility::normalizeAnswer($value, $field, $allowNull, $this->l);
 	}
 
 	/**
@@ -2505,7 +2554,7 @@ class ProjectService {
 
 		$set1Titles = ProjectTypeDeckDefaults::getConditionalSet1Titles();
 		$set2Titles = ProjectTypeDeckDefaults::getConditionalSet2Titles();
-		$aliasesByCanonical = ProjectTypeDeckDefaults::getCardTitleAliases();
+		$titleTranslators = $this->contentL10n->all();
 
 		$allManagedTitles = [];
 		$canonicalByNormalizedTitle = [];
@@ -2521,10 +2570,9 @@ class ProjectService {
 
 			$groupByCanonicalTitle[$title] = $group;
 
-			$aliases = $aliasesByCanonical[$title] ?? [$title];
-			if (!in_array($title, $aliases, true)) {
-				$aliases[] = $title;
-			}
+			// Canonical title, legacy aliases and translations: a board keeps the
+			// titles its cards were created with.
+			$aliases = ProjectTypeDeckDefaults::titleVariants($title, $titleTranslators);
 
 			foreach ($aliases as $alias) {
 				$alias = trim((string)$alias);
@@ -2532,7 +2580,7 @@ class ProjectService {
 					continue;
 				}
 				$allManagedTitles[] = $alias;
-				$canonicalByNormalizedTitle[strtolower($alias)] = $title;
+				$canonicalByNormalizedTitle[mb_strtolower($alias)] ??= $title;
 			}
 		}
 
@@ -2561,7 +2609,7 @@ class ProjectService {
 				continue;
 			}
 
-			$canonicalTitle = $canonicalByNormalizedTitle[strtolower($title)] ?? null;
+			$canonicalTitle = $canonicalByNormalizedTitle[mb_strtolower($title)] ?? null;
 			if ($canonicalTitle === null) {
 				continue;
 			}
@@ -2626,7 +2674,7 @@ class ProjectService {
 		// 1. Fetch the existing project
 		$project = $this->projectMapper->find($id);
 		if ($project === null) {
-			throw new OCSException('Project Not Found', 404);
+			throw new OCSException($this->l->t('Project Not Found'), 404);
 		}
 
 		$oldName = (string)$project->getName();
@@ -2686,16 +2734,15 @@ class ProjectService {
 
 		if ($status !== null) {
 			if (!ProjectStatus::isValid($status)) {
-				throw new OCSException('Unsupported project status.', 400);
+				throw new OCSException($this->l->t('Unsupported project status.'), 400);
 			}
 
 			if ($status === ProjectStatus::DONE) {
 				$doneReadiness = $this->projectDeckActivityService->getDoneReadiness($project);
 				if (!$doneReadiness['ready']) {
-					throw new OCSException(sprintf(
+					throw new OCSException($this->l->t(
 						'Project can only be marked Done when all active deck cards are in the done stack. Currently %d of %d cards are complete.',
-						(int)$doneReadiness['doneCards'],
-						(int)$doneReadiness['totalCards'],
+						[(int)$doneReadiness['doneCards'], (int)$doneReadiness['totalCards']],
 					), 400);
 				}
 			}
@@ -2725,7 +2772,10 @@ class ProjectService {
 				$project->setActualStartDate(TimelineDates::parse($actual_start_date, TimelineDates::ACTUAL_START));
 				$changed[] = TimelineDates::ACTUAL_START;
 			}
-			TimelineDates::assertInOrder($project, $changed);
+			$minimumStart = in_array(TimelineDates::DESIRED_START, $changed, true) && $this->planningService !== null
+				? $this->planningService->buildSummary($project)['minimumStartDate'] ?? null
+				: null;
+			TimelineDates::assertInOrder($project, $changed, $this->l, $minimumStart);
 		} catch (\InvalidArgumentException $e) {
 			throw new OCSException($e->getMessage(), 400);
 		}
@@ -2752,7 +2802,7 @@ class ProjectService {
 		$rooms = [];
 		$token = trim((string)($project->getTalkConversationToken() ?? ''));
 		if ($token !== '') {
-			$rooms[$token] = ProjectTalkIntegrationService::projectConversationName($name);
+			$rooms[$token] = ProjectTalkIntegrationService::projectConversationName($name, $this->contentL10n->get());
 		}
 		foreach ($this->directChatMapper?->findByProject((int)$project->getId()) ?? [] as $chat) {
 			$chatToken = trim((string)$chat->getTalkConversationToken());
@@ -2761,6 +2811,7 @@ class ProjectService {
 					$name,
 					$this->userDisplayName((string)$chat->getUser1Id()),
 					$this->userDisplayName((string)$chat->getUser2Id()),
+					$this->contentL10n->get(),
 				);
 			}
 		}
@@ -2810,7 +2861,7 @@ class ProjectService {
 		if ($groupFolderId === null || $groupFolderId <= 0) {
 			// Group folders app is disabled or not used. Use the fallback folder if available.
 			if ($fallbackFolder === null) {
-				throw new Exception('Missing fallback folder and missing GroupFolder ID for whiteboard creation.');
+				throw new Exception($this->l->t('Missing fallback folder and missing GroupFolder ID for whiteboard creation.'));
 			}
 			if ($fallbackFolder->nodeExists($fileName)) {
 				$file = $fallbackFolder->get($fileName);
@@ -2822,7 +2873,7 @@ class ProjectService {
 
 		$groupFolder = $this->folderManager->getFolder($groupFolderId);
 		if ($groupFolder === null) {
-			throw new Exception("GroupFolder {$groupFolderId} not found for shared folder {$folderName}");
+			throw new Exception($this->l->t('GroupFolder %1$s not found for shared folder %2$s', [$groupFolderId, $folderName]));
 		}
 
 		$storage = $this->folderStorageManager->getBaseStorageForFolder(
@@ -2841,14 +2892,14 @@ class ProjectService {
 		}
 
 		if ($storage->file_put_contents($fileName, $initialWhiteboardContent) === false) {
-			throw new Exception("Unable to write whiteboard file {$fileName} in GroupFolder {$groupFolderId}");
+			throw new Exception($this->l->t('Unable to write whiteboard file %1$s in GroupFolder %2$s', [$fileName, $groupFolderId]));
 		}
 
 		$storage->getScanner()->scan($fileName);
 		$createdId = $cache->getId($fileName);
 
 		if ($createdId === -1) {
-			throw new Exception("Whiteboard file {$fileName} was written but not found in filecache");
+			throw new Exception($this->l->t('Whiteboard file %s was written but not found in filecache', [$fileName]));
 		}
 
 		return (int)$createdId;
@@ -2927,12 +2978,12 @@ class ProjectService {
 	 */
 	private function refreshTeamFolderSize(int $groupFolderId): void {
 		if ($this->folderManager === null || $this->folderStorageManager === null) {
-			throw new OCSException('Team Folders is unavailable while finalizing project storage.', 503);
+			throw new OCSException($this->l->t('Team Folders is unavailable while finalizing project storage.'), 503);
 		}
 
 		$groupFolder = $this->folderManager->getFolder($groupFolderId);
 		if ($groupFolder === null) {
-			throw new OCSException('The project Team Folder could not be loaded while finalizing storage.', 500);
+			throw new OCSException($this->l->t('The project Team Folder could not be loaded while finalizing storage.'), 500);
 		}
 
 		$storage = $this->folderStorageManager->getBaseStorageForFolder(
@@ -2987,42 +3038,42 @@ class ProjectService {
 		$targetUserId = trim($targetUserId);
 
 		if ($currentUserId === '' || $targetUserId === '') {
-			throw new OCSException('User IDs must be provided.', 400);
+			throw new OCSException($this->l->t('User IDs must be provided.'), 400);
 		}
 
 		if ($currentUserId === $targetUserId) {
-			throw new OCSException('Cannot create a direct chat with yourself.', 400);
+			throw new OCSException($this->l->t('Cannot create a direct chat with yourself.'), 400);
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		$currentUser = $this->userManager->get($currentUserId);
 		if ($currentUser === null) {
-			throw new OCSException(sprintf('User "%s" does not exist.', $currentUserId), 404);
+			throw new OCSException($this->l->t('User "%s" does not exist.', [$currentUserId]), 404);
 		}
 
 		$targetUser = $this->userManager->get($targetUserId);
 		if ($targetUser === null) {
-			throw new OCSException(sprintf('User "%s" does not exist.', $targetUserId), 404);
+			throw new OCSException($this->l->t('User "%s" does not exist.', [$targetUserId]), 404);
 		}
 
 		if (!$this->isProjectMember($project, $currentUserId)) {
-			throw new OCSException('Current user is not a member of this project.', 403);
+			throw new OCSException($this->l->t('Current user is not a member of this project.'), 403);
 		}
 
 		if (!$this->isProjectMember($project, $targetUserId)) {
-			throw new OCSException('Target user is not a member of this project.', 403);
+			throw new OCSException($this->l->t('Target user is not a member of this project.'), 403);
 		}
 
 		if (!$this->projectTalkIntegrationService->isAvailable()) {
-			throw new OCSException('Talk service is not available.', 503);
+			throw new OCSException($this->l->t('Talk service is not available.'), 503);
 		}
 
 		if ($this->directChatMapper === null) {
-			throw new OCSException('Direct chat persistence is unavailable.', 500);
+			throw new OCSException($this->l->t('Direct chat persistence is unavailable.'), 500);
 		}
 
 		$directChat = $this->directChatMapper->findPair($projectId, $currentUserId, $targetUserId);
@@ -3107,16 +3158,16 @@ class ProjectService {
 	public function listUserDirectChats(int $projectId, string $currentUserId): array {
 		$currentUserId = trim($currentUserId);
 		if ($currentUserId === '') {
-			throw new OCSException('User ID must be provided.', 400);
+			throw new OCSException($this->l->t('User ID must be provided.'), 400);
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		if (!$this->isProjectMember($project, $currentUserId)) {
-			throw new OCSException('Current user is not a member of this project.', 403);
+			throw new OCSException($this->l->t('Current user is not a member of this project.'), 403);
 		}
 
 		if ($this->directChatMapper === null) {
@@ -3165,20 +3216,20 @@ class ProjectService {
 		$targetUserId = trim($targetUserId);
 
 		if ($currentUserId === '' || $targetUserId === '') {
-			throw new OCSException('User IDs must be provided.', 400);
+			throw new OCSException($this->l->t('User IDs must be provided.'), 400);
 		}
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSException("Project with ID $projectId not found", 404);
+			throw new OCSException($this->l->t('Project with ID %s not found', [$projectId]), 404);
 		}
 
 		if (!$this->isProjectMember($project, $currentUserId)) {
-			throw new OCSException('Current user is not a member of this project.', 403);
+			throw new OCSException($this->l->t('Current user is not a member of this project.'), 403);
 		}
 
 		if (!$this->isProjectMember($project, $targetUserId)) {
-			throw new OCSException('Target user is not a member of this project.', 403);
+			throw new OCSException($this->l->t('Target user is not a member of this project.'), 403);
 		}
 
 		if ($this->directChatMapper === null) {

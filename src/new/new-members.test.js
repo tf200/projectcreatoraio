@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 import * as members from './members.js'
+
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
 
 function view(api, overrides = {}) {
 	const source = readFileSync(new URL('./NewMembers.vue', import.meta.url), 'utf8')
@@ -11,6 +15,7 @@ function view(api, overrides = {}) {
 		.replace(/^\tcomponents: \{[^\n]*\},$/m, '')
 		.replace('export default', 'globalThis.component =')
 	const context = {
+		...l10n,
 		...members,
 		api,
 		errorMessage: error => error?.response?.status === 403 ? 'You do not have access to this data.' : 'The data could not be loaded. Please try again.',

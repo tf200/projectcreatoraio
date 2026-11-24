@@ -12,7 +12,7 @@
 							</h2>
 						</div>
 						<div class="pdf-studio__status-summary">
-							Placed {{ placedCount }} of {{ signers.length }} signatures
+							{{ n('Placed {placed} of %n signature', 'Placed {placed} of %n signatures', signers.length, { placed: placedCount }) }}
 						</div>
 					</div>
 
@@ -25,7 +25,7 @@
 								@click="changePage(-1)">
 								<ChevronLeft :size="20" />
 							</button>
-							<span class="pdf-studio__page-indicator">Page {{ currentPage }} / {{ pageCount || '?' }}</span>
+							<span class="pdf-studio__page-indicator">{{ t('Page {page} / {count}', { page: currentPage, count: pageCount || '?' }) }}</span>
 							<button type="button"
 								class="pdf-studio__nav-btn"
 								:disabled="currentPage >= pageCount || loading"
@@ -60,10 +60,10 @@
 
 					<div class="pdf-studio__header-right">
 						<button type="button" class="pdf-studio__btn pdf-studio__btn--secondary" @click="handleCancel">
-							Cancel
+							{{ t('Cancel') }}
 						</button>
 						<button type="button" class="pdf-studio__btn pdf-studio__btn--primary" @click="handleDone">
-							Save Placements
+							{{ t('Save Placements') }}
 						</button>
 					</div>
 				</div>
@@ -73,8 +73,8 @@
 					<!-- Signers Sidebar -->
 					<div class="pdf-studio__sidebar">
 						<div class="pdf-studio__sidebar-header">
-							<h3>Signers</h3>
-							<p>Select a signer, then click on the PDF to place their signature block.</p>
+							<h3>{{ t('Signers') }}</h3>
+							<p>{{ t('Select a signer, then click on the PDF to place their signature block.') }}</p>
 						</div>
 						<div class="pdf-studio__signer-list">
 							<div
@@ -92,7 +92,7 @@
 								<div class="pdf-studio__signer-details">
 									<strong class="pdf-studio__signer-name">{{ signer.displayName || signer.email || signer.userId }}</strong>
 									<span class="pdf-studio__signer-badge" :class="placements[signer.signerKey] ? 'pdf-studio__signer-badge--placed' : 'pdf-studio__signer-badge--pending'">
-										{{ placements[signer.signerKey] ? `Placed on Page ${placements[signer.signerKey].page}` : 'Not placed' }}
+										{{ placements[signer.signerKey] ? t('Placed on Page {page}', { page: placements[signer.signerKey].page }) : t('Not placed') }}
 									</span>
 								</div>
 								<div class="pdf-studio__signer-actions">
@@ -100,7 +100,7 @@
 										v-if="placements[signer.signerKey]"
 										type="button"
 										class="pdf-studio__action-btn"
-										title="Remove placement"
+										:title="t('Remove placement')"
 										@click.stop="clearPlacement(signer.signerKey)">
 										<Close :size="16" />
 									</button>
@@ -134,13 +134,13 @@
 											{{ signerInitials(signer) }}
 										</div>
 										<div class="pdf-studio__sig-box-info">
-											<strong class="pdf-studio__sig-box-title">Signature Element</strong>
+											<strong class="pdf-studio__sig-box-title">{{ t('Signature Element') }}</strong>
 											<span class="pdf-studio__sig-box-name">{{ signer.displayName || signer.email || signer.userId }}</span>
 										</div>
 										<button
 											type="button"
 											class="pdf-studio__sig-box-delete"
-											title="Remove placement"
+											:title="t('Remove placement')"
 											@click.stop="clearPlacement(signer.signerKey)">
 											<Close :size="12" />
 										</button>
@@ -152,7 +152,7 @@
 							<!-- Loading / Error States -->
 							<div v-if="loading" class="pdf-studio__state-overlay">
 								<div class="pdf-studio__spinner" />
-								<p>Rendering Document...</p>
+								<p>{{ t('Rendering Document...') }}</p>
 							</div>
 							<div v-else-if="error" class="pdf-studio__state-overlay pdf-studio__state-overlay--error">
 								<AlertCircleOutline :size="48" />
@@ -178,6 +178,7 @@ import Minus from 'vue-material-design-icons/Minus.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import ArrowExpand from 'vue-material-design-icons/ArrowExpand.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
+import { t, n } from '../../new/l10n.mjs'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -255,6 +256,8 @@ export default {
 		}
 	},
 	methods: {
+		t,
+		n,
 		async initStudio() {
 			this.placements = JSON.parse(JSON.stringify(this.value || {}))
 			this.currentPage = 1
@@ -265,7 +268,7 @@ export default {
 			this.activeSignerKey = this.signers[0]?.signerKey || ''
 
 			if (!this.file) {
-				this.error = 'No file provided.'
+				this.error = t('No file provided.')
 				return
 			}
 
@@ -280,11 +283,11 @@ export default {
 					const downloadLink = this.webdavClient.getFileDownloadLink(davPath)
 					const response = await fetch(downloadLink, { credentials: 'include' })
 					if (!response.ok) {
-						throw new Error('Failed to download PDF preview.')
+						throw new Error(t('Failed to download PDF preview.'))
 					}
 					buffer = await response.arrayBuffer()
 				} else {
-					throw new Error('Unsupported file source.')
+					throw new Error(t('Unsupported file source.'))
 				}
 
 				this.pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise
@@ -292,7 +295,7 @@ export default {
 				await this.renderPage()
 			} catch (err) {
 				console.error('PDF Studio Load Error:', err)
-				this.error = err.message || 'Could not load PDF document.'
+				this.error = err.message || t('Could not load PDF document.')
 			} finally {
 				this.loading = false
 			}
@@ -314,7 +317,7 @@ export default {
 			return new Promise((resolve, reject) => {
 				const reader = new FileReader()
 				reader.onload = () => resolve(reader.result)
-				reader.onerror = () => reject(reader.error || new Error('File read error'))
+				reader.onerror = () => reject(reader.error || new Error(t('File read error')))
 				reader.readAsArrayBuffer(file)
 			})
 		},
@@ -343,7 +346,7 @@ export default {
 				this.pdfReady = true
 			} catch (err) {
 				console.error('Render Page Error:', err)
-				this.error = 'Failed to render PDF page.'
+				this.error = t('Failed to render PDF page.')
 			} finally {
 				this.loading = false
 			}

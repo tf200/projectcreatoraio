@@ -8,14 +8,19 @@ use DateTimeInterface;
 use OCA\ProjectCreatorAIO\Db\Project;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEvent;
 use OCA\ProjectCreatorAIO\Db\ProjectActivityEventMapper;
+use OCP\IL10N;
 
 class ProjectActivityAggregationService {
 	private const CURSOR_VERSION = 1;
 
+	private IL10N $l;
+
 	public function __construct(
 		private readonly ProjectActivityEventMapper $eventMapper,
 		private readonly NativeDeckActivityReader $nativeDeckReader,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/**
@@ -23,7 +28,7 @@ class ProjectActivityAggregationService {
 	 */
 	public function getActivity(Project $project, string $userId, int $limit, ?string $source = null, ?string $cursor = null, int $offset = 0): array {
 		if ($cursor === null && $offset >= 500) {
-			throw new \InvalidArgumentException('Use cursor pagination for activity offsets of 500 or greater');
+			throw new \InvalidArgumentException($this->l->t('Use cursor pagination for activity offsets of 500 or greater'));
 		}
 
 		$projectId = (int)$project->getId();

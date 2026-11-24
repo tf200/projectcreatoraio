@@ -2,10 +2,10 @@
 	<NcModal size="large" label-id="whatif-compare-title" @close="$emit('close')">
 		<div class="whatif-compare">
 			<h3 id="whatif-compare-title">
-				Compare scenarios
+				{{ t('Compare scenarios') }}
 			</h3>
 			<p class="whatif-compare__muted">
-				Each scenario is recalculated on today’s plan.
+				{{ t('Each scenario is recalculated on today’s plan.') }}
 			</p>
 
 			<div class="whatif-compare__scroll">
@@ -40,7 +40,7 @@
 							<th scope="row" />
 							<td v-for="column in columns" :key="column.key">
 								<NcButton v-if="column.scenario && !column.error" type="secondary" @click="$emit('load', column.scenario)">
-									Open
+									{{ t('Open') }}
 								</NcButton>
 							</td>
 						</tr>
@@ -48,7 +48,7 @@
 				</table>
 			</div>
 			<p v-if="bestKey" class="whatif-compare__muted">
-				Highlighted: the earliest construction start.
+				{{ t('Highlighted: the earliest construction start.') }}
 			</p>
 		</div>
 	</NcModal>
@@ -57,6 +57,7 @@
 <script>
 import { NcButton, NcModal } from '@nextcloud/vue'
 
+import { t, n, tc } from '../../../new/l10n.mjs'
 import { formatDays, formatShiftBadge } from './whatIfChanges.js'
 
 export default {
@@ -85,17 +86,23 @@ export default {
 		},
 	},
 	emits: ['load', 'close'],
+	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
+	},
 	computed: {
 		columns() {
 			const columns = []
 			if (this.livePlan) {
-				columns.push({ key: 'live', name: 'Live plan', impact: this.livePlan })
+				columns.push({ key: 'live', name: t('Live plan'), impact: this.livePlan })
 			}
 			if (this.current) {
-				columns.push({ key: 'current', name: 'Open now', subtitle: 'not saved', impact: this.current })
+				columns.push({ key: 'current', name: t('Open now'), subtitle: t('not saved'), impact: this.current })
 			}
 			for (const scenario of this.scenarios) {
-				columns.push({ key: `saved-${scenario.id}`, name: scenario.name, subtitle: `by ${scenario.createdByDisplayName}`, impact: scenario.impact, error: scenario.error, scenario })
+				columns.push({ key: `saved-${scenario.id}`, name: scenario.name, subtitle: t('by {name}', { name: scenario.createdByDisplayName }), impact: scenario.impact, error: scenario.error, scenario })
 			}
 			return columns
 		},
@@ -112,20 +119,20 @@ export default {
 		rows() {
 			const shift = days => days ? ` (${formatShiftBadge(days)})` : ''
 			return [
-				{ key: 'start', label: 'Earliest construction start', value: i => `${this.formatDate(i.minimumStartDate)}${shift(i.minimumStartShiftDays)}` },
-				{ key: 'desired', label: 'Desired start', value: i => i.desiredStartDate ? this.formatDate(i.desiredStartDate) : 'Not set' },
+				{ key: 'start', label: t('Earliest construction start'), value: i => `${this.formatDate(i.minimumStartDate)}${shift(i.minimumStartShiftDays)}` },
+				{ key: 'desired', label: t('Desired start'), value: i => i.desiredStartDate ? this.formatDate(i.desiredStartDate) : t('Not set') },
 				{
 					key: 'reachable',
-					label: 'Desired start reachable',
+					label: t('Desired start reachable'),
 					value: i => {
 						if (i.desiredStartAchievable === null) return '–'
-						return i.desiredStartAchievable ? `Yes, ${formatDays(i.floatDays)} to spare` : `No, missed by ${formatDays(i.floatDays)}`
+						return i.desiredStartAchievable ? t('Yes, {duration} to spare', { duration: formatDays(i.floatDays) }) : t('No, missed by {duration}', { duration: formatDays(i.floatDays) })
 					},
 				},
-				{ key: 'prep', label: 'Preparation', value: i => formatDays(i.preparationWeeks * 7) },
-				{ key: 'moved', label: 'Cards that move', value: i => String(i.movedTaskCount) },
-				{ key: 'deck', label: 'Deck cards to update', value: i => String(i.deckCardUpdateCount) },
-				{ key: 'changes', label: 'Changes', value: i => String(i.changeCount) },
+				{ key: 'prep', label: t('Preparation'), value: i => formatDays(i.preparationWeeks * 7) },
+				{ key: 'moved', label: t('Cards that move'), value: i => String(i.movedTaskCount) },
+				{ key: 'deck', label: t('Deck cards to update'), value: i => String(i.deckCardUpdateCount) },
+				{ key: 'changes', label: t('Changes'), value: i => String(i.changeCount) },
 			]
 		},
 	},

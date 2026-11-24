@@ -14,10 +14,14 @@ use OCP\AppFramework\OCS\OCSBadRequestException;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class PortfolioApiController extends Controller {
 	/** Set when a non-admin member views one of their own teams. */
 	private ?string $teamViewerUid = null;
+
+	private IL10N $l;
 
 	public function __construct(
 		string $appName,
@@ -25,8 +29,10 @@ class PortfolioApiController extends Controller {
 		private IUserSession $userSession,
 		private ProjectAccessService $access,
 		private ProjectPortfolioService $portfolioService,
+		?IL10N $l = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	#[NoCSRFRequired]
@@ -43,7 +49,7 @@ class PortfolioApiController extends Controller {
 		if ($scope === 'team') {
 			$teamId = $this->request->getParam('teamId');
 			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
-				throw new OCSBadRequestException('teamId must be a positive integer');
+				throw new OCSBadRequestException($this->l->t('teamId must be a positive integer'));
 			}
 			try {
 				return new DataResponse($this->portfolioService->getCompletion($organizationId, null, (int)$teamId));
@@ -52,7 +58,7 @@ class PortfolioApiController extends Controller {
 			}
 		}
 
-		throw new OCSBadRequestException('scope must be mine or team');
+		throw new OCSBadRequestException($this->l->t('scope must be mine or team'));
 	}
 
 	#[NoCSRFRequired]
@@ -61,12 +67,12 @@ class PortfolioApiController extends Controller {
 		$organizationId = $this->requirePortfolioOrganization();
 		$weekStart = $this->request->getParam('weekStart');
 		if ($weekStart !== null && (!is_string($weekStart) || !ProjectPortfolioService::isIsoDate($weekStart))) {
-			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
+			throw new OCSBadRequestException($this->l->t('weekStart must be YYYY-MM-DD'));
 		}
 
 		$scope = $this->request->getParam('scope');
 		if ($scope !== null && $scope !== '' && !in_array($scope, ['mine', 'team', 'all'], true)) {
-			throw new OCSBadRequestException('scope must be mine, team or all');
+			throw new OCSBadRequestException($this->l->t('scope must be mine, team or all'));
 		}
 
 		$teamId = $this->request->getParam('teamId');
@@ -78,13 +84,13 @@ class PortfolioApiController extends Controller {
 				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart, $this->requireUid()));
 			}
 			if ($scope === 'team' && ($teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all'))) {
-				throw new OCSBadRequestException('teamId is required for team scope');
+				throw new OCSBadRequestException($this->l->t('teamId is required for team scope'));
 			}
 			if ($scope === 'all' || $teamId === null || $teamId === '' || (is_string($teamId) && strtolower($teamId) === 'all')) {
 				return new DataResponse($this->portfolioService->getCapacityForAll($organizationId, $weekStart));
 			}
 			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
-				throw new OCSBadRequestException('teamId is required');
+				throw new OCSBadRequestException($this->l->t('teamId is required'));
 			}
 
 			return new DataResponse($this->portfolioService->getCapacity($organizationId, (int)$teamId, $weekStart));
@@ -99,24 +105,24 @@ class PortfolioApiController extends Controller {
 		$organizationId = $this->requirePortfolioOrganization();
 		$weekStart = $this->request->getParam('weekStart');
 		if ($weekStart !== null && (!is_string($weekStart) || !ProjectPortfolioService::isIsoDate($weekStart))) {
-			throw new OCSBadRequestException('weekStart must be YYYY-MM-DD');
+			throw new OCSBadRequestException($this->l->t('weekStart must be YYYY-MM-DD'));
 		}
 
 		$scope = $this->request->getParam('scope');
 		if ($scope !== null && $scope !== '' && !in_array($scope, ['mine', 'team', 'all'], true)) {
-			throw new OCSBadRequestException('scope must be mine, team or all');
+			throw new OCSBadRequestException($this->l->t('scope must be mine, team or all'));
 		}
 
 		$teamId = $this->request->getParam('teamId');
 		$normalizedTeamId = null;
 		if ($teamId !== null && $teamId !== '' && strtolower((string)$teamId) !== 'all') {
 			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit((string)$teamId))) || (int)$teamId < 1) {
-				throw new OCSBadRequestException('teamId must be a positive integer');
+				throw new OCSBadRequestException($this->l->t('teamId must be a positive integer'));
 			}
 			$normalizedTeamId = (int)$teamId;
 		}
 		if ($scope === 'team' && $normalizedTeamId === null) {
-			throw new OCSBadRequestException('teamId is required for team scope');
+			throw new OCSBadRequestException($this->l->t('teamId is required for team scope'));
 		}
 
 		$memberUid = $scope === 'mine' ? $this->requireUid() : $this->teamViewerUid;
@@ -150,7 +156,7 @@ class PortfolioApiController extends Controller {
 		}
 		$membership = $this->access->getOrganizationMembership($uid);
 		if ($membership === null || (int)$membership['organization_id'] < 1) {
-			throw new OCSForbiddenException('Organization membership required');
+			throw new OCSForbiddenException($this->l->t('Organization membership required'));
 		}
 		if ($scope === 'team' && ($membership['role'] ?? null) === 'admin') {
 			return $this->requireOrganizationAdmin();
@@ -159,18 +165,18 @@ class PortfolioApiController extends Controller {
 		$requestedOrgId = $this->request->getParam('organizationId');
 		if ($requestedOrgId !== null && $requestedOrgId !== '' &&
 			(!is_int($requestedOrgId) && (!is_string($requestedOrgId) || !ctype_digit($requestedOrgId)))) {
-			throw new OCSBadRequestException('organizationId must be a positive integer');
+			throw new OCSBadRequestException($this->l->t('organizationId must be a positive integer'));
 		}
 		if ($requestedOrgId !== null && $requestedOrgId !== '' && (int)$requestedOrgId !== $organizationId) {
-			throw new OCSForbiddenException('Access denied to other organizations');
+			throw new OCSForbiddenException($this->l->t('Access denied to other organizations'));
 		}
 		if ($scope === 'team') {
 			$teamId = $this->request->getParam('teamId');
 			if ((!is_int($teamId) && (!is_string($teamId) || !ctype_digit($teamId))) || (int)$teamId < 1) {
-				throw new OCSBadRequestException('teamId must be a positive integer');
+				throw new OCSBadRequestException($this->l->t('teamId must be a positive integer'));
 			}
 			if (!$this->portfolioService->isTeamMember($organizationId, (int)$teamId, $uid)) {
-				throw new OCSForbiddenException('Team access denied');
+				throw new OCSForbiddenException($this->l->t('Team access denied'));
 			}
 			$this->teamViewerUid = $uid;
 		}
@@ -180,7 +186,7 @@ class PortfolioApiController extends Controller {
 	private function requireOrganizationAdmin(): int {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$isSystemAdmin = $this->access->isGlobalAdmin($user->getUID());
@@ -194,17 +200,17 @@ class PortfolioApiController extends Controller {
 			if ($membership !== null) {
 				return (int)$membership['organization_id'];
 			}
-			throw new OCSBadRequestException('organizationId is required for system administrators');
+			throw new OCSBadRequestException($this->l->t('organizationId is required for system administrators'));
 		}
 
 		$membership = $this->access->getOrganizationMembership($user->getUID());
 		if ($membership === null || ($membership['role'] ?? null) !== 'admin') {
-			throw new OCSForbiddenException('Organization administrator access required');
+			throw new OCSForbiddenException($this->l->t('Organization administrator access required'));
 		}
 
 		$userOrgId = (int)$membership['organization_id'];
 		if ($requestedOrgId !== null && $requestedOrgId !== '' && (int)$requestedOrgId !== $userOrgId) {
-			throw new OCSForbiddenException('Access denied to other organizations');
+			throw new OCSForbiddenException($this->l->t('Access denied to other organizations'));
 		}
 
 		return $userOrgId;
@@ -213,7 +219,7 @@ class PortfolioApiController extends Controller {
 	private function requireUid(): string {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		return $user->getUID();

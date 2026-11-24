@@ -2,6 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { earliestHandover, handoverWarnings, handoverDraft, joiningWithTeam, ownerOptions, externalEnd, externalEndText, handoverProblem, handoverPayload, handoverSummary, latestHandover, stepReport, whoProblem } from './handover.js'
 
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
+
 // Project 39 on the dev server, trimmed: Team Zuid works on it, Klaas is external.
 const preview = {
 	handoverDate: null,

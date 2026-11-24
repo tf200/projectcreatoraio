@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 import * as ba from './board-access.js'
 
 const CARDS = ['AVP', 'Blokkenschema', 'Quickscan', 'VO'].map((title, index) => ({ id: index + 1, title }))
@@ -118,6 +119,7 @@ function newTasks(boardAccess) {
 		.replace(/^import .*$/gm, '')
 		.replace('export default', 'globalThis.component =')
 	const context = {
+		...l10n,
 		DeckBoard: { methods: { reload: async () => {} } },
 		api: { boardAccess },
 		errorMessage: () => 'The data could not be loaded. Please try again.',

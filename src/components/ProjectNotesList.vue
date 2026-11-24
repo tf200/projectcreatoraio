@@ -8,7 +8,7 @@
 					:class="{ 'project-notes-list__main-tab--active': mainTab === 'project' }"
 					@click="switchMainTab('project')">
 					<FileDocumentOutline :size="18" />
-					<span>Project Notes</span>
+					<span>{{ t('Project Notes') }}</span>
 				</button>
 				<button
 					type="button"
@@ -16,7 +16,7 @@
 					:class="{ 'project-notes-list__main-tab--active': mainTab === 'cards' }"
 					@click="switchMainTab('cards')">
 					<CardTextOutline :size="18" />
-					<span>Card Notes</span>
+					<span>{{ t('Card Notes') }}</span>
 				</button>
 				<button
 					v-if="talkConversationToken || eligibleDirectMembers.length > 0"
@@ -25,7 +25,7 @@
 					:class="{ 'project-notes-list__main-tab--active': mainTab === 'chat' }"
 					@click="switchMainTab('chat')">
 					<ChatOutline :size="18" />
-					<span>Chat</span>
+					<span>{{ tc('Chat', 'tab') }}</span>
 				</button>
 			</div>
 			<div class="project-notes-list__actions">
@@ -36,7 +36,7 @@
 					<template #icon>
 						<Refresh :size="20" />
 					</template>
-					Refresh
+					{{ t('Refresh') }}
 				</NcButton>
 				<NcButton
 					v-if="mainTab === 'project'"
@@ -46,7 +46,7 @@
 					<template #icon>
 						<Plus :size="20" />
 					</template>
-					Add note
+					{{ t('Add note') }}
 				</NcButton>
 				<NcButton
 					v-if="mainTab === 'chat' && currentTalkUrl"
@@ -55,7 +55,7 @@
 					<template #icon>
 						<OpenInNew :size="20" />
 					</template>
-					Open in Talk
+					{{ t('Open in Talk') }}
 				</NcButton>
 			</div>
 		</div>
@@ -67,7 +67,7 @@
 					:class="{ 'project-notes-list__sub-tab--active': subTab === 'public' }"
 					@click="switchSubTab('public')">
 					<Earth :size="14" />
-					<span>Public</span>
+					<span>{{ t('Public') }}</span>
 				</button>
 				<button
 					type="button"
@@ -75,13 +75,15 @@
 					:class="{ 'project-notes-list__sub-tab--active': subTab === 'private' }"
 					@click="switchSubTab('private')">
 					<Lock :size="14" />
-					<span>Private</span>
+					<span>{{ t('Private') }}</span>
 				</button>
 			</div>
 			<label class="project-notes-list__type-filter">
-				<span>Note type</span>
+				<span>{{ t('Note type') }}</span>
 				<select v-model="noteTypeFilter">
-					<option value="">All note types</option>
+					<option value="">
+						{{ t('All note types') }}
+					</option>
 					<option v-for="type in noteTypeOptions" :key="type.value" :value="type.value">
 						{{ type.label }}
 					</option>
@@ -95,7 +97,7 @@
 				:class="{ 'project-notes-list__sub-tab--active': cardSubTab === 'notes' }"
 				@click="switchCardSubTab('notes')">
 				<CardTextOutline :size="14" />
-				<span>Notes</span>
+				<span>{{ t('Notes') }}</span>
 			</button>
 			<button
 				type="button"
@@ -103,7 +105,7 @@
 				:class="{ 'project-notes-list__sub-tab--active': cardSubTab === 'comments' }"
 				@click="switchCardSubTab('comments')">
 				<CommentOutline :size="14" />
-				<span>Comments</span>
+				<span>{{ t('Comments') }}</span>
 			</button>
 		</div>
 		<div v-if="mainTab === 'chat'" class="project-notes-list__sub-tabs">
@@ -114,7 +116,7 @@
 				:class="{ 'project-notes-list__sub-tab--active': chatSubTab === 'team' }"
 				@click="switchChatSubTab('team')">
 				<AccountMultiple :size="14" />
-				<span>Team Chat</span>
+				<span>{{ t('Team Chat') }}</span>
 			</button>
 			<button
 				type="button"
@@ -122,7 +124,7 @@
 				:class="{ 'project-notes-list__sub-tab--active': chatSubTab === 'direct' }"
 				@click="switchChatSubTab('direct')">
 				<Account :size="14" />
-				<span>Direct Chats</span>
+				<span>{{ t('Direct Chats') }}</span>
 				<span v-if="existingDirectChatCount" class="project-notes-list__tab-badge">
 					{{ existingDirectChatCount }}
 				</span>
@@ -131,7 +133,7 @@
 
 		<div v-if="loading" class="project-notes-list__loading">
 			<NcLoadingIcon :size="48" />
-			<span>Loading your notes...</span>
+			<span>{{ t('Loading your notes...') }}</span>
 		</div>
 
 		<div v-else-if="mainTab === 'cards' && cardSubTab === 'comments' && comments.length === 0" class="project-notes-list__empty">
@@ -187,10 +189,10 @@
 				<ChatOutline :size="64" />
 			</div>
 			<p class="project-notes-list__empty-title">
-				No chat messages yet
+				{{ t('No chat messages yet') }}
 			</p>
 			<p class="project-notes-list__empty-subtitle">
-				Messages from the project's group chat will appear here
+				{{ t('Messages from the project\'s group chat will appear here') }}
 			</p>
 		</div>
 
@@ -210,7 +212,7 @@
 					<template #icon>
 						<ChevronDown :size="20" />
 					</template>
-					Load older messages
+					{{ t('Load older messages') }}
 				</NcButton>
 			</div>
 		</div>
@@ -222,10 +224,10 @@
 					<AccountMultiple :size="64" />
 				</div>
 				<p class="project-notes-list__empty-title">
-					No other project members
+					{{ t('No other project members') }}
 				</p>
 				<p class="project-notes-list__empty-subtitle">
-					Add more members to this project to start a 1:1 direct chat.
+					{{ t('Add more members to this project to start a 1:1 direct chat.') }}
 				</p>
 			</div>
 
@@ -241,13 +243,13 @@
 								v-model="directMemberFilter"
 								type="text"
 								class="project-notes-list__direct-search-input"
-								placeholder="Filter members..."
-								aria-label="Filter members">
+								:placeholder="t('Filter members...')"
+								:aria-label="t('Filter members')">
 							<button
 								v-if="directMemberFilter"
 								type="button"
 								class="project-notes-list__direct-search-clear"
-								title="Clear filter"
+								:title="t('Clear filter')"
 								@click="directMemberFilter = ''">
 								&times;
 							</button>
@@ -274,8 +276,8 @@
 									<span
 										v-if="hasDirectChat(member.id)"
 										class="project-notes-list__direct-chat-badge"
-										title="Active conversation">
-										Chat
+										:title="t('Active conversation')">
+										{{ tc('Chat', 'tab') }}
 									</span>
 								</div>
 								<span class="project-notes-list__direct-meta">@{{ member.id }}</span>
@@ -283,7 +285,7 @@
 						</div>
 
 						<div v-if="filteredDirectMembers.length === 0" class="project-notes-list__direct-sidebar-empty">
-							No members match "{{ directMemberFilter }}"
+							{{ t('No members match "{filter}"', { filter: directMemberFilter }) }}
 						</div>
 					</div>
 				</aside>
@@ -297,10 +299,10 @@
 							<button
 								type="button"
 								class="project-notes-list__back-btn project-notes-list__back-btn--mobile-only"
-								title="Back to member list"
+								:title="t('Back to member list')"
 								@click="clearSelectedDirectMember">
 								<ChevronLeft :size="20" />
-								<span>Members</span>
+								<span>{{ t('Members') }}</span>
 							</button>
 							<div v-if="selectedDirectMember" class="project-notes-list__direct-active-user">
 								<div class="project-notes-list__chat-avatar">
@@ -308,7 +310,7 @@
 								</div>
 								<div class="project-notes-list__direct-active-meta">
 									<span class="project-notes-list__direct-active-name">{{ selectedDirectMember.displayName || selectedDirectMember.id }}</span>
-									<span class="project-notes-list__direct-active-sub">Direct chat &bull; @{{ selectedDirectMember.id }}</span>
+									<span class="project-notes-list__direct-active-sub">{{ t('Direct chat • @{id}', { id: selectedDirectMember.id }) }}</span>
 								</div>
 							</div>
 							<div class="project-notes-list__direct-active-actions">
@@ -319,25 +321,25 @@
 									<template #icon>
 										<OpenInNew :size="18" />
 									</template>
-									Open in Talk
+									{{ t('Open in Talk') }}
 								</NcButton>
 							</div>
 						</div>
 
 						<div v-if="directChatLoading && directChatMessages.length === 0" class="project-notes-list__loading">
 							<NcLoadingIcon :size="36" />
-							<span>Loading conversation...</span>
+							<span>{{ t('Loading conversation...') }}</span>
 						</div>
 
 						<div v-else-if="directChatError" class="project-notes-list__empty">
 							<p class="project-notes-list__empty-title">
-								Failed to load direct chat
+								{{ t('Failed to load direct chat') }}
 							</p>
 							<p class="project-notes-list__empty-subtitle">
 								{{ directChatError }}
 							</p>
 							<NcButton type="secondary" @click="selectDirectMember(selectedDirectMember)">
-								Retry
+								{{ t('Retry') }}
 							</NcButton>
 						</div>
 
@@ -346,10 +348,10 @@
 								<ChatOutline :size="64" />
 							</div>
 							<p class="project-notes-list__empty-title">
-								No messages yet with {{ selectedDirectMember ? (selectedDirectMember.displayName || selectedDirectMember.id) : 'this member' }}
+								{{ t('No messages yet with {name}', { name: selectedDirectMember ? (selectedDirectMember.displayName || selectedDirectMember.id) : t('this member') }) }}
 							</p>
 							<p class="project-notes-list__empty-subtitle">
-								Messages sent in Talk for this project will appear here. Click "Open in Talk" to start messaging!
+								{{ t('Messages sent in Talk for this project will appear here. Click "Open in Talk" to start messaging!') }}
 							</p>
 							<NcButton
 								v-if="directChatTalkUrl"
@@ -358,7 +360,7 @@
 								<template #icon>
 									<OpenInNew :size="20" />
 								</template>
-								Open in Talk
+								{{ t('Open in Talk') }}
 							</NcButton>
 						</div>
 
@@ -377,7 +379,7 @@
 									<template #icon>
 										<ChevronDown :size="20" />
 									</template>
-									Load older messages
+									{{ t('Load older messages') }}
 								</NcButton>
 							</div>
 						</div>
@@ -389,10 +391,10 @@
 							<Account :size="64" />
 						</div>
 						<p class="project-notes-list__empty-title">
-							Select a member to chat
+							{{ t('Select a member to chat') }}
 						</p>
 						<p class="project-notes-list__empty-subtitle">
-							Choose a project member from the list on the left to view messages or start a conversation.
+							{{ t('Choose a project member from the list on the left to view messages or start a conversation.') }}
 						</p>
 					</div>
 				</main>
@@ -430,7 +432,7 @@
 						<button
 							type="button"
 							class="project-notes-list__action-btn"
-							title="Delete"
+							:title="t('Delete')"
 							@click.stop="confirmDelete(note)">
 							<Delete :size="18" />
 						</button>
@@ -446,17 +448,17 @@
 						<div class="project-notes-list__author-avatar" :title="note.userId">
 							{{ note.userId ? note.userId.charAt(0).toUpperCase() : '?' }}
 						</div>
-						<span class="project-notes-list__author-name">{{ note.visibility === 'card' ? `Card #${note.cardId}` : note.userId }}</span>
+						<span class="project-notes-list__author-name">{{ note.visibility === 'card' ? t('Card #{id}', { id: note.cardId }) : note.userId }}</span>
 					</div>
 					<div v-if="note.visibility === 'card'" class="project-notes-list__note-type project-notes-list__note-type--card">
 						<CardTextOutline :size="14" />
-						<span>{{ note.cardNoteCount }} note{{ note.cardNoteCount !== 1 ? 's' : '' }}</span>
+						<span>{{ n('%n note', '%n notes', note.cardNoteCount) }}</span>
 					</div>
 					<div v-else class="project-notes-list__note-badges">
 						<div class="project-notes-list__note-visibility" :class="`project-notes-list__note-visibility--${note.visibility}`">
 							<Earth v-if="note.visibility === 'public'" :size="14" />
 							<Lock v-else :size="14" />
-							<span>{{ note.visibility }}</span>
+							<span>{{ visibilityLabel(note.visibility) }}</span>
 						</div>
 						<div class="project-notes-list__note-type project-notes-list__note-type--semantic">
 							<span>{{ noteTypeLabel(note.noteType) }}</span>
@@ -474,16 +476,16 @@
 				<template #icon>
 					<ChevronLeft :size="20" />
 				</template>
-				Previous
+				{{ t('Previous') }}
 			</NcButton>
 			<span class="project-notes-list__pagination-info">
-				Page {{ currentPage }} of {{ totalPages }}
+				{{ t('Page {page} of {total}', { page: currentPage, total: totalPages }) }}
 			</span>
 			<NcButton
 				type="secondary"
 				:disabled="currentPage >= totalPages"
 				@click="nextPage">
-				Next
+				{{ t('Next') }}
 				<template #icon>
 					<ChevronRight :size="20" />
 				</template>
@@ -538,6 +540,7 @@ import CardDetailModal from './CardDetailModal.vue'
 import ChatMessage from './ProjectChat/ChatMessage.vue'
 import { ProjectsService } from '../Services/projects.js'
 import { NOTE_TYPES, noteTypeLabel } from '../constants/note-types.js'
+import { t, n, tc, locale } from '../new/l10n.mjs'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -646,27 +649,27 @@ export default {
 		},
 		emptyTitle() {
 			if (this.mainTab === 'cards' && this.cardSubTab === 'comments') {
-				return 'No comments found'
+				return t('No comments found')
 			}
 			if (this.mainTab === 'cards') {
-				return 'No cards found'
+				return t('No cards found')
 			}
 			if (this.subTab === 'private' && !this.canCreateNote) {
-				return 'Private notes are not available'
+				return t('Private notes are not available')
 			}
-			return `No ${this.subTab} notes yet`
+			return this.subTab === 'private' ? t('No private notes yet') : t('No public notes yet')
 		},
 		emptySubtitle() {
 			if (this.mainTab === 'cards' && this.cardSubTab === 'comments') {
-				return 'No one has commented on any cards in this project yet'
+				return t('No one has commented on any cards in this project yet')
 			}
 			if (this.mainTab === 'cards') {
-				return 'This project does not have any visible cards in its deck board yet'
+				return t('This project does not have any visible cards in its deck board yet')
 			}
 			if (this.subTab === 'private' && !this.canCreateNote) {
-				return 'Private notes are not available for this project'
+				return t('Private notes are not available for this project')
 			}
-			return 'Create your first note to start documenting this project'
+			return t('Create your first note to start documenting this project')
 		},
 		eligibleDirectMembers() {
 			const myId = String(this.currentUserId || '').trim().toLowerCase()
@@ -783,7 +786,19 @@ export default {
 		},
 	},
 	methods: {
+		t,
+		n,
+		tc,
 		noteTypeLabel,
+		// The stored visibility code, worded; an unknown code is shown as it is.
+		visibilityLabel(visibility) {
+			switch (visibility) {
+			case 'public': return t('Public')
+			case 'private': return t('Private')
+			case 'card': return t('Card')
+			default: return visibility
+			}
+		},
 		async loadNotes(page) {
 			this.loading = true
 			this.currentPage = page
@@ -906,7 +921,7 @@ export default {
 			} catch (err) {
 				if (!this.isCurrentDirectChatRequest(requestId, projectId, memberId)) return
 				console.error('Failed to load direct chat:', err)
-				this.directChatError = err?.response?.data?.message || err?.message || 'Could not open direct chat'
+				this.directChatError = err?.response?.data?.message || err?.message || t('Could not open direct chat')
 			} finally {
 				if (this.isCurrentDirectChatRequest(requestId, projectId, memberId)) {
 					this.directChatLoading = false
@@ -1043,21 +1058,21 @@ export default {
 				const diffHours = Math.floor((now - date) / (1000 * 60 * 60))
 				if (diffHours === 0) {
 					const diffMinutes = Math.floor((now - date) / (1000 * 60))
-					return diffMinutes <= 1 ? 'Just now' : `${diffMinutes} minutes ago`
+					return diffMinutes <= 1 ? t('Just now') : t('{n}m ago', { n: diffMinutes })
 				}
-				return `${diffHours} h ago`
+				return t('{n}h ago', { n: diffHours })
 			}
-			if (diffDays === 1) return 'Yesterday'
-			if (diffDays < 7) return `${diffDays} d ago`
+			if (diffDays === 1) return t('Yesterday')
+			if (diffDays < 7) return t('{n}d ago', { n: diffDays })
 
-			return date.toLocaleDateString(undefined, {
+			return date.toLocaleDateString(locale(), {
 				month: 'short',
 				day: 'numeric',
 				year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
 			})
 		},
 		getPreview(content) {
-			if (!content) return 'No content'
+			if (!content) return t('No content')
 			const plainText = content
 				.replace(/<[^>]*>?/gm, ' ')
 				.replace(/[#*_`[\]()]/g, '')
@@ -1084,7 +1099,7 @@ export default {
 			this.showEditModal = false
 		},
 		onNoteUpdated(updatedNote) {
-			const index = this.notes.findIndex(n => n.id === updatedNote.id)
+			const index = this.notes.findIndex(note => note.id === updatedNote.id)
 			if (index !== -1) {
 				this.$set(this.notes, index, updatedNote)
 			}
@@ -1110,7 +1125,7 @@ export default {
 			this.showCardDetail = false
 		},
 		async confirmDelete(note) {
-			if (!window.confirm(`Are you sure you want to delete "${note.title}"?`)) {
+			if (!window.confirm(t('Are you sure you want to delete "{title}"?', { title: note.title }))) {
 				return
 			}
 
@@ -1120,7 +1135,7 @@ export default {
 				this.loadNotes(wasLastOnPage ? this.currentPage - 1 : this.currentPage)
 			} catch (error) {
 				console.error('Failed to delete note:', error)
-				alert('Failed to delete note. Please try again.')
+				alert(t('Failed to delete note. Please try again.'))
 			}
 		},
 	},

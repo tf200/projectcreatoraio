@@ -2,9 +2,105 @@
 
 namespace OCA\ProjectCreatorAIO\Service;
 
+use OCP\IL10N;
+
+/**
+ * Default Deck cards per project type.
+ *
+ * The 'title' of a card template is its canonical title: logic matches and groups
+ * cards by it. A new card gets the title in the server default language
+ * (translateTitle); existing boards keep the titles they have. Code that
+ * recognises default cards on a board must accept every variant (titleVariants /
+ * canonicalTitle), never only the canonical one.
+ */
 class ProjectTypeDeckDefaults
 {
 	public const TYPE_COMBI = 0;
+
+	/**
+	 * Canonical card title => title in the language of $l.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function titleTranslations(IL10N $l): array
+	{
+		return [
+			'Piekvermogensformulier' => $l->t('Piekvermogensformulier'),
+			'Situatie tekening' => $l->t('Situatie tekening'),
+			'Intakeformulier' => $l->t('Intakeformulier'),
+			'Quickscan' => $l->t('Quickscan'),
+			'AVP' => $l->t('AVP'),
+			'Garantie overeenkomst' => $l->t('Garantie overeenkomst'),
+			'VO' => $l->t('VO'),
+			'DO' => $l->t('DO'),
+			'Intake inplannen & hosten' => $l->t('Intake inplannen & hosten'),
+			'Intakeverslag' => $l->t('Intakeverslag'),
+			'Huisnummerbesluit' => $l->t('Huisnummerbesluit'),
+			'Hoogbouwoverleg inplannen' => $l->t('Hoogbouwoverleg inplannen'),
+			'VO inpandige tekeningen' => $l->t('VO inpandige tekeningen'),
+			'DO inpandige tekeningen' => $l->t('DO inpandige tekeningen'),
+			'Verslag inpandig overleg' => $l->t('Verslag inpandig overleg'),
+			'Blokkenschema' => $l->t('Blokkenschema'),
+			'Aanvraag particuliere grond' => $l->t('Aanvraag particuliere grond'),
+			'Bodemrapport' => $l->t('Bodemrapport'),
+			'Saneringsevaluatierapport' => $l->t('Saneringsevaluatierapport'),
+			'Zakelijkrecht' => $l->t('Zakelijkrecht'),
+		];
+	}
+
+	/** The title a new card gets, in the language of $l (use the server default language). */
+	public static function translateTitle(string $canonicalTitle, IL10N $l): string
+	{
+		return self::titleTranslations($l)[$canonicalTitle] ?? $canonicalTitle;
+	}
+
+	/**
+	 * Every title a default card may carry on an existing board: the canonical
+	 * title, its legacy aliases and its translations.
+	 *
+	 * @param IL10N[] $translators
+	 * @return string[]
+	 */
+	public static function titleVariants(string $canonicalTitle, array $translators): array
+	{
+		$aliases = self::getCardTitleAliases();
+		$variants = $aliases[$canonicalTitle] ?? [];
+		$variants[] = $canonicalTitle;
+		foreach ($translators as $l) {
+			$variants[] = self::translateTitle($canonicalTitle, $l);
+		}
+		return array_values(array_unique(array_filter(array_map('trim', $variants), static fn (string $v): bool => $v !== '')));
+	}
+
+	/**
+	 * Lower-cased variant title => canonical title, for all default cards.
+	 *
+	 * @param IL10N[] $translators
+	 * @return array<string, string>
+	 */
+	public static function canonicalTitleMap(array $translators): array
+	{
+		$map = [];
+		$templates = array_merge(self::getNextPriorityCards(self::TYPE_COMBI), self::getProcessStepCards(self::TYPE_COMBI));
+		foreach (array_unique(array_column($templates, 'title')) as $canonicalTitle) {
+			foreach (self::titleVariants($canonicalTitle, $translators) as $variant) {
+				$map[mb_strtolower($variant)] ??= $canonicalTitle;
+			}
+		}
+		return $map;
+	}
+
+	/**
+	 * The canonical title of a card on a board, or the trimmed title itself when it
+	 * is not a default card.
+	 *
+	 * @param IL10N[] $translators
+	 */
+	public static function canonicalTitle(string $title, array $translators): string
+	{
+		$title = trim($title);
+		return self::canonicalTitleMap($translators)[mb_strtolower($title)] ?? $title;
+	}
 
 	/** @return string[] */
 	public static function getConditionalSet1Titles(): array

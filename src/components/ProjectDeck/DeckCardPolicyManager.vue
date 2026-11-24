@@ -3,21 +3,21 @@
 		
 		<div v-if="loading && !cards.length" class="pc-loading-state">
 			<div class="pc-spinner"></div>
-			<p>Loading permissions data...</p>
+			<p>{{ t('Loading permissions data...') }}</p>
 		</div>
 
 		<div v-else-if="error" class="pc-error-state">
 			<Alert :size="48" class="pc-error-icon" />
-			<h3>Failed to load permissions</h3>
+			<h3>{{ t('Failed to load permissions') }}</h3>
 			<p>{{ error }}</p>
-			<NcButton @click="load">Retry</NcButton>
+			<NcButton @click="load">{{ t('Retry') }}</NcButton>
 		</div>
 
 		<div v-else-if="settings.permissionMode !== 'card_policy' || Number(settings.policyVersion || 1) < 2" class="pc-enable-state">
 			<ShieldAccount :size="48" class="pc-enable-icon" />
-			<h3>Granular Permissions Disabled</h3>
-			<p class="muted">Upgrade this board to DRASCIVS defaults with explicit functional-role overrides.</p>
-			<NcButton type="primary" size="large" @click="enable">Enable DRASCIVS Permissions</NcButton>
+			<h3>{{ t('Granular Permissions Disabled') }}</h3>
+			<p class="muted">{{ t('Upgrade this board to DRASCIVS defaults with explicit functional-role overrides.') }}</p>
+			<NcButton type="primary" size="large" @click="enable">{{ t('Enable DRASCIVS Permissions') }}</NcButton>
 		</div>
 
 		<div v-else class="pc-policy-container">
@@ -25,21 +25,21 @@
 			<!-- TOP HEADER & TOOLBAR -->
 			<div class="pc-app-header">
 				<div class="pc-header-titles">
-					<h2>Card Permissions</h2>
-					<p class="muted">DRASCIVS controls inherited access. Functional roles handle explicit card exceptions.</p>
+					<h2>{{ t('Card Permissions') }}</h2>
+					<p class="muted">{{ t('DRASCIVS controls inherited access. Functional roles handle explicit card exceptions.') }}</p>
 				</div>
 				<div class="pc-header-actions">
 					<NcButton type="tertiary" @click="openProfiles">
 						<template #icon><ShieldAccount :size="18" /></template>
-						Profiles
+						{{ t('Profiles') }}
 					</NcButton>
 					<NcButton type="tertiary" @click="showMembersModal = true">
 						<template #icon><AccountGroup :size="18" /></template>
-						Board Roles & Members
+						{{ t('Board Roles & Members') }}
 					</NcButton>
 					<NcButton type="tertiary" @click="showDefaultsModal = true">
 						<template #icon><Cog :size="18" /></template>
-						Board Defaults
+						{{ t('Board Defaults') }}
 					</NcButton>
 				</div>
 			</div>
@@ -50,18 +50,18 @@
 					<input
 						v-model.trim="cardSearch"
 						type="search"
-						placeholder="Search cards..."
+						:placeholder="t('Search cards...')"
 						class="pc-search-input"
-						aria-label="Search cards">
+						:aria-label="t('Search cards')">
 				</div>
 				<div class="pc-toolbar-filters">
-					<select v-model.number="stackFilter" class="pc-stack-select" aria-label="Filter cards by stack">
-						<option :value="0">All stacks ({{ cards.length }} cards)</option>
+					<select v-model.number="stackFilter" class="pc-stack-select" :aria-label="t('Filter cards by stack')">
+						<option :value="0">{{ n('All stacks (%n card)', 'All stacks (%n cards)', cards.length) }}</option>
 						<option v-for="s in stacks" :key="s.id" :value="Number(s.id)">{{ s.title }}</option>
 					</select>
 					<label class="pc-filter-checkbox">
 						<input type="checkbox" v-model="showOnlyCustom">
-						Show only explicit overrides
+						{{ t('Show only explicit overrides') }}
 					</label>
 				</div>
 			</div>
@@ -75,23 +75,23 @@
 								<input
 									type="checkbox"
 									:checked="allVisibleSelected"
-									aria-label="Select all visible cards"
+									:aria-label="t('Select all visible cards')"
 									@change="toggleSelectAllVisible">
 							</th>
-							<th scope="col" class="pc-col-name">Card Name</th>
+							<th scope="col" class="pc-col-name">{{ t('Card Name') }}</th>
 							<th
 								v-for="action in summaryActions"
 								:key="action"
 								scope="col"
 								class="pc-col-perms">
-								Who can {{ actionLabel(action) }}
+								{{ whoCanLabel(action) }}
 							</th>
-							<th scope="col" class="pc-col-actions"><span class="pc-visually-hidden">Reset permissions</span></th>
+							<th scope="col" class="pc-col-actions"><span class="pc-visually-hidden">{{ t('Reset permissions') }}</span></th>
 						</tr>
 					</thead>
 					<tbody>
 						<tr v-if="filteredCards.length === 0">
-							<td colspan="7" class="pc-empty-row">No cards match your filters.</td>
+							<td colspan="7" class="pc-empty-row">{{ t('No cards match your filters.') }}</td>
 						</tr>
 						<tr v-for="card in filteredCards" :key="card.id" 
 							:class="{ 'is-selected': isSelected(card.id), 'is-custom': card.hasAnyOverride }"
@@ -101,12 +101,12 @@
 									v-model="selectedCardIds"
 									type="checkbox"
 									:value="card.id"
-									:aria-label="`Select ${card.title}`">
+									:aria-label="t('Select {title}', { title: card.title })">
 							</td>
 							<td class="pc-col-name">
 								<div class="pc-card-title-wrap">
 									<span class="pc-card-title">{{ card.title }}</span>
-									<span v-if="card.hasAnyOverride" class="pc-badge pc-badge-custom" title="This card has explicit functional-role rules">{{ overrideCount(card) }} override{{ overrideCount(card) === 1 ? '' : 's' }}</span>
+									<span v-if="card.hasAnyOverride" class="pc-badge pc-badge-custom" :title="t('This card has explicit functional-role rules')">{{ n('%n override', '%n overrides', overrideCount(card)) }}</span>
 								</div>
 							</td>
 							<td v-for="action in summaryActions" :key="`${card.id}-${action}`" class="pc-col-perms">
@@ -122,14 +122,14 @@
 											<span class="pc-role-name">{{ role.name }}</span>
 										</span>
 										<span v-if="!getEffectivePerms(card, action).length" :class="isExplicitAction(card, action) ? 'pc-nobody' : 'pc-no-roles'">
-											{{ isExplicitAction(card, action) ? 'Nobody' : 'No roles' }}
+											{{ isExplicitAction(card, action) ? t('Nobody') : t('No roles') }}
 										</span>
 									</div>
 									<span
 										v-if="effectivePermissionSource(card, action) === 'functional_override'"
 										class="pc-permission-source pc-permission-source--functional_override"
-										title="Explicit card override active">
-										Override
+										:title="t('Explicit card override active')">
+										{{ t('Override') }}
 									</span>
 								</div>
 							</td>
@@ -138,8 +138,8 @@
 									v-if="card.hasAnyOverride"
 									type="tertiary"
 									size="small"
-									title="Reset all actions to DRASCIVS defaults"
-									:aria-label="`Reset ${card.title} to DRASCIVS defaults`"
+									:title="t('Reset all actions to DRASCIVS defaults')"
+									:aria-label="t('Reset {title} to DRASCIVS defaults', { title: card.title })"
 									@click="resetCard(card)">
 									<template #icon>↺</template>
 								</NcButton>
@@ -153,17 +153,17 @@
 			<transition name="slide-up">
 				<div v-if="selectedCardIds.length > 0" class="pc-floating-action-bar">
 					<div class="pc-fab-left">
-						<span class="pc-fab-count">{{ selectedCardIds.length }} cards selected</span>
-						<button class="pc-fab-clear" @click="selectedCardIds = []">Clear selection</button>
+						<span class="pc-fab-count">{{ n('%n card selected', '%n cards selected', selectedCardIds.length) }}</span>
+						<button class="pc-fab-clear" @click="selectedCardIds = []">{{ t('Clear selection') }}</button>
 					</div>
 					
 					<div class="pc-fab-controls">
 						<div v-for="action in policyActions" :key="action" class="pc-fab-field">
-							<label>{{ actionLabel(action) }}:</label>
+							<label>{{ t('{action}:', { action: actionLabel(action) }) }}</label>
 							<select v-model="bulkEdits[action].mode" class="pc-mode-select" @change="bulkEdits[action].dirty = true">
-								<option value="unchanged">Unchanged</option>
-								<option value="inherit">Inherit DRASCIVS</option>
-								<option value="override">Override</option>
+								<option value="unchanged">{{ t('Unchanged') }}</option>
+								<option value="inherit">{{ t('Inherit DRASCIVS') }}</option>
+								<option value="override">{{ t('Override') }}</option>
 							</select>
 							<NcSelect
 								v-if="bulkEdits[action].mode === 'override'"
@@ -173,83 +173,83 @@
 								track-by="value"
 								:multiple="true"
 								:close-on-select="false"
-								placeholder="Nobody"
+								:placeholder="t('Nobody')"
 								@input="bulkEdits[action].dirty = true" />
 						</div>
 					</div>
 
 					<div class="pc-fab-actions">
-						<NcButton type="primary" :loading="savingBulk" :disabled="!hasBulkChanges" @click="saveBulk">Apply Rules</NcButton>
-						<NcButton type="tertiary" :loading="savingBulk" @click="resetBulk" title="Remove custom rules from selected cards">Reset to Defaults</NcButton>
+						<NcButton type="primary" :loading="savingBulk" :disabled="!hasBulkChanges" @click="saveBulk">{{ t('Apply Rules') }}</NcButton>
+						<NcButton type="tertiary" :loading="savingBulk" @click="resetBulk" :title="t('Remove custom rules from selected cards')">{{ t('Reset to Defaults') }}</NcButton>
 					</div>
 				</div>
 			</transition>
 		</div>
 
 		<!-- MODAL: BOARD DEFAULTS -->
-		<NcModal v-if="showDefaultsModal" @close="showDefaultsModal = false" title="Board Defaults" size="normal">
+		<NcModal v-if="showDefaultsModal" @close="showDefaultsModal = false" :title="t('Board Defaults')" size="normal">
 			<div class="pc-modal-content">
 				<div class="pc-modal-header-desc">
-					<p>These DRASCIVS permissions apply whenever a card action has no explicit functional-role override.</p>
+					<p>{{ t('These DRASCIVS permissions apply whenever a card action has no explicit functional-role override.') }}</p>
 				</div>
 				<div class="pc-modal-field">
-					<label>Who can move cards</label>
+					<label>{{ t('Who can move cards') }}</label>
 					<NcSelect v-model="defaults.move" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-field">
-					<label>Who can sign cards</label>
+					<label>{{ t('Who can sign cards') }}</label>
 					<NcSelect v-model="defaults.sign" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-field">
-					<label>Who can verify / mark done</label>
+					<label>{{ t('Who can verify / mark done') }}</label>
 					<NcSelect v-model="defaults.verify" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-field">
-					<label>Who can view cards</label>
+					<label>{{ t('Who can view cards') }}</label>
 					<NcSelect v-model="defaults.view" :options="drasciRoleOptions" label="label" track-by="value" :multiple="true" :close-on-select="false" />
 				</div>
 				<div class="pc-modal-footer">
-					<NcButton @click="showDefaultsModal = false">Cancel</NcButton>
-					<NcButton type="primary" :loading="savingDefaults" @click="saveDefaults">Save Defaults</NcButton>
+					<NcButton @click="showDefaultsModal = false">{{ t('Cancel') }}</NcButton>
+					<NcButton type="primary" :loading="savingDefaults" @click="saveDefaults">{{ t('Save Defaults') }}</NcButton>
 				</div>
 			</div>
 		</NcModal>
 
 		<!-- MODAL: ROLES & MEMBERS -->
-		<NcModal v-if="showMembersModal" @close="showMembersModal = false" title="Board Roles & Members" size="large">
+		<NcModal v-if="showMembersModal" @close="showMembersModal = false" :title="t('Board Roles & Members')" size="large">
 			<div class="pc-modal-content pc-members-modal">
-				<div class="pc-modal-tabs" role="tablist" aria-label="Role management">
-					<button type="button" class="pc-modal-tab" :class="{ 'pc-modal-tab--active': membersModalTab === 'members' }" @click="membersModalTab = 'members'">Members</button>
-					<button type="button" class="pc-modal-tab" :class="{ 'pc-modal-tab--active': membersModalTab === 'roles' }" @click="membersModalTab = 'roles'">Roles</button>
+				<div class="pc-modal-tabs" role="tablist" :aria-label="t('Role management')">
+					<button type="button" class="pc-modal-tab" :class="{ 'pc-modal-tab--active': membersModalTab === 'members' }" @click="membersModalTab = 'members'">{{ t('Members') }}</button>
+					<button type="button" class="pc-modal-tab" :class="{ 'pc-modal-tab--active': membersModalTab === 'roles' }" @click="membersModalTab = 'roles'">{{ t('Roles') }}</button>
 				</div>
 
 				<div v-if="membersModalTab === 'roles'">
 					<div class="pc-add-role-box">
-						<h4>Create Role</h4>
+						<h4>{{ t('Create Role') }}</h4>
 						<div class="pc-add-role-row">
-							<NcTextField class="pc-flex-1" v-model="newRole.name" label="Role name" :show-label="true" placeholder="e.g., Installer" />
+							<NcTextField class="pc-flex-1" v-model="newRole.name" :label="t('Role name')" :show-label="true" :placeholder="t('e.g., Installer')" />
 							<NcTextField
 								class="pc-flex-1"
 								v-model="newRole.roleKey"
-								label="Role key"
+								:label="t('Role key')"
 								:show-label="true"
-								placeholder="e.g., installer"
+								:placeholder="t('e.g., installer')"
 								@focus="newRoleKeyTouched = true"
 								@input="newRoleKeyTouched = true" />
 							<div class="pc-role-color-field">
-								<label class="pc-role-color-label">Color</label>
+								<label class="pc-role-color-label">{{ t('Color') }}</label>
 								<NcColorPicker v-model="newRole.color" class="pc-role-color-picker">
 									<div class="pc-role-color-swatch" :style="{ backgroundColor: newRole.color }" />
 								</NcColorPicker>
 							</div>
-							<NcButton type="primary" :loading="creatingRole" :disabled="!newRole.name.trim() || !newRole.roleKey.trim()" @click="createRole">Create</NcButton>
+							<NcButton type="primary" :loading="creatingRole" :disabled="!newRole.name.trim() || !newRole.roleKey.trim()" @click="createRole">{{ t('Create') }}</NcButton>
 						</div>
-						<p class="pc-help-muted">Role keys must be lowercase and can contain letters, numbers, underscores and dashes.</p>
+						<p class="pc-help-muted">{{ t('Role keys must be lowercase and can contain letters, numbers, underscores and dashes.') }}</p>
 					</div>
 
 					<div class="pc-roles-list-box">
-						<h4>Existing Roles</h4>
-						<div v-if="roles.length === 0" class="muted" style="padding: 20px; text-align: center;">No roles available.</div>
+						<h4>{{ t('Existing Roles') }}</h4>
+						<div v-if="roles.length === 0" class="muted" style="padding: 20px; text-align: center;">{{ t('No roles available.') }}</div>
 						<div v-else class="pc-roles-chips">
 							<span v-for="r in roles" :key="r.id" class="pc-role-chip" :style="{ borderColor: r.color }">
 								<span class="pc-dot" :style="{ background: r.color }"></span>
@@ -258,7 +258,7 @@
 									type="button"
 									class="pc-role-delete"
 									:disabled="deletingRoleId === r.id"
-									:title="`Delete ${r.name}`"
+									:title="t('Delete {name}', { name: r.name })"
 									@click.stop="removeRole(r)">
 									×
 								</button>
@@ -269,17 +269,17 @@
 
 				<div v-else>
 					<div class="pc-add-member-box">
-						<h4>Add Member to Role</h4>
+						<h4>{{ t('Add Member to Role') }}</h4>
 						<div class="pc-add-member-row">
-							<NcSelect class="pc-flex-1" v-model="newMembership.user" :options="memberOptions" placeholder="Select a user..." label="label" track-by="value" />
-							<NcSelect class="pc-flex-1" v-model="newMembership.role" :options="roleOptions" placeholder="Select a role..." label="label" track-by="value" />
-							<NcButton type="primary" :disabled="!canAddMembership" @click="addMembership">Add</NcButton>
+							<NcSelect class="pc-flex-1" v-model="newMembership.user" :options="memberOptions" :placeholder="t('Select a user...')" label="label" track-by="value" />
+							<NcSelect class="pc-flex-1" v-model="newMembership.role" :options="roleOptions" :placeholder="t('Select a role...')" label="label" track-by="value" />
+							<NcButton type="primary" :disabled="!canAddMembership" @click="addMembership">{{ t('Add') }}</NcButton>
 						</div>
 					</div>
 
 					<div class="pc-members-list-box">
-						<h4>Current Members</h4>
-						<div v-if="memberships.length === 0" class="muted" style="padding: 20px; text-align: center;">No roles assigned.</div>
+						<h4>{{ t('Current Members') }}</h4>
+						<div v-if="memberships.length === 0" class="muted" style="padding: 20px; text-align: center;">{{ t('No roles assigned.') }}</div>
 						<table v-else class="pc-simple-table">
 							<tbody>
 								<tr v-for="m in memberships" :key="m.id">
@@ -291,7 +291,7 @@
 										</span>
 									</td>
 									<td class="pc-simple-td-action">
-										<button class="pc-danger-btn" @click="removeMembership(m)">Remove</button>
+										<button class="pc-danger-btn" @click="removeMembership(m)">{{ t('Remove') }}</button>
 									</td>
 								</tr>
 							</tbody>
@@ -303,26 +303,26 @@
 		</NcModal>
 
 		<!-- MODAL: PROFILES -->
-		<NcModal v-if="showProfilesModal" @close="closeProfiles" title="Permission Profiles" size="large">
+		<NcModal v-if="showProfilesModal" @close="closeProfiles" :title="t('Permission Profiles')" size="large">
 			<div class="pc-modal-content pc-templates-modal">
 				<div class="pc-modal-header-desc">
-					<p class="muted">Reuse an organization workflow on this board, or save the current workflow as a profile.</p>
+					<p class="muted">{{ t('Reuse an organization workflow on this board, or save the current workflow as a profile.') }}</p>
 				</div>
 
 				<div class="pc-template-list-box">
 					<div class="pc-box-header">
-						<h4 style="margin: 0;">Organization Profiles</h4>
+						<h4 style="margin: 0;">{{ t('Organization Profiles') }}</h4>
 					</div>
 					
 					<div v-if="profilesLoading" class="pc-state-message muted">
-						<div class="pc-spinner"></div> Loading profiles...
+						<div class="pc-spinner"></div> {{ t('Loading profiles...') }}
 					</div>
 					<div v-else-if="profilesError" class="pc-state-message error">
 						{{ profilesError }}
 					</div>
 					<div v-else>
 						<div v-if="profiles.length === 0" class="pc-empty-state muted">
-							No profiles saved yet. Save the current workflow below.
+							{{ t('No profiles saved yet. Save the current workflow below.') }}
 						</div>
 						<div v-else class="pc-template-cards">
 							<div v-for="profile in profiles" :key="profile.id" class="pc-template-card">
@@ -337,15 +337,15 @@
 										:loading="previewingProfileId === profile.id"
 										:disabled="profile.canApply === false || (!!previewingProfileId && previewingProfileId !== profile.id)"
 										@click="previewProfile(profile)">
-										Preview
+										{{ t('Preview') }}
 									</NcButton>
 									<NcButton
 										type="tertiary"
 										size="small"
 										:disabled="profile.canDelete === false || deletingProfileId === profile.id"
-										aria-label="Delete profile"
+										:aria-label="t('Delete profile')"
 										@click="deleteProfile(profile)">
-										Delete
+										{{ t('Delete') }}
 									</NcButton>
 								</div>
 							</div>
@@ -356,48 +356,48 @@
 				<hr class="pc-modal-divider">
 
 				<div class="pc-template-create-box">
-					<h4 style="margin: 0 0 12px;">Save Current Workflow</h4>
-					<p class="muted" style="margin: 0 0 12px; font-size: 13px;">Save this board's workflow and permission configuration for the organization.</p>
+					<h4 style="margin: 0 0 12px;">{{ t('Save Current Workflow') }}</h4>
+					<p class="muted" style="margin: 0 0 12px; font-size: 13px;">{{ t('Save this board\'s workflow and permission configuration for the organization.') }}</p>
 					<div class="pc-template-create-row">
-						<NcTextField class="pc-flex-1" v-model="profileName" label="Profile name" :show-label="false" placeholder="Standard workflow" />
+						<NcTextField class="pc-flex-1" v-model="profileName" :label="t('Profile name')" :show-label="false" :placeholder="t('Standard workflow')" />
 						<NcButton type="secondary" :loading="savingProfile" :disabled="!profileName.trim()" @click="saveProfile">
-							Save Profile
+							{{ t('Save Profile') }}
 						</NcButton>
 					</div>
 				</div>
 
 				<div v-if="profilePreview" class="pc-profile-preview">
 					<hr class="pc-modal-divider">
-					<h4>Preview: {{ selectedProfile.name }}</h4>
+					<h4>{{ t('Preview: {name}', { name: selectedProfile.name }) }}</h4>
 					<div v-if="previewCounts.length" class="pc-preview-counts">
 						<div v-for="item in previewCounts" :key="item.label" class="pc-preview-count"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></div>
 					</div>
-					<p v-if="previewConflicts.length" class="pc-help-muted">Resolve every ambiguous card before applying.</p>
+					<p v-if="previewConflicts.length" class="pc-help-muted">{{ t('Resolve every ambiguous card before applying.') }}</p>
 					<div v-for="(conflict, index) in previewConflicts" :key="conflictKey(conflict, index)" class="pc-conflict">
 						<strong>{{ conflictLabel(conflict, index) }}</strong>
 						<p v-if="conflict.message || conflict.description" class="muted">{{ conflict.message || conflict.description }}</p>
-						<label class="pc-visually-hidden" :for="`profile-conflict-${index}`">Resolution</label>
+						<label class="pc-visually-hidden" :for="`profile-conflict-${index}`">{{ t('Resolution') }}</label>
 						<select :id="`profile-conflict-${index}`" v-model="profileResolutions[conflictKey(conflict, index)]" class="pc-stack-select">
-							<option disabled value="">Choose a resolution</option>
+							<option disabled value="">{{ t('Choose a resolution') }}</option>
 							<option v-for="option in conflictOptions(conflict)" :key="String(optionValue(option))" :value="optionValue(option)">{{ optionLabel(option) }}</option>
 						</select>
 					</div>
 					<div class="pc-modal-footer">
-						<NcButton @click="clearPreview">Cancel Preview</NcButton>
-						<NcButton type="primary" :loading="applyingProfile" :disabled="!canApplyProfile" @click="applyProfile">Apply Profile</NcButton>
+						<NcButton @click="clearPreview">{{ t('Cancel Preview') }}</NcButton>
+						<NcButton type="primary" :loading="applyingProfile" :disabled="!canApplyProfile" @click="applyProfile">{{ t('Apply Profile') }}</NcButton>
 					</div>
 				</div>
 
 				<div v-if="profileResult" class="pc-profile-result">
 					<hr class="pc-modal-divider">
-					<h4>Apply Result</h4>
+					<h4>{{ t('Apply Result') }}</h4>
 					<div class="pc-result-grid">
 						<div v-for="item in resultDetails" :key="item.label"><strong>{{ item.label }}:</strong> {{ item.value }}</div>
 					</div>
 				</div>
 
 				<div v-if="!profilePreview" class="pc-modal-footer">
-					<NcButton @click="closeProfiles">Close</NcButton>
+					<NcButton @click="closeProfiles">{{ t('Close') }}</NcButton>
 				</div>
 			</div>
 		</NcModal>
@@ -412,6 +412,7 @@ import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { showError, showSuccess } from '@nextcloud/dialogs'
+import { t, n, tc, locale } from '../../new/l10n.mjs'
 
 import ShieldAccount from 'vue-material-design-icons/ShieldAccount.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
@@ -424,6 +425,39 @@ import { DeckTemplatesService } from '../../Services/deckTemplates.js'
 
 const deckService = DeckService.getInstance()
 const deckTemplatesService = DeckTemplatesService.getInstance()
+
+// Labels are made per code here, so the screen never shows a backend key or depends on its English.
+function actionLabels() {
+	return { view: t('View'), move: t('Move'), verify: t('Verify'), sign: t('Sign') }
+}
+function whoCanLabels() {
+	return { view: t('Who can view'), move: t('Who can move'), verify: t('Who can verify'), sign: t('Who can sign') }
+}
+function drasciRoleLabels() {
+	return {
+		driver: t('Driver'),
+		responsible: t('Responsible'),
+		accountable: t('Accountable'),
+		supportive: t('Supportive'),
+		consulted: t('Consulted'),
+		informed: t('Informed'),
+		verifier: t('Verifier'),
+		signer: t('Signer'),
+	}
+}
+// The keys of a profile preview's counts and of an apply result (BoardPermissionProfileService).
+function profileCountLabels() {
+	return {
+		createdStacks: t('Created stacks'),
+		createdRoles: t('Created roles'),
+		createdCards: t('Created cards'),
+		updatedCards: t('Updated cards'),
+		skippedCards: t('Skipped cards'),
+		appliedCardPolicies: t('Applied card policies'),
+		profileId: t('Profile ID'),
+		boardId: t('Board ID'),
+	}
+}
 
 export default {
 	name: 'DeckCardPolicyManager',
@@ -498,7 +532,7 @@ export default {
 		boardIdNum() { return Number(this.boardId) },
 		isV2() { return Number(this.settings?.policyVersion || 1) >= 2 },
 		roleOptions() { return this.roles.map(r => ({ value: r.roleKey, label: r.name })) },
-		drasciRoleOptions() { return this.drasciRoles.map(r => ({ value: r.key, label: r.name })) },
+		drasciRoleOptions() { return this.drasciRoles.map(r => ({ value: r.key, label: this.drasciRoleName(r.key, r.name) })) },
 		drasciByKey() {
 			const map = {}
 			for (const role of this.drasciRoles) map[role.key] = role
@@ -546,7 +580,7 @@ export default {
 			const counts = this.profilePreview?.counts || {}
 			return Object.entries(counts)
 				.filter(([, value]) => typeof value === 'number')
-				.map(([label, value]) => ({ label: this.humanize(label), value }))
+				.map(([label, value]) => ({ label: this.countLabel(label), value }))
 		},
 		canApplyProfile() {
 			return !!this.selectedProfile && !!this.profilePreview?.previewToken && this.previewConflicts.every(conflict => {
@@ -556,7 +590,7 @@ export default {
 		},
 		resultDetails() {
 			return Object.entries(this.profileResult || {}).map(([label, value]) => ({
-				label: this.humanize(label),
+				label: this.countLabel(label),
 				value: typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value),
 			}))
 		},
@@ -597,6 +631,10 @@ export default {
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		unwrap(data) { return data?.ocs?.data || data },
 		errorMessage(error, fallback) {
 			return error?.response?.data?.error
@@ -614,7 +652,7 @@ export default {
 		formatIso(iso) {
 			if (!iso) return ''
 			try {
-				return new Date(iso).toLocaleString()
+				return new Date(iso).toLocaleString(locale())
 			} catch (e) {
 				return String(iso)
 			}
@@ -656,14 +694,14 @@ export default {
 				const data = this.unwrap(raw)
 				this.settings = data.settings || { permissionMode: 'legacy', policyVersion: 1, revision: 0, approvedStackId: null, doneStackId: null }
 				this.drasciRoles = data.drascivsRoles || data.drasciRoles || [
-					{ key: 'driver', name: 'Driver' },
-					{ key: 'responsible', name: 'Responsible' },
-					{ key: 'accountable', name: 'Accountable' },
-					{ key: 'supportive', name: 'Supportive' },
-					{ key: 'consulted', name: 'Consulted' },
-					{ key: 'informed', name: 'Informed' },
-					{ key: 'verifier', name: 'Verifier' },
-					{ key: 'signer', name: 'Signer' },
+					{ key: 'driver', name: t('Driver') },
+					{ key: 'responsible', name: t('Responsible') },
+					{ key: 'accountable', name: t('Accountable') },
+					{ key: 'supportive', name: t('Supportive') },
+					{ key: 'consulted', name: t('Consulted') },
+					{ key: 'informed', name: t('Informed') },
+					{ key: 'verifier', name: t('Verifier') },
+					{ key: 'signer', name: t('Signer') },
 				]
 				this.roles = data.functionalRoles || data.roles || []
 				this.memberships = data.memberships || []
@@ -691,7 +729,7 @@ export default {
 				this.selectedCardIds = this.selectedCardIds.filter(id => this.cards.some(c => c.id === id))
 			} catch (e) {
 				if (generation !== this.loadGeneration) return
-				this.error = this.errorMessage(e, 'Error loading permissions')
+				this.error = this.errorMessage(e, t('Error loading permissions'))
 			} finally {
 				if (generation === this.loadGeneration) this.loading = false
 			}
@@ -712,7 +750,7 @@ export default {
 				const data = await deckTemplatesService.list(this.boardIdNum)
 				this.profiles = Array.isArray(data) ? data : (data?.profiles || data?.items || [])
 			} catch (e) {
-				this.profilesError = this.errorMessage(e, 'Failed to load profiles')
+				this.profilesError = this.errorMessage(e, t('Failed to load profiles'))
 			} finally {
 				this.profilesLoading = false
 			}
@@ -722,24 +760,24 @@ export default {
 			try {
 				await deckTemplatesService.createFromBoard(this.boardIdNum, this.profileName.trim())
 				this.profileName = ''
-				showSuccess('Profile saved')
+				showSuccess(t('Profile saved'))
 				await this.loadProfiles()
 			} catch (e) {
-				showError(this.errorMessage(e, 'Failed to save profile'))
+				showError(this.errorMessage(e, t('Failed to save profile')))
 			} finally {
 				this.savingProfile = false
 			}
 		},
 		async deleteProfile(profile) {
-			if (!profile?.id || !confirm(`Delete profile "${profile.name}"?`)) return
+			if (!profile?.id || !confirm(t('Delete profile "{name}"?', { name: profile.name }))) return
 			this.deletingProfileId = profile.id
 			try {
 				await deckTemplatesService.delete(profile.id, this.boardIdNum)
 				if (this.selectedProfile?.id === profile.id) this.clearPreview()
-				showSuccess('Profile deleted')
+				showSuccess(t('Profile deleted'))
 				await this.loadProfiles()
 			} catch (e) {
-				showError(this.errorMessage(e, 'Failed to delete profile'))
+				showError(this.errorMessage(e, t('Failed to delete profile')))
 			} finally {
 				this.deletingProfileId = null
 			}
@@ -753,7 +791,7 @@ export default {
 				this.profilePreview = await deckTemplatesService.preview(profile.id, this.boardIdNum)
 				this.profileResolutions = Object.fromEntries(this.previewConflicts.map((conflict, index) => [this.conflictKey(conflict, index), '']))
 			} catch (e) {
-				showError(this.errorMessage(e, 'Failed to preview profile'))
+				showError(this.errorMessage(e, t('Failed to preview profile')))
 				this.clearPreview()
 			} finally {
 				this.previewingProfileId = null
@@ -772,17 +810,20 @@ export default {
 					resolutions: this.profileResolutions,
 					expectedPreviewToken: this.profilePreview.previewToken,
 				})
-				showSuccess('Profile applied')
+				showSuccess(t('Profile applied'))
 				this.clearPreview()
 				await this.load()
 			} catch (e) {
-				showError(this.errorMessage(e, 'Failed to apply profile'))
+				showError(this.errorMessage(e, t('Failed to apply profile')))
 			} finally {
 				this.applyingProfile = false
 			}
 		},
 		profileMeta(profile) {
-			return [profile.createdBy ? `By ${profile.createdBy}` : '', this.formatIso(profile.createdAt)].filter(Boolean).join(' - ')
+			return [profile.createdBy ? t('By {name}', { name: profile.createdBy }) : '', this.formatIso(profile.createdAt)].filter(Boolean).join(' - ')
+		},
+		countLabel(key) {
+			return profileCountLabels()[key] || this.humanize(key)
 		},
 		humanize(value) {
 			return String(value).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, char => char.toUpperCase())
@@ -791,7 +832,7 @@ export default {
 			return conflict.key || String(index)
 		},
 		conflictLabel(conflict, index) {
-			return conflict.title || conflict.cardTitle || conflict.name || `Ambiguous card ${index + 1}`
+			return conflict.title || conflict.cardTitle || conflict.name || t('Ambiguous card {n}', { n: index + 1 })
 		},
 		conflictOptions(conflict) {
 			return conflict.options || []
@@ -804,7 +845,7 @@ export default {
 		},
 		getStackTitle(stackId) {
 			const s = this.stacks.find(s => Number(s.id) === Number(stackId))
-			return s ? s.title : 'Unknown'
+			return s ? s.title : t('Unknown')
 		},
 		getMemberDisplayName(participant) {
 			const m = this.members.find(x => x.id === participant || x.uid === participant)
@@ -816,11 +857,13 @@ export default {
 		roleColorByKey(roleKey) { return this.roleByKey[roleKey]?.color || 'var(--color-border)' },
 		roleTooltip(role) {
 			if (role && role.memberNames && role.memberNames.length) {
-				return `${role.name}: ${role.memberNames.join(', ')}`
+				return t('{role}: {names}', { role: role.name, names: role.memberNames.join(', ') })
 			}
-			return role ? `${role.name} (No assigned members)` : ''
+			return role ? t('{role} (No assigned members)', { role: role.name }) : ''
 		},
-		actionLabel(action) { return action.charAt(0).toUpperCase() + action.slice(1) },
+		actionLabel(action) { return actionLabels()[action] || action },
+		whoCanLabel(action) { return whoCanLabels()[action] || action },
+		drasciRoleName(key, fallback) { return drasciRoleLabels()[key] || fallback || key },
 		isExplicitAction(card, action) { return card.actions?.[action]?.mode === 'override' },
 		overrideCount(card) {
 			return this.policyActions.filter(action => this.isExplicitAction(card, action)).length
@@ -831,7 +874,7 @@ export default {
 			return this.isExplicitAction(card, action) ? 'functional_override' : 'drasci_default'
 		},
 		effectivePermissionSourceLabel(card, action) {
-			return this.effectivePermissionSource(card, action) === 'functional_override' ? 'Functional' : 'DRASCIVS'
+			return this.effectivePermissionSource(card, action) === 'functional_override' ? t('Functional') : t('DRASCIVS')
 		},
 		effectivePermissionRows(card, action) {
 			const source = this.effectivePermissionSource(card, action)
@@ -868,7 +911,7 @@ export default {
 					return {
 						key: roleKey,
 						name: source === 'drasci_default'
-							? (this.drasciByKey[roleKey]?.name || roleKey)
+							? this.drasciRoleName(roleKey, this.drasciByKey[roleKey]?.name)
 							: this.roleNameByKey(roleKey),
 						color: this.effectiveRoleColor(card, action, roleKey),
 						memberNames,
@@ -937,11 +980,11 @@ export default {
 					view: this.defaults.view.map(o => o.value),
 					expectedRevision: Number(this.settings.revision || 0),
 				})
-				showSuccess('Board defaults updated')
+				showSuccess(t('Board defaults updated'))
 				this.showDefaultsModal = false
 				await this.load()
 			} catch (e) {
-				showError(this.errorMessage(e, 'Error saving defaults'))
+				showError(this.errorMessage(e, t('Error saving defaults')))
 			} finally {
 				this.savingDefaults = false
 			}
@@ -952,10 +995,10 @@ export default {
 					expectedRevision: Number(this.settings.revision || 0),
 				})
 				if (response?.revision !== undefined) this.settings.revision = Number(response.revision)
-				showSuccess('Card reset to default')
+				showSuccess(t('Card reset to default'))
 				await this.load()
 			} catch (e) {
-				showError(this.errorMessage(e, 'Error resetting card'))
+				showError(this.errorMessage(e, t('Error resetting card')))
 			}
 		},
 		async saveBulk() {
@@ -989,9 +1032,9 @@ export default {
 				}
 				
 				if (errors > 0) {
-					showError(`${errors} action updates failed. ${this.errorMessage(lastError, '')}`.trim())
+					showError(t('{n} action updates failed. {error}', { n: errors, error: this.errorMessage(lastError, '') }).trim())
 				} else {
-					showSuccess(`Updated ${this.selectedCardIds.length} cards`)
+					showSuccess(t('Updated {n} cards', { n: this.selectedCardIds.length }))
 					this.selectedCardIds = []
 					this.resetBulkEditor()
 				}
@@ -1022,9 +1065,9 @@ export default {
 				}
 				
 				if (errors > 0) {
-					showError(`Failed to reset ${errors} cards. ${this.errorMessage(lastError, '')}`.trim())
+					showError(t('Failed to reset {n} cards. {error}', { n: errors, error: this.errorMessage(lastError, '') }).trim())
 				} else {
-					showSuccess(`Reset ${this.selectedCardIds.length} cards`)
+					showSuccess(t('Reset {n} cards', { n: this.selectedCardIds.length }))
 					this.selectedCardIds = []
 					this.resetBulkEditor()
 				}
@@ -1038,10 +1081,10 @@ export default {
 		async enable() {
 			try {
 				await deckService.enableCardPolicy(this.boardIdNum)
-				showSuccess('Card policies enabled')
+				showSuccess(t('Card policies enabled'))
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error')
+				showError(e?.response?.data?.ocs?.data?.message || t('Error'))
 			}
 		},
 		async addMembership() {
@@ -1055,7 +1098,7 @@ export default {
 					&& String(m.participant) === participant
 					&& Number(m.participantType) === 0)
 				if (existing) {
-					showError('This user is already assigned to this role')
+					showError(t('This user is already assigned to this role'))
 					return
 				}
 
@@ -1066,10 +1109,10 @@ export default {
 				})
 				this.newMembership.role = null
 				this.newMembership.user = null
-				showSuccess('Member added')
+				showSuccess(t('Member added'))
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error adding member')
+				showError(e?.response?.data?.ocs?.data?.message || t('Error adding member'))
 			}
 		},
 		async removeMembership(m) {
@@ -1089,10 +1132,10 @@ export default {
 				}
 
 				this.memberships = this.memberships.filter(x => !idsToDelete.includes(Number(x.id)))
-				showSuccess('Member removed')
+				showSuccess(t('Member removed'))
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error removing member')
+				showError(e?.response?.data?.ocs?.data?.message || t('Error removing member'))
 			}
 		},
 		async createRole() {
@@ -1105,11 +1148,11 @@ export default {
 			try {
 				const raw = await deckService.createCardPolicyRole(this.boardIdNum, { roleKey, name, color })
 				this.unwrap(raw)
-				showSuccess('Role created')
+				showSuccess(t('Role created'))
 				this.resetNewRoleForm()
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error creating role')
+				showError(e?.response?.data?.ocs?.data?.message || t('Error creating role'))
 			} finally {
 				this.creatingRole = false
 			}
@@ -1119,7 +1162,7 @@ export default {
 			const roleKey = String(role?.roleKey || '')
 			if (!roleId || !roleKey) return
 			if (this.deletingRoleId) return
-			if (!confirm(`Delete role "${role.name}"?`)) return
+			if (!confirm(t('Delete role "{name}"?', { name: role.name }))) return
 			this.deletingRoleId = roleId
 			try {
 				await deckService.deleteCardPolicyRole(this.boardIdNum, roleId)
@@ -1135,10 +1178,10 @@ export default {
 					sign: (this.defaults.sign || []).filter(o => o?.value !== roleKey),
 					verify: (this.defaults.verify || []).filter(o => o?.value !== roleKey),
 				}
-				showSuccess('Role deleted')
+				showSuccess(t('Role deleted'))
 				await this.load()
 			} catch (e) {
-				showError(e?.response?.data?.ocs?.data?.message || 'Error deleting role')
+				showError(e?.response?.data?.ocs?.data?.message || t('Error deleting role'))
 			} finally {
 				this.deletingRoleId = null
 			}

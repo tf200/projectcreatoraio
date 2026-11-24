@@ -2,6 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { DRASCIVS, rolesOf, projectRoleOptions, coverage, draftProblem, toggled } from './members.js'
 
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
+
 test('roles are read from the current field and from the older ones', () => {
 	assert.deepEqual(rolesOf({ drascivsRoles: ['driver', 'signer'] }), ['driver', 'signer'])
 	assert.deepEqual(rolesOf({ drasciRoles: ['informed'] }), ['informed'])

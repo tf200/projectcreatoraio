@@ -16,8 +16,12 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class SigningApiController extends Controller {
+	private IL10N $l;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -25,8 +29,10 @@ class SigningApiController extends Controller {
 		private readonly ProjectMapper $projectMapper,
 		private readonly ProjectSigningService $signingService,
 		private readonly ProjectAccessService $access,
+		?IL10N $l = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	#[NoCSRFRequired]
@@ -63,7 +69,7 @@ class SigningApiController extends Controller {
 	private function requireProject(int $projectId): Project {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException('Project not found');
+			throw new OCSNotFoundException($this->l->t('Project not found'));
 		}
 		return $project;
 	}
@@ -71,7 +77,7 @@ class SigningApiController extends Controller {
 	private function assertCanAccessProject(Project $project): string {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$userId = $currentUser->getUID();

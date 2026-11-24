@@ -22,7 +22,7 @@
 				class="hover-guide__chip"
 				:style="{ left: chipX + 'px', top: Math.max(2, headerHeight - weekRowHeight - 24) + 'px' }">
 				<span class="hover-guide__date">{{ dateLabel }}</span>
-				<span class="hover-guide__week-tag">W{{ weekInfo.isoWeek }}</span>
+				<span class="hover-guide__week-tag">{{ t('W{week}', { week: weekInfo.isoWeek }) }}</span>
 				<span class="hover-guide__relative">{{ relativeLabel }}</span>
 			</div>
 		</div>
@@ -30,6 +30,7 @@
 </template>
 
 <script>
+import { t, n, tc, locale } from '../../../new/l10n.mjs'
 import {
 	DAY_MS,
 	addDays,
@@ -93,7 +94,7 @@ export default {
 			return endPx - Math.max(0, startPx)
 		},
 		dateLabel() {
-			return this.hoveredDate.toLocaleDateString('default', {
+			return this.hoveredDate.toLocaleDateString(locale(), {
 				weekday: 'short',
 				day: 'numeric',
 				month: 'short',
@@ -106,6 +107,10 @@ export default {
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		/** @param {number} x pointer position in px relative to the timeline's left edge */
 		setPointerX(x) {
 			if (x < 0 || this.dayWidth <= 0) {

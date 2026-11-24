@@ -2,7 +2,7 @@
 	<section class="project-form">
 		<div v-if="loading" class="project-form__loading">
 			<NcLoadingIcon :size="24" />
-			<span>Loading settings...</span>
+			<span>{{ t('Loading settings...') }}</span>
 		</div>
 		<div v-else-if="error" class="project-form__error-banner">
 			<AlertCircle :size="20" />
@@ -11,7 +11,7 @@
 		<div v-else class="project-form__content">
 			<div v-if="!canEdit" class="project-form__info-banner">
 				<InformationOutline :size="20" />
-				Read-only: only project managers can update these settings.
+				{{ t('Read-only: only project managers can update these settings.') }}
 			</div>
 
 			<div class="project-form__questions">
@@ -52,7 +52,7 @@
 			<footer class="project-form__footer">
 				<div class="project-form__summary">
 					<div v-if="isDirty" class="project-form__dirty-indicator">
-						You have unsaved changes
+						{{ t('You have unsaved changes') }}
 					</div>
 				</div>
 
@@ -74,7 +74,7 @@
 							<ContentSave v-if="!saving" :size="18" />
 							<NcLoadingIcon v-else :size="18" />
 						</template>
-						{{ saving ? 'Saving...' : 'Save configuration' }}
+						{{ saving ? t('Saving...') : t('Save configuration') }}
 					</NcButton>
 				</div>
 			</footer>
@@ -90,6 +90,7 @@ import CheckCircle from 'vue-material-design-icons/CheckCircle.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import ContentSave from 'vue-material-design-icons/ContentSave.vue'
 import { ProjectsService } from '../Services/projects.js'
+import { t } from '../new/l10n.mjs'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -149,6 +150,7 @@ export default {
 		},
 	},
 	methods: {
+		t,
 		isFieldDirty(field) {
 			return this.answers[field] !== this.initialAnswers[field]
 		},
@@ -201,7 +203,7 @@ export default {
 				this.answers = normalizedAnswers
 				this.initialAnswers = { ...normalizedAnswers }
 			} catch (e) {
-				this.error = e?.response?.data?.message || 'Could not load configuration settings.'
+				this.error = e?.response?.data?.message || t('Could not load configuration settings.')
 			} finally {
 				this.loading = false
 			}
@@ -223,9 +225,9 @@ export default {
 				this.initialAnswers = { ...normalizedAnswers }
 
 				const updatedCount = Number(payload?.deck_cards_updated || 0)
-				this.successMessage = `Configuration saved. ${updatedCount} deck card(s) updated.`
+				this.successMessage = t('Configuration saved. {n} deck card(s) updated.', { n: updatedCount })
 			} catch (e) {
-				this.saveError = e?.response?.data?.message || 'Could not save configuration settings.'
+				this.saveError = e?.response?.data?.message || t('Could not save configuration settings.')
 			} finally {
 				this.saving = false
 			}

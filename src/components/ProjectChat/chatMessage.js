@@ -1,5 +1,7 @@
 // Turns Talk's rich message parameters into NcRichText arguments, the way Talk's own chat does.
 
+import { formatNumber } from '../../new/l10n.mjs'
+
 const MENTION_TYPES = ['user', 'guest', 'call', 'user-group', 'group', 'email', 'federated_user', 'circle', 'team']
 
 export function isMention(parameter) {
@@ -71,7 +73,8 @@ export function fileSizeLabel(bytes) {
 		size /= 1024
 		unit++
 	}
-	return `${unit === 0 ? size : size.toFixed(1)} ${units[unit]}`
+	// 1.5 KB in English, 1,5 KB in Dutch.
+	return `${unit === 0 ? size : formatNumber(size)} ${units[unit]}`
 }
 
 const MEDIA_KINDS = {

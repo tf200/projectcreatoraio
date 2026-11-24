@@ -15,16 +15,25 @@ use OCP\Files\File;
 use OCP\Files\IRootFolder;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 class FileProcessingPipelineService
 {
+    private IL10N $l;
+
+    private DefaultLanguageL10n $contentL10n;
+
     public function __construct(
         private readonly ProjectFileProcessingMapper $processingMapper,
         private readonly OrganizationDocumentTypeMapper $documentTypeMapper,
         private readonly IRootFolder $rootFolder,
         private readonly DocumentExtractionService $documentExtractionService,
         private readonly LoggerInterface $logger,
+        ?IL10N $l = null,
+        ?DefaultLanguageL10n $contentL10n = null,
     ) {
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
+        $this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
     }
 
     public function processPending(int $limit = 5): int
@@ -80,7 +89,7 @@ class FileProcessingPipelineService
             }
         }
 
-        throw new OCSException('OCR source file no longer exists.', 404);
+        throw new OCSException($this->l->t('OCR source file no longer exists.'), 404);
     }
 
     private function resolveDocumentType(ProjectFileProcessing $record): OrganizationDocumentType
@@ -88,7 +97,7 @@ class FileProcessingPipelineService
         $documentTypeId = (int) ($record->getDocumentTypeId() ?? 0);
         $documentType = $this->documentTypeMapper->find($documentTypeId);
         if ($documentType === null) {
-            throw new OCSNotFoundException('Document type definition not found.');
+            throw new OCSNotFoundException($this->l->t('Document type definition not found.'));
         }
 
         return $documentType;
@@ -156,7 +165,8 @@ class FileProcessingPipelineService
     {
         $message = trim($message);
         if ($message === '') {
-            return 'OCR processing failed.';
+            // Stored on the processing record and shown to every project member.
+            return $this->contentL10n->get()->t('OCR processing failed.');
         }
 
         return substr($message, 0, 2000);
@@ -173,7 +183,7 @@ class FileProcessingPipelineService
         foreach ($parsed as $fieldName => $payload) {
             $value = is_array($payload) ? ($payload['value'] ?? null) : null;
             if (!is_scalar($value) || trim((string) $value) === '') {
-                $missing[] = is_string($fieldName) && trim($fieldName) !== '' ? $fieldName : 'Unknown field';
+                $missing[] = is_string($fieldName) && trim($fieldName) !== '' ? $fieldName : $this->contentL10n->get()->t('Unknown field');
             }
         }
 
@@ -188,6 +198,7 @@ class FileProcessingPipelineService
         $preview = implode(', ', array_slice($missingFields, 0, 5));
         $suffix = count($missingFields) > 5 ? ', ...' : '';
 
-        return sprintf('Processing aborted. Missing required fields: %s%s.', $preview, $suffix);
+        // Stored on the processing record and shown to every project member.
+        return $this->contentL10n->get()->t('Processing aborted. Missing required fields: %s%s.', [$preview, $suffix]);
     }
 }

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import * as cal from './calendar.js'
 
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
+
 process.env.TZ = 'UTC'
 const now = Date.parse('2026-10-02T12:00:00Z')
 

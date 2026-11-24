@@ -37,6 +37,8 @@ use OCA\ProjectCreatorAIO\Listener\TalkEventListener;
 use OCA\ProjectCreatorAIO\Listener\WhiteboardWrittenListener;
 use OCA\ProjectCreatorAIO\Notification\Notifier;
 use OCA\ProjectCreatorAIO\Service\DeckDefaultCardsService;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 use OCA\ProjectCreatorAIO\Service\DeckCardScheduleService;
 use OCA\ProjectCreatorAIO\Service\FileProcessingPipelineService;
 use OCA\ProjectCreatorAIO\Service\ProjectDeckActivityService;
@@ -215,6 +217,7 @@ class Application extends App implements IBootstrap {
 				$c->get(BoardService::class),
 				$c->get(LoggerInterface::class),
 				$c->get(IDBConnection::class),
+				$c->get(DefaultLanguageL10n::class),
 			);
 		});
 
@@ -224,6 +227,7 @@ class Application extends App implements IBootstrap {
 			return new DeckCardScheduleService(
 				$deckEnabled ? $c->get(CardMapper::class) : null,
 				$deckEnabled ? $c->get(CardService::class) : null,
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -240,6 +244,8 @@ class Application extends App implements IBootstrap {
 				$c->get(ICommentsManager::class),
 				$c->get(IL10NFactory::class),
 				$c->get(LoggerInterface::class),
+				$c->get(IL10N::class),
+				$c->get(DefaultLanguageL10n::class),
 			);
 		});
 
@@ -286,6 +292,9 @@ class Application extends App implements IBootstrap {
 				$c->get(ProjectDirectChatMapper::class),
 				$c->get(ProjectMemberResolver::class),
 				$c->get(ProjectMemberSourceMapper::class),
+				$c->get(IL10N::class),
+				$c->get(DefaultLanguageL10n::class),
+				$c->get(TimelinePlanningService::class),
 			);
 		});
 
@@ -322,6 +331,7 @@ class Application extends App implements IBootstrap {
 				$deckEnabled ? $c->get(PermissionService::class) : null,
 				$c->get(IUserManager::class),
 				$c->get(LoggerInterface::class),
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -329,6 +339,7 @@ class Application extends App implements IBootstrap {
 			return new ProjectActivityAggregationService(
 				$c->get(ProjectActivityEventMapper::class),
 				$c->get(NativeDeckActivityReader::class),
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -343,6 +354,7 @@ class Application extends App implements IBootstrap {
 				$c->get(IGroupManager::class),
 				$organizationEnabled ? $c->get(OrganizationUserMapper::class) : null,
 				$externalsEnabled ? $c->get(ExternalCollaboratorService::class) : null,
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -360,6 +372,7 @@ class Application extends App implements IBootstrap {
 				$c->get(IUserSession::class),
 				$c->get(LoggerInterface::class),
 				$deckEnabled ? $c->get(BoardService::class) : null,
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -378,6 +391,7 @@ class Application extends App implements IBootstrap {
 				$c->get(LoggerInterface::class),
 				$organizationEnabled && class_exists(TeamService::class) ? $c->get(TeamService::class) : null,
 				$organizationEnabled && class_exists(ExternalCollaboratorService::class) ? $c->get(ExternalCollaboratorService::class) : null,
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -393,6 +407,7 @@ class Application extends App implements IBootstrap {
 				$c->get(ProjectService::class),
 				$c->get(ProjectAccessService::class),
 				$externalsEnabled ? $c->get(ExternalCollaboratorService::class) : null,
+				$c->get(IL10N::class),
 			);
 		});
 
@@ -435,6 +450,8 @@ class Application extends App implements IBootstrap {
 				$c->get(IDBConnection::class),
 				$c->get(LoggerInterface::class),
 				$c->get(TimelinePhaseService::class),
+				$c->get(IL10N::class),
+				$c->get(DefaultLanguageL10n::class),
 			);
 		});
 
@@ -485,6 +502,8 @@ class Application extends App implements IBootstrap {
 				$deckEnabled ? $c->get(CardMapper::class) : null,
 				$deckEnabled ? $c->get(StackMapper::class) : null,
 				$c->get(ProjectAccessService::class),
+				$c->get(IL10N::class),
+				$c->get(DefaultLanguageL10n::class),
 			);
 		});
 		$context->registerService(BoardPermissionProfileMapper::class, fn(ContainerInterface $c) => new BoardPermissionProfileMapper($c->get(IDBConnection::class)));
@@ -493,12 +512,14 @@ class Application extends App implements IBootstrap {
 			return new BoardPermissionProfileService($c->get(IDBConnection::class), $c->get(BoardPermissionProfileMapper::class),
 				$c->get(BoardPolicySettingMapper::class), $c->get(BoardPolicyRoleMapper::class), $c->get(BoardPolicyDefaultDrasciMapper::class),
 				$c->get(CardPolicyMapper::class), $c->get(CardPolicyOverrideMapper::class), $c->get(CardPolicyRoleMapper::class),
-				$deck ? $c->get(StackService::class) : null, $deck ? $c->get(CardService::class) : null, $deck ? $c->get(StackMapper::class) : null);
+				$deck ? $c->get(StackService::class) : null, $deck ? $c->get(CardService::class) : null, $deck ? $c->get(StackMapper::class) : null,
+				$c->get(IL10N::class));
 		});
 		$context->registerService(BoardPermissionProfileApiController::class, function (ContainerInterface $c) {
 			return new BoardPermissionProfileApiController(self::APP_ID, $c->get(\OCP\IRequest::class),
 				$c->get(BoardPermissionProfileMapper::class), $c->get(BoardPermissionProfileService::class), $c->get(ProjectMapper::class),
-				$c->get(CardPolicyService::class), $c->get(IUserSession::class), $c->get(ProjectAccessService::class));
+				$c->get(CardPolicyService::class), $c->get(IUserSession::class), $c->get(ProjectAccessService::class),
+				$c->get(IL10N::class));
 		});
 
 		$context->registerService(PolicyApiController::class, function (ContainerInterface $c) {
@@ -518,7 +539,9 @@ class Application extends App implements IBootstrap {
 				$c->get(CardPolicyService::class),
 				$c->get(IUserSession::class),
 				$c->get(IDBConnection::class),
-				$deckEnabled ? $c->get(CardMapper::class) : null
+				$deckEnabled ? $c->get(CardMapper::class) : null,
+				$c->get(IL10N::class),
+				$c->get(DefaultLanguageL10n::class),
 			);
 		});
 
@@ -529,6 +552,7 @@ class Application extends App implements IBootstrap {
 				$c->get(IDBConnection::class),
 				$c->get(LoggerInterface::class),
 				$c->get(ProjectNoteMapper::class),
+				$c->get(DefaultLanguageL10n::class),
 			);
 		});
 
@@ -619,6 +643,7 @@ class Application extends App implements IBootstrap {
 				$c->get(IRootFolder::class),
 				$c->get(IUserManager::class),
 				$c->get(LoggerInterface::class),
+				$c->get(IL10NFactory::class),
 			);
 		});
 

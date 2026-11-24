@@ -17,6 +17,7 @@
 import { CanceledError } from 'axios'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import { OrganizationsService } from '../Services/organizations'
+import { t } from '../new/l10n.mjs'
 
 function debounce(fn, delay) {
 	let timeoutId
@@ -43,11 +44,12 @@ export default {
 		},
 		inputLabel: {
 			type: String,
-			default: 'Organization',
+			// A factory, so the label is translated when the component is used.
+			default: () => t('Organization'),
 		},
 		placeholder: {
 			type: String,
-			default: 'Search for an organization...',
+			default: () => t('Search for an organization...'),
 		},
 	},
 	data() {

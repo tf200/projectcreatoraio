@@ -1,5 +1,6 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { t } from './l10n.mjs'
 
 // Keep errors visible in the new UI without changing legacy service semantics.
 async function get(path, params) {
@@ -48,7 +49,7 @@ export function actionMessage(error, fallback) {
 	return typeof message === 'string' && message.trim() ? message : fallback
 }
 export function errorMessage(error) {
-	if (error?.response?.status === 403) return 'You do not have access to this data.'
-	if (error?.response?.status === 404) return 'This project is unavailable or you do not have access.'
-	return 'The data could not be loaded. Please try again.'
+	if (error?.response?.status === 403) return t('You do not have access to this data.')
+	if (error?.response?.status === 404) return t('This project is unavailable or you do not have access.')
+	return t('The data could not be loaded. Please try again.')
 }

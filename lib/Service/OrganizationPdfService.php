@@ -10,20 +10,26 @@ use OCP\Files\SimpleFS\ISimpleFolder;
 use Psr\Log\LoggerInterface;
 use InvalidArgumentException;
 use Throwable;
+use OCP\IL10N;
 
 class OrganizationPdfService
 {
     private const PDF_FILE_NAME = 'default_project.pdf';
     private const PDF_DISPLAY_NAME_FILE_NAME = 'default_project_filename.txt';
-    private const FALLBACK_PDF_FILE_NAME = 'Welcome_Document.pdf';
 
     private IAppData $appData;
     private LoggerInterface $logger;
 
-    public function __construct(IAppData $appData, LoggerInterface $logger)
+    private IL10N $l;
+
+    private DefaultLanguageL10n $contentL10n;
+
+    public function __construct(IAppData $appData, LoggerInterface $logger, ?IL10N $l = null, ?DefaultLanguageL10n $contentL10n = null)
     {
         $this->appData = $appData;
         $this->logger = $logger;
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
+        $this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
     }
 
     /**
@@ -88,7 +94,8 @@ class OrganizationPdfService
             }
         }
 
-        return self::FALLBACK_PDF_FILE_NAME;
+        // Placed in project folders shared by all members: server default language.
+        return $this->contentL10n->get()->t('Welcome_Document.pdf');
     }
 
     /**
@@ -98,14 +105,14 @@ class OrganizationPdfService
     {
         $fileName = trim($fileName);
         if ($fileName === '') {
-            throw new InvalidArgumentException('A filename is required.');
+            throw new InvalidArgumentException($this->l->t('A filename is required.'));
         }
 
         if ($fileName === '.' || $fileName === '..'
             || str_contains($fileName, '/')
             || str_contains($fileName, '\\')
             || preg_match('/[\x00-\x1F\x7F]/', $fileName) === 1) {
-            throw new InvalidArgumentException('The filename contains invalid characters.');
+            throw new InvalidArgumentException($this->l->t('The filename contains invalid characters.'));
         }
 
         if (!preg_match('/\.pdf$/i', $fileName)) {
@@ -113,7 +120,7 @@ class OrganizationPdfService
         }
 
         if (strlen($fileName) > 255) {
-            throw new InvalidArgumentException('The filename is too long.');
+            throw new InvalidArgumentException($this->l->t('The filename is too long.'));
         }
 
         return $fileName;

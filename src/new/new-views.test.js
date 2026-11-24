@@ -2,6 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
+
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
 
 // NewIntake and NewActivity extend the components the current interface uses,
 // so the tests load both scripts and merge them the way Vue's `extends` does.
@@ -11,7 +15,7 @@ function load(file, sandbox) {
 		.replace(/^import .*$/gm, '')
 		.replace(/^\tcomponents: \{[\s\S]*?^\t\},$/m, '')
 		.replace('export default', 'globalThis.component =')
-	const context = { console: { error() {} }, ...sandbox }
+	const context = { ...l10n, console: { error() {} }, ...sandbox }
 	vm.runInNewContext(script, context)
 	return context.component
 }

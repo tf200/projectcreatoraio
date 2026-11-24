@@ -15,12 +15,16 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 /**
  * Hands a project to another owner. The current owner and the organization's
  * administrators may do so.
  */
 class ProjectOwnerApiController extends Controller {
+	private IL10N $l;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -28,8 +32,10 @@ class ProjectOwnerApiController extends Controller {
 		private ProjectMapper $projectMapper,
 		private ProjectAccessService $access,
 		private ProjectOwnershipService $ownership,
+		?IL10N $l = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	#[NoAdminRequired]
@@ -37,16 +43,16 @@ class ProjectOwnerApiController extends Controller {
 		try {
 			$user = $this->userSession->getUser();
 			if ($user === null) {
-				throw new OCSForbiddenException('Authentication required');
+				throw new OCSForbiddenException($this->l->t('Authentication required'));
 			}
 			$project = $this->projectMapper->find($projectId);
 			if ($project === null) {
-				throw new OCSNotFoundException('Project not found');
+				throw new OCSNotFoundException($this->l->t('Project not found'));
 			}
 			$this->access->assertCanView($user->getUID(), $project);
 			$isOwner = trim((string)$project->getOwnerId()) === $user->getUID();
 			if (!$isOwner && !$this->access->canAdminister($user->getUID(), $project)) {
-				throw new OCSForbiddenException('Only the project owner and organization administrators can change the owner.');
+				throw new OCSForbiddenException($this->l->t('Only the project owner and organization administrators can change the owner.'));
 			}
 
 			return new DataResponse($this->ownership->transfer($project, $userId));

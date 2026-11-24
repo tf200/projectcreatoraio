@@ -16,8 +16,12 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class BoardPermissionProfileApiController extends Controller {
+	private IL10N $l;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -27,8 +31,10 @@ class BoardPermissionProfileApiController extends Controller {
 		private readonly CardPolicyService $policyService,
 		private readonly IUserSession $userSession,
 		private readonly ProjectAccessService $access,
+		?IL10N $l = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	#[NoAdminRequired]
@@ -97,7 +103,7 @@ class BoardPermissionProfileApiController extends Controller {
 			[$organizationId, $uid, $organizationAdmin] = $this->context($boardId);
 			$profile = $this->profile($organizationId, $profileId);
 			if ($profile->getCreatorUid() !== $uid && !$organizationAdmin) {
-				throw new \RuntimeException('FORBIDDEN: Only the creator or an organization administrator may delete this profile.');
+				throw new \RuntimeException('FORBIDDEN: ' . $this->l->t('Only the creator or an organization administrator may delete this profile.'));
 			}
 			$this->service->deleteMappings((int)$profile->getId());
 			$this->profileMapper->delete($profile);
@@ -108,33 +114,33 @@ class BoardPermissionProfileApiController extends Controller {
 	private function context(int $boardId): array {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new \RuntimeException('FORBIDDEN: Authentication required.');
+			throw new \RuntimeException('FORBIDDEN: ' . $this->l->t('Authentication required.'));
 		}
 		$project = $this->projectMapper->findByBoardId($boardId);
 		$organizationId = $project?->getOrganizationId();
 		if ($organizationId === null) {
-			throw new \RuntimeException('NOT_FOUND: Board is not associated with an organization.');
+			throw new \RuntimeException('NOT_FOUND: ' . $this->l->t('Board is not associated with an organization.'));
 		}
 		$uid = $user->getUID();
 		if ($this->access->isGlobalAdmin($uid)) {
 			return [(int)$organizationId, $uid, true];
 		}
 		if (!$this->access->belongsToOrganization($uid, (int)$organizationId)) {
-			throw new \RuntimeException('NOT_FOUND: Board not found.');
+			throw new \RuntimeException('NOT_FOUND: ' . $this->l->t('Board not found.'));
 		}
 		return [(int)$organizationId, $uid, $this->access->isOrganizationAdmin($uid, (int)$organizationId)];
 	}
 
 	private function assertManager(int $boardId, string $uid): void {
 		if (!$this->policyService->isBypassUser($boardId, $uid)) {
-			throw new \RuntimeException('FORBIDDEN: Board policy management permission is required.');
+			throw new \RuntimeException('FORBIDDEN: ' . $this->l->t('Board policy management permission is required.'));
 		}
 	}
 
 	private function profile(int $organizationId, int $profileId): BoardPermissionProfile {
 		$profile = $this->profileMapper->find($profileId);
 		if ($profile === null || (int)$profile->getOrganizationId() !== $organizationId) {
-			throw new \RuntimeException('NOT_FOUND: Profile not found.');
+			throw new \RuntimeException('NOT_FOUND: ' . $this->l->t('Profile not found.'));
 		}
 		return $profile;
 	}
@@ -147,6 +153,7 @@ class BoardPermissionProfileApiController extends Controller {
 		return $data;
 	}
 
+	/** Messages carry a fixed status code prefix (FORBIDDEN:, NOT_FOUND:); only the text after it is translated. */
 	private function run(callable $callback, int $status = Http::STATUS_OK): JSONResponse {
 		try {
 			return new JSONResponse($callback(), $status);

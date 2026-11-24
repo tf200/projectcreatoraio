@@ -26,9 +26,15 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class TimelineApiController extends Controller
 {
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -44,8 +50,12 @@ class TimelineApiController extends Controller
 		private TimelineScenarioApplyService $scenarioApplyService,
 		private TimelineScenarioLibraryService $scenarioLibrary,
 		private ProjectAccessService $access,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
     #[NoAdminRequired]
@@ -147,7 +157,7 @@ class TimelineApiController extends Controller
 
             $expected = $this->request->getParam('expectedDeckCardUpdates');
             if ($expected !== null && !is_array($expected)) {
-                throw new \InvalidArgumentException('Expected Deck card updates must be a list');
+                throw new \InvalidArgumentException($this->l->t('Expected Deck card updates must be a list'));
             }
 
             $result = $this->scenarioApplyService->apply($project, $this->scenarioChanges(), $expected, $this->userSession->getUser());
@@ -200,7 +210,7 @@ class TimelineApiController extends Controller
 
             $changes = $this->request->getParam('changes');
             if ($changes !== null && !is_array($changes)) {
-                throw new \InvalidArgumentException('Scenario changes must be a list');
+                throw new \InvalidArgumentException($this->l->t('Scenario changes must be a list'));
             }
 
             return new JSONResponse($this->scenarioLibrary->update($project, $this->requireUser(), $scenarioId, $this->request->getParam('name'), $changes));
@@ -227,7 +237,7 @@ class TimelineApiController extends Controller
     {
         $user = $this->userSession->getUser();
         if ($user === null) {
-            throw new OCSForbiddenException('Not logged in');
+            throw new OCSForbiddenException($this->l->t('Not logged in'));
         }
         return $user;
     }
@@ -237,7 +247,7 @@ class TimelineApiController extends Controller
     {
         $changes = $this->request->getParam('changes', []);
         if (!is_array($changes)) {
-            throw new \InvalidArgumentException('Scenario changes must be a list');
+            throw new \InvalidArgumentException($this->l->t('Scenario changes must be a list'));
         }
         return $changes;
     }
@@ -275,39 +285,43 @@ class TimelineApiController extends Controller
                 } elseif (is_numeric($value) && (int) $value == $value && (int) $value >= 0 && (int) $value <= 520) {
                     $project->setExecutionWeeks((int) $value);
                 } else {
-                    throw new \InvalidArgumentException('Execution weeks must be a whole number between 0 and 520');
+                    throw new \InvalidArgumentException($this->l->t('Execution weeks must be a whole number between 0 and 520'));
                 }
+            }
+
+            if ($requiredPreparationWeeks !== null) {
+                if ($requiredPreparationWeeks < 0 || $requiredPreparationWeeks > 520) {
+                    throw new \InvalidArgumentException($this->l->t('Preparation weeks must be a whole number between 0 and 520'));
+                }
+                $project->setRequiredPreparationWeeks($requiredPreparationWeeks);
             }
 
             $changed = [];
             if (array_key_exists('actual_handover_date', $params)) {
-                $project->setActualHandoverDate(TimelineDates::parse($params['actual_handover_date'], TimelineDates::HANDOVER));
+                $project->setActualHandoverDate(TimelineDates::parse($params['actual_handover_date'], TimelineDates::HANDOVER, $this->l));
                 $changed[] = TimelineDates::HANDOVER;
             }
 
             if (array_key_exists('actual_end_date', $params)) {
-                $project->setActualEndDate(TimelineDates::parse($params['actual_end_date'], TimelineDates::ACTUAL_END));
+                $project->setActualEndDate(TimelineDates::parse($params['actual_end_date'], TimelineDates::ACTUAL_END, $this->l));
                 $changed[] = TimelineDates::ACTUAL_END;
             }
 
             if ($desiredStartDate !== null) {
-                $project->setDesiredStartDate(TimelineDates::parse($desiredStartDate, TimelineDates::DESIRED_START));
+                $project->setDesiredStartDate(TimelineDates::parse($desiredStartDate, TimelineDates::DESIRED_START, $this->l));
                 $changed[] = TimelineDates::DESIRED_START;
             }
 
             if ($actualStartDate !== null) {
-                $project->setActualStartDate(TimelineDates::parse($actualStartDate, TimelineDates::ACTUAL_START));
+                $project->setActualStartDate(TimelineDates::parse($actualStartDate, TimelineDates::ACTUAL_START, $this->l));
                 $changed[] = TimelineDates::ACTUAL_START;
             }
 
-            TimelineDates::assertInOrder($project, $changed);
-
-            if ($requiredPreparationWeeks !== null) {
-                if ($requiredPreparationWeeks < 0 || $requiredPreparationWeeks > 520) {
-                    throw new \InvalidArgumentException('Preparation weeks must be a whole number between 0 and 520');
-                }
-                $project->setRequiredPreparationWeeks($requiredPreparationWeeks);
-            }
+            // The desired start can't be planned before the work can start.
+            $minimumStart = in_array(TimelineDates::DESIRED_START, $changed, true)
+                ? $this->planningService->buildSummary($project)['minimumStartDate'] ?? null
+                : null;
+            TimelineDates::assertInOrder($project, $changed, $this->l, $minimumStart);
 
             $this->projectMapper->updateProjectDetails($project);
             $this->syncSystemTimelineItems($project);
@@ -325,10 +339,10 @@ class TimelineApiController extends Controller
 			$project = $this->requireProject($projectId);
 			$this->assertCanManageTimelineProject($project);
 
-			$start = TimelineDates::parse($startDate, 'start date') ?? throw new \InvalidArgumentException('Missing start date');
-			$end = TimelineDates::parse($endDate, 'end date') ?? throw new \InvalidArgumentException('Missing end date');
+			$start = TimelineDates::parse($startDate, $this->l->t('start date'), $this->l) ?? throw new \InvalidArgumentException($this->l->t('Missing start date'));
+			$end = TimelineDates::parse($endDate, $this->l->t('end date'), $this->l) ?? throw new \InvalidArgumentException($this->l->t('Missing end date'));
 			if ($end < $start) {
-				throw new \InvalidArgumentException('End date cannot be before start date');
+				throw new \InvalidArgumentException($this->l->t('End date cannot be before start date'));
 			}
 			$durationDays = (int)$start->diff($end)->days + 1;
 			$this->deckCardScheduleService->assertCardCanBeRescheduled($project, $cardId);
@@ -365,7 +379,7 @@ class TimelineApiController extends Controller
 				}
 			}
 		}
-		throw new \InvalidArgumentException('Deck card is not part of this timeline');
+		throw new \InvalidArgumentException($this->l->t('Deck card is not part of this timeline'));
 	}
 
 	#[NoAdminRequired]
@@ -386,22 +400,22 @@ class TimelineApiController extends Controller
 
             $label = trim($label);
             if ($label === '') {
-                return new JSONResponse(['error' => 'Missing label'], Http::STATUS_BAD_REQUEST);
+                return new JSONResponse(['error' => $this->l->t('Missing label')], Http::STATUS_BAD_REQUEST);
             }
 
-            $startDate = $this->normalizeDateParamToNull($startDate, 'start date');
-            $endDate = $this->normalizeDateParamToNull($endDate, 'end date');
+            $startDate = $this->normalizeDateParamToNull($startDate, $this->l->t('start date'));
+            $endDate = $this->normalizeDateParamToNull($endDate, $this->l->t('end date'));
 
             $itemType = strtolower(trim((string) $itemType));
             if ($itemType === '') {
                 $itemType = 'phase';
             }
             if (!in_array($itemType, ['phase', 'milestone'], true)) {
-                return new JSONResponse(['error' => 'Invalid item type'], Http::STATUS_BAD_REQUEST);
+                return new JSONResponse(['error' => $this->l->t('Invalid item type')], Http::STATUS_BAD_REQUEST);
             }
 
             if ($startDate === null) {
-                return new JSONResponse(['error' => 'Missing start date'], Http::STATUS_BAD_REQUEST);
+                return new JSONResponse(['error' => $this->l->t('Missing start date')], Http::STATUS_BAD_REQUEST);
             }
 
             if ($itemType === 'milestone') {
@@ -412,7 +426,7 @@ class TimelineApiController extends Controller
                 $start = new DateTime($startDate);
                 $end = new DateTime($endDate);
                 if ($end < $start) {
-                    return new JSONResponse(['error' => 'End date cannot be before start date'], Http::STATUS_BAD_REQUEST);
+                    return new JSONResponse(['error' => $this->l->t('End date cannot be before start date')], Http::STATUS_BAD_REQUEST);
                 }
             }
 
@@ -452,11 +466,11 @@ class TimelineApiController extends Controller
 
             $item = $this->mapper->find($id);
             if ($item === null) {
-                return new JSONResponse(['error' => 'Timeline item not found'], Http::STATUS_NOT_FOUND);
+                return new JSONResponse(['error' => $this->l->t('Timeline item not found')], Http::STATUS_NOT_FOUND);
             }
 
             if ($item->getProjectId() !== $projectId) {
-                return new JSONResponse(['error' => 'Item does not belong to this project'], Http::STATUS_FORBIDDEN);
+                return new JSONResponse(['error' => $this->l->t('Item does not belong to this project')], Http::STATUS_FORBIDDEN);
             }
 
             $isSystemItem = (string) ($item->getSystemKey() ?? '') !== '';
@@ -464,7 +478,7 @@ class TimelineApiController extends Controller
             if (!$isSystemItem && $label !== null) {
                 $nextLabel = trim($label);
                 if ($nextLabel === '') {
-                    return new JSONResponse(['error' => 'Missing label'], Http::STATUS_BAD_REQUEST);
+                    return new JSONResponse(['error' => $this->l->t('Missing label')], Http::STATUS_BAD_REQUEST);
                 }
                 $item->setLabel($nextLabel);
             }
@@ -472,8 +486,8 @@ class TimelineApiController extends Controller
             $clearStart = $startDate !== null && trim($startDate) === '';
             $clearEnd = $endDate !== null && trim($endDate) === '';
 
-            $startDate = $this->normalizeDateParamToNull($startDate, 'start date');
-            $endDate = $this->normalizeDateParamToNull($endDate, 'end date');
+            $startDate = $this->normalizeDateParamToNull($startDate, $this->l->t('start date'));
+            $endDate = $this->normalizeDateParamToNull($endDate, $this->l->t('end date'));
 
             if ($startDate !== null) {
                 $item->setStartDate(new DateTime($startDate));
@@ -496,7 +510,7 @@ class TimelineApiController extends Controller
                     $nextType = 'phase';
                 }
                 if (!in_array($nextType, ['phase', 'milestone'], true)) {
-                    return new JSONResponse(['error' => 'Invalid item type'], Http::STATUS_BAD_REQUEST);
+                    return new JSONResponse(['error' => $this->l->t('Invalid item type')], Http::STATUS_BAD_REQUEST);
                 }
                 $item->setItemType($nextType);
             }
@@ -516,7 +530,7 @@ class TimelineApiController extends Controller
             $start = $item->getStartDate();
             $end = $item->getEndDate();
             if ($start instanceof DateTime && $end instanceof DateTime && $end < $start) {
-                return new JSONResponse(['error' => 'End date cannot be before start date'], Http::STATUS_BAD_REQUEST);
+                return new JSONResponse(['error' => $this->l->t('End date cannot be before start date')], Http::STATUS_BAD_REQUEST);
             }
 
             $updatedItem = $this->mapper->updateItem($item);
@@ -531,7 +545,7 @@ class TimelineApiController extends Controller
     /** A YYYY-MM-DD day, or null when empty. */
     private function normalizeDateParamToNull(?string $value, string $label): ?string
     {
-        return TimelineDates::parse($value, $label)?->format('Y-m-d');
+        return TimelineDates::parse($value, $label, $this->l)?->format('Y-m-d');
     }
 
     /**
@@ -545,7 +559,7 @@ class TimelineApiController extends Controller
             $this->assertCanManageTimelineProject($project);
 
             if ($ids === []) {
-                return new JSONResponse(['error' => 'Missing ids'], Http::STATUS_BAD_REQUEST);
+                return new JSONResponse(['error' => $this->l->t('Missing ids')], Http::STATUS_BAD_REQUEST);
             }
 
             $items = $this->mapper->reorderItems($projectId, $ids);
@@ -572,10 +586,11 @@ class TimelineApiController extends Controller
 			$earliest = trim((string) ($summary['earliestExecutionDate'] ?? ''));
 
 			if ($requestDate !== '') {
+				// Stored timeline items are shared by the project: labels in the server default language.
 				$this->upsertSystemItem(
 					$projectId,
 					'request_date',
-					'Request Date',
+					$this->contentL10n->get()->t('Request Date'),
 					$requestDate,
 					$requestDate,
 					'#0f172a',
@@ -589,7 +604,7 @@ class TimelineApiController extends Controller
 				$this->upsertSystemItem(
 					$projectId,
 					'process_completed',
-					'Process Completed',
+					$this->contentL10n->get()->t('Process Completed'),
 					$requestDate,
 					$isComplete ? $processDate : null,
 					$isComplete ? '#10b981' : '#f59e0b',
@@ -602,7 +617,7 @@ class TimelineApiController extends Controller
 				$this->upsertSystemItem(
 					$projectId,
 					'prep_time',
-					'Prep Time',
+					$this->contentL10n->get()->t('Prep Time'),
 					$processDate,
 					$earliest,
 					'#3b82f6',
@@ -617,7 +632,7 @@ class TimelineApiController extends Controller
 				$this->upsertSystemItem(
 					$projectId,
 					'deck_schedule',
-					'Project Timeline',
+					$this->contentL10n->get()->t('Project Timeline'),
 					$deckDateBounds['startDate'],
 					$deckDateBounds['endDate'],
 					'#8b5cf6',
@@ -682,15 +697,15 @@ class TimelineApiController extends Controller
 
             $item = $this->mapper->find($id);
             if ($item === null) {
-                return new JSONResponse(['error' => 'Timeline item not found'], Http::STATUS_NOT_FOUND);
+                return new JSONResponse(['error' => $this->l->t('Timeline item not found')], Http::STATUS_NOT_FOUND);
             }
 
             if ($item->getProjectId() !== $projectId) {
-                return new JSONResponse(['error' => 'Item does not belong to this project'], Http::STATUS_FORBIDDEN);
+                return new JSONResponse(['error' => $this->l->t('Item does not belong to this project')], Http::STATUS_FORBIDDEN);
             }
 
             if ((string) ($item->getSystemKey() ?? '') !== '') {
-                return new JSONResponse(['error' => 'System timeline items cannot be deleted'], Http::STATUS_FORBIDDEN);
+                return new JSONResponse(['error' => $this->l->t('System timeline items cannot be deleted')], Http::STATUS_FORBIDDEN);
             }
 
             $this->mapper->delete($item);
@@ -705,7 +720,7 @@ class TimelineApiController extends Controller
     {
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
-            throw new OCSNotFoundException('Project not found');
+            throw new OCSNotFoundException($this->l->t('Project not found'));
         }
 
         return $project;
@@ -715,7 +730,7 @@ class TimelineApiController extends Controller
     {
         $currentUser = $this->userSession->getUser();
         if ($currentUser === null) {
-            throw new OCSForbiddenException('Authentication required');
+            throw new OCSForbiddenException($this->l->t('Authentication required'));
         }
 
         $this->access->assertCanView($currentUser->getUID(), $project);

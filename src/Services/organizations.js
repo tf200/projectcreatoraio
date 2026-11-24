@@ -1,5 +1,6 @@
 import axios from '@nextcloud/axios'
 import { generateOcsUrl } from '@nextcloud/router'
+import { t } from '../new/l10n.mjs'
 
 export class OrganizationsService {
     static instance = null;
@@ -35,7 +36,7 @@ export class OrganizationsService {
         return organizations.map((org) => ({
             id: Number(org.id),
             label: org.displayname,
-            subname: `Organization ID: ${org.id}`,
+            subname: t('Organization ID: {id}', { id: org.id }),
         }));
     }
 
@@ -63,8 +64,8 @@ export class OrganizationsService {
 
         return {
             id: Number(org.id),
-            label: org.name || org.displayname || `Organization ${org.id}`,
-            subname: `Organization ID: ${org.id}`,
+            label: org.name || org.displayname || t('Organization {id}', { id: org.id }),
+            subname: t('Organization ID: {id}', { id: org.id }),
         };
     }
 }

@@ -8,14 +8,23 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 class TimelinePlanningService
 {
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private readonly IDBConnection $db,
 		private readonly LoggerInterface $logger,
 		private readonly ?TimelinePhaseService $phaseService = null,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/** @param null|array<int, array<string, mixed>> $phases */
@@ -38,7 +47,7 @@ class TimelinePlanningService
 		$summary['kpis']['actualEndDate'] = $actualEnd;
 		$summary['kpis']['plannedEndDate'] = $plannedEnd;
 		$summary['systemPlanning']['execution'] = [
-			'label' => 'Execution',
+			'label' => $this->l->t('Execution'),
 			'startDate' => $summary['actualStartDate'] ?? null,
 			'endDate' => $plannedEnd,
 			'weeks' => $executionWeeks,
@@ -49,7 +58,7 @@ class TimelinePlanningService
 			'desiredStart' => $summary['desiredStartDate'] ?? null,
 			'actualStart' => $start,
 			'minimumStart' => $summary['minimumStartDate'] ?? null,
-		], $summary['processCompleted'] ?? []);
+		], $summary['processCompleted'] ?? [], $this->l);
 		$summary['dateWarnings'] = $warnings;
 		$summary['kpis']['dateWarnings'] = $warnings;
 		$summary['handoverWarnings'] = $warnings['handover'];
@@ -87,8 +96,9 @@ class TimelinePlanningService
 	 * @param array<string,mixed> $processCompleted The summary's processCompleted entry
 	 * @return array{handover: list<string>, desiredStart: list<string>, actualStart: list<string>}
 	 */
-	public static function dateWarnings(array $dates, array $processCompleted): array
+	public static function dateWarnings(array $dates, array $processCompleted, ?IL10N $l = null): array
 	{
+		$l ??= DefaultLanguageL10n::userL10n();
 		$day = static fn (?string $value): ?string => $value === null || $value === '' ? null : substr($value, 0, 10);
 		$handover = $day($dates['handover'] ?? null);
 		$desired = $day($dates['desiredStart'] ?? null);
@@ -100,25 +110,25 @@ class TimelinePlanningService
 			$processDate = $day(is_string($processCompleted['date'] ?? null) ? $processCompleted['date'] : null);
 			$stepsOpen = in_array($processCompleted['status'] ?? null, ['incomplete', 'missing_cards'], true);
 			if ($stepsOpen || ($processDate !== null && $handover < $processDate)) {
-				$warnings['handover'][] = 'Handover before the process steps are done';
+				$warnings['handover'][] = $l->t('Handover before the process steps are done');
 			}
 			// Refused when typed now; older projects may still have it.
 			if ($actual !== null && $handover > $actual) {
-				$warnings['handover'][] = 'Handover after the actual start';
+				$warnings['handover'][] = $l->t('Handover after the actual start');
 			} elseif ($actual === null && $minimum !== null && $handover > $minimum) {
-				$warnings['handover'][] = 'Handover after the minimum start, so preparation is squeezed';
+				$warnings['handover'][] = $l->t('Handover after the minimum start, so preparation is squeezed');
 			}
 			if ($actual === null && $desired !== null && $handover > $desired) {
-				$warnings['handover'][] = 'Handover after the desired start';
-				$warnings['desiredStart'][] = 'Desired start before the handover';
+				$warnings['handover'][] = $l->t('Handover after the desired start');
+				$warnings['desiredStart'][] = $l->t('Desired start before the handover');
 			}
 		}
 
 		if ($actual === null && $desired !== null && $minimum !== null && $desired < $minimum) {
-			$warnings['desiredStart'][] = 'Desired start before the minimum start';
+			$warnings['desiredStart'][] = $l->t('The minimum start has moved past the desired start');
 		}
 		if ($actual !== null && $minimum !== null && $actual < $minimum) {
-			$warnings['actualStart'][] = 'Started before the minimum start';
+			$warnings['actualStart'][] = $l->t('Started before the minimum start');
 		}
 
 		return $warnings;
@@ -205,7 +215,7 @@ class TimelinePlanningService
 					'date' => null,
 					'doneCount' => 0,
 					'totalRequired' => count($requiredTitles),
-					'missingTitles' => $requiredTitles,
+					'missingTitles' => $this->boardTitles($requiredTitles),
 				],
 				null,
 				$pending,
@@ -236,7 +246,7 @@ class TimelinePlanningService
 					'date' => null,
 					'doneCount' => 0,
 					'totalRequired' => count($requiredTitles),
-					'missingTitles' => $requiredTitles,
+					'missingTitles' => $this->boardTitles($requiredTitles),
 				],
 				null,
 				$pending,
@@ -309,7 +319,7 @@ class TimelinePlanningService
 						'date' => null,
 						'doneCount' => $doneCount,
 						'totalRequired' => count($requiredTitles),
-						'missingTitles' => $missing,
+						'missingTitles' => $this->boardTitles($missing),
 					],
 					null,
 					$pending,
@@ -490,11 +500,34 @@ class TimelinePlanningService
 	}
 
 	/**
+	 * Canonical default card titles as they are named on new boards (server default language).
+	 *
+	 * @param string[] $titles
+	 * @return string[]
+	 */
+	private function boardTitles(array $titles): array
+	{
+		$l = $this->contentL10n->get();
+		return array_values(array_map(static fn (string $title): string => ProjectTypeDeckDefaults::translateTitle($title, $l), $titles));
+	}
+
+	/**
 	 * @param string[] $requiredTitles
 	 * @return array<string, array{done: ?DateTime, dueDate: ?DateTime, startDate: ?DateTime}>
 	 */
 	private function loadRequiredCardsOnBoardByTitle(int $boardId, array $requiredTitles): array
 	{
+		// A default card may carry its canonical title, a legacy alias or a translation.
+		$translators = $this->contentL10n->all();
+		$titleVariants = [];
+		$canonicalByVariant = [];
+		foreach ($requiredTitles as $requiredTitle) {
+			foreach (ProjectTypeDeckDefaults::titleVariants($requiredTitle, $translators) as $variant) {
+				$titleVariants[] = $variant;
+				$canonicalByVariant[mb_strtolower($variant)] ??= $requiredTitle;
+			}
+		}
+		$titleVariants = array_values(array_unique($titleVariants));
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('c.title', 'c.done', 'c.duedate', 'c.startdate', 'c.last_modified', 's.order')
 			->from('deck_cards', 'c')
@@ -503,15 +536,16 @@ class TimelinePlanningService
 			->andWhere($qb->expr()->eq('c.archived', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)))
 			->andWhere($qb->expr()->eq('c.deleted_at', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('s.deleted_at', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
-			->andWhere($qb->expr()->in('c.title', $qb->createNamedParameter($requiredTitles, IQueryBuilder::PARAM_STR_ARRAY)));
+			->andWhere($qb->expr()->in('c.title', $qb->createNamedParameter($titleVariants, IQueryBuilder::PARAM_STR_ARRAY)));
 
 		$result = $qb->executeQuery();
 		$out = [];
 		while ($row = $result->fetch()) {
-			$title = (string) ($row['title'] ?? '');
+			$title = trim((string) ($row['title'] ?? ''));
 			if ($title === '') {
 				continue;
 			}
+			$title = $canonicalByVariant[mb_strtolower($title)] ?? $title;
 
 			$done = $this->parseDoneDate($row);
 			$dueDate = $this->parseCardDate($row['duedate'] ?? null);
@@ -586,7 +620,7 @@ class TimelinePlanningService
 		$systemPlanning = [
 			'requestDate' => $requestDate,
 			'deckTasks' => [
-				'label' => 'Initiation phase',
+				'label' => $this->l->t('Initiation phase'),
 				'startDate' => $deckTasksStartDate->format('Y-m-d'),
 				'endDate' => $deckTasksEndDate->format('Y-m-d'),
 				'weeks' => $deckWeeks,
@@ -595,25 +629,25 @@ class TimelinePlanningService
 				'totalRequired' => $totalRequired,
 			],
 			'preparation' => [
-				'label' => 'Preparation',
+				'label' => $this->l->t('Preparation'),
 				'startDate' => $deckTasksEndDate->format('Y-m-d'),
 				'endDate' => $minimumStartDate->format('Y-m-d'),
 				'weeks' => $prepWeeks,
 			],
 			'minimumStart' => [
-				'label' => 'Minimum start',
+				'label' => $this->l->t('Minimum start'),
 				'date' => $minimumStartDate->format('Y-m-d'),
 			],
 			'desiredStart' => [
-				'label' => 'Desired start',
+				'label' => $this->l->t('Desired start'),
 				'date' => $desiredStartDateStr,
 			],
 			'actualStart' => [
-				'label' => 'Actual start',
+				'label' => $this->l->t('Actual start'),
 				'date' => $actualStartDateStr,
 			],
 			'float' => [
-				'label' => 'Float',
+				'label' => $this->l->t('Float'),
 				'days' => $floatDays,
 				'weeks' => $floatWeeks,
 				'status' => $planningStatus,

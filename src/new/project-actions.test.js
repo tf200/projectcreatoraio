@@ -50,5 +50,5 @@ test('the header no longer sends people to the current interface to manage a pro
 	assert.doesNotMatch(header, /Manage project|Project updates/)
 	assert.match(header, /<ProjectActions /)
 	const view = readFileSync(new URL('./ProjectActions.vue', import.meta.url), 'utf8')
-	for (const item of ['Edit project details', 'Edit client &amp; address', 'Export project', 'Delete project', 'Type the project name to confirm']) assert.ok(view.includes(item), item)
+	for (const item of ['Edit project details', 'Edit client & address', 'Export project', 'Delete project', 'Type the project name to confirm']) assert.ok(view.includes(item), item)
 })

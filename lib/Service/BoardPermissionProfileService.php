@@ -21,10 +21,13 @@ use OCA\ProjectCreatorAIO\Db\CardPolicyRole;
 use OCA\ProjectCreatorAIO\Db\CardPolicyRoleMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use OCP\IL10N;
 
 class BoardPermissionProfileService {
 	private const ACTIONS = ['view', 'move', 'sign', 'verify'];
 	private const DRASCIVS_ROLES = ['driver', 'responsible', 'accountable', 'supportive', 'consulted', 'informed', 'verifier', 'signer'];
+
+	private IL10N $l;
 
 	public function __construct(
 		private readonly IDBConnection $db,
@@ -38,18 +41,20 @@ class BoardPermissionProfileService {
 		private readonly ?object $stackService,
 		private readonly ?object $cardService,
 		private readonly ?object $stackMapper,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	public function snapshot(int $organizationId, string $uid, string $name, int $boardId): BoardPermissionProfile {
 		$name = trim($name);
 		if ($name === '' || mb_strlen($name) > 255) {
-			throw new \InvalidArgumentException('Profile name is required and must not exceed 255 characters.');
+			throw new \InvalidArgumentException($this->l->t('Profile name is required and must not exceed 255 characters.'));
 		}
 
 		$settings = $this->settingMapper->findByBoard($boardId);
 		if ($settings === null || $settings->getPolicyVersion() < 2) {
-			throw new \DomainException('Board policy v2 is not enabled.');
+			throw new \DomainException($this->l->t('Board policy v2 is not enabled.'));
 		}
 
 		$roles = $this->roleMapper->findByBoard($boardId);
@@ -121,14 +126,14 @@ class BoardPermissionProfileService {
 			'drascivsDefaults' => $defaults,
 		];
 
-		self::validatePayload($payload);
+		self::validatePayload($payload, $this->l);
 		return $this->profileMapper->createProfile($organizationId, $uid, $name, $payload);
 	}
 
 	public function preview(BoardPermissionProfile $profile, int $boardId): array {
 		$this->assertDeckAvailable();
 		$payload = $profile->getPayload();
-		self::validatePayload($payload);
+		self::validatePayload($payload, $this->l);
 		return $this->buildPlan($profile, $boardId);
 	}
 
@@ -148,10 +153,10 @@ class BoardPermissionProfileService {
 	): array {
 		$this->assertDeckAvailable();
 		$payload = $profile->getPayload();
-		self::validatePayload($payload);
+		self::validatePayload($payload, $this->l);
 		$plan = $this->buildPlan($profile, $boardId);
 		if ($expectedPreviewToken === null || !hash_equals($plan['previewToken'], $expectedPreviewToken)) {
-			throw new \DomainException('Preview is stale. Preview the profile again before applying.');
+			throw new \DomainException($this->l->t('Preview is stale. Preview the profile again before applying.'));
 		}
 
 		$choices = [];
@@ -160,7 +165,7 @@ class BoardPermissionProfileService {
 			$choice = $resolutions[$key] ?? null;
 			$allowed = array_column($conflict['options'], 'value');
 			if (!is_string($choice) || !in_array($choice, $allowed, true)) {
-				throw new \InvalidArgumentException('Every conflict must have a valid resolution.');
+				throw new \InvalidArgumentException($this->l->t('Every conflict must have a valid resolution.'));
 			}
 			$choices[$key] = $choice;
 		}
@@ -240,22 +245,23 @@ class BoardPermissionProfileService {
 		return array_merge(['profileId' => $profile->getId(), 'boardId' => $boardId], $counts);
 	}
 
-	public static function validatePayload(array $payload): void {
-		self::assertExactKeys($payload, ['stacks', 'cards', 'functionalRoles', 'drascivsDefaults'], 'profile');
+	public static function validatePayload(array $payload, ?IL10N $l = null): void {
+		$l ??= DefaultLanguageL10n::userL10n();
+		self::assertExactKeys($payload, ['stacks', 'cards', 'functionalRoles', 'drascivsDefaults'], $l->t('profile'), $l);
 		foreach (['stacks', 'cards', 'functionalRoles', 'drascivsDefaults'] as $key) {
 			if (!is_array($payload[$key])) {
-				throw new \InvalidArgumentException("Profile $key must be an array.");
+				throw new \InvalidArgumentException($l->t('Profile %s must be an array.', [$key]));
 			}
 		}
 
 		$stackRefs = [];
 		foreach ($payload['stacks'] as $stack) {
 			if (!is_array($stack)) {
-				throw new \InvalidArgumentException('Each profile stack must be an object.');
+				throw new \InvalidArgumentException($l->t('Each profile stack must be an object.'));
 			}
-			self::assertExactKeys($stack, ['ref', 'title', 'order', 'approved', 'done'], 'stack');
+			self::assertExactKeys($stack, ['ref', 'title', 'order', 'approved', 'done'], $l->t('stack'), $l);
 			if (!is_string($stack['ref']) || $stack['ref'] === '' || isset($stackRefs[$stack['ref']]) || !is_string($stack['title']) || trim($stack['title']) === '' || !is_int($stack['order']) || !is_bool($stack['approved']) || !is_bool($stack['done'])) {
-				throw new \InvalidArgumentException('Invalid or duplicate stack definition.');
+				throw new \InvalidArgumentException($l->t('Invalid or duplicate stack definition.'));
 			}
 			$stackRefs[$stack['ref']] = true;
 		}
@@ -263,11 +269,11 @@ class BoardPermissionProfileService {
 		$roleKeys = [];
 		foreach ($payload['functionalRoles'] as $role) {
 			if (!is_array($role)) {
-				throw new \InvalidArgumentException('Each functional role must be an object.');
+				throw new \InvalidArgumentException($l->t('Each functional role must be an object.'));
 			}
-			self::assertExactKeys($role, ['key', 'name'], 'functional role');
+			self::assertExactKeys($role, ['key', 'name'], $l->t('functional role'), $l);
 			if (!is_string($role['key']) || trim($role['key']) === '' || isset($roleKeys[$role['key']]) || !is_string($role['name']) || trim($role['name']) === '') {
-				throw new \InvalidArgumentException('Invalid or duplicate functional role.');
+				throw new \InvalidArgumentException($l->t('Invalid or duplicate functional role.'));
 			}
 			$roleKeys[$role['key']] = true;
 		}
@@ -275,35 +281,35 @@ class BoardPermissionProfileService {
 		$cardRefs = [];
 		foreach ($payload['cards'] as $card) {
 			if (!is_array($card)) {
-				throw new \InvalidArgumentException('Each profile card must be an object.');
+				throw new \InvalidArgumentException($l->t('Each profile card must be an object.'));
 			}
-			self::assertExactKeys($card, ['ref', 'stackRef', 'title', 'description', 'order', 'functionalPolicy'], 'card');
+			self::assertExactKeys($card, ['ref', 'stackRef', 'title', 'description', 'order', 'functionalPolicy'], $l->t('card'), $l);
 			if (!is_string($card['ref']) || $card['ref'] === '' || isset($cardRefs[$card['ref']]) || !isset($stackRefs[$card['stackRef']]) || !is_string($card['title']) || trim($card['title']) === '' || !is_string($card['description']) || !is_int($card['order']) || !is_array($card['functionalPolicy'])) {
-				throw new \InvalidArgumentException('Invalid card definition or stack reference.');
+				throw new \InvalidArgumentException($l->t('Invalid card definition or stack reference.'));
 			}
-			self::assertExactKeys($card['functionalPolicy'], self::ACTIONS, 'card policy');
+			self::assertExactKeys($card['functionalPolicy'], self::ACTIONS, $l->t('card policy'), $l);
 			foreach (self::ACTIONS as $actionName) {
 				$state = $card['functionalPolicy'][$actionName];
 				if (!is_array($state)) {
-					throw new \InvalidArgumentException('Invalid card policy action.');
+					throw new \InvalidArgumentException($l->t('Invalid card policy action.'));
 				}
-				self::assertExactKeys($state, ['mode', 'allowedFunctionalRoleKeys'], 'card policy action');
+				self::assertExactKeys($state, ['mode', 'allowedFunctionalRoleKeys'], $l->t('card policy action'), $l);
 				if (!in_array($state['mode'], ['inherit', 'override'], true) || !is_array($state['allowedFunctionalRoleKeys'])) {
-					throw new \InvalidArgumentException('Invalid card policy mode or role list.');
+					throw new \InvalidArgumentException($l->t('Invalid card policy mode or role list.'));
 				}
 				foreach ($state['allowedFunctionalRoleKeys'] as $roleKey) {
 					if (!is_string($roleKey) || !isset($roleKeys[$roleKey])) {
-						throw new \InvalidArgumentException('Card policy references an unknown functional role.');
+						throw new \InvalidArgumentException($l->t('Card policy references an unknown functional role.'));
 					}
 				}
 			}
 			$cardRefs[$card['ref']] = true;
 		}
 
-		self::assertExactKeys($payload['drascivsDefaults'], self::ACTIONS, 'DRASCIVS defaults');
+		self::assertExactKeys($payload['drascivsDefaults'], self::ACTIONS, $l->t('DRASCIVS defaults'), $l);
 		foreach ($payload['drascivsDefaults'] as $roleList) {
 			if (!is_array($roleList) || array_diff($roleList, self::DRASCIVS_ROLES) !== []) {
-				throw new \InvalidArgumentException('Invalid DRASCIVS default role.');
+				throw new \InvalidArgumentException($l->t('Invalid DRASCIVS default role.'));
 			}
 		}
 	}
@@ -318,7 +324,7 @@ class BoardPermissionProfileService {
 		foreach ($payload['stacks'] as $stack) {
 			$matches = $stacks[self::normalize($stack['title'])] ?? [];
 			if (count($matches) > 1) {
-				throw new \DomainException('Multiple target stacks have the same normalized title.');
+				throw new \DomainException($this->l->t('Multiple target stacks have the same normalized title.'));
 			}
 			$targetStacks[$stack['ref']] = count($matches) === 1 ? (int)$matches[0]->getId() : null;
 			if ($matches === []) {
@@ -356,13 +362,13 @@ class BoardPermissionProfileService {
 
 			$key = 'card:' . $card['ref'];
 			$options = [
-				['value' => 'create', 'label' => 'Create a new card'],
-				['value' => 'skip', 'label' => 'Skip this card'],
+				['value' => 'create', 'label' => $this->l->t('Create a new card')],
+				['value' => 'skip', 'label' => $this->l->t('Skip this card')],
 			];
 			foreach ($candidates as $candidate) {
-				$options[] = ['value' => 'card:' . $candidate['id'], 'label' => 'Update card #' . $candidate['id'], 'cardId' => (int)$candidate['id']];
+				$options[] = ['value' => 'card:' . $candidate['id'], 'label' => $this->l->t('Update card #%s', [$candidate['id']]), 'cardId' => (int)$candidate['id']];
 			}
-			$conflicts[] = ['key' => $key, 'cardTitle' => $card['title'], 'message' => 'Multiple cards with this title exist in the target stack.', 'options' => $options, 'targetCardIds' => array_map(static fn(array $candidate): int => (int)$candidate['id'], $candidates)];
+			$conflicts[] = ['key' => $key, 'cardTitle' => $card['title'], 'message' => $this->l->t('Multiple cards with this title exist in the target stack.'), 'options' => $options, 'targetCardIds' => array_map(static fn(array $candidate): int => (int)$candidate['id'], $candidates)];
 			$cardPlans[] = ['ref' => $card['ref'], 'operation' => 'conflict', 'cardId' => null, 'conflictKey' => $key];
 		}
 
@@ -402,7 +408,7 @@ class BoardPermissionProfileService {
 		foreach ($payload['stacks'] as $stack) {
 			$matches = $existing[self::normalize($stack['title'])] ?? [];
 			if (count($matches) > 1) {
-				throw new \DomainException('Target stack topology is ambiguous.');
+				throw new \DomainException($this->l->t('Target stack topology is ambiguous.'));
 			}
 			$entity = $matches[0] ?? $this->stackService->create($stack['title'], $boardId, $stack['order']);
 			if ($matches === []) {
@@ -585,18 +591,19 @@ class BoardPermissionProfileService {
 		return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $value) ?? $value));
 	}
 
-	private static function assertExactKeys(array $value, array $expected, string $subject): void {
+	/** @param string $subject Already translated name of the checked object */
+	private static function assertExactKeys(array $value, array $expected, string $subject, IL10N $l): void {
 		$actual = array_keys($value);
 		sort($actual);
 		sort($expected);
 		if ($actual !== $expected) {
-			throw new \InvalidArgumentException("Invalid $subject schema.");
+			throw new \InvalidArgumentException($l->t('Invalid %s schema.', [$subject]));
 		}
 	}
 
 	private function assertDeckAvailable(): void {
 		if ($this->stackService === null || $this->cardService === null || $this->stackMapper === null) {
-			throw new \RuntimeException('Deck is not available.');
+			throw new \RuntimeException($this->l->t('Deck is not available.'));
 		}
 	}
 

@@ -15,6 +15,7 @@ use OCP\AppFramework\OCS\OCSException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\Files\File;
 use OCP\Files\IRootFolder;
+use OCP\IL10N;
 
 class OcrDocumentService
 {
@@ -27,12 +28,20 @@ class OcrDocumentService
         'application/vnd.ms-excel',
     ];
 
+    private IL10N $l;
+
+    private DefaultLanguageL10n $contentL10n;
+
     public function __construct(
         private readonly OrganizationDocumentTypeMapper $documentTypeMapper,
         private readonly ProjectFileProcessingMapper $processingMapper,
         private readonly ProjectMapper $projectMapper,
         private readonly IRootFolder $rootFolder,
+        ?IL10N $l = null,
+        ?DefaultLanguageL10n $contentL10n = null,
     ) {
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
+        $this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
     }
 
     public function listOrganizationDocumentTypes(int $organizationId, bool $includeInactive = true): array
@@ -46,7 +55,7 @@ class OcrDocumentService
         $normalizedFields = $this->normalizeFields($fields);
 
         if ($this->documentTypeMapper->findByOrganizationAndName($organizationId, $normalizedName) !== null) {
-            throw new OCSException('A document type with this name already exists for the organization.', 400);
+            throw new OCSException($this->l->t('A document type with this name already exists for the organization.'), 400);
         }
 
         return $this->documentTypeMapper->createType(
@@ -70,7 +79,7 @@ class OcrDocumentService
             $normalizedName = $this->normalizeName($name);
             $existingDocumentType = $this->documentTypeMapper->findByOrganizationAndName($organizationId, $normalizedName);
             if ($existingDocumentType !== null && (int) $existingDocumentType->getId() !== (int) $documentType->getId()) {
-                throw new OCSException('A document type with this name already exists for the organization.', 400);
+                throw new OCSException($this->l->t('A document type with this name already exists for the organization.'), 400);
             }
             $documentType->setName($normalizedName);
         }
@@ -89,7 +98,7 @@ class OcrDocumentService
         $documentType = $this->requireOrganizationDocumentType($organizationId, $documentTypeId);
         $references = $this->processingMapper->countByDocumentTypeId($documentTypeId);
         if ($references > 0) {
-            throw new OCSException('This document type is still used by OCR records and cannot be deleted.', 409);
+            throw new OCSException($this->l->t('This document type is still used by OCR records and cannot be deleted.'), 409);
         }
 
         $this->documentTypeMapper->deleteType($documentType);
@@ -104,10 +113,10 @@ class OcrDocumentService
     {
         $documentType = $this->requireOrganizationDocumentType((int) $project->getOrganizationId(), $documentTypeId);
         if ($documentType === null) {
-            throw new OCSNotFoundException('Document type not found for this organization.');
+            throw new OCSNotFoundException($this->l->t('Document type not found for this organization.'));
         }
         if ((int) $documentType->getIsActive() !== 1) {
-            throw new OCSException('This OCR document type is inactive.', 400);
+            throw new OCSException($this->l->t('This OCR document type is inactive.'), 400);
         }
 
         $file = $this->resolveProjectFile($project, $userId, $fileId);
@@ -118,7 +127,7 @@ class OcrDocumentService
     {
         $documentType = $this->requireOrganizationDocumentType((int) $project->getOrganizationId(), $documentTypeId);
         if ((int) $documentType->getIsActive() !== 1) {
-            throw new OCSException('This OCR document type is inactive.', 400);
+            throw new OCSException($this->l->t('This OCR document type is inactive.'), 400);
         }
 
         return $this->createOrResetProcessingRecord($project, $file, $documentType, $userId, $storageScope);
@@ -128,7 +137,7 @@ class OcrDocumentService
     {
         $existingRecord = $this->processingMapper->findByProjectAndFileId((int) $project->getId(), $fileId);
         if ($existingRecord === null || $existingRecord->getDocumentTypeId() === null) {
-            throw new OCSNotFoundException('OCR processing record not found for this file.');
+            throw new OCSNotFoundException($this->l->t('OCR processing record not found for this file.'));
         }
 
         $documentType = $this->requireOrganizationDocumentType(
@@ -139,7 +148,7 @@ class OcrDocumentService
         $file = $this->resolveProjectFile($project, $userId, $fileId);
         $mimeType = trim((string) $file->getMimeType());
         if (!in_array($mimeType, self::SUPPORTED_MIME_TYPES, true)) {
-            throw new OCSException('Only supported OCR file types can be processed (PDF, JPEG, PNG, DOCX, XLSX, XLS).', 400);
+            throw new OCSException($this->l->t('Only supported OCR file types can be processed (PDF, JPEG, PNG, DOCX, XLSX, XLS).'), 400);
         }
 
         $userFolder = $this->rootFolder->getUserFolder($userId);
@@ -161,7 +170,7 @@ class OcrDocumentService
     {
         $record = $this->processingMapper->findByProjectAndFileId((int) $project->getId(), $fileId);
         if ($record === null || $record->getDocumentTypeId() === null) {
-            throw new OCSNotFoundException('OCR processing record not found for this file.');
+            throw new OCSNotFoundException($this->l->t('OCR processing record not found for this file.'));
         }
 
         return $this->applyExtractedFields($project, $record, $fields);
@@ -170,7 +179,7 @@ class OcrDocumentService
     public function applyExtractedFields(Project $project, ProjectFileProcessing $record, array $fields): ProjectFileProcessing
     {
         if ($record->getDocumentTypeId() === null) {
-            throw new OCSNotFoundException('OCR processing record not found for this file.');
+            throw new OCSNotFoundException($this->l->t('OCR processing record not found for this file.'));
         }
 
         $documentType = $this->requireOrganizationDocumentType(
@@ -193,7 +202,7 @@ class OcrDocumentService
     {
         $documentType = $this->documentTypeMapper->find($documentTypeId);
         if ($documentType === null || (int) $documentType->getOrganizationId() !== $organizationId) {
-            throw new OCSNotFoundException('Document type not found.');
+            throw new OCSNotFoundException($this->l->t('Document type not found.'));
         }
 
         return $documentType;
@@ -204,12 +213,12 @@ class OcrDocumentService
         $userFolder = $this->rootFolder->getUserFolder($userId);
         $node = $userFolder->getFirstNodeById($fileId);
         if (!$node instanceof File) {
-            throw new OCSNotFoundException('File not found.');
+            throw new OCSNotFoundException($this->l->t('File not found.'));
         }
 
         $relativePath = trim((string) $userFolder->getRelativePath($node->getPath()), '/');
         if ($relativePath === '') {
-            throw new OCSNotFoundException('File not found in project scope.');
+            throw new OCSNotFoundException($this->l->t('File not found in project scope.'));
         }
 
         $sharedRoot = trim((string) $project->getFolderPath(), '/');
@@ -228,7 +237,7 @@ class OcrDocumentService
             }
         }
 
-        throw new OCSNotFoundException('File not found in project scope.');
+        throw new OCSNotFoundException($this->l->t('File not found in project scope.'));
     }
 
     private function createOrResetProcessingRecord(
@@ -240,7 +249,7 @@ class OcrDocumentService
     ): ProjectFileProcessing {
         $mimeType = trim((string) $file->getMimeType());
         if (!in_array($mimeType, self::SUPPORTED_MIME_TYPES, true)) {
-            throw new OCSException('Only supported OCR file types can be processed (PDF, JPEG, PNG, DOCX, XLSX, XLS).', 400);
+            throw new OCSException($this->l->t('Only supported OCR file types can be processed (PDF, JPEG, PNG, DOCX, XLSX, XLS).'), 400);
         }
 
         $filePath = $this->resolveFilePath($file, $userId);
@@ -321,7 +330,7 @@ class OcrDocumentService
     {
         $name = trim($name);
         if ($name === '') {
-            throw new OCSException('Document type name is required.', 400);
+            throw new OCSException($this->l->t('Document type name is required.'), 400);
         }
 
         return substr($name, 0, 255);
@@ -340,7 +349,7 @@ class OcrDocumentService
             }
 
             if (!is_array($field)) {
-                throw new OCSException('Each extraction field must be a string or an object.', 400);
+                throw new OCSException($this->l->t('Each extraction field must be a string or an object.'), 400);
             }
 
             $name = (string) ($field['name'] ?? $field['label'] ?? $field['key'] ?? '');
@@ -351,13 +360,13 @@ class OcrDocumentService
         }
 
         if ($normalizedFields === []) {
-            throw new OCSException('At least one extraction field is required.', 400);
+            throw new OCSException($this->l->t('At least one extraction field is required.'), 400);
         }
 
         $seen = [];
         foreach ($normalizedFields as $field) {
             if (isset($seen[$field['name']])) {
-                throw new OCSException(sprintf('Duplicate extraction field name "%s".', $field['name']), 400);
+                throw new OCSException($this->l->t('Duplicate extraction field name "%s".', [$field['name']]), 400);
             }
             $seen[$field['name']] = true;
         }
@@ -369,7 +378,7 @@ class OcrDocumentService
     {
         $fieldName = trim($fieldName);
         if ($fieldName === '') {
-            throw new OCSException('Extraction field name is required.', 400);
+            throw new OCSException($this->l->t('Extraction field name is required.'), 400);
         }
 
         return substr($fieldName, 0, 255);
@@ -400,7 +409,8 @@ class OcrDocumentService
         $preview = implode(', ', array_slice($missingFields, 0, 5));
         $suffix = count($missingFields) > 5 ? ', ...' : '';
 
-        return sprintf('Processing aborted. Missing required fields: %s%s.', $preview, $suffix);
+        // Stored on the processing record and shown to every project member.
+        return $this->contentL10n->get()->t('Processing aborted. Missing required fields: %s%s.', [$preview, $suffix]);
     }
 
     /**
@@ -419,7 +429,7 @@ class OcrDocumentService
         }
 
         if ($allowedFieldNames === []) {
-            throw new OCSException('Document type has no extraction fields.', 400);
+            throw new OCSException($this->l->t('Document type has no extraction fields.'), 400);
         }
 
         $submittedValues = [];

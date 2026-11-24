@@ -3,6 +3,7 @@
 namespace OCA\ProjectCreatorAIO\Db;
 
 use OCA\ProjectCreatorAIO\ProjectStatus;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
 use OCP\IDBConnection;
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -12,8 +13,11 @@ class ProjectNoteMapper extends QBMapper
 {
     public const TABLE_NAME = "project_notes";
 
-    public function __construct(IDBConnection $db) {
+    private ?DefaultLanguageL10n $contentL10n;
+
+    public function __construct(IDBConnection $db, ?DefaultLanguageL10n $contentL10n = null) {
         parent::__construct($db, self::TABLE_NAME, ProjectNote::class);
+        $this->contentL10n = $contentL10n;
     }
 
     /**
@@ -53,14 +57,14 @@ class ProjectNoteMapper extends QBMapper
         string $reason,
         string $noteType = ProjectNote::NOTE_TYPE_AUDIT,
     ): ProjectNote {
-        $oldLabel = ProjectStatus::getLabel($oldStatus);
-        $newLabel = ProjectStatus::getLabel($newStatus);
-        $title = 'Project status has been updated';
-        $content = sprintf(
+        // The note is shared by everyone in the project: write it in the server default language.
+        $l = ($this->contentL10n ?? DefaultLanguageL10n::instance())->get();
+        $oldLabel = ProjectStatus::getLabel($oldStatus, $l);
+        $newLabel = ProjectStatus::getLabel($newStatus, $l);
+        $title = $l->t('Project status has been updated');
+        $content = $l->t(
             "Project status updated from %s to %s.\n\nReason: %s",
-            $oldLabel,
-            $newLabel,
-            $reason,
+            [$oldLabel, $newLabel, $reason],
         );
 
         return $this->createNote(

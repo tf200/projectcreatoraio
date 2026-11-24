@@ -1,4 +1,8 @@
-import { t } from '@nextcloud/l10n'
+import { t } from '../new/l10n.mjs'
+
+// Statuses are stored and compared as numbers (value) and filter codes
+// (filterValue). Labels are getters, so t() runs when a view reads them, after
+// Nextcloud has registered the app's translations, never at module load.
 
 export const PROJECT_STATUS = Object.freeze({
 	ARCHIVED: 0,
@@ -12,50 +16,50 @@ export const PROJECT_STATUS_OPTIONS = Object.freeze([
 	Object.freeze({
 		value: PROJECT_STATUS.ACTIVE,
 		filterValue: 'active',
-		label: t('projectcreatoraio', 'Active'),
-		shortLabel: t('projectcreatoraio', 'Active'),
+		get label() { return t('Active') },
+		get shortLabel() { return t('Active') },
 		pillClass: 'projects-home__status-pill--active',
 		badgeClass: 'projects-home__badge--success',
 	}),
 	Object.freeze({
 		value: PROJECT_STATUS.WAITING_ON_CUSTOMER,
 		filterValue: 'waiting',
-		label: t('projectcreatoraio', 'Waiting on Cust'),
-		shortLabel: t('projectcreatoraio', 'Waiting'),
+		get label() { return t('Waiting on Cust') },
+		get shortLabel() { return t('Waiting') },
 		pillClass: 'projects-home__status-pill--waiting',
 		badgeClass: 'projects-home__badge--warning',
 	}),
 	Object.freeze({
 		value: PROJECT_STATUS.ON_HOLD,
 		filterValue: 'hold',
-		label: t('projectcreatoraio', 'On Hold'),
-		shortLabel: t('projectcreatoraio', 'On Hold'),
+		get label() { return t('On Hold') },
+		get shortLabel() { return t('On Hold') },
 		pillClass: 'projects-home__status-pill--hold',
 		badgeClass: 'projects-home__badge--muted',
 	}),
 	Object.freeze({
 		value: PROJECT_STATUS.DONE,
 		filterValue: 'done',
-		label: t('projectcreatoraio', 'Done'),
-		shortLabel: t('projectcreatoraio', 'Done'),
+		get label() { return t('Done') },
+		get shortLabel() { return t('Done') },
 		pillClass: 'projects-home__status-pill--done',
 		badgeClass: 'projects-home__badge--success',
 	}),
 	Object.freeze({
 		value: PROJECT_STATUS.ARCHIVED,
 		filterValue: 'archived',
-		label: t('projectcreatoraio', 'Archived'),
-		shortLabel: t('projectcreatoraio', 'Archived'),
+		get label() { return t('Archived') },
+		get shortLabel() { return t('Archived') },
 		pillClass: 'projects-home__status-pill--archived',
 		badgeClass: 'projects-home__badge--muted',
 	}),
 ])
 
 export const PROJECT_STATUS_FILTER_OPTIONS = Object.freeze([
-	Object.freeze({ value: 'all', label: t('projectcreatoraio', 'All') }),
+	Object.freeze({ value: 'all', get label() { return t('All') } }),
 	...PROJECT_STATUS_OPTIONS.map((option) => Object.freeze({
 		value: option.filterValue,
-		label: option.label,
+		get label() { return option.label },
 	})),
 ])
 

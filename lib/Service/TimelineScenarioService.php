@@ -6,6 +6,7 @@ namespace OCA\ProjectCreatorAIO\Service;
 
 use DateTime;
 use OCA\ProjectCreatorAIO\Db\Project;
+use OCP\IL10N;
 
 /**
  * What-if scenarios: a list of changes laid over the live plan, recalculated by the
@@ -23,11 +24,15 @@ class TimelineScenarioService
 	/** @var array<string, string> Task labels of the plan last loaded, for describing suggestions */
 	private array $taskLabels = [];
 
+	private IL10N $l;
+
 	public function __construct(
 		private readonly TimelinePhaseService $phaseService,
 		private readonly TimelinePlanningService $planningService,
 		private readonly TimelineCriticalPath $criticalPath,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/**
@@ -325,10 +330,10 @@ class TimelineScenarioService
 	public function normalizeChanges(array $changes, array $tasks, array $dependencies): array
 	{
 		if (!array_is_list($changes)) {
-			throw new \InvalidArgumentException('Scenario changes must be a list');
+			throw new \InvalidArgumentException($this->l->t('Scenario changes must be a list'));
 		}
 		if (count($changes) > self::MAX_CHANGES) {
-			throw new \InvalidArgumentException('A scenario can hold at most ' . self::MAX_CHANGES . ' changes');
+			throw new \InvalidArgumentException($this->l->t('A scenario can hold at most %s changes', [self::MAX_CHANGES]));
 		}
 
 		$dependencyKeys = [];
@@ -342,7 +347,7 @@ class TimelineScenarioService
 		$planning = [];
 		foreach ($changes as $position => $change) {
 			if (!is_array($change)) {
-				throw new \InvalidArgumentException("Change #{$position} is not an object");
+				throw new \InvalidArgumentException($this->l->t('Change #%s is not an object', [$position]));
 			}
 			$type = (string)($change['type'] ?? '');
 
@@ -356,7 +361,7 @@ class TimelineScenarioService
 				case 'delay':
 					$days = $this->requireDays($change['days'] ?? null, -self::MAX_DAYS, self::MAX_DAYS, $position);
 					if ($days === 0) {
-						throw new \InvalidArgumentException("Change #{$position}: a delay of 0 days changes nothing");
+						throw new \InvalidArgumentException($this->l->t('Change #%s: a delay of 0 days changes nothing', [$position]));
 					}
 					$override['adjustDays'] = ($override['adjustDays'] ?? 0) + $days;
 					$entry['days'] = $days;
@@ -391,7 +396,7 @@ class TimelineScenarioService
 				$successor = $this->requireTask($tasks, $change['successorId'] ?? null, $position);
 				$key = TimelinePhaseService::dependencyKey($predecessor['id'], $successor['id']);
 				if (!isset($dependencyKeys[$key])) {
-					throw new \InvalidArgumentException("Change #{$position}: \"{$successor['label']}\" does not depend on \"{$predecessor['label']}\"");
+					throw new \InvalidArgumentException($this->l->t('Change #%1$s: "%2$s" does not depend on "%3$s"', [$position, $successor['label'], $predecessor['label']]));
 				}
 				$days = $this->requireDays($change['days'] ?? null, 0, self::MAX_DAYS, $position);
 				$dependencyOverlaps[$key] = $days;
@@ -417,13 +422,13 @@ class TimelineScenarioService
 					$planning['requiredPreparationWeeks'] = $entry['requiredPreparationWeeks'] = $weeks;
 				}
 				if (count($entry) === 1) {
-					throw new \InvalidArgumentException("Change #{$position}: a planning change needs a desired start date or preparation weeks");
+					throw new \InvalidArgumentException($this->l->t('Change #%s: a planning change needs a desired start date or preparation weeks', [$position]));
 				}
 				$normalized[] = $entry;
 				continue;
 			}
 
-			throw new \InvalidArgumentException("Change #{$position}: unknown change type \"{$type}\"");
+			throw new \InvalidArgumentException($this->l->t('Change #%1$s: unknown change type "%2$s"', [$position, $type]));
 		}
 
 		return [
@@ -545,27 +550,26 @@ class TimelineScenarioService
 		return match ($change['type']) {
 			'delay' => $change + [
 				'kind' => 'shorten',
-				'title' => sprintf('Shorten "%s" by %s', $labels[(string)$change['taskId']] ?? $change['taskId'], $this->days(-$change['days'])),
+				'title' => $this->l->t('Shorten "%s" by %s', [$labels[(string)$change['taskId']] ?? $change['taskId'], $this->days(-$change['days'])]),
 			],
 			'overlap' => $change + [
 				'kind' => 'overlap',
-				'title' => sprintf(
-					'Start "%s" %s before "%s" ends',
+				'title' => $this->l->t('Start "%s" %s before "%s" ends', [
 					$labels[(string)$change['successorId']] ?? $change['successorId'],
 					$this->days($change['days']),
 					$labels[(string)$change['predecessorId']] ?? $change['predecessorId'],
-				),
+				]),
 			],
 			'planning' => $change + [
 				'kind' => 'preparation',
-				'title' => sprintf('Cut preparation to %d %s', $change['requiredPreparationWeeks'], $change['requiredPreparationWeeks'] === 1 ? 'week' : 'weeks'),
+				'title' => $this->l->t('Cut preparation to %s', [$this->l->n('%n week', '%n weeks', (int)$change['requiredPreparationWeeks'])]),
 			],
 		};
 	}
 
 	private function days(int $days): string
 	{
-		return $days === 1 ? '1 day' : "{$days} days";
+		return $this->l->n('%n day', '%n days', $days);
 	}
 
 	/**
@@ -595,11 +599,11 @@ class TimelineScenarioService
 	private function requireTask(array $tasks, mixed $taskId, int $position): array
 	{
 		if ((!is_int($taskId) && !is_string($taskId)) || !isset($tasks[(string)$taskId])) {
-			throw new \InvalidArgumentException("Change #{$position}: unknown timeline task");
+			throw new \InvalidArgumentException($this->l->t('Change #%s: unknown timeline task', [$position]));
 		}
 		$task = $tasks[(string)$taskId];
 		if (!empty($task['isDone'])) {
-			throw new \InvalidArgumentException("Change #{$position}: \"{$task['label']}\" is already completed and cannot be changed");
+			throw new \InvalidArgumentException($this->l->t('Change #%1$s: "%2$s" is already completed and cannot be changed', [$position, $task['label']]));
 		}
 		return $task;
 	}
@@ -610,7 +614,7 @@ class TimelineScenarioService
 			$value = (int)$value;
 		}
 		if (!is_int($value) || $value < $min || $value > $max) {
-			throw new \InvalidArgumentException("Change #{$position}: expected a whole number between {$min} and {$max}");
+			throw new \InvalidArgumentException($this->l->t('Change #%1$s: expected a whole number between %2$s and %3$s', [$position, $min, $max]));
 		}
 		return $value;
 	}
@@ -619,7 +623,7 @@ class TimelineScenarioService
 	{
 		$date = is_string($value) ? DateTime::createFromFormat('!Y-m-d', $value) : false;
 		if ($date === false || $date->format('Y-m-d') !== $value) {
-			throw new \InvalidArgumentException("Change #{$position}: expected a date as YYYY-MM-DD");
+			throw new \InvalidArgumentException($this->l->t('Change #%s: expected a date as YYYY-MM-DD', [$position]));
 		}
 		return $value;
 	}

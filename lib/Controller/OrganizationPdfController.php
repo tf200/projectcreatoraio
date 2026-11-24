@@ -15,17 +15,23 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\IRequest;
 use OCP\IUserSession;
 use InvalidArgumentException;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class OrganizationPdfController extends Controller
 {
+    private IL10N $l;
+
     public function __construct(
         string $appName,
         IRequest $request,
         private readonly IUserSession $userSession,
         private readonly OrganizationPdfService $organizationPdfService,
         private readonly ProjectAccessService $access,
+        ?IL10N $l = null,
     ) {
         parent::__construct($appName, $request);
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
     }
 
     #[NoCSRFRequired]
@@ -52,17 +58,17 @@ class OrganizationPdfController extends Controller
 
         $uploadedFile = $this->request->getUploadedFile('pdf');
         if ($uploadedFile === null || !isset($uploadedFile['tmp_name']) || $uploadedFile['tmp_name'] === '') {
-            return new DataResponse(['error' => 'No PDF file uploaded.'], 400);
+            return new DataResponse(['error' => $this->l->t('No PDF file uploaded.')], 400);
         }
 
         $fileContent = file_get_contents($uploadedFile['tmp_name']);
         if ($fileContent === false || $fileContent === '') {
-            return new DataResponse(['error' => 'Empty PDF file.'], 400);
+            return new DataResponse(['error' => $this->l->t('Empty PDF file.')], 400);
         }
 
         // Basic magic byte check for PDF header %PDF-
         if (!str_starts_with($fileContent, '%PDF-')) {
-            return new DataResponse(['error' => 'The uploaded file is not a valid PDF document.'], 400);
+            return new DataResponse(['error' => $this->l->t('The uploaded file is not a valid PDF document.')], 400);
         }
 
         $requestedFileName = $this->request->getParam('fileName', $uploadedFile['name'] ?? '');
@@ -104,11 +110,11 @@ class OrganizationPdfController extends Controller
     {
         $currentUser = $this->userSession->getUser();
         if ($currentUser === null) {
-            throw new OCSForbiddenException('Authentication required');
+            throw new OCSForbiddenException($this->l->t('Authentication required'));
         }
 
         $userId = $currentUser->getUID();
-        $this->access->assertCanManageOrganization($userId, $organizationId, 'Organization admin privilege required to manage default PDF templates');
+        $this->access->assertCanManageOrganization($userId, $organizationId, $this->l->t('Organization admin privilege required to manage default PDF templates'));
 
         return $userId;
     }

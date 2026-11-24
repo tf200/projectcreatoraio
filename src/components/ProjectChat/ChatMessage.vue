@@ -14,7 +14,7 @@
 				<span
 					v-if="editLabel"
 					class="project-chat-message__edited"
-					:title="editLabel">(edited)</span>
+					:title="editLabel">{{ t('(edited)') }}</span>
 			</div>
 
 			<div v-if="message.parent" class="project-chat-message__quote">
@@ -67,6 +67,7 @@ import ChatMedia from './ChatMedia.vue'
 import ChatMention from './ChatMention.vue'
 import ChatObject from './ChatObject.vue'
 import { buildRichArguments, mediaKind, plainText, reactionList, splitFileShare } from './chatMessage.js'
+import { t } from '../../new/l10n.mjs'
 
 export default {
 	name: 'ChatMessage',
@@ -91,6 +92,9 @@ export default {
 			required: true,
 		},
 	},
+	methods: {
+		t,
+	},
 	computed: {
 		isUserActor() {
 			return this.message.actorType === 'users' && !!this.message.actorId
@@ -107,7 +111,7 @@ export default {
 			}
 			const when = this.formatDate(this.message.lastEditTimestamp * 1000)
 			const who = this.message.lastEditActorDisplayName
-			return who ? `Edited by ${who}, ${when}` : `Edited ${when}`
+			return who ? t('Edited by {name}, {date}', { name: who, date: when }) : t('Edited {date}', { date: when })
 		},
 		fileShare() {
 			return splitFileShare(this.message)

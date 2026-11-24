@@ -3,11 +3,11 @@
 		<div class="whiteboard-board__top">
 			<div class="whiteboard-board__meta">
 				<div class="whiteboard-board__title">
-					<span class="whiteboard-board__title-text">Whiteboard</span>
+					<span class="whiteboard-board__title-text">{{ t('Whiteboard') }}</span>
 					<span v-if="whiteboardInfo" class="whiteboard-board__badge">#{{ whiteboardInfo.fileId }}</span>
 				</div>
 				<div class="whiteboard-board__subtitle">
-					{{ opensInPlace ? 'Autosaves while you work.' : 'Opens in a new window and autosaves while you work.' }}
+					{{ opensInPlace ? t('Autosaves while you work.') : t('Opens in a new window and autosaves while you work.') }}
 				</div>
 			</div>
 			<div class="whiteboard-board__actions">
@@ -16,31 +16,31 @@
 						<ArrowExpand v-if="openMode === 'overlay'" :size="18" />
 						<EyeOutline v-else :size="18" />
 					</template>
-					{{ openMode === 'overlay' ? 'Focus mode' : 'Open whiteboard' }}
+					{{ openMode === 'overlay' ? t('Focus mode') : t('Open whiteboard') }}
 				</NcButton>
 				<NcButton type="secondary" :disabled="!whiteboardInfo" @click="openInFiles">
 					<template #icon>
 						<OpenInNew :size="18" />
 					</template>
-					Open in Files
+					{{ t('Open in Files') }}
 				</NcButton>
 				<NcButton type="secondary" :disabled="loading" @click="reload">
 					<template #icon>
 						<Refresh :size="18" />
 					</template>
-					Reload
+					{{ t('Reload') }}
 				</NcButton>
 			</div>
 		</div>
 
 		<div class="whiteboard-board__frame" :class="{ 'whiteboard-board__frame--focused': focused }">
 			<div v-if="focused" class="whiteboard-board__focus-bar">
-				<span class="whiteboard-board__focus-title">{{ whiteboardInfo ? whiteboardInfo.name : 'Whiteboard' }}</span>
+				<span class="whiteboard-board__focus-title">{{ whiteboardInfo ? whiteboardInfo.name : t('Whiteboard') }}</span>
 				<NcButton type="secondary" @click="exitFocus">
 					<template #icon>
 						<ArrowCollapse :size="18" />
 					</template>
-					Exit focus mode
+					{{ t('Exit focus mode') }}
 				</NcButton>
 			</div>
 			<div v-if="error" class="whiteboard-board__error">
@@ -48,10 +48,10 @@
 			</div>
 			<div v-else-if="loading" class="whiteboard-board__loading">
 				<NcLoadingIcon :size="32" />
-				<span>Loading whiteboard...</span>
+				<span>{{ t('Loading whiteboard...') }}</span>
 			</div>
 			<div v-else-if="!handler" class="whiteboard-board__hint">
-				Preparing whiteboard preview...
+				{{ t('Preparing whiteboard preview...') }}
 			</div>
 			<div v-else class="whiteboard-board__preview-wrap" @pointerdown="onInlineInteraction">
 				<component
@@ -70,7 +70,7 @@
 					class="whiteboard-board__preview-overlay"
 					:disabled="!canOpenWhiteboard"
 					@click="openPopout">
-					<span class="whiteboard-board__preview-overlay-label">Open whiteboard</span>
+					<span class="whiteboard-board__preview-overlay-label">{{ t('Open whiteboard') }}</span>
 				</button>
 			</div>
 		</div>
@@ -95,6 +95,7 @@ import Refresh from 'vue-material-design-icons/Refresh.vue'
 import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { ProjectsService } from '../../Services/projects'
 import WhiteboardActivity from './WhiteboardActivity.vue'
+import { t } from '../../new/l10n.mjs'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -223,6 +224,7 @@ export default {
 		this.stopAutosave()
 	},
 	methods: {
+		t,
 		onInlineInteraction() {
 			if (!this.inlineEditing || this.overlayOpen) {
 				return
@@ -253,17 +255,17 @@ export default {
 
 			try {
 				if (!this.normalizedProjectId) {
-					this.error = 'No project selected.'
+					this.error = t('No project selected.')
 					return
 				}
 				if (!this.userId) {
-					this.error = 'Could not resolve current user.'
+					this.error = t('Could not resolve current user.')
 					return
 				}
 
 				const info = await projectsService.getWhiteboardInfo(this.normalizedProjectId)
 				if (!info || !info.fileId) {
-					this.error = 'No whiteboard linked to this project.'
+					this.error = t('No whiteboard linked to this project.')
 					return
 				}
 				this.whiteboardInfo = info
@@ -271,7 +273,7 @@ export default {
 				// Best-effort signal for UI; overlay open will still wait when clicked.
 				this.viewerReady = this.isViewerOverlayReady()
 			} catch (e) {
-				this.error = 'Failed to load whiteboard.'
+				this.error = t('Failed to load whiteboard.')
 			} finally {
 				this.loading = false
 			}
@@ -508,13 +510,13 @@ export default {
 				return
 			}
 			if (!this.userId) {
-				this.error = 'Could not resolve current user.'
+				this.error = t('Could not resolve current user.')
 				return
 			}
 
 			const ready = await this.waitForViewerOverlayReady(10000)
 			if (!ready) {
-				this.error = 'Viewer overlay is not ready on this page. Try reloading.'
+				this.error = t('Viewer overlay is not ready on this page. Try reloading.')
 				return
 			}
 
@@ -578,13 +580,13 @@ export default {
 				return
 			}
 			if (!this.normalizedProjectId) {
-				this.error = 'No project selected.'
+				this.error = t('No project selected.')
 				return
 			}
 			const url = generateUrl(`/apps/projectcreatoraio/?popout=whiteboard&projectId=${encodeURIComponent(this.normalizedProjectId)}`)
 			const w = window.open(url, '_blank', 'noopener')
 			if (!w) {
-				this.error = 'Popup blocked. Please allow popups for this site.'
+				this.error = t('Popup blocked. Please allow popups for this site.')
 			}
 		},
 		openInFiles() {

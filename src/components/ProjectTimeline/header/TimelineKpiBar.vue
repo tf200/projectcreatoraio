@@ -3,17 +3,17 @@
 		<!-- Top Status Badges Row -->
 		<div class="timeline-kpi-bar__status-row">
 			<div class="timeline-kpi-bar__title-tag">
-				<span class="tag-label">PROJECT TIMELINE</span>
+				<span class="tag-label">{{ t('PROJECT TIMELINE') }}</span>
 			</div>
 
 			<div class="timeline-kpi-bar__badges">
 				<div class="status-pill" :class="statusPillClass">
 					<span class="status-dot"></span>
-					<span class="status-text">PLANNING STATUS: {{ planningStatusLabel }}</span>
+					<span class="status-text">{{ t('PLANNING STATUS: {status}', { status: planningStatusLabel }) }}</span>
 				</div>
 
 				<div v-if="floatLabel" class="float-pill" :class="floatPillClass">
-					<span class="float-text">OVERALL FLOAT: {{ floatLabel }}</span>
+					<span class="float-text">{{ t('OVERALL FLOAT: {float}', { float: floatLabel }) }}</span>
 				</div>
 			</div>
 		</div>
@@ -22,7 +22,7 @@
 		<div class="timeline-kpi-bar__cards">
 			<!-- Phase 1: Initiation & Readiness Group -->
 			<section class="kpi-phase kpi-phase--initiation">
-				<div class="kpi-phase__label">Initiation</div>
+				<div class="kpi-phase__label">{{ t('Initiation') }}</div>
 				<div class="kpi-group kpi-group--initiation">
 					<!-- 1. Request Date -->
 					<div class="kpi-card">
@@ -31,9 +31,9 @@
 							<Calendar :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">REQUEST DATE</div>
+							<div class="kpi-card__label">{{ t('Request date') }}</div>
 							<div class="kpi-card__value">{{ formatDisplayDate(kpis.requestDate) || '—' }}</div>
-							<div class="kpi-card__subtext">Project kickoff</div>
+							<div class="kpi-card__subtext">{{ t('Project kickoff') }}</div>
 						</div>
 					</div>
 
@@ -49,7 +49,7 @@
 						</div>
 						<div class="kpi-card__content">
 							<div class="kpi-card__header-line">
-								<span class="kpi-card__label">PROCESS STEPS</span>
+								<span class="kpi-card__label">{{ t('Process steps') }}</span>
 								<span class="kpi-process-pill" :class="processPillClass">
 									{{ processStatusLabel }}
 								</span>
@@ -60,28 +60,28 @@
 									<span class="process-counter-count">{{ processDoneCount }}</span>
 									<span class="process-counter-divider">/</span>
 									<span class="process-counter-total">{{ processTotalRequired }}</span>
-									<span class="process-counter-suffix">done</span>
+									<span class="process-counter-suffix">{{ t('done') }}</span>
 								</div>
 								<span
 									v-if="hasMissingTitles"
 									class="process-missing-chip"
-									:title="'Missing required checklist cards:\n• ' + missingTitlesList.join('\n• ')">
-									Missing {{ missingTitlesList.length }}
+									:title="t('Missing required checklist cards:\n• {titles}', { titles: missingTitlesList.join('\n• ') })">
+									{{ t('Missing {n}', { n: missingTitlesList.length }) }}
 								</span>
 							</div>
 
 							<div class="kpi-card__subtext process-subtext" :title="processSubtextTitle">
 								<template v-if="processStatus === 'complete'">
-									All steps complete
+									{{ t('All steps complete') }}
 								</template>
 								<template v-else-if="coordinationDurationText">
-									{{ coordinationDurationText }} pending
+									{{ t('{duration} pending', { duration: coordinationDurationText }) }}
 								</template>
 								<template v-else-if="processRemainingCount > 0">
-									{{ processRemainingCount }} remaining to complete
+									{{ t('{n} remaining to complete', { n: processRemainingCount }) }}
 								</template>
 								<template v-else>
-									Readiness checklist
+									{{ t('Readiness checklist') }}
 								</template>
 							</div>
 						</div>
@@ -97,10 +97,10 @@
 							<Calendar v-else :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">PROCESS COMPLETION DATE</div>
-							<div class="kpi-card__value">{{ formatDisplayDate(processCompletedDate) || 'Pending' }}</div>
+							<div class="kpi-card__label">{{ t('PROCESS COMPLETION DATE') }}</div>
+							<div class="kpi-card__value">{{ formatDisplayDate(processCompletedDate) || t('Pending') }}</div>
 							<div class="kpi-card__subtext">
-								{{ processStatus === 'complete' ? 'All required steps done' : 'Awaiting completion' }}
+								{{ processStatus === 'complete' ? t('All required steps done') : t('Awaiting completion') }}
 							</div>
 						</div>
 					</div>
@@ -117,7 +117,7 @@
 							<HandshakeOutline v-else :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">HANDOVER</div>
+							<div class="kpi-card__label">{{ t('Handover') }}</div>
 
 							<div class="start-date-inline-right start-date-inline-right--start">
 								<!-- Hidden native date picker triggered directly by click -->
@@ -129,14 +129,14 @@
 									:min="dateBounds.handover.min"
 									:max="dateBounds.handover.max"
 									:disabled="!canEdit || saving"
-									aria-label="Select handover date"
+									:aria-label="t('Select handover date')"
 									@change="onHandoverDateChange" />
 
 								<div v-if="kpis.actualHandoverDate" class="desired-date-row">
 									<span
 										class="kpi-card__value"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? 'Click to change handover date' : ''"
+										:title="canEdit ? t('Click to change handover date') : ''"
 										@click="openHandoverCalendar">
 										{{ formatDisplayDate(kpis.actualHandoverDate) }}
 									</span>
@@ -145,7 +145,7 @@
 										type="tertiary"
 										size="small"
 										class="kpi-card__mini-btn"
-										title="Change handover date"
+										:title="t('Change handover date')"
 										:disabled="saving"
 										@click="openHandoverCalendar">
 										<template #icon>
@@ -157,7 +157,7 @@
 										type="tertiary"
 										size="small"
 										class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-										title="Clear handover date"
+										:title="t('Clear handover date')"
 										:disabled="saving"
 										@click.stop="clearHandoverDate">
 										<template #icon>
@@ -169,22 +169,22 @@
 									<span
 										class="kpi-card__placeholder"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? 'Click to set handover date' : ''"
+										:title="canEdit ? t('Click to set handover date') : ''"
 										@click="openHandoverCalendar">
-										Not set
+										{{ t('Not set') }}
 									</span>
 									<NcButton
 										v-if="canEdit"
 										type="tertiary"
 										size="small"
 										class="set-date-btn"
-										title="Set handover date"
+										:title="t('Set handover date')"
 										:disabled="saving"
 										@click="openHandoverCalendar">
 										<template #icon>
 											<Plus :size="12" />
 										</template>
-										Set
+										{{ t('Set') }}
 									</NcButton>
 								</div>
 							</div>
@@ -194,10 +194,10 @@
 								type="secondary"
 								size="small"
 								class="kpi-card__handover-btn"
-								title="Hand the project to the people who carry it out"
+								:title="t('Hand the project to the people who carry it out')"
 								:disabled="saving"
 								@click="$emit('open-handover')">
-								Hand over…
+								{{ t('Hand over…') }}
 							</NcButton>
 
 							<div v-if="refusalFor('handover')" class="kpi-card__subtext kpi-card__subtext--error" role="alert">
@@ -207,7 +207,7 @@
 								{{ handoverWarnings.join(' · ') }}
 							</div>
 							<div v-else-if="!refusalFor('handover')" class="kpi-card__subtext">
-								{{ kpis.actualHandoverDate ? 'Handed to the execution team' : 'After the process steps' }}
+								{{ kpis.actualHandoverDate ? t('Handed to the execution team') : t('After the process steps') }}
 							</div>
 						</div>
 					</div>
@@ -221,7 +221,7 @@
 
 			<!-- Phase 2: Preparation & Execution Group -->
 			<section class="kpi-phase kpi-phase--execution">
-				<div class="kpi-phase__label">Execution</div>
+				<div class="kpi-phase__label">{{ t('Execution') }}</div>
 				<div class="kpi-group kpi-group--execution">
 					<!-- 5. Preparation Time & Calculated Duration -->
 					<div class="kpi-card kpi-card--prep">
@@ -230,7 +230,7 @@
 							<CalendarEdit :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">REQUIRED PREPARATION TIME</div>
+							<div class="kpi-card__label">{{ t('REQUIRED PREPARATION TIME') }}</div>
 
 							<div class="prep-input-row">
 								<div class="prep-input-wrap">
@@ -244,7 +244,7 @@
 										:disabled="!canEdit || saving"
 										@keydown.enter.prevent="savePrepWeeks"
 										@keydown.esc.prevent="resetPrepWeeks" />
-									<label for="prep-weeks-kpi-input" class="prep-unit-suffix">Weeks</label>
+									<label for="prep-weeks-kpi-input" class="prep-unit-suffix">{{ t('Weeks') }}</label>
 								</div>
 
 								<transition name="fade">
@@ -253,18 +253,18 @@
 										type="primary"
 										size="small"
 										class="prep-save-btn"
-										title="Save preparation weeks"
+										:title="t('Save preparation weeks')"
 										:disabled="saving || localPrepWeeks === null || localPrepWeeks < 0"
 										@click="savePrepWeeks">
-										{{ saving ? '...' : 'Save' }}
+										{{ saving ? t('...') : t('Save') }}
 									</NcButton>
 								</transition>
 							</div>
 
 							<div
 								class="kpi-card__subtext kpi-card__subtext--breakdown"
-								:title="'Minimum Duration: ' + (kpis.minimumDurationWeeks ?? 0) + 'w (Initiation: ' + (kpis.deckTasksWeeks ?? 0) + 'w + Prep: ' + (kpis.preparationWeeks ?? 0) + 'w)'">
-								Min. Duration: <strong>{{ kpis.minimumDurationWeeks ?? 0 }}w</strong> (Initiation: {{ kpis.deckTasksWeeks ?? 0 }}w + Prep: {{ kpis.preparationWeeks ?? 0 }}w)
+								:title="t('Minimum Duration: {min}w (Initiation: {init}w + Prep: {prep}w)', durationVars)">
+								{{ minDurationParts[0] }}<strong>{{ kpis.minimumDurationWeeks ?? 0 }}</strong>{{ minDurationParts[1] }}
 							</div>
 						</div>
 					</div>
@@ -278,9 +278,9 @@
 							<RhombusMedium :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">MINIMUM START DATE</div>
+							<div class="kpi-card__label">{{ t('MINIMUM START DATE') }}</div>
 							<div class="kpi-card__value">{{ formatDisplayDate(kpis.minimumStartDate) || '—' }}</div>
-							<div class="kpi-card__subtext">Earliest execution</div>
+							<div class="kpi-card__subtext">{{ t('Earliest execution') }}</div>
 						</div>
 					</div>
 
@@ -294,14 +294,14 @@
 						</div>
 						<div class="kpi-card__content">
 							<div class="kpi-card__header-line">
-								<span class="kpi-card__label">START DATES</span>
+								<span class="kpi-card__label">{{ t('START DATES') }}</span>
 							</div>
 
 							<div class="start-date-rows">
 								<!-- Desired Start Date Sub-row -->
 								<div class="start-date-inline-row">
 									<div class="start-date-inline-left">
-										<span class="subrow-title">DESIRED</span>
+										<span class="subrow-title">{{ t('DESIRED') }}</span>
 									</div>
 
 									<div class="start-date-inline-right">
@@ -314,14 +314,14 @@
 											:min="dateBounds.desiredStart.min"
 											:max="dateBounds.desiredStart.max"
 											:disabled="!canEdit || saving"
-											aria-label="Select desired start date"
+											:aria-label="t('Select desired start date')"
 											@change="onDesiredDateChange" />
 
 										<div v-if="kpis.desiredStartDate" class="desired-date-row">
 											<span
 												class="kpi-card__value kpi-card__value--compact"
 												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-												:title="canEdit ? 'Click to change desired start date' : ''"
+												:title="canEdit ? t('Click to change desired start date') : ''"
 												@click="openDesiredCalendar">
 												{{ formatDisplayDate(kpis.desiredStartDate) }}
 											</span>
@@ -330,7 +330,7 @@
 												type="tertiary"
 												size="small"
 												class="kpi-card__mini-btn"
-												title="Change desired start date"
+												:title="t('Change desired start date')"
 												:disabled="saving"
 												@click="openDesiredCalendar">
 												<template #icon>
@@ -342,7 +342,7 @@
 												type="tertiary"
 												size="small"
 												class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-												title="Clear desired start date"
+												:title="t('Clear desired start date')"
 												:disabled="saving"
 												@click.stop="clearDesiredDate">
 												<template #icon>
@@ -361,22 +361,22 @@
 											<span
 												class="kpi-card__placeholder"
 												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-												:title="canEdit ? 'Click to set desired start date' : ''"
+												:title="canEdit ? t('Click to set desired start date') : ''"
 												@click="openDesiredCalendar">
-												Not set
+												{{ t('Not set') }}
 											</span>
 											<NcButton
 												v-if="canEdit"
 												type="tertiary"
 												size="small"
 												class="set-date-btn"
-												title="Set desired start date"
+												:title="t('Set desired start date')"
 												:disabled="saving"
 												@click="openDesiredCalendar">
 												<template #icon>
 													<Plus :size="12" />
 												</template>
-												Set
+												{{ t('Set') }}
 											</NcButton>
 										</div>
 									</div>
@@ -385,7 +385,7 @@
 								<!-- Actual Start Date Sub-row -->
 								<div class="start-date-inline-row">
 									<div class="start-date-inline-left">
-										<span class="subrow-title">ACTUAL</span>
+										<span class="subrow-title">{{ t('ACTUAL') }}</span>
 									</div>
 
 									<div class="start-date-inline-right">
@@ -398,14 +398,14 @@
 											:min="dateBounds.actualStart.min"
 											:max="dateBounds.actualStart.max"
 											:disabled="!canEdit || saving"
-											aria-label="Select actual start date"
+											:aria-label="t('Select actual start date')"
 											@change="onActualDateChange" />
 
 										<div v-if="kpis.actualStartDate" class="desired-date-row">
 											<span
 												class="kpi-card__value kpi-card__value--compact"
 												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-												:title="canEdit ? 'Click to change actual start date' : ''"
+												:title="canEdit ? t('Click to change actual start date') : ''"
 												@click="openActualCalendar">
 												{{ formatDisplayDate(kpis.actualStartDate) }}
 											</span>
@@ -414,7 +414,7 @@
 												type="tertiary"
 												size="small"
 												class="kpi-card__mini-btn"
-												title="Change actual start date"
+												:title="t('Change actual start date')"
 												:disabled="saving"
 												@click="openActualCalendar">
 												<template #icon>
@@ -426,7 +426,7 @@
 												type="tertiary"
 												size="small"
 												class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-												:title="dateBounds.canClearStart ? 'Clear actual start date' : 'Clear the end date first'"
+												:title="dateBounds.canClearStart ? t('Clear actual start date') : t('Clear the end date first')"
 												:disabled="saving || !dateBounds.canClearStart"
 												@click.stop="clearActualDate">
 												<template #icon>
@@ -438,22 +438,22 @@
 											<span
 												class="kpi-card__placeholder"
 												:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-												:title="canEdit ? 'Click to set actual start date' : ''"
+												:title="canEdit ? t('Click to set actual start date') : ''"
 												@click="openActualCalendar">
-												Not set
+												{{ t('Not set') }}
 											</span>
 											<NcButton
 												v-if="canEdit"
 												type="tertiary"
 												size="small"
 												class="set-date-btn"
-												title="Set actual start date"
+												:title="t('Set actual start date')"
 												:disabled="saving"
 												@click="openActualCalendar">
 												<template #icon>
 													<Plus :size="12" />
 												</template>
-												Set
+												{{ t('Set') }}
 											</NcButton>
 										</div>
 									</div>
@@ -480,7 +480,7 @@
 
 			<!-- Phase 3: Delivery -->
 			<section class="kpi-phase kpi-phase--delivery">
-				<div class="kpi-phase__label">Delivery</div>
+				<div class="kpi-phase__label">{{ t('Delivery') }}</div>
 				<div class="kpi-group kpi-group--delivery">
 					<!-- 8. End Date: the last day on site -->
 					<div class="kpi-card kpi-card--end" :class="{ 'kpi-card--complete': !!kpis.actualEndDate }">
@@ -491,7 +491,7 @@
 							<FlagCheckered :size="18" />
 						</div>
 						<div class="kpi-card__content">
-							<div class="kpi-card__label">END DATE</div>
+							<div class="kpi-card__label">{{ t('End date') }}</div>
 
 							<div class="start-date-inline-right start-date-inline-right--start">
 								<!-- Hidden native date picker triggered directly by click -->
@@ -503,14 +503,14 @@
 									:min="dateBounds.end.min"
 									:max="dateBounds.end.max"
 									:disabled="!canEdit || saving"
-									aria-label="Select end date"
+									:aria-label="t('Select end date')"
 									@change="onEndDateChange" />
 
 								<div v-if="kpis.actualEndDate" class="desired-date-row">
 									<span
 										class="kpi-card__value"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? 'Click to change end date' : ''"
+										:title="canEdit ? t('Click to change end date') : ''"
 										@click="openEndCalendar">
 										{{ formatDisplayDate(kpis.actualEndDate) }}
 									</span>
@@ -519,7 +519,7 @@
 										type="tertiary"
 										size="small"
 										class="kpi-card__mini-btn"
-										title="Change end date"
+										:title="t('Change end date')"
 										:disabled="saving"
 										@click="openEndCalendar">
 										<template #icon>
@@ -531,7 +531,7 @@
 										type="tertiary"
 										size="small"
 										class="kpi-card__mini-btn kpi-card__mini-btn--clear"
-										title="Clear end date"
+										:title="t('Clear end date')"
 										:disabled="saving"
 										@click.stop="clearEndDate">
 										<template #icon>
@@ -543,22 +543,22 @@
 									<span
 										class="kpi-card__placeholder"
 										:class="{ 'kpi-card__value--clickable': canEdit && !saving }"
-										:title="canEdit ? (dateBounds.canSetEnd ? 'Click to set end date' : 'Set the actual start first') : ''"
+										:title="canEdit ? (dateBounds.canSetEnd ? t('Click to set end date') : t('Set the actual start first')) : ''"
 										@click="openEndCalendar">
-										{{ kpis.plannedEndDate ? 'Planned ' + formatDisplayDate(kpis.plannedEndDate) : 'Not set' }}
+										{{ kpis.plannedEndDate ? t('Planned {date}', { date: formatDisplayDate(kpis.plannedEndDate) }) : t('Not set') }}
 									</span>
 									<NcButton
 										v-if="canEdit"
 										type="tertiary"
 										size="small"
 										class="set-date-btn"
-										:title="dateBounds.canSetEnd ? 'Set end date' : 'Set the actual start first'"
+										:title="dateBounds.canSetEnd ? t('Set end date') : t('Set the actual start first')"
 										:disabled="saving || !dateBounds.canSetEnd"
 										@click="openEndCalendar">
 										<template #icon>
 											<Plus :size="12" />
 										</template>
-										Set
+										{{ t('Set') }}
 									</NcButton>
 								</div>
 							</div>
@@ -568,7 +568,7 @@
 							</div>
 
 							<div class="prep-input-row">
-								<div class="prep-input-wrap" title="Weeks the team works on site, from the actual start to the end">
+								<div class="prep-input-wrap" :title="t('Weeks the team works on site, from the actual start to the end')">
 									<input
 										id="execution-weeks-kpi-input"
 										v-model.number="localExecutionWeeks"
@@ -580,7 +580,7 @@
 										:disabled="!canEdit || saving"
 										@keydown.enter.prevent="saveExecutionWeeks"
 										@keydown.esc.prevent="resetExecutionWeeks" />
-									<label for="execution-weeks-kpi-input" class="prep-unit-suffix">Weeks on site</label>
+									<label for="execution-weeks-kpi-input" class="prep-unit-suffix">{{ t('Weeks on site') }}</label>
 								</div>
 
 								<transition name="fade">
@@ -589,10 +589,10 @@
 										type="primary"
 										size="small"
 										class="prep-save-btn"
-										title="Save execution weeks"
+										:title="t('Save execution weeks')"
 										:disabled="saving || (localExecutionWeeks !== '' && localExecutionWeeks < 0)"
 										@click="saveExecutionWeeks">
-										{{ saving ? '...' : 'Save' }}
+										{{ saving ? t('...') : t('Save') }}
 									</NcButton>
 								</transition>
 							</div>
@@ -622,6 +622,7 @@ import CheckboxMarkedCircleOutline from 'vue-material-design-icons/CheckboxMarke
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import FlagCheckered from 'vue-material-design-icons/FlagCheckered.vue'
 import HandshakeOutline from 'vue-material-design-icons/HandshakeOutline.vue'
+import { t, n, tc, formatNumber } from '../../../new/l10n.mjs'
 import { dateRefusal, plannedDateBounds } from '../timelineDates.js'
 
 export default {
@@ -759,11 +760,11 @@ export default {
 		},
 		processStatusLabel() {
 			const status = this.processStatus
-			if (status === 'complete') return 'READY'
-			if (status === 'incomplete') return 'IN PROGRESS'
-			if (status === 'missing_cards') return 'INITIAL'
-			if (status === 'not_configured') return 'N/A'
-			return 'PENDING'
+			if (status === 'complete') return t('READY')
+			if (status === 'incomplete') return t('IN PROGRESS')
+			if (status === 'missing_cards') return t('INITIAL')
+			if (status === 'not_configured') return t('N/A')
+			return t('PENDING')
 		},
 		processPillClass() {
 			const status = this.processStatus
@@ -787,29 +788,29 @@ export default {
 			const weeks = Number(period.weeks)
 			if (!Number.isFinite(weeks) || weeks <= 0) return ''
 			const rounded = Math.round(weeks * 10) / 10
-			return `${rounded} ${rounded === 1 ? 'week' : 'weeks'}`
+			return n('%n week', '%n weeks', rounded)
 		},
 		processSubtextTitle() {
 			if (this.processStatus === 'complete') {
-				return 'All required process steps completed'
+				return t('All required process steps completed')
 			}
 			if (this.hasMissingTitles) {
-				return 'Missing required cards:\n• ' + this.missingTitlesList.join('\n• ')
+				return t('Missing required cards:\n• {titles}', { titles: this.missingTitlesList.join('\n• ') })
 			}
-			return `${this.processDoneCount} of ${this.processTotalRequired} checklist cards completed`
+			return t('{done} of {total} checklist cards completed', { done: this.processDoneCount, total: this.processTotalRequired })
 		},
 		planningStatusLabel() {
 			const status = this.kpis.planningStatus
 			if (status === 'behind_at_risk') {
-				return 'BEHIND / AT RISK'
+				return t('BEHIND / AT RISK')
 			}
 			if (status === 'attention_needed') {
-				return 'ATTENTION NEEDED'
+				return t('ATTENTION NEEDED')
 			}
 			if (!this.kpis.desiredStartDate) {
-				return 'ON TRACK (NO TARGET)'
+				return t('ON TRACK (NO TARGET)')
 			}
-			return 'ON TRACK'
+			return t('ON TRACK')
 		},
 		statusPillClass() {
 			const status = this.kpis.planningStatus
@@ -826,9 +827,8 @@ export default {
 			if (float === null || float === undefined) {
 				return null
 			}
-			const prefix = float > 0 ? '+' : ''
-			const unit = Math.abs(float) === 1 ? 'WEEK' : 'WEEKS'
-			return `${prefix}${float} ${unit}`
+			const sign = float > 0 ? '+' : (float < 0 ? '-' : '')
+			return n('{sign}%n WEEK', '{sign}%n WEEKS', Math.abs(float), { sign })
 		},
 		floatPillClass() {
 			const float = this.kpis.overallFloatWeeks
@@ -846,12 +846,9 @@ export default {
 				return ''
 			}
 			if (float > 0) {
-				return `+${float}w`
+				return '+' + t('{n}w', { n: formatNumber(float) })
 			}
-			if (float === 0) {
-				return '0w'
-			}
-			return `${float}w`
+			return t('{n}w', { n: formatNumber(float) })
 		},
 		floatTooltip() {
 			const float = this.kpis.overallFloatWeeks
@@ -859,12 +856,12 @@ export default {
 				return ''
 			}
 			if (float > 0) {
-				return `+${float} week${Math.abs(float) === 1 ? '' : 's'} float`
+				return n('+%n week float', '+%n weeks float', float)
 			}
 			if (float === 0) {
-				return '0 float'
+				return t('0 float')
 			}
-			return `${Math.abs(float)} week${Math.abs(float) === 1 ? '' : 's'} behind schedule`
+			return n('%n week behind schedule', '%n weeks behind schedule', Math.abs(float))
 		},
 		handoverWarnings() {
 			return Array.isArray(this.kpis?.handoverWarnings) ? this.kpis.handoverWarnings : []
@@ -878,21 +875,33 @@ export default {
 			const start = this.kpis?.actualStartDate
 			if (!end) {
 				if (this.kpis?.plannedEndDate) {
-					return `${this.kpis.executionWeeks} ${this.kpis.executionWeeks === 1 ? 'week' : 'weeks'} on site from the actual start`
+					return n('%n week on site from the actual start', '%n weeks on site from the actual start', Number(this.kpis.executionWeeks))
 				}
-				return start ? 'Set weeks on site to plan the end' : 'Set the actual start to plan the end'
+				return start ? t('Set weeks on site to plan the end') : t('Set the actual start to plan the end')
 			}
 			if (!start) {
-				return 'Work on site finished'
+				return t('Work on site finished')
 			}
 			const days = Math.round((Date.parse(this.isoDateOnly(end)) - Date.parse(this.isoDateOnly(start))) / 86400000)
 			if (!Number.isFinite(days) || days < 0) {
-				return 'Ends before the actual start'
+				return t('Ends before the actual start')
 			}
 			const weeks = Math.round(days / 7 * 10) / 10
-			return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} after the actual start`
+			return n('%n week after the actual start', '%n weeks after the actual start', weeks)
 		},
-
+		durationVars() {
+			return {
+				min: this.kpis.minimumDurationWeeks ?? 0,
+				init: this.kpis.deckTasksWeeks ?? 0,
+				prep: this.kpis.preparationWeeks ?? 0,
+			}
+		},
+		// The minimum stays in <strong>: fill everything but {min}, then split the translated sentence there.
+		minDurationParts() {
+			const { init, prep } = this.durationVars
+			const [before, after = ''] = t('Min. Duration: {min}w (Initiation: {init}w + Prep: {prep}w)', { init, prep }).split('{min}')
+			return [before, after]
+		},
 		floatChipClass() {
 			const float = this.kpis.overallFloatWeeks
 			if (float < 0) {
@@ -902,6 +911,10 @@ export default {
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		openDesiredCalendar() {
 			if (!this.canEdit || this.saving) return
 			const input = this.$refs.desiredDatePicker
@@ -1055,7 +1068,7 @@ export default {
 			}
 			const parts = isoDate.split('T')[0].split('-')
 			if (parts.length === 3) {
-				return `${parts[2]}/${parts[1]}/${parts[0]}`
+				return t('{day}/{month}/{year}', { day: parts[2], month: parts[1], year: parts[0] })
 			}
 			return isoDate
 		},

@@ -14,6 +14,7 @@ use OCP\IUserManager;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 /**
  * Hands a project to another owner. The new owner must already work on the
@@ -24,6 +25,8 @@ class ProjectOwnershipService {
 	public const STEP_DONE = 'done';
 	public const STEP_SKIPPED = 'skipped';
 	public const STEP_FAILED = 'failed';
+
+	private IL10N $l;
 
 	public function __construct(
 		private ProjectMapper $projectMapper,
@@ -36,7 +39,9 @@ class ProjectOwnershipService {
 		private IUserSession $userSession,
 		private LoggerInterface $logger,
 		private ?BoardService $boardService = null,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/**
@@ -49,7 +54,7 @@ class ProjectOwnershipService {
 		$newOwnerUid = trim($newOwnerUid);
 		$previousOwnerUid = trim((string)$project->getOwnerId());
 		if ($newOwnerUid === '') {
-			throw new OCSException('Choose the new owner.', 400);
+			throw new OCSException($this->l->t('Choose the new owner.'), 400);
 		}
 		if ($newOwnerUid === $previousOwnerUid) {
 			return ['ownerId' => $newOwnerUid, 'previousOwnerId' => $previousOwnerUid, 'board' => self::STEP_SKIPPED, 'talk' => self::STEP_SKIPPED];
@@ -57,15 +62,15 @@ class ProjectOwnershipService {
 
 		$newOwner = $this->userManager->get($newOwnerUid);
 		if ($newOwner === null) {
-			throw new OCSException('The new owner does not exist.', 404);
+			throw new OCSException($this->l->t('The new owner does not exist.'), 404);
 		}
 		$groupGid = trim((string)($project->getProjectGroupGid() ?? ''));
 		if ($groupGid === '' || !$this->groupManager->isInGroup($newOwnerUid, $groupGid)) {
-			throw new OCSException('The new owner must already be a member of the project.', 409);
+			throw new OCSException($this->l->t('The new owner must already be a member of the project.'), 409);
 		}
 		$membership = $this->access->getOrganizationMembership($newOwnerUid);
 		if ($membership === null || $membership['organization_id'] !== (int)$project->getOrganizationId()) {
-			throw new OCSException('Only members of the project\'s organization can own it, not external collaborators.', 409);
+			throw new OCSException($this->l->t('Only members of the project\'s organization can own it, not external collaborators.'), 409);
 		}
 
 		// The owner counts as a member without being in the group; the

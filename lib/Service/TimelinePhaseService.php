@@ -13,6 +13,7 @@ use OCA\ProjectCreatorAIO\Db\TimelinePhase;
 use OCA\ProjectCreatorAIO\Db\TimelinePhaseMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use OCP\IL10N;
 
 class TimelinePhaseService
 {
@@ -22,11 +23,19 @@ class TimelinePhaseService
 	/** Saved "cannot start before" date: label is the task id, startDate the date. */
 	public const START_LIMIT_KEY_PREFIX = 'schedule_override:not_before:';
 
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private readonly IDBConnection $db,
 		private readonly TimelinePhaseMapper $phaseMapper,
 		private readonly TimelineItemMapper $itemMapper,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/**
@@ -48,9 +57,10 @@ class TimelinePhaseService
 		$defaults = CombiPhaseDefaults::getPhases();
 		$seeded = [];
 		foreach ($defaults as $key => $config) {
+			// Phases are shared by the whole project: name in the server default language.
 			$phase = $this->phaseMapper->createPhase(
 				$projectId,
-				$config['name'],
+				CombiPhaseDefaults::translatePhaseName($key, $this->contentL10n->get()),
 				$config['category'],
 				$config['order'],
 				$config['color']
@@ -149,16 +159,24 @@ class TimelinePhaseService
 		$taskOverrides = $overrides['taskOverrides'] ?? [];
 		$dependencyOverlaps = array_replace($persistedOverlaps, $overrides['dependencyOverlaps'] ?? []);
 
+		// Default cards are recognised by canonical title: a board may carry the
+		// canonical (original) title, a legacy alias or a translated one.
+		$titleTranslators = $this->contentL10n->all();
+		$canonicalTitleMap = ProjectTypeDeckDefaults::canonicalTitleMap($titleTranslators);
+		$canonicalOf = static function (string $title) use ($canonicalTitleMap): string {
+			$title = trim($title);
+			return trim(strtolower($canonicalTitleMap[mb_strtolower($title)] ?? $title));
+		};
 		$cardIdByTitle = [];
 		foreach ($deckCards as $c) {
-			$cardIdByTitle[trim(strtolower((string)$c['title']))] = (int)$c['id'];
+			$cardIdByTitle[$canonicalOf((string)$c['title'])] = (int)$c['id'];
 		}
 		$defaultCardDependencies = CombiPhaseDefaults::getDefaultCardDependencies();
 		foreach ($deckCards as $cardId => $card) {
 			if (!empty($deckDeps[$cardId])) {
 				continue;
 			}
-			$cardTitleLower = trim(strtolower((string)$card['title']));
+			$cardTitleLower = $canonicalOf((string)$card['title']);
 			foreach ($defaultCardDependencies as $successorTitle => $predecessorTitles) {
 				if (trim(strtolower($successorTitle)) !== $cardTitleLower) {
 					continue;
@@ -192,7 +210,7 @@ class TimelinePhaseService
 			$phaseCards = [];
 			foreach ($phaseCardTitles as $title) {
 				foreach ($deckCards as $card) {
-					if (strcasecmp(trim((string)$card['title']), trim($title)) === 0) {
+					if ($canonicalOf((string)$card['title']) === trim(strtolower($title))) {
 						$phaseCards[] = $card;
 					}
 				}
@@ -376,7 +394,7 @@ class TimelinePhaseService
 			$milestone = null;
 			if ($maxEnd !== null && !empty($phaseConfig['milestone'])) {
 				$milestone = [
-					'label' => $phaseConfig['milestone'],
+					'label' => CombiPhaseDefaults::translateMilestone($categoryKey, $this->l),
 					'date' => $maxEnd->format('Y-m-d'),
 					'status' => $phaseStatus,
 				];
@@ -385,7 +403,7 @@ class TimelinePhaseService
 			$resultPhases[] = [
 				'id' => $phaseId,
 				'order' => $phaseConfig['order'],
-				'name' => $phaseConfig['name'],
+				'name' => CombiPhaseDefaults::translatePhaseName($categoryKey, $this->l),
 				'category' => $phaseConfig['category'],
 				'color' => $phaseConfig['color'],
 				'startDate' => $minStart?->format('Y-m-d'),
@@ -426,7 +444,7 @@ class TimelinePhaseService
 				return $schedules[$cardId];
 			}
 			if (isset($visiting[$cardId])) {
-				throw new \RuntimeException('Deck card dependencies contain a cycle');
+				throw new \RuntimeException($this->l->t('Deck card dependencies contain a cycle'));
 			}
 
 			$card = $cards[$cardId];

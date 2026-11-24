@@ -1,14 +1,16 @@
+import { t, locale } from './l10n.mjs'
+
 // The eight DRASCIVS responsibilities, in the order the current interface lists
-// them; the letter heads the member matrix's column (S twice, so the name goes under it).
+// them, labels read in the user's language; the letter heads the member matrix's column (S twice, so the name goes under it).
 export const DRASCIVS = [
-	{ value: 'driver', label: 'Driver', letter: 'D' },
-	{ value: 'responsible', label: 'Responsible', letter: 'R' },
-	{ value: 'accountable', label: 'Accountable', letter: 'A' },
-	{ value: 'supportive', label: 'Supportive', letter: 'S' },
-	{ value: 'consulted', label: 'Consulted', letter: 'C' },
-	{ value: 'informed', label: 'Informed', letter: 'I' },
-	{ value: 'verifier', label: 'Verifier', letter: 'V' },
-	{ value: 'signer', label: 'Signer', letter: 'S' },
+	{ value: 'driver', get label() { return t('Driver') }, letter: 'D' },
+	{ value: 'responsible', get label() { return t('Responsible') }, letter: 'R' },
+	{ value: 'accountable', get label() { return t('Accountable') }, letter: 'A' },
+	{ value: 'supportive', get label() { return t('Supportive') }, letter: 'S' },
+	{ value: 'consulted', get label() { return t('Consulted') }, letter: 'C' },
+	{ value: 'informed', get label() { return t('Informed') }, letter: 'I' },
+	{ value: 'verifier', get label() { return t('Verifier') }, letter: 'V' },
+	{ value: 'signer', get label() { return t('Signer') }, letter: 'S' },
 ]
 
 // Older members carry their roles under earlier field names.
@@ -38,9 +40,9 @@ export function coverage(members) {
 
 // The same rules the server enforces, said before the request is sent.
 export function draftProblem({ needsPerson = false, person = null, drascivs = [], functional = [] }) {
-	if (needsPerson && !person) return 'Choose a person to add.'
-	if (!drascivs.length) return 'Choose at least one DRASCIVS role.'
-	if (!functional.length) return 'Choose at least one project role.'
+	if (needsPerson && !person) return t('Choose a person to add.')
+	if (!drascivs.length) return t('Choose at least one DRASCIVS role.')
+	if (!functional.length) return t('Choose at least one project role.')
 	return ''
 }
 
@@ -51,15 +53,15 @@ export function toggled(list, value) {
 // An external collaborator needs an email address, a name and a DRASCIVS
 // role; a project role is optional for them.
 export function inviteProblem({ email = '', name = '', drascivs = [] }) {
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter the email address of the person to invite.'
-	if (!name.trim()) return 'Enter their name.'
-	if (!drascivs.length) return 'Choose at least one DRASCIVS role.'
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return t('Enter the email address of the person to invite.')
+	if (!name.trim()) return t('Enter their name.')
+	if (!drascivs.length) return t('Choose at least one DRASCIVS role.')
 	return ''
 }
 
 export function externalLabel(external) {
 	const company = String(external?.company || '').trim()
-	return company ? 'External · ' + company : 'External'
+	return company ? t('External · {company}', { company }) : t('External')
 }
 
 // "12 Nov", with the year when it is not this year.
@@ -68,7 +70,7 @@ export function shortDate(value, now = new Date()) {
 	if (Number.isNaN(date.getTime())) return ''
 	const options = { day: 'numeric', month: 'short' }
 	if (date.getFullYear() !== now.getFullYear()) options.year = 'numeric'
-	return date.toLocaleDateString(undefined, options)
+	return date.toLocaleDateString(locale(), options)
 }
 
 // Access ends within the week the warning email covers.

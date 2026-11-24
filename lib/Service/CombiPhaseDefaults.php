@@ -4,8 +4,37 @@ declare(strict_types=1);
 
 namespace OCA\ProjectCreatorAIO\Service;
 
+use OCP\IL10N;
+
 class CombiPhaseDefaults
 {
+	/**
+	 * Display name of a default phase (key of getPhases()) in the language of $l.
+	 * getPhases() keeps the English names; translate only where they are shown or stored.
+	 */
+	public static function translatePhaseName(string $phaseKey, IL10N $l): string
+	{
+		return match ($phaseKey) {
+			'initiation' => $l->t('Initiation Phase'),
+			'handover' => $l->t('Handover Phase'),
+			'preparation' => $l->t('Preparation Phase'),
+			'execution' => $l->t('Execution / Construction'),
+			default => (string)(self::getPhases()[$phaseKey]['name'] ?? $phaseKey),
+		};
+	}
+
+	/** Milestone label of a default phase (key of getPhases()) in the language of $l. */
+	public static function translateMilestone(string $phaseKey, IL10N $l): string
+	{
+		return match ($phaseKey) {
+			'initiation' => $l->t('Initiation ready'),
+			'handover' => $l->t('Handed over'),
+			'preparation' => $l->t('Start construction'),
+			'execution' => $l->t('End construction'),
+			default => (string)(self::getPhases()[$phaseKey]['milestone'] ?? ''),
+		};
+	}
+
 	/**
 	 * Returns the default lifecycle phases for Combi projects.
 	 * Aligned with customer workflow specification using real existing card titles.

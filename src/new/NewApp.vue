@@ -2,42 +2,42 @@
  <NcContent app-name="projectcreatoraio">
   <NcAppContent :allow-swipe-navigation="false">
    <main class="pc-new">
-    <section v-if="contextLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project workspace…') }}</section>
+    <section v-if="contextLoading" class="pc-state" role="status">{{ t('Loading project workspace…') }}</section>
     <section v-else-if="contextError" class="pc-state" role="alert">
-     <h1>{{ t('projectcreatoraio', 'Project workspace unavailable') }}</h1><p>{{ contextError }}</p>
-     <button class="pc-button" @click="initialize">{{ t('projectcreatoraio', 'Try again') }}</button>
+     <h1>{{ t('Project workspace unavailable') }}</h1><p>{{ contextError }}</p>
+     <button class="pc-button" @click="initialize">{{ t('Try again') }}</button>
     </section>
     <section v-else-if="!hasAccess" class="pc-state">
-     <h1>{{ t('projectcreatoraio', 'No organization assigned') }}</h1>
-     <p>{{ t('projectcreatoraio', 'Ask your administrator for access to an organization.') }}</p>
+     <h1>{{ t('No organization assigned') }}</h1>
+     <p>{{ t('Ask your administrator for access to an organization.') }}</p>
     </section>
     <template v-else>
-     <p v-if="isExternal" class="pc-guest-banner" role="note">{{ guestOf ? t('projectcreatoraio', 'Guest of {organizations}', { organizations: guestOf }) : t('projectcreatoraio', 'Guest') }} · {{ t('projectcreatoraio', 'You see only the projects you were invited to.') }}</p>
+     <p v-if="isExternal" class="pc-guest-banner" role="note">{{ guestOf ? t('Guest of {organizations}', { organizations: guestOf }) : t('Guest') }} · {{ t('You see only the projects you were invited to.') }}</p>
      <ProjectShelf ref="shelf" :projects="projects" :selected-id="route.projectId" :selected-name="project ? project.name : ''" :loading="listLoading" :error="listError" :filters="filters" :base="base" :is-global-admin="context.isGlobalAdmin" :is-organization-admin="context.organizationRole === 'admin' && !context.isGlobalAdmin" :my-project-ids="myProjectIds" :recent-project-ids="recentProjectIds" :can-create="!isExternal" @filter="setFilter" @open="navigate($event, route.tab)" @retry="retryList" @create="openCreate" />
     <p v-if="deletedNotice" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ deletedNotice }}</p>
     <NewCreate v-if="route.create" :context="context" :back-label="returnLabel" :back-href="returnHref" @cancel="cancelCreate" @created="onCreated" />
     <template v-else-if="route.projectId">
-     <section v-if="projectLoading" class="pc-state" role="status">{{ t('projectcreatoraio', 'Loading project…') }}</section>
+     <section v-if="projectLoading" class="pc-state" role="status">{{ t('Loading project…') }}</section>
      <section v-else-if="projectError" class="pc-state" role="alert">
-      <h1>{{ t('projectcreatoraio', 'Project unavailable') }}</h1><p>{{ projectError }}</p>
-      <button class="pc-button" @click="loadProject">{{ t('projectcreatoraio', 'Try again') }}</button>
-      <button class="pc-secondary" @click="$refs.shelf.openPicker()">{{ t('projectcreatoraio', 'Choose another project') }}</button>
+      <h1>{{ t('Project unavailable') }}</h1><p>{{ projectError }}</p>
+      <button class="pc-button" @click="loadProject">{{ t('Try again') }}</button>
+      <button class="pc-secondary" @click="$refs.shelf.openPicker()">{{ t('Choose another project') }}</button>
      </section>
      <template v-else-if="project">
       <p v-if="createdNotice && createdNotice.projectId === route.projectId" class="pc-view__notice pc-view__notice--ok pc-created-notice" role="status">{{ createdNotice.text }}</p>
       <ProjectHeader ref="header" @updated="refreshProject" @deleted="onDeleted" :overview="overview" :context="context" :project="project" :tab="route.tab" :base="base" @navigate="navigate(route.projectId, $event)" />
       <NewOverview :overview="overview" :context="context" @retry="reloadOverview" v-if="route.tab === 'overview'" :project="project" @edit-details="$refs.header.openDetails()" @navigate="navigate(route.projectId, $event)" />
       <section v-else class="pc-module" :class="'pc-module--' + route.tab" :aria-label="tabLabel" :aria-busy="projectLoading">
-       <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('projectcreatoraio', 'Section unavailable') }}</h2><p>{{ t('projectcreatoraio', 'This section could not be shown.') }}</p><button class="pc-button" @click="moduleError = false">{{ t('projectcreatoraio', 'Try again') }}</button></div>
+       <div v-if="moduleError" class="pc-state" role="alert"><h2>{{ t('Section unavailable') }}</h2><p>{{ t('This section could not be shown.') }}</p><button class="pc-button" @click="moduleError = false">{{ t('Try again') }}</button></div>
        <ProjectModule v-else :key="route.projectId + ':' + route.tab" :project="project" :context="context" :tab="route.tab" :direct-chat-user="directChatUser" @direct-chat="openDirectChat" />
       </section>
      </template>
     </template>
     <section v-else-if="!listLoading && !listError" class="pc-state">
-     <h1>{{ t('projectcreatoraio', 'Your project workspace') }}</h1>
-     <p v-if="isExternal">{{ t('projectcreatoraio', 'Choose a project from the shelf above.') }}</p>
-     <p v-else>{{ t('projectcreatoraio', 'Create a project to get started. Your projects will appear in the shelf above.') }}</p>
-     <a v-if="!isExternal" class="pc-button" :href="base + '/create'" @click.prevent="openCreate">{{ t('projectcreatoraio', 'New project') }}</a>
+     <h1>{{ t('Your project workspace') }}</h1>
+     <p v-if="isExternal">{{ t('Choose a project from the shelf above.') }}</p>
+     <p v-else>{{ t('Create a project to get started. Your projects will appear in the shelf above.') }}</p>
+     <a v-if="!isExternal" class="pc-button" :href="base + '/create'" @click.prevent="openCreate">{{ t('New project') }}</a>
     </section>
     </template>
    </main>
@@ -46,6 +46,7 @@
 </template>
 <script>
 import overviewState from './overview-state.js'
+import { t } from './l10n.mjs'
 
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
@@ -70,7 +71,8 @@ export default {
   isExternal() { return !!this.context?.isExternal },
   // External collaborators see whose guest they are, and cannot create projects.
   guestOf() { return (this.context?.hostOrganizations || []).map(o => o.name).filter(Boolean).join(', ') },
-  tabLabel() { return this.route.tab },
+  // The open section's name, as the header's tabs say it.
+  tabLabel() { return { tasks: t('Tasks'), notes: t('Notes'), planning: t('Planning'), documents: t('Documents'), intake: t('Intake form'), whiteboard: t('Whiteboard'), members: t('Members'), activity: t('Activity'), agenda: t('Calendar') }[this.route.tab] || this.route.tab },
   // The New project page leads back to the project it was opened from.
   returnLabel() { return this.returnRoute ? (this.projects.find(p => Number(p.id) === this.returnRoute.projectId)?.name || '') : '' },
   returnHref() { return interfaceUrl(this.base, this.returnRoute || {}, true) },
@@ -171,14 +173,14 @@ export default {
    this.recentProjectIds = this.recentProjectIds.filter(id => id !== projectId)
    try { if (Number(localStorage.getItem(this.base + ':last-project:' + this.context.userId)) === projectId) localStorage.removeItem(this.base + ':last-project:' + this.context.userId) } catch { /* Storage can be unavailable. */ }
    this.listLoaded = false
-   this.deletedNotice = name + ' was deleted.'
+   this.deletedNotice = t('{name} was deleted.', { name })
    await this.navigate(null, 'overview')
   },
   // A new project opens on its overview, with the list read again to hold it.
   async onCreated({ projectId, name }) {
    this.returnRoute = null
    this.listLoaded = false
-   this.createdNotice = { projectId, text: name + ' is ready: board, folders, whiteboard and chat are set up.' }
+   this.createdNotice = { projectId, text: t('{name} is ready: board, folders, whiteboard and chat are set up.', { name }) }
    await this.navigate(projectId, 'overview')
   },
   // Chat on a member opens Notes on a direct conversation with them, as the

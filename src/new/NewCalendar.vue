@@ -1,37 +1,37 @@
 <template>
-	<section class="pc-view iz-app pc-calendar" aria-label="Calendar">
+	<section class="pc-view iz-app pc-calendar" :aria-label="t('Calendar')">
 		<header class="pc-view__head">
 			<div class="pc-view__heading">
 				<h2 class="pc-view__title">
-					Calendar
+					{{ t('Calendar') }}
 				</h2>
 				<p class="pc-view__lede">
-					Meetings for this project, and date proposals still waiting for answers.
+					{{ t('Meetings for this project, and date proposals still waiting for answers.') }}
 				</p>
 			</div>
 		</header>
 
 		<div v-if="loading" class="iz-empty" role="status">
-			Loading calendar…
+			{{ t('Loading calendar…') }}
 		</div>
 		<div v-else-if="error && !events.length" class="iz-empty pc-view__failure" role="alert">
 			<span>{{ error }}</span>
 			<button type="button" class="iz-btn" @click="loadEvents">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</div>
 		<div v-else-if="!events.length" class="iz-panel pc-calendar__empty">
 			<span class="pc-calendar__empty-icon" aria-hidden="true"><CalendarBlank :size="24" /></span>
 			<p class="pc-calendar__empty-title">
-				Nothing planned yet
+				{{ t('Nothing planned yet') }}
 			</p>
 			<p class="pc-calendar__empty-text">
-				Meetings linked to this project show up here once they are in your calendar, and so do the date proposals you send for it.
+				{{ t('Meetings linked to this project show up here once they are in your calendar, and so do the date proposals you send for it.') }}
 			</p>
 		</div>
 
 		<template v-else>
-			<div class="iz-tabs" role="tablist" aria-label="Show">
+			<div class="iz-tabs" role="tablist" :aria-label="t('Show')">
 				<button v-for="tab in tabs"
 					:key="tab.key"
 					type="button"
@@ -45,13 +45,13 @@
 				</button>
 			</div>
 
-			<section id="pc-calendar-list" class="iz-panel iz-panel--list pc-calendar__list" aria-label="Agenda">
+			<section id="pc-calendar-list" class="iz-panel iz-panel--list pc-calendar__list" :aria-label="t('Agenda')">
 				<p v-if="!groups.length" class="pc-calendar__none">
-					{{ filterType === 'proposals' ? 'No date proposals for this project.' : 'No meetings for this project.' }}
+					{{ filterType === 'proposals' ? t('No date proposals for this project.') : t('No meetings for this project.') }}
 				</p>
 				<div v-for="group in groups" :key="group.key" class="pc-calendar__group">
 					<h3 class="pc-calendar__group-title">
-						{{ group.label }} · {{ group.items.length }}
+						{{ t('{group} · {count}', { group: group.label, count: group.items.length }) }}
 					</h3>
 					<ul class="pc-calendar__items">
 						<li v-for="event in group.items"
@@ -65,7 +65,7 @@
 								@click="toggle(event)">
 								<span v-if="isProposal(event)" class="pc-calendar__block pc-calendar__block--proposal" aria-hidden="true">
 									<span class="pc-calendar__block-big">{{ (event.dates || []).length }}</span>
-									<span>{{ (event.dates || []).length === 1 ? 'option' : 'options' }}</span>
+									<span>{{ n('option', 'options', (event.dates || []).length) }}</span>
 								</span>
 								<span v-else class="pc-calendar__block" aria-hidden="true">
 									<span class="pc-calendar__block-month">{{ dateBlock(event.startDate).month }}</span>
@@ -74,9 +74,9 @@
 								</span>
 								<span class="pc-calendar__text">
 									<span class="pc-calendar__title-line">
-										<span class="pc-calendar__title">{{ event.title || 'Untitled' }}</span>
+										<span class="pc-calendar__title">{{ event.title || t('Untitled') }}</span>
 										<span v-if="isProposal(event) && allPassed(event, now)" class="iz-pill pc-calendar__pill pc-calendar__pill--warning">
-											{{ (event.dates || []).length === 1 ? 'The date has passed' : 'All ' + event.dates.length + ' dates have passed' }}
+											{{ (event.dates || []).length === 1 ? t('The date has passed') : t('All {n} dates have passed', { n: event.dates.length }) }}
 										</span>
 									</span>
 									<span class="pc-calendar__meta">
@@ -89,8 +89,8 @@
 										<span v-if="proposalStatus(event, now).bar"
 											class="iz-meter iz-meter--thin pc-calendar__meter"
 											role="img"
-											:aria-label="answeredOf(event).answered + ' of ' + answeredOf(event).total + ' answered'"
-											:title="answeredOf(event).answered + ' of ' + answeredOf(event).total + ' answered'">
+											:aria-label="t('{answered} of {total} answered', answeredOf(event))"
+											:title="t('{answered} of {total} answered', answeredOf(event))">
 											<span class="iz-meter__fill" :style="{ width: answeredWidth(event) }" />
 										</span>
 									</template>
@@ -106,7 +106,7 @@
 								<div class="pc-calendar__columns">
 									<div class="pc-calendar__column">
 										<h4 class="pc-calendar__label">
-											{{ isProposal(event) ? 'Date options' : 'When' }}
+											{{ isProposal(event) ? t('Date options') : t('When') }}
 										</h4>
 										<ol v-if="isProposal(event)" class="pc-calendar__options" :style="{ '--pc-rows': Math.ceil(optionsOf(event, now).length / 2) }">
 											<li v-for="(option, index) in optionsOf(event, now)"
@@ -114,19 +114,19 @@
 												:class="{ 'pc-calendar__option--passed': option.passed }">
 												<span class="pc-calendar__option-number">{{ index + 1 }}</span>
 												<span>{{ option.label }}</span>
-												<span v-if="option.passed" class="pc-sr-only">(passed)</span>
+												<span v-if="option.passed" class="pc-sr-only">{{ t('(passed)') }}</span>
 											</li>
 										</ol>
 										<p v-else class="pc-calendar__when">
-											{{ longDay(event.startDate, now) }} · {{ timeRange(event) }}<span v-if="event.duration"> ({{ event.duration }} min)</span>
+											{{ longDay(event.startDate, now) }} · {{ timeRange(event) }}<span v-if="event.duration"> {{ t('({n} min)', { n: event.duration }) }}</span>
 										</p>
 									</div>
 									<div class="pc-calendar__column">
 										<h4 class="pc-calendar__label">
-											Participants
+											{{ t('Participants') }}
 										</h4>
 										<p v-if="!(event.participants || []).length" class="pc-calendar__muted">
-											No participants listed.
+											{{ t('No participants listed.') }}
 										</p>
 										<ul v-else class="pc-calendar__people">
 											<li v-for="person in peopleOf(event)" :key="person.key" class="pc-calendar__person">
@@ -138,7 +138,7 @@
 								</div>
 								<p v-if="isProposal(event)" class="pc-calendar__hint">
 									<span>{{ proposalHint(event, now) }}</span>
-									<a :href="calendarUrl" class="pc-calendar__link">Open Calendar</a>
+									<a :href="calendarUrl" class="pc-calendar__link">{{ t('Open Calendar') }}</a>
 								</p>
 							</div>
 						</li>
@@ -152,7 +152,7 @@
 						class="iz-btn iz-btn--sm"
 						:disabled="loadingMore"
 						@click="loadMore">
-						{{ loadingMore ? 'Loading…' : 'Load older events' }}
+						{{ loadingMore ? t('Loading…') : t('Load older events') }}
 					</button>
 				</div>
 			</section>
@@ -165,6 +165,7 @@ import ProjectCalendar from '../components/ProjectCalendar.vue'
 import CalendarBlank from 'vue-material-design-icons/CalendarBlank.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import { generateUrl } from '@nextcloud/router'
+import { t } from './l10n.mjs'
 import { isProposal, isMeeting, keyOf, groupsOf, dateBlock, longDay, timeRange, optionsOf, allPassed, answeredOf, peopleOf, attendeeSummary, metaOf, proposalStatus, proposalHint } from './calendar.js'
 
 // The Calendar tab of the new layout. Extends ProjectCalendar for its loading,
@@ -183,9 +184,9 @@ export default {
 		calendarUrl() { return generateUrl('/apps/calendar/') },
 		tabs() {
 			return [
-				{ key: 'all', label: 'All', count: this.events.length },
-				{ key: 'proposals', label: 'Proposals', count: this.proposalCount },
-				{ key: 'meetings', label: 'Meetings', count: this.confirmedCount },
+				{ key: 'all', label: t('All'), count: this.events.length },
+				{ key: 'proposals', label: t('Proposals'), count: this.proposalCount },
+				{ key: 'meetings', label: t('Meetings'), count: this.confirmedCount },
 			]
 		},
 	},

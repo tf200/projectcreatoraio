@@ -1,7 +1,7 @@
 <template>
 	<div class="pc-location-menu">
 		<p class="pc-location-menu__label">
-			{{ t('projectcreatoraio', 'Location') }}
+			{{ t('Location') }}
 		</p>
 		<div class="pc-location-menu__address">
 			<strong v-if="street.trim()">{{ street.trim() }}</strong>
@@ -9,14 +9,14 @@
 		</div>
 		<div class="pc-location-menu__map">
 			<p v-if="!street.trim()" class="pc-location-menu__status">
-				{{ t('projectcreatoraio', 'Add a street to see this project on the map.') }}
+				{{ t('Add a street to see this project on the map.') }}
 			</p>
 			<p v-else-if="locationHint" class="pc-location-menu__status" role="status">
 				{{ locationHint }}
 			</p>
 			<iframe v-else-if="mapEmbedUrl"
 				class="pc-location-menu__frame"
-				:title="t('projectcreatoraio', 'Map of {address}', { address: locationQuery })"
+				:title="t('Map of {address}', { address: locationQuery })"
 				:src="mapEmbedUrl"
 				loading="lazy" />
 		</div>
@@ -25,10 +25,10 @@
 			:href="searchUrl"
 			target="_blank"
 			rel="noopener noreferrer">
-			<MapMarkerOutline :size="16" />{{ t('projectcreatoraio', 'Open in OpenStreetMap') }}<OpenInNew :size="14" class="pc-location-menu__out" />
+			<MapMarkerOutline :size="16" />{{ t('Open in OpenStreetMap') }}<OpenInNew :size="14" class="pc-location-menu__out" />
 		</a>
 		<button type="button" class="pc-location-menu__item" @click="$emit('edit')">
-			<PencilOutline :size="16" />{{ t('projectcreatoraio', 'Edit client & address') }}
+			<PencilOutline :size="16" />{{ t('Edit client & address') }}
 		</button>
 	</div>
 </template>
@@ -39,7 +39,7 @@
 // ProjectLocationMap for the address lookup and the OpenStreetMap embed; it is
 // only mounted while the menu is open, so the address is looked up only then.
 // The embed carries OpenStreetMap's own credit line.
-import { t } from '@nextcloud/l10n'
+import { t } from './l10n.mjs'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import PencilOutline from 'vue-material-design-icons/PencilOutline.vue'

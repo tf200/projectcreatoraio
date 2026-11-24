@@ -1,12 +1,15 @@
+import { t } from './l10n.mjs'
+
 // The disciplines a project can cover, in the order the server stores them
 // (Project::DISCIPLINES in lib/Db/Project.php; a test keeps the two equal).
+// The value is the stored key; the label is read in the user's language each time.
 export const DISCIPLINES = [
-	{ value: 'electricity', label: 'Electricity' },
-	{ value: 'water', label: 'Water' },
-	{ value: 'gas', label: 'Gas' },
-	{ value: 'coax', label: 'Coax' },
-	{ value: 'fiber_optic', label: 'Fiber optic' },
-	{ value: 'sewerage', label: 'Sewerage' },
+	{ value: 'electricity', get label() { return t('Electricity') } },
+	{ value: 'water', get label() { return t('Water') } },
+	{ value: 'gas', get label() { return t('Gas') } },
+	{ value: 'coax', get label() { return t('Coax') } },
+	{ value: 'fiber_optic', get label() { return t('Fiber optic') } },
+	{ value: 'sewerage', get label() { return t('Sewerage') } },
 ]
 
 // Known keys only, once each, in the fixed order: what the server would store.

@@ -5,34 +5,34 @@
 		</div>
 		<template v-else>
 			<div v-if="needsMembers && membersLoading" class="project-module__state" role="status">
-				{{ t('projectcreatoraio', 'Loading members…') }}
+				{{ t('Loading members…') }}
 			</div>
 			<div v-else-if="needsMembers && membersError" class="project-module__state" role="alert">
 				<p>{{ membersError }}</p>
-				<button type="button" @click="loadMembers">{{ t('projectcreatoraio', 'Try again') }}</button>
+				<button type="button" @click="loadMembers">{{ t('Try again') }}</button>
 			</div>
 			<template v-else>
-				<p v-if="moduleLoading" class="project-module__state" role="status">{{ t('projectcreatoraio', 'Loading section…') }}</p>
+				<p v-if="moduleLoading" class="project-module__state" role="status">{{ t('Loading section…') }}</p>
 				<div v-else-if="moduleError" class="project-module__state" role="alert">
 					<p>{{ moduleError }}</p>
-					<button type="button" @click="loadModule">{{ t('projectcreatoraio', 'Try again') }}</button>
+					<button type="button" @click="loadModule">{{ t('Try again') }}</button>
 				</div>
 				<template v-else-if="moduleComponent">
 					<header v-if="tab === 'documents'" class="pc-view__head">
 						<div class="pc-view__heading">
-							<h2 class="pc-view__title">{{ t('projectcreatoraio', 'Documents') }}</h2>
-							<p class="pc-view__lede">{{ t('projectcreatoraio', 'Shared and private project files, with OCR and signing.') }}</p>
+							<h2 class="pc-view__title">{{ t('Documents') }}</h2>
+							<p class="pc-view__lede">{{ t('Shared and private project files, with OCR and signing.') }}</p>
 						</div>
 						<a v-if="sharedZipUrl"
 							class="pc-documents-zip"
 							:href="sharedZipUrl"
 							download>
-							<Download :size="18" />{{ t('projectcreatoraio', 'Download all shared files (ZIP)') }}
+							<Download :size="18" />{{ t('Download all shared files (ZIP)') }}
 						</a>
 					</header>
 					<component :is="moduleComponent" :key="scopeKey" :class="{ 'pc-tasks-theme': tab === 'tasks', 'pc-notes-theme': tab === 'notes', 'pc-whiteboard-theme': tab === 'whiteboard', 'pc-documents-theme': tab === 'documents', 'pc-planning-theme': tab === 'planning' }" v-bind="moduleProps" @refresh="loadFiles" @open-direct-chat="$emit('direct-chat', $event)" @clear-target-direct-user="$emit('direct-chat', null)" />
 				</template>
-				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('projectcreatoraio', 'Reload documents') }}</button>
+				<button v-if="tab === 'documents' && filesError" type="button" @click="loadFiles">{{ t('Reload documents') }}</button>
 			</template>
 		</template>
 	</section>
@@ -43,7 +43,7 @@ import axios from '@nextcloud/axios'
 import { generateUrl, generateRemoteUrl } from '@nextcloud/router'
 import Download from 'vue-material-design-icons/Download.vue'
 import { sharedZipUrl } from './documents.js'
-import { t } from '@nextcloud/l10n'
+import { t } from './l10n.mjs'
 import { api } from './api.js'
 
 const loaders = {
@@ -95,11 +95,11 @@ export default {
 		// The whole Shared Files folder, whichever folder is open below.
 		sharedZipUrl() { return this.tab === 'documents' ? sharedZipUrl(generateRemoteUrl('dav'), this.files.shared) : '' },
 		unavailable() {
-			if (!Number.isSafeInteger(this.projectId) || this.projectId <= 0) return t('projectcreatoraio', 'This project is unavailable.')
+			if (!Number.isSafeInteger(this.projectId) || this.projectId <= 0) return t('This project is unavailable.')
 			const feature = { tasks: 'deck', intake: 'deck', agenda: 'calendar', whiteboard: 'whiteboard' }[this.tab]
-			if (feature && this.context.features?.[feature] === false) return t('projectcreatoraio', 'This section is not enabled.')
-			if (this.tab === 'intake' && Number(this.project.type) !== 0) return t('projectcreatoraio', 'The intake form is only available for Combi projects.')
-			if (!loaders[this.tab]) return t('projectcreatoraio', 'This section is unavailable.')
+			if (feature && this.context.features?.[feature] === false) return t('This section is not enabled.')
+			if (this.tab === 'intake' && Number(this.project.type) !== 0) return t('The intake form is only available for Combi projects.')
+			if (!loaders[this.tab]) return t('This section is unavailable.')
 			return ''
 		},
 		scopeKey() { return `${this.projectId}:${this.tab}:${this.unavailable}` },
@@ -164,7 +164,7 @@ export default {
 				const module = await loaders[tab]()
 				if (current()) this.moduleComponent = module.default
 			} catch (error) {
-				if (current()) this.moduleError = t('projectcreatoraio', 'The section could not be loaded.')
+				if (current()) this.moduleError = t('The section could not be loaded.')
 			} finally {
 				if (current()) this.moduleLoading = false
 			}
@@ -184,7 +184,7 @@ export default {
 			} catch (error) {
 				if (current()) {
 					this.files = { shared: [], private: [] }
-					this.filesError = t('projectcreatoraio', 'Documents could not be loaded. Check your access or try again.')
+					this.filesError = t('Documents could not be loaded. Check your access or try again.')
 				}
 			} finally {
 				if (current()) this.filesLoading = false
@@ -204,7 +204,7 @@ export default {
 			} catch (error) {
 				if (current()) {
 					this.members = []
-					this.membersError = t('projectcreatoraio', 'Project members could not be loaded. Check your access or try again.')
+					this.membersError = t('Project members could not be loaded. Check your access or try again.')
 				}
 			} finally {
 				if (current()) this.membersLoading = false

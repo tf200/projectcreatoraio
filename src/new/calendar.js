@@ -2,6 +2,8 @@
 // date proposals ("MeetingProposal") and meetings ("Meeting"). These helpers
 // group and word them for the new layout; times show in the viewer's zone.
 
+import { t, n, locale } from './l10n.mjs'
+
 export const isProposal = event => event?.['@type'] === 'MeetingProposal'
 export const isMeeting = event => event?.['@type'] === 'Meeting'
 export const keyOf = event => String(event?.['@type']) + '-' + String(event?.id)
@@ -18,43 +20,43 @@ export function groupsOf(events, filter = 'all', now = Date.now()) {
 	const upcoming = meetings.filter(m => endOf(m) >= now).sort((a, b) => time(a.startDate) - time(b.startDate))
 	const past = meetings.filter(m => endOf(m) < now).sort((a, b) => time(b.startDate) - time(a.startDate))
 	return [
-		{ key: 'proposals', label: 'Needs a date', items: proposals },
-		{ key: 'upcoming', label: 'Upcoming', items: upcoming },
-		{ key: 'past', label: 'Past', items: past },
+		{ key: 'proposals', label: t('Needs a date'), items: proposals },
+		{ key: 'upcoming', label: t('Upcoming'), items: upcoming },
+		{ key: 'past', label: t('Past'), items: past },
 	].filter(group => group.items.length)
 }
 
 const sameYear = (date, now) => date.getFullYear() === new Date(now).getFullYear()
 
 export function clock(value) {
-	return new Date(value).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+	return new Date(value).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })
 }
 
 // "Mon 24 Aug · 11:00", with the year when it is not this year.
 export function dayTime(value, now = Date.now()) {
 	const date = new Date(value)
-	const day = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear(date, now) ? {} : { year: 'numeric' }) })
-	return day.replace(',', '') + ' · ' + clock(value)
+	const day = date.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear(date, now) ? {} : { year: 'numeric' }) })
+	return t('{day} · {time}', { day: day.replace(',', ''), time: clock(value) })
 }
 
 // "Wednesday 7 October".
 export function longDay(value, now = Date.now()) {
 	const date = new Date(value)
-	return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear(date, now) ? {} : { year: 'numeric' }) }).replace(',', '')
+	return date.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear(date, now) ? {} : { year: 'numeric' }) }).replace(',', '')
 }
 
 export function timeRange(meeting) {
 	if (Number.isNaN(time(meeting.startDate))) return ''
-	return Number.isNaN(time(meeting.endDate)) ? clock(meeting.startDate) : clock(meeting.startDate) + ' – ' + clock(meeting.endDate)
+	return Number.isNaN(time(meeting.endDate)) ? clock(meeting.startDate) : t('{start} – {end}', { start: clock(meeting.startDate), end: clock(meeting.endDate) })
 }
 
 // The date block in front of a meeting.
 export function dateBlock(value) {
 	const date = new Date(value)
 	return {
-		month: date.toLocaleDateString('en-GB', { month: 'short' }).slice(0, 3),
+		month: date.toLocaleDateString(locale(), { month: 'short' }).replace('.', '').slice(0, 3),
 		day: String(date.getDate()),
-		weekday: date.toLocaleDateString('en-GB', { weekday: 'short' }),
+		weekday: date.toLocaleDateString(locale(), { weekday: 'short' }),
 	}
 }
 
@@ -75,67 +77,79 @@ export function answeredOf(proposal) {
 	return { answered: people.filter(p => p?.status === 'responded').length, total: people.length }
 }
 
-// Statuses in plain words, with the theme tone they read in.
+// Statuses in plain words, with the theme tone they read in. Keyed by the
+// Calendar app's participation code; the label is made when it is shown.
 const STATUS = {
-	'needs-action': ['Not answered yet', 'muted'],
-	responded: ['Answered', 'success'],
-	accepted: ['Accepted', 'success'],
-	tentative: ['Maybe', 'warning'],
-	declined: ['Declined', 'danger'],
-	delegated: ['Delegated', 'muted'],
+	'needs-action': [() => t('Not answered yet'), 'muted'],
+	responded: [() => t('Answered'), 'success'],
+	accepted: [() => t('Accepted'), 'success'],
+	tentative: [() => t('Maybe'), 'warning'],
+	declined: [() => t('Declined'), 'danger'],
+	delegated: [() => t('Delegated'), 'muted'],
 }
 
+const statusCode = status => String(status || 'needs-action').toLowerCase()
+
 export function statusOf(status) {
-	const [label, tone] = STATUS[String(status || 'needs-action').toLowerCase()] || [String(status), 'muted']
-	return { label, tone }
+	const known = STATUS[statusCode(status)]
+	return known ? { label: known[0](), tone: known[1] } : { label: String(status), tone: 'muted' }
 }
 
 // A participant's name, and their address only when it says something more.
 export function peopleOf(event) {
 	return (event.participants || []).map((p, index) => {
-		const name = String(p?.name || p?.address || 'Unknown')
+		const name = String(p?.name || p?.address || t('Unknown'))
 		const address = p?.address && p.address !== name ? p.address : ''
 		return { key: index + ':' + (p?.address || name), name, address, ...statusOf(p?.status) }
 	})
 }
 
-// The same statuses as a count: "2 accepted · 1 maybe · 1 not answered".
-const SUMMARY = { Accepted: 'accepted', Maybe: 'maybe', Declined: 'declined', 'Not answered yet': 'not answered', Delegated: 'delegated' }
+// The same statuses as a count: "2 accepted · 1 maybe · 1 not answered",
+// counted by status code, in this order.
+const SUMMARY = {
+	accepted: count => t('{n} accepted', { n: count }),
+	tentative: count => t('{n} maybe', { n: count }),
+	declined: count => t('{n} declined', { n: count }),
+	'needs-action': count => t('{n} not answered', { n: count }),
+	delegated: count => t('{n} delegated', { n: count }),
+}
 
 export function attendeeSummary(meeting) {
 	const counts = {}
 	for (const person of meeting.participants || []) {
-		const { label } = statusOf(person?.status)
-		counts[label] = (counts[label] || 0) + 1
+		const code = statusCode(person?.status)
+		counts[code] = (counts[code] || 0) + 1
 	}
 	return Object.keys(SUMMARY)
-		.filter(label => counts[label])
-		.map(label => counts[label] + ' ' + SUMMARY[label])
+		.filter(code => counts[code])
+		.map(code => SUMMARY[code](counts[code]))
 		.join(' · ')
 }
 
 // What a proposal is waiting for, in one line: who still has to answer, the
 // organizer once everyone has, or nothing once every date has passed.
 export function proposalStatus(proposal, now = Date.now()) {
-	if (allPassed(proposal, now)) return { text: 'No date left to pick', tone: 'warning', bar: false }
+	if (allPassed(proposal, now)) return { text: t('No date left to pick'), tone: 'warning', bar: false }
 	const people = proposal.participants || []
-	if (!people.length) return { text: 'No participants yet', tone: 'muted', bar: false }
-	const waiting = people.filter(p => p?.status !== 'responded').map(p => String(p?.name || p?.address || 'Unknown'))
-	if (!waiting.length) return { text: 'Everyone answered · pick a date in Calendar', tone: 'accent', bar: true }
-	const who = waiting.length > 2 ? waiting.length + ' people' : waiting.join(' and ')
-	return { text: 'Waiting for ' + who, tone: 'normal', bar: true }
+	if (!people.length) return { text: t('No participants yet'), tone: 'muted', bar: false }
+	const waiting = people.filter(p => p?.status !== 'responded').map(p => String(p?.name || p?.address || t('Unknown')))
+	if (!waiting.length) return { text: t('Everyone answered · pick a date in Calendar'), tone: 'accent', bar: true }
+	const who = waiting.length > 2
+		? t('{n} people', { n: waiting.length })
+		: waiting.length === 2 ? t('{name} and {name2}', { name: waiting[0], name2: waiting[1] }) : waiting[0]
+	return { text: t('Waiting for {who}', { who }), tone: 'normal', bar: true }
 }
 
 // How a proposal moves on, said under its dates.
 export function proposalHint(proposal, now = Date.now()) {
 	return allPassed(proposal, now)
-		? 'Every date offered has passed. Send new dates from Calendar, or remove the proposal there.'
-		: 'Participants mark the dates that suit them; the organizer then picks one in Calendar and it becomes a meeting.'
+		? t('Every date offered has passed. Send new dates from Calendar, or remove the proposal there.')
+		: t('Participants mark the dates that suit them; the organizer then picks one in Calendar and it becomes a meeting.')
 }
 
 export function metaOf(event) {
 	const parts = isProposal(event)
-		? [(event.dates || []).length === 1 ? '1 date option' : (event.dates || []).length + ' date options', event.duration ? event.duration + ' min' : '', event.location]
+		? [n('%n date option', '%n date options', (event.dates || []).length), event.duration ? t('{n} min', { n: event.duration }) : '', event.location]
 		: [timeRange(event), event.location]
 	return parts.filter(Boolean).join(' · ')
 }

@@ -8,11 +8,11 @@
 				<h2 class="create-note-modal__title">
 					<template v-if="isEditing">
 						<Pencil :size="24" />
-						Edit Note
+						{{ t('Edit Note') }}
 					</template>
 					<template v-else>
 						<Plus :size="24" />
-						Create New Note
+						{{ t('Create New Note') }}
 					</template>
 				</h2>
 			</div>
@@ -20,12 +20,12 @@
 			<div class="create-note-modal__content">
 				<div class="create-note-modal__field">
 					<label class="create-note-modal__label">
-						Note Title
+						{{ t('Note Title') }}
 						<span class="create-note-modal__required">*</span>
 					</label>
 					<NcTextField
 						v-model="noteTitle"
-						placeholder="Enter note title..."
+						:placeholder="t('Enter note title...')"
 						:disabled="isSaving"
 						@keyup.enter="focusContent" />
 				</div>
@@ -33,10 +33,10 @@
 				<div class="create-note-modal__field create-note-modal__field--editor">
 					<div class="create-note-modal__label-row">
 						<label class="create-note-modal__label">
-							Content
+							{{ t('Content') }}
 							<span class="create-note-modal__required">*</span>
 						</label>
-						<span class="create-note-modal__hint">WYSIWYG formatting supported</span>
+						<span class="create-note-modal__hint">{{ t('WYSIWYG formatting supported') }}</span>
 					</div>
 					<WysiwygEditor
 						ref="contentEditor"
@@ -48,7 +48,7 @@
 				</div>
 
 				<div class="create-note-modal__field">
-					<label class="create-note-modal__label" :for="isEditing ? 'edit-note-type' : 'create-note-type'">Type</label>
+					<label class="create-note-modal__label" :for="isEditing ? 'edit-note-type' : 'create-note-type'">{{ t('Type') }}</label>
 					<select
 						:id="isEditing ? 'edit-note-type' : 'create-note-type'"
 						v-model="noteType"
@@ -61,7 +61,7 @@
 				</div>
 
 				<div class="create-note-modal__field">
-					<label class="create-note-modal__label">Visibility</label>
+					<label class="create-note-modal__label">{{ t('Visibility') }}</label>
 					<div class="create-note-modal__visibility-options">
 						<button
 							type="button"
@@ -71,8 +71,8 @@
 							@click="noteVisibility = 'public'">
 							<Earth :size="18" />
 							<div class="create-note-modal__visibility-info">
-								<span class="create-note-modal__visibility-label">Public</span>
-								<span class="create-note-modal__visibility-desc">Visible to all project members</span>
+								<span class="create-note-modal__visibility-label">{{ t('Public') }}</span>
+								<span class="create-note-modal__visibility-desc">{{ t('Visible to all project members') }}</span>
 							</div>
 						</button>
 						<button
@@ -83,8 +83,8 @@
 							@click="noteVisibility = 'private'">
 							<Lock :size="18" />
 							<div class="create-note-modal__visibility-info">
-								<span class="create-note-modal__visibility-label">Private</span>
-								<span class="create-note-modal__visibility-desc">Only visible to you</span>
+								<span class="create-note-modal__visibility-label">{{ t('Private') }}</span>
+								<span class="create-note-modal__visibility-desc">{{ t('Only visible to you') }}</span>
 							</div>
 						</button>
 					</div>
@@ -98,14 +98,14 @@
 
 			<div class="create-note-modal__actions">
 				<NcButton type="tertiary" :disabled="isSaving" @click="close">
-					Cancel
+					{{ t('Cancel') }}
 				</NcButton>
 				<NcButton type="primary" :disabled="!canSave || isSaving" @click="save">
 					<template #icon>
 						<NcLoadingIcon v-if="isSaving" :size="16" />
 						<Check v-else :size="16" />
 					</template>
-					{{ isSaving ? (isEditing ? 'Saving...' : 'Creating...') : (isEditing ? 'Save Changes' : 'Create Note') }}
+					{{ isSaving ? (isEditing ? t('Saving...') : t('Creating…')) : (isEditing ? t('Save Changes') : t('Create Note')) }}
 				</NcButton>
 			</div>
 		</div>
@@ -126,6 +126,7 @@ import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 import { ProjectsService } from '../Services/projects.js'
 import WysiwygEditor from './WysiwygEditor.vue'
 import { DEFAULT_NOTE_TYPE, NOTE_TYPES } from '../constants/note-types.js'
+import { t } from '../new/l10n.mjs'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -196,8 +197,8 @@ export default {
 		},
 		contentPlaceholder() {
 			return this.noteVisibility === 'private'
-				? 'Write your private notes here... (only you can see this)'
-				: 'Write your notes here... (visible to all project members)'
+				? t('Write your private notes here... (only you can see this)')
+				: t('Write your notes here... (visible to all project members)')
 		},
 		noteTypeOptions() {
 			return NOTE_TYPES
@@ -214,6 +215,7 @@ export default {
 		},
 	},
 	methods: {
+		t,
 		resetForm() {
 			if (this.isEditing && this.note) {
 				this.noteTitle = this.note.title || ''
@@ -273,7 +275,7 @@ export default {
 					}
 				}
 			} catch (err) {
-				this.error = err?.response?.data?.message || 'Failed to save note. Please try again.'
+				this.error = err?.response?.data?.message || t('Failed to save note. Please try again.')
 			} finally {
 				this.isSaving = false
 			}

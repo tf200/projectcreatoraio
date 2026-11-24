@@ -1,22 +1,27 @@
 <template>
 	<div class="project-location-map">
-		<p class="project-location-map__title">Map preview</p>
+		<p class="project-location-map__title">
+			{{ t('Map preview') }}
+		</p>
 		<p v-if="locationHint" class="project-location-map__status">
 			{{ locationHint }}
 		</p>
 		<iframe
 			v-else-if="mapEmbedUrl"
 			class="project-location-map__frame"
-			:title="`Map of ${locationQuery}`"
+			:title="t('Map of {address}', { address: locationQuery })"
 			:src="mapEmbedUrl"
 			loading="lazy" />
 		<p v-if="mapEmbedUrl" class="project-location-map__attribution">
-			© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors
+			<!-- The whole credit line is the link, so it stays one translatable sentence. -->
+			<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">{{ t('© OpenStreetMap contributors') }}</a>
 		</p>
 	</div>
 </template>
 
 <script>
+import { t } from '../new/l10n.mjs'
+
 export default {
 	name: 'ProjectLocationMap',
 	props: {
@@ -77,10 +82,10 @@ export default {
 		},
 		locationHint() {
 			if (!this.locationQuery) {
-				return 'Enter a street and city or ZIP code to preview the project location.'
+				return t('Enter a street and city or ZIP code to preview the project location.')
 			}
 			if (this.loading) {
-				return 'Finding this location...'
+				return t('Finding this location...')
 			}
 			return this.error
 		},
@@ -97,6 +102,7 @@ export default {
 		clearTimeout(this.lookupTimer)
 	},
 	methods: {
+		t,
 		scheduleLookup() {
 			clearTimeout(this.lookupTimer)
 			this.lookupId++
@@ -131,10 +137,10 @@ export default {
 				}
 
 				this.location = results[0] || null
-				this.error = this.location ? '' : 'No map location was found for this address.'
+				this.error = this.location ? '' : t('No map location was found for this address.')
 			} catch (error) {
 				if (lookupId === this.lookupId) {
-					this.error = 'The map preview is unavailable.'
+					this.error = t('The map preview is unavailable.')
 				}
 			} finally {
 				if (lookupId === this.lookupId) {

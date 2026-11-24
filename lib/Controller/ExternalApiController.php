@@ -22,6 +22,8 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 /**
  * Invites, lists and revokes external collaborators on a project. The
@@ -29,6 +31,8 @@ use OCP\IUserSession;
  */
 class ExternalApiController extends Controller {
 	private const DEFAULT_GRANT_DAYS = 90;
+
+	private IL10N $l;
 
 	public function __construct(
 		string $appName,
@@ -38,8 +42,10 @@ class ExternalApiController extends Controller {
 		private ProjectService $projectService,
 		private ProjectAccessService $access,
 		private ?ExternalCollaboratorService $externals = null,
+		?IL10N $l = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	#[NoCSRFRequired]
@@ -135,7 +141,7 @@ class ExternalApiController extends Controller {
 		return $this->respond(function () use ($projectId, $userId, $expiresAt): DataResponse {
 			$project = $this->requireManageableProject($projectId);
 			if ($expiresAt === null || trim($expiresAt) === '') {
-				throw new OCSBadRequestException('An end date is required.');
+				throw new OCSBadRequestException($this->l->t('An end date is required.'));
 			}
 			$grant = $this->externals()->changeEndDate(
 				(int)$project->getOrganizationId(),
@@ -170,7 +176,7 @@ class ExternalApiController extends Controller {
 	private function requireManageableProject(int $projectId): Project {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException('Project not found');
+			throw new OCSNotFoundException($this->l->t('Project not found'));
 		}
 
 		$userId = $this->currentUserId();
@@ -178,7 +184,7 @@ class ExternalApiController extends Controller {
 
 		$isOwner = trim((string)$project->getOwnerId()) === $userId;
 		if (!$isOwner && !$this->access->canAdminister($userId, $project)) {
-			throw new OCSForbiddenException('Only project owners and organization administrators can manage external collaborators.');
+			throw new OCSForbiddenException($this->l->t('Only project owners and organization administrators can manage external collaborators.'));
 		}
 
 		return $project;
@@ -195,7 +201,7 @@ class ExternalApiController extends Controller {
 		if ($expiresAt !== null && trim($expiresAt) !== '') {
 			$date = DateTime::createFromFormat('!Y-m-d', substr(trim($expiresAt), 0, 10), $utc);
 			if ($date === false) {
-				throw new OCSBadRequestException('The end date must be a date like 2026-12-31.');
+				throw new OCSBadRequestException($this->l->t('The end date must be a date like 2026-12-31.'));
 			}
 			return $date->setTime(23, 59, 59);
 		}
@@ -219,7 +225,7 @@ class ExternalApiController extends Controller {
 
 	private function externals(): ExternalCollaboratorService {
 		if ($this->externals === null) {
-			throw new OCSException('External collaborators need the organization app.', 503);
+			throw new OCSException($this->l->t('External collaborators need the organization app.'), 503);
 		}
 		return $this->externals;
 	}
@@ -227,7 +233,7 @@ class ExternalApiController extends Controller {
 	private function currentUserId(): string {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 		return $user->getUID();
 	}

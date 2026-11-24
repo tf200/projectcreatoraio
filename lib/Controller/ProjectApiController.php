@@ -35,9 +35,15 @@ use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Throwable;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class ProjectApiController extends Controller {
 	public const APP_ID = 'projectcreatoraio';
+
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
 
 	public function __construct(
 		string $appName,
@@ -58,9 +64,13 @@ class ProjectApiController extends Controller {
 		private readonly IAppManager $appManager,
 		private ProjectAccessService $access,
 		private ?ProjectMembershipService $membershipService = null,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
 		parent::__construct($appName, $request);
 		$this->request = $request;
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	#[NoCSRFRequired]
@@ -68,7 +78,7 @@ class ProjectApiController extends Controller {
 	public function get(int $projectId) {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -87,7 +97,7 @@ class ProjectApiController extends Controller {
 	public function getCardVisibility(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -103,13 +113,13 @@ class ProjectApiController extends Controller {
 	public function updateCardVisibility(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		if (!$this->canEditPreparationWeeks($project)) {
-			throw new OCSForbiddenException('Only project managers can update form settings');
+			throw new OCSForbiddenException($this->l->t('Only project managers can update form settings'));
 		}
 
 		$params = $this->request->getParams();
@@ -140,7 +150,7 @@ class ProjectApiController extends Controller {
 	public function listMembers(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -184,13 +194,13 @@ class ProjectApiController extends Controller {
 	public function getDeckAccessSummary(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		return new DataResponse($this->projectService->getDeckAccessSummary(
@@ -224,12 +234,12 @@ class ProjectApiController extends Controller {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 		if (!$this->canEditPreparationWeeks($project)) {
-			throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+			throw new OCSForbiddenException($this->l->t('Only project owners and organization administrators can manage project members.'));
 		}
 
 		$result = $this->projectService->addMemberToProject($projectId, $userId, $drasciRoles, $functionalRoleKeys);
@@ -270,12 +280,12 @@ class ProjectApiController extends Controller {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 		if (!$this->canEditPreparationWeeks($project)) {
-			throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+			throw new OCSForbiddenException($this->l->t('Only project owners and organization administrators can manage project members.'));
 		}
 
 		$result = $this->projectService->addMembersToProjectBulk($projectId, $userIds, $drasciRoles, $functionalRoleKeys, $teamId);
@@ -303,12 +313,12 @@ class ProjectApiController extends Controller {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 		if (!$this->canEditPreparationWeeks($project)) {
-			throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+			throw new OCSForbiddenException($this->l->t('Only project owners and organization administrators can manage project members.'));
 		}
 
 		$result = $this->projectService->updateProjectMemberRoles($projectId, $userId, $drasciRoles, $functionalRoleKeys);
@@ -328,19 +338,19 @@ class ProjectApiController extends Controller {
 	public function removeMember(int $projectId, string $userId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 		if (!$this->canEditPreparationWeeks($project)) {
-			throw new OCSForbiddenException('Only project owners and organization administrators can manage project members.');
+			throw new OCSForbiddenException($this->l->t('Only project owners and organization administrators can manage project members.'));
 		}
 		if ($this->membershipService === null) {
-			throw new OCSForbiddenException('Member removal is unavailable.');
+			throw new OCSForbiddenException($this->l->t('Member removal is unavailable.'));
 		}
 		// Taking an external out of the group alone would leave their grant open.
 		if (isset($this->access->getOpenProjectExternals($project)[$userId])) {
-			return new DataResponse(['message' => 'External collaborators leave a project when their access is revoked.'], 400);
+			return new DataResponse(['message' => $this->l->t('External collaborators leave a project when their access is revoked.')], 400);
 		}
 
 		return new DataResponse($this->membershipService->removeMember($projectId, $userId));
@@ -367,7 +377,7 @@ class ProjectApiController extends Controller {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -386,14 +396,14 @@ class ProjectApiController extends Controller {
 	public function listNotes(int $projectId, string $visibility = 'public', string $noteType = '', int $page = 1, int $limit = 12): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$visibility = in_array($visibility, ['public', 'private', 'cards'], true) ? $visibility : 'public';
@@ -405,7 +415,7 @@ class ProjectApiController extends Controller {
 			try {
 				$result = $this->projectService->getCardNotesList($projectId, $currentUser->getUID(), $page, $limit);
 			} catch (NoPermissionException) {
-				throw new OCSForbiddenException('You do not have permission to view this Deck board');
+				throw new OCSForbiddenException($this->l->t('You do not have permission to view this Deck board'));
 			}
 		} else {
 			$result = $this->projectService->getProjectNotesList($projectId, $currentUser->getUID(), $visibility, $noteType, $page, $limit);
@@ -425,14 +435,14 @@ class ProjectApiController extends Controller {
 	public function listCardComments(int $projectId, int $page = 1, int $limit = 20): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$limit = max(1, min(100, $limit));
@@ -441,7 +451,7 @@ class ProjectApiController extends Controller {
 		try {
 			$result = $this->projectService->getCardCommentsList($projectId, $currentUser->getUID(), $page, $limit);
 		} catch (NoPermissionException) {
-			throw new OCSForbiddenException('You do not have permission to view this Deck board');
+			throw new OCSForbiddenException($this->l->t('You do not have permission to view this Deck board'));
 		}
 
 		return new DataResponse([
@@ -457,28 +467,28 @@ class ProjectApiController extends Controller {
 	public function getNote(int $projectId, int $noteId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$note = $this->noteMapper->find($noteId);
 		if ($note === null) {
-			throw new OCSNotFoundException("Note with ID $noteId not found");
+			throw new OCSNotFoundException($this->l->t('Note with ID %s not found', [$noteId]));
 		}
 
 		if ($note->getProjectId() !== $projectId) {
-			throw new OCSNotFoundException('Note not found for this project');
+			throw new OCSNotFoundException($this->l->t('Note not found for this project'));
 		}
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		// Private notes can only be accessed by their creator
 		if ($note->getVisibility() === 'private' && $note->getUserId() !== $currentUser->getUID()) {
-			throw new OCSForbiddenException('You do not have permission to view this note');
+			throw new OCSForbiddenException($this->l->t('You do not have permission to view this note'));
 		}
 
 		return new DataResponse($note->jsonSerialize());
@@ -506,7 +516,7 @@ class ProjectApiController extends Controller {
 			}
 			if (array_key_exists('noteType', $params)) {
 				if (!is_string($params['noteType'])) {
-					return new DataResponse(['message' => 'Invalid note type'], 400);
+					return new DataResponse(['message' => $this->l->t('Invalid note type')], 400);
 				}
 				$noteType = $params['noteType'];
 			}
@@ -514,30 +524,30 @@ class ProjectApiController extends Controller {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		// Validate visibility
 		if ($visibility !== 'public' && $visibility !== 'private') {
-			return new DataResponse(['message' => 'Invalid visibility. Use "public" or "private"'], 400);
+			return new DataResponse(['message' => $this->l->t('Invalid visibility. Use "public" or "private"')], 400);
 		}
 
 		if (!ProjectNote::isValidNoteType($noteType)) {
-			return new DataResponse(['message' => 'Invalid note type'], 400);
+			return new DataResponse(['message' => $this->l->t('Invalid note type')], 400);
 		}
 
 		// Check if private notes are available
 		if ($visibility === 'private') {
 			$hasPrivateFolder = $this->projectService->hasPrivateFolderForUser($projectId, $currentUser->getUID());
 			if (!$hasPrivateFolder) {
-				return new DataResponse(['message' => 'Private notes are not available for this user'], 403);
+				return new DataResponse(['message' => $this->l->t('Private notes are not available for this user')], 403);
 			}
 		}
 
@@ -576,7 +586,7 @@ class ProjectApiController extends Controller {
 			}
 			if (array_key_exists('noteType', $params)) {
 				if (!is_string($params['noteType'])) {
-					return new DataResponse(['message' => 'Invalid note type'], 400);
+					return new DataResponse(['message' => $this->l->t('Invalid note type')], 400);
 				}
 				$noteType = $params['noteType'];
 			}
@@ -584,28 +594,28 @@ class ProjectApiController extends Controller {
 
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$note = $this->noteMapper->find($noteId);
 		if ($note === null) {
-			throw new OCSNotFoundException("Note with ID $noteId not found");
+			throw new OCSNotFoundException($this->l->t('Note with ID %s not found', [$noteId]));
 		}
 
 		if ($note->getProjectId() !== $projectId) {
-			throw new OCSNotFoundException('Note not found for this project');
+			throw new OCSNotFoundException($this->l->t('Note not found for this project'));
 		}
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		// Only the creator can update the note
 		if ($note->getUserId() !== $currentUser->getUID()) {
-			throw new OCSForbiddenException('You do not have permission to update this note');
+			throw new OCSForbiddenException($this->l->t('You do not have permission to update this note'));
 		}
 
 		if ($title !== null) {
@@ -616,7 +626,7 @@ class ProjectApiController extends Controller {
 		}
 		if ($noteType !== null) {
 			if (!ProjectNote::isValidNoteType($noteType)) {
-				return new DataResponse(['message' => 'Invalid note type'], 400);
+				return new DataResponse(['message' => $this->l->t('Invalid note type')], 400);
 			}
 			$note->setNoteType($noteType);
 		}
@@ -788,28 +798,28 @@ class ProjectApiController extends Controller {
 	public function deleteNote(int $projectId, int $noteId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$note = $this->noteMapper->find($noteId);
 		if ($note === null) {
-			throw new OCSNotFoundException("Note with ID $noteId not found");
+			throw new OCSNotFoundException($this->l->t('Note with ID %s not found', [$noteId]));
 		}
 
 		if ($note->getProjectId() !== $projectId) {
-			throw new OCSNotFoundException('Note not found for this project');
+			throw new OCSNotFoundException($this->l->t('Note not found for this project'));
 		}
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		// Only the creator can delete the note
 		if ($note->getUserId() !== $currentUser->getUID()) {
-			throw new OCSForbiddenException('You do not have permission to delete this note');
+			throw new OCSForbiddenException($this->l->t('You do not have permission to delete this note'));
 		}
 
 		$success = $this->noteMapper->deleteNote($noteId);
@@ -905,7 +915,7 @@ class ProjectApiController extends Controller {
 			);
 
 			return new DataResponse([
-				'message' => 'Project created successfully',
+				'message' => $this->l->t('Project created successfully'),
 				'projectId' => $project->getId(),
 			]);
 
@@ -916,7 +926,7 @@ class ProjectApiController extends Controller {
 			}
 
 			return new DataResponse([
-				'message' => 'Failed to create project: ' . $e->getMessage()
+				'message' => $this->l->t('Failed to create project: %s', [$e->getMessage()])
 			], $statusCode);
 		}
 	}
@@ -965,7 +975,7 @@ class ProjectApiController extends Controller {
 	private function getAccessibleProjects(): array {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		return $this->access->getAccessibleProjects($currentUser->getUID());
@@ -976,7 +986,7 @@ class ProjectApiController extends Controller {
 	public function listMine(): DataResponse {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$projects = $this->projectMapper->findByUserId($currentUser->getUID());
@@ -1007,7 +1017,7 @@ class ProjectApiController extends Controller {
 	public function context(): DataResponse {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$userId = $currentUser->getUID();
@@ -1039,7 +1049,7 @@ class ProjectApiController extends Controller {
 	public function getProjectFiles(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -1052,31 +1062,31 @@ class ProjectApiController extends Controller {
 	public function getWhiteboardInfo(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$whiteboardIdRaw = $project->getWhiteBoardId();
 		$whiteboardId = ($whiteboardIdRaw !== null && $whiteboardIdRaw !== '') ? (int)$whiteboardIdRaw : 0;
 		if ($whiteboardId <= 0) {
-			throw new OCSNotFoundException('Whiteboard not linked');
+			throw new OCSNotFoundException($this->l->t('Whiteboard not linked'));
 		}
 
 		$userFolder = $this->rootFolder->getUserFolder($currentUser->getUID());
 		$file = $this->resolveWhiteboardFile($project, $userFolder, $whiteboardId);
 
 		if ($file === null) {
-			throw new OCSNotFoundException('Whiteboard file not found');
+			throw new OCSNotFoundException($this->l->t('Whiteboard file not found'));
 		}
 
 		$relative = $userFolder->getRelativePath($file->getPath());
 		if (!is_string($relative) || $relative === '') {
-			throw new OCSNotFoundException('Whiteboard path not accessible');
+			throw new OCSNotFoundException($this->l->t('Whiteboard path not accessible'));
 		}
 
 		return new DataResponse([
@@ -1094,7 +1104,7 @@ class ProjectApiController extends Controller {
 	public function getActivity(int $projectId, int $limit = 20, int $offset = 0, ?string $source = null, ?string $cursor = null): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -1102,12 +1112,12 @@ class ProjectApiController extends Controller {
 		$limit = max(1, min(100, $limit));
 		$offset = max(0, $offset);
 		if ($cursor === null && $offset >= 500) {
-			throw new OCSBadRequestException('Use cursor pagination for activity offsets of 500 or greater');
+			throw new OCSBadRequestException($this->l->t('Use cursor pagination for activity offsets of 500 or greater'));
 		}
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		return new DataResponse($this->projectActivityAggregationService->getActivity(
@@ -1125,7 +1135,7 @@ class ProjectApiController extends Controller {
 	public function getWhiteboardActivity(int $projectId, int $limit = 20, int $offset = 0): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -1209,7 +1219,7 @@ class ProjectApiController extends Controller {
 	public function getByBoardId(int $boardId): DataResponse {
 		$project = $this->projectMapper->findByBoardId($boardId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project not found for board $boardId");
+			throw new OCSNotFoundException($this->l->t('Project not found for board %s', [$boardId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -1221,7 +1231,7 @@ class ProjectApiController extends Controller {
 	public function getByTalkConversationToken(string $token): DataResponse {
 		$project = $this->projectMapper->findByTalkConversationToken($token);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project not found for conversation $token");
+			throw new OCSNotFoundException($this->l->t('Project not found for conversation %s', [$token]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -1233,7 +1243,7 @@ class ProjectApiController extends Controller {
 	public function getProjectChatMessages(int $projectId, int $limit = 50, int $offset = 0): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
@@ -1253,14 +1263,14 @@ class ProjectApiController extends Controller {
 	public function listDirectChats(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$chats = $this->projectService->listUserDirectChats($projectId, $currentUser->getUID());
@@ -1272,14 +1282,14 @@ class ProjectApiController extends Controller {
 	public function getOrCreateDirectChat(int $projectId, string $targetUserId = ''): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$targetUserId = trim($targetUserId);
@@ -1288,11 +1298,11 @@ class ProjectApiController extends Controller {
 		}
 
 		if ($targetUserId === '') {
-			throw new OCSBadRequestException('Target user ID is required');
+			throw new OCSBadRequestException($this->l->t('Target user ID is required'));
 		}
 
 		if ($targetUserId === $currentUser->getUID()) {
-			throw new OCSBadRequestException('Cannot create a direct chat with yourself');
+			throw new OCSBadRequestException($this->l->t('Cannot create a direct chat with yourself'));
 		}
 
 		$chat = $this->projectService->getOrCreateDirectChat($projectId, $currentUser->getUID(), $targetUserId);
@@ -1304,19 +1314,19 @@ class ProjectApiController extends Controller {
 	public function getDirectChatMessages(int $projectId, string $targetUserId, int $limit = 50, int $offset = 0): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$targetUserId = trim($targetUserId);
 		if ($targetUserId === '') {
-			throw new OCSBadRequestException('Target user ID is required');
+			throw new OCSBadRequestException($this->l->t('Target user ID is required'));
 		}
 
 		$messages = $this->projectService->getDirectChatMessages(
@@ -1334,19 +1344,19 @@ class ProjectApiController extends Controller {
 	public function listByUser(string $userId): DataResponse {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$isGlobalAdmin = $this->iGroupManager->isAdmin($currentUser->getUID());
 		if (!$isGlobalAdmin) {
 			$currentMembership = $this->access->getOrganizationMembership($currentUser->getUID());
 			if ($currentMembership === null) {
-				throw new OCSForbiddenException('You are not assigned to an organization');
+				throw new OCSForbiddenException($this->l->t('You are not assigned to an organization'));
 			}
 
 			if ($currentMembership['role'] !== 'admin') {
 				if ($currentUser->getUID() !== $userId) {
-					throw new OCSForbiddenException('Members can only view their own projects');
+					throw new OCSForbiddenException($this->l->t('Members can only view their own projects'));
 				}
 
 				$projects = $this->projectMapper->findByUserIdAndOrganizationId(
@@ -1359,7 +1369,7 @@ class ProjectApiController extends Controller {
 
 			$targetMembership = $this->access->getOrganizationMembership($userId);
 			if ($targetMembership === null || (int)$targetMembership['organization_id'] !== (int)$currentMembership['organization_id']) {
-				throw new OCSNotFoundException('User not found in your organization');
+				throw new OCSNotFoundException($this->l->t('User not found in your organization'));
 			}
 
 			$projects = $this->projectMapper->findByUserIdAndOrganizationId(
@@ -1415,7 +1425,7 @@ class ProjectApiController extends Controller {
 
 		$existingProject = $this->projectMapper->find($id);
 		if ($existingProject === null) {
-			throw new OCSNotFoundException("Project with ID $id not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$id]));
 		}
 
 		$this->assertCanAccessProject($existingProject);
@@ -1426,7 +1436,7 @@ class ProjectApiController extends Controller {
 		$currentUser = $this->userSession->getUser();
 		if (!$isAdminForProject && $currentUser !== null && $this->access->getOrganizationMembership($currentUser->getUID()) === null
 			&& $this->access->isExternal($currentUser->getUID())) {
-			throw new OCSForbiddenException('External collaborators cannot change the project details.');
+			throw new OCSForbiddenException($this->l->t('External collaborators cannot change the project details.'));
 		}
 		if ($currentUser !== null) {
 			$ownerId = trim((string)$existingProject->getOwnerId());
@@ -1460,7 +1470,7 @@ class ProjectApiController extends Controller {
 				) {
 					// Users with timeline edit permissions may update preparation weeks, desired start date and actual start date.
 				} else {
-					throw new OCSForbiddenException('Project members can only update client and location details');
+					throw new OCSForbiddenException($this->l->t('Project members can only update client and location details'));
 				}
 			}
 		}
@@ -1567,7 +1577,8 @@ class ProjectApiController extends Controller {
 						$actorUid,
 						$oldStatus,
 						$newStatus,
-						'User action (' . $actorLabel . ')',
+						// Stored in the shared status note: server default language.
+						$this->contentL10n->get()->t('User action (%s)', [$actorLabel]),
 					);
 				}
 
@@ -1588,13 +1599,13 @@ class ProjectApiController extends Controller {
 	public function delete(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		if (!$this->canDeleteProject($project)) {
-			throw new OCSForbiddenException('Only organization admins or the project owner can delete this project');
+			throw new OCSForbiddenException($this->l->t('Only organization admins or the project owner can delete this project'));
 		}
 
 		$this->projectRetentionService->deleteProject($project);
@@ -1610,14 +1621,14 @@ class ProjectApiController extends Controller {
 	public function requestDownload(int $projectId): DataResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$argument = [
@@ -1629,7 +1640,7 @@ class ProjectApiController extends Controller {
 
 		return new DataResponse([
 			'status' => 'queued',
-			'message' => 'Export is being prepared. You will be notified when it is ready.',
+			'message' => $this->l->t('Export is being prepared. You will be notified when it is ready.'),
 		]);
 	}
 
@@ -1638,19 +1649,19 @@ class ProjectApiController extends Controller {
 	public function downloadExport(int $projectId): StreamResponse {
 		$project = $this->projectMapper->find($projectId);
 		if ($project === null) {
-			throw new OCSNotFoundException("Project with ID $projectId not found");
+			throw new OCSNotFoundException($this->l->t('Project with ID %s not found', [$projectId]));
 		}
 
 		$this->assertCanAccessProject($project);
 
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$exportFolder = $this->downloadService->getExportFolder($currentUser);
 		if ($exportFolder === null) {
-			throw new OCSNotFoundException('No export available. Please request a download first.');
+			throw new OCSNotFoundException($this->l->t('No export available. Please request a download first.'));
 		}
 
 		$filenamePrefix = ProjectDownloadService::getExportFilenamePrefix($projectId);
@@ -1665,7 +1676,7 @@ class ProjectApiController extends Controller {
 		}
 
 		if ($zipFile === null) {
-			throw new OCSNotFoundException('No export file found for this project. Please request a download first.');
+			throw new OCSNotFoundException($this->l->t('No export file found for this project. Please request a download first.'));
 		}
 
 		$response = new StreamResponse($zipFile->fopen('rb'));
@@ -1716,7 +1727,7 @@ class ProjectApiController extends Controller {
 	private function assertCanAccessProject(Project $project): void {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		$this->access->assertCanView($currentUser->getUID(), $project);

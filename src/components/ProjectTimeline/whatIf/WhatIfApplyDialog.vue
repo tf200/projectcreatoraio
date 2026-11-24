@@ -2,14 +2,14 @@
 	<NcModal size="normal" label-id="whatif-apply-title" @close="$emit('close')">
 		<div class="whatif-apply">
 			<h3 id="whatif-apply-title">
-				Apply this scenario to the plan?
+				{{ t('Apply this scenario to the plan?') }}
 			</h3>
 			<p>
-				The scenario becomes the project plan. Everyone on the project sees the new dates.
+				{{ t('The scenario becomes the project plan. Everyone on the project sees the new dates.') }}
 			</p>
 
 			<section>
-				<h4>Changes</h4>
+				<h4>{{ t('Changes') }}</h4>
 				<ul>
 					<li v-for="(change, index) in changes" :key="index">
 						{{ describe(change) }}
@@ -18,18 +18,18 @@
 			</section>
 
 			<section v-if="cardUpdates.length">
-				<h4>{{ cardUpdates.length }} Deck {{ cardUpdates.length === 1 ? 'card gets' : 'cards get' }} new dates</h4>
+				<h4>{{ n('%n Deck card gets new dates', '%n Deck cards get new dates', cardUpdates.length) }}</h4>
 				<table class="whatif-apply__cards">
 					<thead>
 						<tr>
 							<th scope="col">
-								Card
+								{{ t('Card') }}
 							</th>
 							<th scope="col">
-								Now
+								{{ t('Now') }}
 							</th>
 							<th scope="col">
-								After
+								{{ t('After') }}
 							</th>
 						</tr>
 					</thead>
@@ -43,15 +43,15 @@
 				</table>
 			</section>
 			<p v-else class="whatif-apply__muted">
-				No Deck card dates change.
+				{{ t('No Deck card dates change.') }}
 			</p>
 
 			<footer>
 				<NcButton type="tertiary" :disabled="applying" @click="$emit('close')">
-					Cancel
+					{{ t('Cancel') }}
 				</NcButton>
 				<NcButton type="primary" :disabled="applying" @click="$emit('confirm')">
-					{{ applying ? 'Applying…' : 'Apply to plan' }}
+					{{ applying ? t('Applying…') : t('Apply to plan') }}
 				</NcButton>
 			</footer>
 		</div>
@@ -61,6 +61,7 @@
 <script>
 import { NcButton, NcModal } from '@nextcloud/vue'
 
+import { t, n, tc } from '../../../new/l10n.mjs'
 import { describeChange } from './whatIfChanges.js'
 
 export default {
@@ -93,6 +94,10 @@ export default {
 	},
 	emits: ['confirm', 'close'],
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		describe(change) {
 			return describeChange(change, this.labelOf, this.formatDate)
 		},

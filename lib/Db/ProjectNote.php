@@ -4,6 +4,7 @@ namespace OCA\ProjectCreatorAIO\Db;
 use DateTime;
 use OCP\AppFramework\Db\Entity;
 use OCP\DB\Types;
+use OCP\IL10N;
 use JsonSerializable;
 
 class ProjectNote extends Entity implements JsonSerializable {
@@ -82,7 +83,25 @@ class ProjectNote extends Entity implements JsonSerializable {
         return self::isValidNoteType($noteType) ? $noteType : self::NOTE_TYPE_GENERAL;
     }
 
-    public static function noteTypeLabel(mixed $noteType): string {
-        return self::NOTE_TYPE_LABELS[self::normalizeNoteType($noteType)];
+    /**
+     * Display label for a note type code. Pass a translator to get it in that language;
+     * without one the English label is returned.
+     */
+    public static function noteTypeLabel(mixed $noteType, ?IL10N $l = null): string {
+        $type = self::normalizeNoteType($noteType);
+        if ($l === null) {
+            return self::NOTE_TYPE_LABELS[$type];
+        }
+
+        return match ($type) {
+            self::NOTE_TYPE_CUSTOMER => $l->t('Customer note'),
+            self::NOTE_TYPE_INTERNAL => $l->t('Internal note'),
+            self::NOTE_TYPE_DECISION => $l->t('Decision'),
+            self::NOTE_TYPE_RISK_BLOCKER => $l->t('Risk / blocker'),
+            self::NOTE_TYPE_ACTION_POINT => $l->t('Action point'),
+            self::NOTE_TYPE_TECHNICAL => $l->t('Technical note'),
+            self::NOTE_TYPE_AUDIT => $l->t('Audit note'),
+            default => $l->t('General note'),
+        };
     }
 }

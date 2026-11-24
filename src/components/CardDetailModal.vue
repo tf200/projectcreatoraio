@@ -11,21 +11,23 @@
 					{{ card.title }}
 				</h2>
 				<span class="card-detail-modal__meta">
-					Card #{{ card.cardId }} &middot; Updated {{ formatDate(card.updatedAt) }}
+					{{ t('Card #{id} · Updated {date}', { id: card.cardId, date: formatDate(card.updatedAt) }) }}
 				</span>
 			</div>
 
 			<div class="card-detail-modal__body">
 				<div class="card-detail-modal__section">
-					<h3 class="card-detail-modal__section-title">Description</h3>
+					<h3 class="card-detail-modal__section-title">
+						{{ t('Description') }}
+					</h3>
 					<p class="card-detail-modal__description">
-						{{ card.content || 'No description' }}
+						{{ card.content || t('No description') }}
 					</p>
 				</div>
 
 				<div class="card-detail-modal__section">
 					<h3 class="card-detail-modal__section-title">
-						Your Private Notes
+						{{ t('Your Private Notes') }}
 						<span v-if="card.cardNotes && card.cardNotes.length" class="card-detail-modal__badge">
 							{{ card.cardNotes.length }}
 						</span>
@@ -39,7 +41,9 @@
 							<span class="card-detail-modal__note-date">{{ formatDate(note.lastModified) }}</span>
 						</div>
 					</div>
-					<p v-else class="card-detail-modal__empty">No private notes on this card.</p>
+					<p v-else class="card-detail-modal__empty">
+						{{ t('No private notes on this card.') }}
+					</p>
 				</div>
 			</div>
 		</div>
@@ -49,6 +53,7 @@
 <script>
 import NcModal from '@nextcloud/vue/components/NcModal'
 import CardTextOutline from 'vue-material-design-icons/CardTextOutline.vue'
+import { t, locale } from '../new/l10n.mjs'
 
 export default {
 	name: 'CardDetailModal',
@@ -67,6 +72,7 @@ export default {
 		},
 	},
 	methods: {
+		t,
 		close() {
 			this.$emit('close')
 		},
@@ -82,13 +88,13 @@ export default {
 				const diffHours = Math.floor((now - date) / (1000 * 60 * 60))
 				if (diffHours === 0) {
 					const diffMinutes = Math.floor((now - date) / (1000 * 60))
-					return diffMinutes <= 1 ? 'Just now' : `${diffMinutes} minutes ago`
+					return diffMinutes <= 1 ? t('Just now') : t('{n}m ago', { n: diffMinutes })
 				}
-				return `${diffHours} h ago`
+				return t('{n}h ago', { n: diffHours })
 			}
-			if (diffDays === 1) return 'Yesterday'
-			if (diffDays < 7) return `${diffDays} d ago`
-			return date.toLocaleDateString(undefined, {
+			if (diffDays === 1) return t('Yesterday')
+			if (diffDays < 7) return t('{n}d ago', { n: diffDays })
+			return date.toLocaleDateString(locale(), {
 				month: 'short',
 				day: 'numeric',
 				year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,

@@ -11,15 +11,20 @@ use OCP\AppFramework\OCS\OCSException;
 use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use Throwable;
+use OCP\IL10N;
 
 class PythonDocumentExtractionClient
 {
     private const DEFAULT_TIMEOUT_SECONDS = 120;
 
+    private IL10N $l;
+
     public function __construct(
         private readonly IClientService $clientService,
         private readonly IConfig $config,
+        ?IL10N $l = null,
     ) {
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
     }
 
     /**
@@ -29,7 +34,7 @@ class PythonDocumentExtractionClient
     {
         $baseUrl = trim($this->config->getAppValue(Application::APP_ID, 'python_ocr_base_url', 'http://ocr-nextcloud-api:8085'));
         if ($baseUrl === '') {
-            throw new OCSException('Python OCR service URL is not configured.', 500);
+            throw new OCSException($this->l->t('Python OCR service URL is not configured.'), 500);
         }
 
         $client = $this->clientService->newClient();
@@ -56,7 +61,7 @@ class PythonDocumentExtractionClient
                 'timeout' => self::DEFAULT_TIMEOUT_SECONDS,
             ]);
         } catch (Throwable $e) {
-            throw new OCSException(sprintf('Python OCR service request failed: %s', $e->getMessage()), 502);
+            throw new OCSException($this->l->t('Python OCR service request failed: %s', [$e->getMessage()]), 502);
         }
 
         $statusCode = $response->getStatusCode();
@@ -66,7 +71,7 @@ class PythonDocumentExtractionClient
         if ($statusCode < 200 || $statusCode >= 300) {
             $message = is_array($decoded) ? (string) ($decoded['error'] ?? '') : '';
             if ($message === '') {
-                $message = 'Python OCR service returned an error.';
+                $message = $this->l->t('Python OCR service returned an error.');
             }
 
             throw new OCSException($message, 502);
@@ -74,7 +79,7 @@ class PythonDocumentExtractionClient
 
         $fields = is_array($decoded) ? ($decoded['fields'] ?? null) : null;
         if (!is_array($fields)) {
-            throw new OCSException('Python OCR service returned an invalid fields payload.', 502);
+            throw new OCSException($this->l->t('Python OCR service returned an invalid fields payload.'), 502);
         }
 
         return new DocumentExtractionResult($this->normalizeExtractedFields($fieldDefinitions, $fields));
@@ -98,7 +103,7 @@ class PythonDocumentExtractionClient
         }
 
         if ($requested === []) {
-            throw new OCSException('At least one extraction field is required.', 400);
+            throw new OCSException($this->l->t('At least one extraction field is required.'), 400);
         }
 
         return array_values(array_unique($requested));

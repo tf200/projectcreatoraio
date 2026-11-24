@@ -16,6 +16,7 @@ use OCP\IUser;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 /**
  * The handover step: after the process steps the project goes to the people
@@ -39,6 +40,8 @@ class ProjectHandoverStepService {
 
 	private const OPEN_GRANT_STATUSES = ['pending', 'active'];
 
+	private IL10N $l;
+
 	public function __construct(
 		private ProjectMapper $projectMapper,
 		private ProjectService $projectService,
@@ -51,7 +54,9 @@ class ProjectHandoverStepService {
 		private LoggerInterface $logger,
 		private ?TeamService $teams = null,
 		private ?ExternalCollaboratorService $externals = null,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/**
@@ -136,21 +141,26 @@ class ProjectHandoverStepService {
 		$ownerUid = $plan['ownerUid'];
 		if ($ownerUid !== null) {
 			$steps[] = $this->run('owner', function () use ($projectId, $ownerUid): ?string {
-				$fresh = $this->projectMapper->find($projectId) ?? throw new OCSException('Project not found', 404);
+				$fresh = $this->projectMapper->find($projectId) ?? throw new OCSException($this->l->t('Project not found'), 404);
 				$result = $this->ownership->transfer($fresh, $ownerUid);
 				$notes = array_keys(array_filter(['board' => $result['board'], 'conversation' => $result['talk']], static fn (string $s): bool => $s === ProjectOwnershipService::STEP_FAILED));
-				return $notes === [] ? null : 'Owner changed, but the ' . implode(' and the ', $notes) . ' could not follow.';
+				if ($notes === []) {
+					return null;
+				}
+				$items = array_map(fn (string $note): string => $note === 'board' ? $this->l->t('Deck board') : $this->l->t('Talk'), $notes);
+				$list = count($items) > 1 ? $this->l->t('%1$s and %2$s', [$items[0], $items[1]]) : $items[0];
+				return $this->l->t('Owner changed, but the %s could not follow.', [$list]);
 			});
 		}
 
 		foreach ($plan['externals'] as $external) {
 			$steps[] = $this->run('external:' . $external['uid'], function () use ($organizationId, $projectId, $external, $actor): ?string {
 				if ($external['endsAt'] === null) {
-					return 'No end of work on site is planned yet, so the end date is unchanged.';
+					return $this->l->t('No end of work on site is planned yet, so the end date is unchanged.');
 				}
 				if ($external['endsAt'] <= new DateTime('now', new DateTimeZone('UTC'))) {
 					$this->externalService()->revoke($organizationId, $projectId, $external['uid'], $actor->getUID());
-					return 'Access ended now: the handover is not in the future.';
+					return $this->l->t('Access ended now: the handover is not in the future.');
 				}
 				$this->externalService()->changeEndDate($organizationId, $projectId, $external['uid'], $external['endsAt'], $actor->getUID());
 				return null;
@@ -158,7 +168,7 @@ class ProjectHandoverStepService {
 		}
 
 		$steps[] = $this->run('handoverDate', function () use ($projectId, $plan): void {
-			$fresh = $this->projectMapper->find($projectId) ?? throw new OCSException('Project not found', 404);
+			$fresh = $this->projectMapper->find($projectId) ?? throw new OCSException($this->l->t('Project not found'), 404);
 			$fresh->setActualHandoverDate(DateTime::createFromFormat('!Y-m-d', $plan['handoverDate']));
 			$this->projectMapper->updateProjectDetails($fresh);
 		});
@@ -188,10 +198,10 @@ class ProjectHandoverStepService {
 
 		$handoverDate = trim((string)($request['handoverDate'] ?? ''));
 		try {
-			$parsed = TimelineDates::parse($handoverDate, 'handover date') ?? throw new \InvalidArgumentException('Choose the handover date.');
+			$parsed = TimelineDates::parse($handoverDate, $this->l->t('handover date'), $this->l) ?? throw new \InvalidArgumentException($this->l->t('Choose the handover date.'));
 			$planned = clone $project;
 			$planned->setActualHandoverDate($parsed);
-			TimelineDates::assertInOrder($planned, [TimelineDates::HANDOVER]);
+			TimelineDates::assertInOrder($planned, [TimelineDates::HANDOVER], $this->l);
 		} catch (\InvalidArgumentException $e) {
 			throw new OCSException($e->getMessage(), 400);
 		}
@@ -202,14 +212,14 @@ class ProjectHandoverStepService {
 		foreach ((array)($request['addMembers'] ?? []) as $entry) {
 			$uid = trim((string)($entry['uid'] ?? ''));
 			if ($uid === '' || $this->userManager->get($uid) === null) {
-				throw new OCSException('One of the people to add does not exist.', 400);
+				throw new OCSException($this->l->t('One of the people to add does not exist.'), 400);
 			}
 			if ($this->projectService->isProjectMember($project, $uid) || isset($adding[$uid])) {
 				continue;
 			}
 			$membership = $this->access->getOrganizationMembership($uid);
 			if ($membership === null || $membership['organization_id'] !== $organizationId) {
-				throw new OCSException('Only members of the organization can be added here; invite externals from the Members tab.', 400);
+				throw new OCSException($this->l->t('Only members of the organization can be added here; invite externals from the Members tab.'), 400);
 			}
 			$roles = $this->projectService->validateMemberRoles($project, (array)($entry['drascivsRoles'] ?? []), (array)($entry['functionalRoleKeys'] ?? []));
 			$addMembers[] = ['uid' => $uid, 'drascivsRoles' => $roles['drasciRoles'], 'functionalRoleKeys' => $roles['functionalRoleKeys']];
@@ -219,15 +229,15 @@ class ProjectHandoverStepService {
 		$mode = (string)($request['team']['mode'] ?? self::TEAM_KEEP);
 		$teamId = isset($request['team']['teamId']) ? (int)$request['team']['teamId'] : null;
 		if (!in_array($mode, [self::TEAM_KEEP, self::TEAM_SET, self::TEAM_NONE], true)) {
-			throw new OCSException('Choose to keep, set or clear the team.', 400);
+			throw new OCSException($this->l->t('Choose to keep, set or clear the team.'), 400);
 		}
 		if ($mode !== self::TEAM_KEEP && $this->teams === null) {
-			throw new OCSException('Teams are not available.', 400);
+			throw new OCSException($this->l->t('Teams are not available.'), 400);
 		}
 		if ($mode === self::TEAM_SET) {
 			$known = array_map(static fn (array $team): int => (int)$team['id'], $this->teams->list($organizationId));
 			if ($teamId === null || !in_array($teamId, $known, true)) {
-				throw new OCSException('Choose a team of this organization.', 400);
+				throw new OCSException($this->l->t('Choose a team of this organization.'), 400);
 			}
 			if (($this->currentTeam($organizationId, $projectId)['id'] ?? null) === $teamId) {
 				$mode = self::TEAM_KEEP;
@@ -251,11 +261,11 @@ class ProjectHandoverStepService {
 			}
 			$joins = isset($adding[$ownerUid]) || in_array($ownerUid, $teamMembers, true);
 			if (!$joins && !$this->projectService->isProjectMember($project, $ownerUid)) {
-				throw new OCSException('The new owner must be on the project, or be added in this handover.', 400);
+				throw new OCSException($this->l->t('The new owner must be on the project, or be added in this handover.'), 400);
 			}
 			$membership = $this->access->getOrganizationMembership($ownerUid);
 			if ($membership === null || $membership['organization_id'] !== $organizationId) {
-				throw new OCSException('Only members of the project\'s organization can own it, not external collaborators.', 400);
+				throw new OCSException($this->l->t('Only members of the project\'s organization can own it, not external collaborators.'), 400);
 			}
 		}
 
@@ -270,7 +280,7 @@ class ProjectHandoverStepService {
 			foreach ($requested as $entry) {
 				$uid = trim((string)($entry['uid'] ?? ''));
 				if (!isset($open[$uid])) {
-					throw new OCSException('One of the externals is not invited to this project.', 400);
+					throw new OCSException($this->l->t('One of the externals is not invited to this project.'), 400);
 				}
 				$externals[] = ['uid' => $uid, 'endsAt' => $this->externalEnd((string)($entry['mode'] ?? ''), $entry['date'] ?? null, $handoverDate, $summary['plannedEndDate'] ?? null)];
 			}
@@ -291,14 +301,14 @@ class ProjectHandoverStepService {
 			self::EXTERNAL_UNTIL_END => $plannedEndDate,
 			self::EXTERNAL_AT_HANDOVER => $handoverDate,
 			self::EXTERNAL_DATE => is_string($date) ? trim($date) : '',
-			default => throw new OCSException('Choose how long each external keeps access.', 400),
+			default => throw new OCSException($this->l->t('Choose how long each external keeps access.'), 400),
 		};
 		if ($day === null) {
 			return null;
 		}
 		$parsed = DateTime::createFromFormat('!Y-m-d', substr($day, 0, 10), new DateTimeZone('UTC'));
 		if ($parsed === false || $parsed->format('Y-m-d') !== substr($day, 0, 10)) {
-			throw new OCSException('An external\'s end date must be a date like 2026-12-31.', 400);
+			throw new OCSException($this->l->t('An external\'s end date must be a date like 2026-12-31.'), 400);
 		}
 		return $parsed->setTime(23, 59, 59);
 	}
@@ -317,7 +327,7 @@ class ProjectHandoverStepService {
 			return $result;
 		} catch (Throwable $e) {
 			$this->logger->error('A handover step failed', ['step' => $step, 'exception' => $e]);
-			return ['step' => $step, 'status' => 'failed', 'message' => $e instanceof OCSException ? $e->getMessage() : 'Something went wrong.'];
+			return ['step' => $step, 'status' => 'failed', 'message' => $e instanceof OCSException ? $e->getMessage() : $this->l->t('Something went wrong.')];
 		}
 	}
 
@@ -346,10 +356,10 @@ class ProjectHandoverStepService {
 	}
 
 	private function teamService(): TeamService {
-		return $this->teams ?? throw new OCSException('Teams are not available.', 400);
+		return $this->teams ?? throw new OCSException($this->l->t('Teams are not available.'), 400);
 	}
 
 	private function externalService(): ExternalCollaboratorService {
-		return $this->externals ?? throw new OCSException('External collaborators are not available.', 400);
+		return $this->externals ?? throw new OCSException($this->l->t('External collaborators are not available.'), 400);
 	}
 }

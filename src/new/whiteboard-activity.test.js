@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 import * as wb from './whiteboard-activity.js'
+
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
 
 // Saves every ten seconds from `from` for `count` saves, as the autosave does.
 let id = 0
@@ -84,7 +88,7 @@ function view(reader) {
 		.replace(/^import .*$/gm, '')
 		.replace(/^\tcomponents: \{[^\n]*\},$/m, '')
 		.replace('export default', 'globalThis.component =')
-	const context = { ...wb, api: { whiteboardActivity: reader }, errorMessage: e => e?.response?.status === 403 ? 'You do not have access to this data.' : 'The data could not be loaded. Please try again.', Object, Array, Error, String }
+	const context = { ...l10n, ...wb, api: { whiteboardActivity: reader }, errorMessage: e => e?.response?.status === 403 ? 'You do not have access to this data.' : 'The data could not be loaded. Please try again.', Object, Array, Error, String }
 	vm.runInNewContext(script, context)
 	const options = context.component
 	const instance = { ...options.data(), projectId: 21, reader: null }

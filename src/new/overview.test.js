@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { progressSummary, planningSummary, timelineOf, nextMilestoneOf, assignedTasks, openTasks, recentFiles, activityText } from './overview.js'
+
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
 test('checklist completion preserves unavailable and missing-card states', () => {
  assert.equal(progressSummary(null).percent, null)
  assert.equal(progressSummary({ processCompleted: { status: 'error', doneCount: 1, totalRequired: 2 } }).percent, null)

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ProjectCreatorAIO\Service;
 
 use DateTime;
+use OCP\IL10N;
 
 /**
  * Backward pass over an already scheduled timeline: how late each task may finish
@@ -12,6 +13,13 @@ use DateTime;
  */
 class TimelineCriticalPath
 {
+	private IL10N $l;
+
+	public function __construct(?IL10N $l = null)
+	{
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+	}
+
 	/**
 	 * @param array<string, array{startDate: string, endDate: string, isDone?: bool, predecessorIds?: array<int, int|string>}> $tasks Keyed by task id
 	 * @param array<string, int> $dependencyOverlaps Keyed by TimelinePhaseService::dependencyKey()
@@ -40,12 +48,13 @@ class TimelineCriticalPath
 
 		$lateFinish = [];
 		$visiting = [];
-		$resolve = function (string $id) use (&$resolve, &$lateFinish, &$visiting, $tasks, $starts, $ends, $successors, $dependencyOverlaps, $deadline): DateTime {
+		$l = $this->l;
+		$resolve = function (string $id) use (&$resolve, $l, &$lateFinish, &$visiting, $tasks, $starts, $ends, $successors, $dependencyOverlaps, $deadline): DateTime {
 			if (isset($lateFinish[$id])) {
 				return $lateFinish[$id];
 			}
 			if (isset($visiting[$id])) {
-				throw new \RuntimeException('Timeline dependencies contain a cycle');
+				throw new \RuntimeException($l->t('Timeline dependencies contain a cycle'));
 			}
 			if (!empty($tasks[$id]['isDone'])) {
 				return $lateFinish[$id] = clone $ends[$id];

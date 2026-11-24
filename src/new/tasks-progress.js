@@ -1,6 +1,7 @@
 // Progress on a project's Deck board, for the Tasks tab of the new layout:
 // the same counts as Deck's own dashboard, plus the project's critical process
 // steps in process order.
+import { t, n, locale } from './l10n.mjs'
 
 // A card is a critical process step when it carries this label ("Belangrijk"
 // is its former name on older boards), as Deck's dashboard counts them.
@@ -80,7 +81,8 @@ export function stepsOf(cards) {
 		return [step.id, [...seen].filter(id => stepIds.has(id))]
 	}))
 	const rank = card => {
-		const index = TIMELINE_ORDER.indexOf(card.title)
+		// New boards may carry the default titles in the server's language.
+		const index = TIMELINE_ORDER.findIndex(title => title === card.title || t(title) === card.title)
 		return [index === -1 ? TIMELINE_ORDER.length : index, Number.isNaN(time(card.duedate)) ? Infinity : time(card.duedate), card.title]
 	}
 	const before = (a, b) => {
@@ -105,17 +107,17 @@ const DAY = 86400000
 
 export function shortDate(value, now = Date.now()) {
 	const date = new Date(value)
-	return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(date.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}) })
+	return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', ...(date.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}) })
 }
 
 // What the Due column says for a step, and how it should read.
 export function dueOf(step, now = Date.now()) {
-	if (step.completed) return { text: step.done ? 'Done ' + shortDate(step.done, now) : 'Done', tone: 'done' }
+	if (step.completed) return { text: step.done ? t('Done {date}', { date: shortDate(step.done, now) }) : t('Done'), tone: 'done' }
 	const due = time(step.duedate)
-	if (Number.isNaN(due)) return { text: 'Not planned', tone: 'muted' }
+	if (Number.isNaN(due)) return { text: t('Not planned'), tone: 'muted' }
 	if (due < now) {
 		const days = Math.max(1, Math.floor((now - due) / DAY))
-		return { text: days === 1 ? '1 day late' : days + ' days late', tone: 'late' }
+		return { text: n('%n day late', '%n days late', days), tone: 'late' }
 	}
 	return { text: shortDate(due, now), tone: 'normal' }
 }

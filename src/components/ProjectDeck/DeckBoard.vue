@@ -1,7 +1,7 @@
 <template>
 	<div class="deck-board">
 		<div v-if="!boardId" class="deck-board__empty">
-			No Deck board linked to this project.
+			{{ t('No Deck board linked to this project.') }}
 		</div>
 
 		<div v-else>
@@ -10,10 +10,10 @@
 					<div class="deck-board__title">
 						<span class="deck-board__title-text">{{ boardTitle }}</span>
 						<span class="deck-board__badge">#{{ boardId }}</span>
-						<span v-if="!canEdit" class="deck-board__badge deck-board__badge--muted">Read only</span>
+						<span v-if="!canEdit" class="deck-board__badge deck-board__badge--muted">{{ t('Read only') }}</span>
 					</div>
 					<div class="deck-board__subtitle">
-						Deck tasks embedded in project workspace.
+						{{ t('Deck tasks embedded in project workspace.') }}
 					</div>
 				</div>
 				<div class="deck-board__actions">
@@ -21,13 +21,13 @@
 						<template #icon>
 							<OpenInNew :size="18" />
 						</template>
-						Open in Deck
+						{{ t('Open in Deck') }}
 					</NcButton>
 					<NcButton type="secondary" :disabled="loading" @click="reload">
 						<template #icon>
 							<Refresh :size="18" />
 						</template>
-						Reload
+						{{ t('Reload') }}
 					</NcButton>
 				</div>
 			</div>
@@ -39,7 +39,7 @@
 					:class="{ 'deck-board__tab--active': activeTab === 'board' }"
 					@click="activeTab = 'board'">
 					<ViewDashboard :size="18" class="deck-board__tab-icon" />
-					<span>Task Board</span>
+					<span>{{ t('Task Board') }}</span>
 				</button>
 				<button
 					v-if="!loading && !error && canManage"
@@ -47,14 +47,14 @@
 					:class="{ 'deck-board__tab--active': activeTab === 'permissions' }"
 					@click="activeTab = 'permissions'">
 					<ShieldAccount :size="18" class="deck-board__tab-icon" />
-					<span>Card Permissions</span>
+					<span>{{ t('Card Permissions') }}</span>
 				</button>
 			</div>
 
 			<!-- TAB CONTENT: TASK BOARD -->
 			<div v-show="activeTab === 'board'" class="deck-board__tab-content">
 				<div v-if="loading" class="deck-board__muted">
-					Loading board...
+					{{ t('Loading board...') }}
 				</div>
 				<div v-else-if="error" class="deck-board__muted">
 					{{ error }}
@@ -64,7 +64,7 @@
 						{{ embeddedError }}
 					</div>
 					<div v-else-if="!embeddedReady" class="deck-board__muted">
-						Loading Deck tasks UI...
+						{{ t('Loading Deck tasks UI...') }}
 					</div>
 					<div ref="deckMount" class="deck-board__mount" />
 				</div>
@@ -83,6 +83,7 @@
 <script>
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { generateUrl } from '@nextcloud/router'
+import { t, n, tc } from '../../new/l10n.mjs'
 
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
@@ -132,7 +133,7 @@ export default {
 	},
 	computed: {
 		boardTitle() {
-			return this.board?.title || 'Deck board'
+			return this.board?.title || t('Deck board')
 		},
 		canEdit() {
 			if (this.permissions && typeof this.permissions === 'object') {
@@ -170,6 +171,10 @@ export default {
 		this.unmountEmbedded()
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		async load() {
 			this.resetState()
 			if (!this.boardId) {
@@ -186,7 +191,7 @@ export default {
 				this.permissions = permissions
 				this.projectMembers = Array.isArray(members) ? members : []
 			} catch (e) {
-				this.error = 'Could not load Deck board.'
+				this.error = t('Could not load Deck board.')
 			} finally {
 				this.loading = false
 			}
@@ -284,7 +289,7 @@ export default {
 			const ok = await this.ensureEmbeddedApiLoaded()
 			if (!ok) {
 				this.unmountEmbedded()
-				this.embeddedError = 'Deck embedded tasks UI is not available. Build and deploy the Deck app update, then reload.'
+				this.embeddedError = t('Deck embedded tasks UI is not available. Build and deploy the Deck app update, then reload.')
 				return
 			}
 
@@ -298,7 +303,7 @@ export default {
 
 			const el = this.$refs.deckMount
 			if (!el) {
-				this.embeddedError = 'Could not mount Deck tasks UI.'
+				this.embeddedError = t('Could not mount Deck tasks UI.')
 				return
 			}
 			el.innerHTML = ''
@@ -308,7 +313,7 @@ export default {
 				this.embeddedReady = true
 			} catch (e) {
 				this.unmountEmbedded()
-				this.embeddedError = 'Could not mount Deck tasks UI.'
+				this.embeddedError = t('Could not mount Deck tasks UI.')
 			}
 		},
 	},

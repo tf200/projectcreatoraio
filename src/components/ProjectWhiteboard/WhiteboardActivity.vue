@@ -2,23 +2,23 @@
 	<div class="whiteboard-activity">
 		<div class="whiteboard-activity__header">
 			<History :size="18" />
-			<span class="whiteboard-activity__title">Activity</span>
+			<span class="whiteboard-activity__title">{{ t('Activity') }}</span>
 		</div>
 
 		<div v-if="loading && events.length === 0" class="whiteboard-activity__loading">
 			<NcLoadingIcon :size="20" />
-			<span>Loading activity...</span>
+			<span>{{ t('Loading activity...') }}</span>
 		</div>
 
 		<div v-else-if="error && events.length === 0" class="whiteboard-activity__error" role="alert">
 			<span>{{ error }}</span>
 			<NcButton type="secondary" @click="fetchEvents">
-				Try again
+				{{ t('Try again') }}
 			</NcButton>
 		</div>
 
 		<div v-else-if="events.length === 0" class="whiteboard-activity__empty">
-			No whiteboard activity yet.
+			{{ t('No whiteboard activity yet.') }}
 		</div>
 
 		<div v-else class="whiteboard-activity__timeline">
@@ -36,8 +36,8 @@
 						:size="32"
 						class="whiteboard-activity__avatar" />
 					<div class="whiteboard-activity__details">
-						<span class="whiteboard-activity__actor">{{ event.actorDisplayName || 'Unknown user' }}</span>
-						<span class="whiteboard-activity__description">updated the whiteboard</span>
+						<span class="whiteboard-activity__actor">{{ event.actorDisplayName || t('Unknown user') }}</span>
+						<span class="whiteboard-activity__description">{{ t('updated the whiteboard') }}</span>
 						<span class="whiteboard-activity__time">{{ formatTime(event.occurredAt) }}</span>
 					</div>
 				</div>
@@ -54,7 +54,7 @@
 				<template #icon>
 					<NcLoadingIcon v-if="loading" :size="16" />
 				</template>
-				Load more
+				{{ t('Load more') }}
 			</NcButton>
 		</div>
 	</div>
@@ -66,6 +66,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import History from 'vue-material-design-icons/History.vue'
 import { ProjectsService } from '../../Services/projects'
+import { t, locale } from '../../new/l10n.mjs'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -118,11 +119,11 @@ export default {
 
 				let label
 				if (eventDate.getTime() === today.getTime()) {
-					label = 'Today'
+					label = t('Today')
 				} else if (eventDate.getTime() === yesterday.getTime()) {
-					label = 'Yesterday'
+					label = t('Yesterday')
 				} else {
-					label = eventDate.toLocaleDateString(undefined, {
+					label = eventDate.toLocaleDateString(locale(), {
 						year: 'numeric',
 						month: 'long',
 						day: 'numeric',
@@ -147,6 +148,7 @@ export default {
 		},
 	},
 	methods: {
+		t,
 		read(limit, offset) {
 			if (this.reader) {
 				return this.reader(this.normalizedProjectId, limit, offset)
@@ -174,7 +176,7 @@ export default {
 				console.error('Failed to load whiteboard activity:', e)
 				this.events = []
 				this.hasMore = false
-				this.error = this.readFailed('Whiteboard activity could not be loaded. Check your access or try again.')
+				this.error = this.readFailed(t('Whiteboard activity could not be loaded. Check your access or try again.'))
 			} finally {
 				this.loading = false
 			}
@@ -192,7 +194,7 @@ export default {
 				this.offset += newEvents.length
 			} catch (e) {
 				console.error('Failed to load more whiteboard activity:', e)
-				this.error = this.readFailed('More whiteboard activity could not be loaded. Try again.')
+				this.error = this.readFailed(t('More whiteboard activity could not be loaded. Try again.'))
 			} finally {
 				this.loading = false
 			}
@@ -210,21 +212,21 @@ export default {
 			const diffDay = Math.floor(diffHr / 24)
 
 			if (diffSec < 60) {
-				return 'Just now'
+				return t('Just now')
 			}
 			if (diffMin < 60) {
-				return `${diffMin}m ago`
+				return t('{n}m ago', { n: diffMin })
 			}
 			if (diffHr < 24) {
-				return `${diffHr}h ago`
+				return t('{n}h ago', { n: diffHr })
 			}
 			if (diffDay === 1) {
-				return 'Yesterday'
+				return t('Yesterday')
 			}
 			if (diffDay < 7) {
-				return `${diffDay}d ago`
+				return t('{n}d ago', { n: diffDay })
 			}
-			return date.toLocaleDateString(undefined, {
+			return date.toLocaleDateString(locale(), {
 				month: 'short',
 				day: 'numeric',
 				year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,

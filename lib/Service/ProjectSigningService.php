@@ -15,8 +15,11 @@ use OCP\Http\Client\IClientService;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
+use OCP\IL10N;
 
 class ProjectSigningService {
+	private IL10N $l;
+
 	public function __construct(
 		private readonly ProjectSigningRequestMapper $mapper,
 		private readonly IRootFolder $rootFolder,
@@ -26,7 +29,9 @@ class ProjectSigningService {
 		private readonly IRequest $request,
 		private readonly ProjectActivityService $activityService,
 		private readonly LoggerInterface $logger,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/** @return ProjectSigningRequest[] */
@@ -40,19 +45,19 @@ class ProjectSigningService {
 
 	public function createRequest(Project $project, int $fileId, string $flow, array $signers, string $createdBy, array $placements = []): ProjectSigningRequest {
 		if (!$this->appManager->isEnabledForUser('signatures') && !$this->appManager->isEnabledForUser('libresign')) {
-			throw new OCSException('Signatures is not enabled.', 503);
+			throw new OCSException($this->l->t('Signatures is not enabled.'), 503);
 		}
 
 		$flow = $flow === 'ordered_numeric' ? 'ordered_numeric' : 'parallel';
 		$signers = $this->normalizeSigners($signers);
 		if ($signers === []) {
-			throw new OCSException('At least one signer is required.', 400);
+			throw new OCSException($this->l->t('At least one signer is required.'), 400);
 		}
 		$placements = $this->normalizePlacements($placements);
 
 		$file = $this->requireFile($createdBy, $fileId);
 		if (strtolower((string) $file->getMimeType()) !== 'application/pdf') {
-			throw new OCSException('Only PDF files can be sent for signature.', 400);
+			throw new OCSException($this->l->t('Only PDF files can be sent for signature.'), 400);
 		}
 
 		$record = $this->mapper->createRecord(
@@ -82,7 +87,7 @@ class ProjectSigningService {
 			$record->setLastError($e->getMessage());
 			$this->mapper->saveRecord($record);
 			$this->logger->error('Failed to create LibreSign request', ['exception' => $e, 'projectId' => $project->getId(), 'fileId' => $fileId]);
-			throw new OCSException('Could not create LibreSign request: ' . $e->getMessage(), 502);
+			throw new OCSException($this->l->t('Could not create LibreSign request: %s', [$e->getMessage()]), 502);
 		}
 	}
 
@@ -91,7 +96,7 @@ class ProjectSigningService {
 		$nodes = $userFolder->getById($fileId);
 		$node = $nodes[0] ?? null;
 		if (!$node instanceof File) {
-			throw new OCSException('File not found.', 404);
+			throw new OCSException($this->l->t('File not found.'), 404);
 		}
 		return $node;
 	}
@@ -174,13 +179,13 @@ class ProjectSigningService {
 		try {
 			$response = $client->post($url, $options);
 		} catch (\Throwable $e) {
-			throw new \RuntimeException('Signatures rejected request: ' . $this->extractHttpErrorMessage($e), 0, $e);
+			throw new \RuntimeException($this->l->t('Signatures rejected request: %s', [$this->extractHttpErrorMessage($e)]), 0, $e);
 		}
 		$statusCode = $response->getStatusCode();
 		$body = (string) $response->getBody();
 		$decoded = json_decode($body, true);
 		if ($statusCode < 200 || $statusCode >= 300 || !is_array($decoded)) {
-			throw new \RuntimeException('Signatures returned HTTP ' . $statusCode . ': ' . $this->extractLibreSignMessage($decoded));
+			throw new \RuntimeException($this->l->t('Signatures returned HTTP %1$s: %2$s', [$statusCode, $this->extractLibreSignMessage($decoded)]));
 		}
 		return $decoded;
 	}
@@ -216,7 +221,7 @@ class ProjectSigningService {
 		$fileId = $this->extractLibreSignId($response);
 		$signers = $response['ocs']['data']['signers'] ?? $response['signers'] ?? [];
 		if ($uuid === null || $fileId === null || !is_array($signers)) {
-			throw new \RuntimeException('LibreSign did not return placement identifiers.');
+			throw new \RuntimeException($this->l->t('LibreSign did not return placement identifiers.'));
 		}
 
 		foreach ($signers as $index => $signer) {
@@ -267,10 +272,10 @@ class ProjectSigningService {
 		try {
 			$response = $client->post($url, $options);
 		} catch (\Throwable $e) {
-			throw new \RuntimeException('LibreSign rejected placement: ' . $this->extractHttpErrorMessage($e), 0, $e);
+			throw new \RuntimeException($this->l->t('LibreSign rejected placement: %s', [$this->extractHttpErrorMessage($e)]), 0, $e);
 		}
 		if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
-			throw new \RuntimeException('LibreSign placement returned HTTP ' . $response->getStatusCode());
+			throw new \RuntimeException($this->l->t('LibreSign placement returned HTTP %s', [$response->getStatusCode()]));
 		}
 	}
 
@@ -345,7 +350,7 @@ class ProjectSigningService {
 				return (string) $candidate;
 			}
 		}
-		return 'Unknown LibreSign error';
+		return $this->l->t('Unknown LibreSign error');
 	}
 
 	private function extractLibreSignId(array $response): ?string {

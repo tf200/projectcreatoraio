@@ -1,29 +1,30 @@
 <template>
-	<section class="pc-progress iz-app" aria-label="Board progress">
+	<section class="pc-progress iz-app" :aria-label="t('Board progress')">
 		<div v-if="loading && !board" class="iz-empty" role="status">
-			Loading progress…
+			{{ t('Loading progress…') }}
 		</div>
 		<div v-else-if="error && !board" class="iz-empty pc-view__failure" role="alert">
 			<span>{{ error }}</span>
 			<button type="button" class="iz-btn" @click="load">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</div>
 		<template v-else-if="board">
 			<div class="pc-progress__panel">
 				<h3 class="pc-progress__title">
-					Progress
+					{{ t('Progress') }}
 				</h3>
 				<div class="pc-progress__summaries">
 					<div class="pc-progress__summary">
 						<p class="pc-progress__headline">
-							<strong>{{ counts.percent }}%</strong>
-							<span>of all tasks done · {{ counts.completed }} of {{ counts.total }}</span>
-							<span v-if="counts.overdue" class="pc-progress__overdue">· {{ counts.overdue }} overdue</span>
+							<span v-if="doneParts.before">{{ doneParts.before }}</span>
+							<strong>{{ doneParts.strong }}</strong>
+							<span>{{ doneParts.after }}</span>
+							<span v-if="counts.overdue" class="pc-progress__overdue">{{ t('· {n} overdue', { n: counts.overdue }) }}</span>
 						</p>
 						<div class="iz-meter"
 							role="progressbar"
-							aria-label="Tasks done"
+							:aria-label="t('Tasks done')"
 							aria-valuemin="0"
 							aria-valuemax="100"
 							:aria-valuenow="counts.percent">
@@ -32,11 +33,12 @@
 					</div>
 					<div class="pc-progress__summary">
 						<p v-if="counts.criticalTotal" class="pc-progress__headline">
-							<strong>{{ counts.criticalDone }} of {{ counts.criticalTotal }}</strong>
-							<span>critical process steps done</span>
+							<span v-if="criticalParts.before">{{ criticalParts.before }}</span>
+							<strong>{{ criticalParts.strong }}</strong>
+							<span>{{ criticalParts.after }}</span>
 						</p>
 						<p v-else class="pc-progress__headline pc-progress__headline--none">
-							No critical process steps yet
+							{{ t('No critical process steps yet') }}
 						</p>
 						<div v-if="counts.criticalTotal" class="pc-progress__segments" aria-hidden="true">
 							<span v-for="step in segments"
@@ -49,33 +51,33 @@
 				</div>
 
 				<p v-if="!steps.length" class="pc-progress__none">
-					No critical process steps on this board. Label a card “Kritieke Processtap” in Deck to follow it here.
+					{{ t('No critical process steps on this board. Label a card “Kritieke Processtap” in Deck to follow it here.') }}
 				</p>
 				<div v-else class="pc-progress__wrap" :class="{ 'pc-progress__wrap--more': more }">
 					<div ref="scroller"
 						class="pc-progress__scroll"
 						tabindex="0"
 						role="region"
-						aria-label="Critical process steps, open first"
+						:aria-label="t('Critical process steps, open first')"
 						@scroll="measure">
 						<table class="pc-progress__table" :class="{ 'pc-progress__table--pills': pills }">
 							<thead>
 								<tr>
 									<th scope="col">
-										Critical step
+										{{ t('Critical step') }}
 									</th>
 									<th scope="col" class="pc-progress__track-head">
-										<span class="pc-sr-only">Column</span>
+										<span class="pc-sr-only">{{ t('Column') }}</span>
 										<span v-if="!pills"
 											class="pc-progress__stops"
 											aria-hidden="true"
 											:style="{ gridTemplateColumns: 'repeat(' + board.columns.length + ', minmax(0, 1fr))' }">
 											<span v-for="column in board.columns" :key="column.id">{{ column.title }}</span>
 										</span>
-										<span v-else aria-hidden="true">Column</span>
+										<span v-else aria-hidden="true">{{ t('Column') }}</span>
 									</th>
 									<th scope="col" class="pc-progress__due-head">
-										Due
+										{{ t('Due') }}
 									</th>
 								</tr>
 							</thead>
@@ -108,7 +110,7 @@
 				<p v-if="error" class="pc-progress__stale" role="alert">
 					{{ error }}
 					<button type="button" class="iz-btn iz-btn--sm" @click="load">
-						Try again
+						{{ t('Try again') }}
 					</button>
 				</p>
 			</div>
@@ -118,10 +120,20 @@
 
 <script>
 import { api, errorMessage } from './api.js'
+import { t } from './l10n.mjs'
 import { boardOf, countsOf, stepsOf, dueOf } from './tasks-progress.js'
 
 // The most columns the per-step track shows; a board with more gets a pill.
 const MAX_STOPS = 8
+
+// A translated headline with its numbers in bold: the values carry \u0001 and
+// \u0002 around the bold stretch, so the translation decides where it goes.
+const [OPEN, CLOSE] = ['\u0001', '\u0002']
+function emphasis(text) {
+	const [before, rest = ''] = text.split(OPEN)
+	const [strong, after = ''] = rest.split(CLOSE)
+	return { before, strong, after }
+}
 
 // Task completion and the critical process steps of a project's Deck board, above
 // the embedded board in the new layout's Tasks tab. refreshKey changes when the
@@ -141,6 +153,14 @@ export default {
 		// The bar above the list: furthest along first.
 		segments() { return this.steps.slice().sort((a, b) => Number(b.completed) - Number(a.completed) || b.stage - a.stage) },
 		pills() { return this.board.columns.length > MAX_STOPS },
+		doneParts() {
+			const parts = emphasis(t('{percent}% of all tasks done · {completed} of {total}', { percent: OPEN + this.counts.percent + CLOSE, completed: this.counts.completed, total: this.counts.total }))
+			// "50%" stays together in bold.
+			return parts.after.startsWith('%') ? { ...parts, strong: parts.strong + '%', after: parts.after.slice(1) } : parts
+		},
+		criticalParts() {
+			return emphasis(t('{done} of {total} critical process steps done', { done: OPEN + this.counts.criticalDone, total: this.counts.criticalTotal + CLOSE }))
+		},
 	},
 	watch: {
 		boardId: { immediate: true, handler() { this.board = null; this.load() } },
@@ -165,7 +185,7 @@ export default {
 			} catch (e) {
 				if (request !== this.request) return
 				// A later read that fails keeps what is on screen and says so.
-				this.error = this.board ? 'Progress could not be refreshed.' : errorMessage(e)
+				this.error = this.board ? t('Progress could not be refreshed.') : errorMessage(e)
 			} finally {
 				if (request === this.request) this.loading = false
 			}

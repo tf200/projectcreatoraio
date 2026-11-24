@@ -1,7 +1,7 @@
 <template>
 	<div class="deck-board">
 		<div v-if="!boardId" class="deck-board__empty">
-			No Deck board linked to this project.
+			{{ t('No Deck board linked to this project.') }}
 		</div>
 		<div v-else>
 			<div class="deck-board__top">
@@ -9,10 +9,10 @@
 					<div class="deck-board__title">
 						<span class="deck-board__title-text">{{ boardTitle }}</span>
 						<span class="deck-board__badge">#{{ boardId }}</span>
-						<span v-if="!canEdit" class="deck-board__badge deck-board__badge--muted">Read only</span>
+						<span v-if="!canEdit" class="deck-board__badge deck-board__badge--muted">{{ t('Read only') }}</span>
 					</div>
 					<div class="deck-board__subtitle">
-						Deck tasks embedded in project workspace.
+						{{ t('Deck tasks embedded in project workspace.') }}
 					</div>
 				</div>
 				<div class="deck-board__actions">
@@ -20,13 +20,13 @@
 						<template #icon>
 							<OpenInNew :size="18" />
 						</template>
-						Open in Deck
+						{{ t('Open in Deck') }}
 					</NcButton>
 					<NcButton type="secondary" :disabled="loading" @click="reload">
 						<template #icon>
 							<Refresh :size="18" />
 						</template>
-						Reload
+						{{ t('Reload') }}
 					</NcButton>
 				</div>
 			</div>
@@ -37,7 +37,7 @@
 					:class="{ 'deck-board__tab--active': activeTab === 'board' }"
 					@click="activeTab = 'board'">
 					<ViewDashboard :size="18" class="deck-board__tab-icon" />
-					<span>Task Board</span>
+					<span>{{ t('Task Board') }}</span>
 				</button>
 				<button
 					v-if="!loading && !error"
@@ -45,13 +45,13 @@
 					:class="{ 'deck-board__tab--active': activeTab === 'permissions' }"
 					@click="activeTab = 'permissions'">
 					<ShieldAccount :size="18" class="deck-board__tab-icon" />
-					<span>Card Permissions</span>
+					<span>{{ t('Card Permissions') }}</span>
 				</button>
 			</div>
 
 			<div v-show="activeTab === 'board'" class="deck-board__tab-content">
 				<div v-if="loading" class="deck-board__muted">
-					Loading board...
+					{{ t('Loading board...') }}
 				</div>
 				<div v-else-if="error" class="deck-board__muted">
 					{{ error }}
@@ -66,7 +66,7 @@
 						{{ embeddedError }}
 					</div>
 					<div v-else-if="!embeddedReady" class="deck-board__muted">
-						Loading Deck tasks UI...
+						{{ t('Loading Deck tasks UI...') }}
 					</div>
 					<div ref="deckMount" class="deck-board__mount" />
 				</div>
@@ -93,6 +93,7 @@ import BoardAccessLine from './BoardAccessLine.vue'
 import MemberAccess from './MemberAccess.vue'
 import { api, errorMessage } from './api.js'
 import { accessOf } from './board-access.js'
+import { t } from './l10n.mjs'
 
 // After the embedded board changes something, read the progress again once it
 // has settled, so a moved card is counted where it now is.
@@ -132,7 +133,7 @@ export default {
 			} catch (e) {
 				if (request !== this.accessRequest) return
 				// A later read that fails keeps what is on screen and says so.
-				this.accessError = this.access ? 'Who can do what could not be refreshed.' : errorMessage(e)
+				this.accessError = this.access ? t('Who can do what could not be refreshed.') : errorMessage(e)
 			}
 		},
 		async openAccess() {

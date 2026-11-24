@@ -5,7 +5,7 @@
 			{{ error }}
 		</p>
 		<button type="button" class="iz-btn iz-btn--sm" @click="$emit('retry')">
-			Try again
+			{{ t('Try again') }}
 		</button>
 	</div>
 	<div v-else-if="line" class="pc-access-line iz-app">
@@ -15,7 +15,7 @@
 			{{ line.lead }}<strong v-if="line.who">{{ line.who }}</strong>{{ line.tail }}
 		</p>
 		<button type="button" class="pc-access-line__link" @click="$emit('open')">
-			Who can do what<span aria-hidden="true"> ›</span>
+			{{ t('Who can do what') }}<span aria-hidden="true"> ›</span>
 		</button>
 	</div>
 </template>

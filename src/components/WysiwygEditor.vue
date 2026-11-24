@@ -12,7 +12,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('bold') }"
-				title="Bold"
+				:title="t('Bold')"
 				:disabled="disabled"
 				@click="toggleBold">
 				<FormatBold :size="18" />
@@ -21,7 +21,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('italic') }"
-				title="Italic"
+				:title="t('Italic')"
 				:disabled="disabled"
 				@click="toggleItalic">
 				<FormatItalic :size="18" />
@@ -30,7 +30,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('underline') }"
-				title="Underline"
+				:title="t('Underline')"
 				:disabled="disabled"
 				@click="toggleUnderline">
 				<FormatUnderline :size="18" />
@@ -39,7 +39,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('strike') }"
-				title="Strikethrough"
+				:title="t('Strikethrough')"
 				:disabled="disabled"
 				@click="toggleStrike">
 				<FormatStrikethrough :size="18" />
@@ -51,7 +51,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('bulletList') }"
-				title="Bullet list"
+				:title="t('Bullet list')"
 				:disabled="disabled"
 				@click="toggleBulletList">
 				<FormatListBulleted :size="18" />
@@ -60,7 +60,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('orderedList') }"
-				title="Numbered list"
+				:title="t('Numbered list')"
 				:disabled="disabled"
 				@click="toggleOrderedList">
 				<FormatListNumbered :size="18" />
@@ -69,7 +69,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('blockquote') }"
-				title="Quote"
+				:title="t('Quote')"
 				:disabled="disabled"
 				@click="toggleBlockquote">
 				<FormatQuoteClose :size="18" />
@@ -81,7 +81,7 @@
 				type="button"
 				class="wysiwyg__tool"
 				:class="{ 'is-active': editor && editor.isActive('link') }"
-				title="Link"
+				:title="t('Link')"
 				:disabled="disabled"
 				@click="setLink">
 				<LinkVariant :size="18" />
@@ -89,7 +89,7 @@
 			<button
 				type="button"
 				class="wysiwyg__tool"
-				title="Remove formatting"
+				:title="t('Remove formatting')"
 				:disabled="disabled"
 				@click="clearFormatting">
 				<FormatClear :size="18" />
@@ -100,7 +100,7 @@
 			<button
 				type="button"
 				class="wysiwyg__tool"
-				title="Undo"
+				:title="t('Undo')"
 				:disabled="disabled || !canUndo"
 				@click="undo">
 				<Undo :size="18" />
@@ -108,7 +108,7 @@
 			<button
 				type="button"
 				class="wysiwyg__tool"
-				title="Redo"
+				:title="t('Redo')"
 				:disabled="disabled || !canRedo"
 				@click="redo">
 				<Redo :size="18" />
@@ -138,6 +138,7 @@ import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import FormatClear from 'vue-material-design-icons/FormatClear.vue'
 import Undo from 'vue-material-design-icons/Undo.vue'
 import Redo from 'vue-material-design-icons/Redo.vue'
+import { t } from '../new/l10n.mjs'
 
 export default {
 	name: 'WysiwygEditor',
@@ -256,6 +257,7 @@ export default {
 		this.editor?.destroy()
 	},
 	methods: {
+		t,
 		focus() {
 			this.editor?.commands?.focus()
 		},
@@ -326,7 +328,7 @@ export default {
 		setLink() {
 			if (!this.editor) return
 			const existing = this.editor.getAttributes('link')?.href || ''
-			const input = window.prompt('Link URL', existing)
+			const input = window.prompt(t('Link URL'), existing)
 			if (input === null) {
 				return
 			}

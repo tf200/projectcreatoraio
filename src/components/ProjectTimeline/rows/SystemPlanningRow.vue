@@ -5,9 +5,9 @@
 			v-if="deckBarWidth > 0"
 			class="sp-bar sp-bar--deck"
 			:style="{ left: deckBarLeft + 'px', width: deckBarWidth + 'px' }"
-			:title="`Deck tasks (${systemPlanning.deckTasks.weeks} weeks): ${formatDate(systemPlanning.deckTasks.startDate)} - ${formatDate(systemPlanning.deckTasks.endDate)}`">
+			:title="t('Deck tasks ({n} weeks): {start} - {end}', { n: systemPlanning.deckTasks.weeks, start: formatDate(systemPlanning.deckTasks.startDate), end: formatDate(systemPlanning.deckTasks.endDate) })">
 			<span v-if="deckBarWidth > 50" class="sp-bar__label">
-				Deck tasks ({{ systemPlanning.deckTasks.weeks }} weeks)
+				{{ t('Deck tasks ({n} weeks)', { n: systemPlanning.deckTasks.weeks }) }}
 			</span>
 		</div>
 
@@ -16,9 +16,9 @@
 			v-if="prepBarWidth > 0"
 			class="sp-bar sp-bar--prep"
 			:style="{ left: prepBarLeft + 'px', width: prepBarWidth + 'px' }"
-			:title="`Preparation (${systemPlanning.preparation.weeks} weeks): ${formatDate(systemPlanning.preparation.startDate)} - ${formatDate(systemPlanning.preparation.endDate)}`">
+			:title="t('Preparation ({n} weeks): {start} - {end}', { n: systemPlanning.preparation.weeks, start: formatDate(systemPlanning.preparation.startDate), end: formatDate(systemPlanning.preparation.endDate) })">
 			<span v-if="prepBarWidth > 50" class="sp-bar__label">
-				Preparation ({{ systemPlanning.preparation.weeks }} weeks)
+				{{ t('Preparation ({n} weeks)', { n: systemPlanning.preparation.weeks }) }}
 			</span>
 		</div>
 
@@ -27,12 +27,12 @@
 			v-if="systemPlanning.minimumStart && systemPlanning.minimumStart.date"
 			class="sp-marker sp-marker--min-start"
 			:style="{ left: minStartLeft + 'px' }"
-			:title="`Minimum start: ${formatDate(systemPlanning.minimumStart.date)}`">
+			:title="t('Minimum start: {date}', { date: formatDate(systemPlanning.minimumStart.date) })">
 			<div class="sp-marker__pin">
 				<RhombusMedium :size="16" />
 			</div>
 			<div class="sp-marker__tag">
-				<span class="sp-marker__tag-title">Minimum start</span>
+				<span class="sp-marker__tag-title">{{ t('Minimum start') }}</span>
 				<span class="sp-marker__tag-date">{{ formatDate(systemPlanning.minimumStart.date) }}</span>
 			</div>
 			<div class="sp-marker__guide-line"></div>
@@ -55,12 +55,12 @@
 			v-if="systemPlanning.desiredStart && systemPlanning.desiredStart.date"
 			class="sp-marker sp-marker--desired-start"
 			:style="{ left: desiredStartLeft + 'px' }"
-			:title="`Desired start: ${formatDate(systemPlanning.desiredStart.date)}`">
+			:title="t('Desired start: {date}', { date: formatDate(systemPlanning.desiredStart.date) })">
 			<div class="sp-marker__pin">
 				<Play :size="14" />
 			</div>
 			<div class="sp-marker__tag">
-				<span class="sp-marker__tag-title">Desired start</span>
+				<span class="sp-marker__tag-title">{{ t('Desired start') }}</span>
 				<span class="sp-marker__tag-date">{{ formatDate(systemPlanning.desiredStart.date) }}</span>
 			</div>
 			<div class="sp-marker__guide-line"></div>
@@ -71,12 +71,12 @@
 			v-if="systemPlanning.actualStart && systemPlanning.actualStart.date"
 			class="sp-marker sp-marker--actual-start"
 			:style="{ left: actualStartLeft + 'px' }"
-			:title="`Actual start: ${formatDate(systemPlanning.actualStart.date)}`">
+			:title="t('Actual start: {date}', { date: formatDate(systemPlanning.actualStart.date) })">
 			<div class="sp-marker__pin">
 				<Flag :size="14" />
 			</div>
 			<div class="sp-marker__tag">
-				<span class="sp-marker__tag-title">Actual start</span>
+				<span class="sp-marker__tag-title">{{ t('Actual start') }}</span>
 				<span class="sp-marker__tag-date">{{ formatDate(systemPlanning.actualStart.date) }}</span>
 			</div>
 			<div class="sp-marker__guide-line"></div>
@@ -86,33 +86,34 @@
 		<div class="sp-mini-legend" :style="{ left: Math.max(16, deckBarLeft) + 'px' }">
 			<div class="sp-mini-legend__item">
 				<span class="sp-mini-legend__swatch sp-mini-legend__swatch--deck" />
-				<span>Deck tasks</span>
+				<span>{{ t('Deck tasks') }}</span>
 			</div>
 			<div class="sp-mini-legend__item">
 				<span class="sp-mini-legend__swatch sp-mini-legend__swatch--prep" />
-				<span>Preparation</span>
+				<span>{{ t('Preparation') }}</span>
 			</div>
 			<div class="sp-mini-legend__item">
 				<span class="sp-mini-legend__swatch sp-mini-legend__swatch--float" />
-				<span>Float</span>
+				<span>{{ t('Float') }}</span>
 			</div>
 			<div class="sp-mini-legend__item">
 				<span class="sp-mini-legend__icon sp-mini-legend__icon--min-start">◆</span>
-				<span>Minimum start</span>
+				<span>{{ t('Minimum start') }}</span>
 			</div>
 			<div v-if="systemPlanning.desiredStart && systemPlanning.desiredStart.date" class="sp-mini-legend__item">
 				<span class="sp-mini-legend__icon sp-mini-legend__icon--desired-start">▶</span>
-				<span>Desired start</span>
+				<span>{{ t('Desired start') }}</span>
 			</div>
 			<div v-if="systemPlanning.actualStart && systemPlanning.actualStart.date" class="sp-mini-legend__item">
 				<span class="sp-mini-legend__icon sp-mini-legend__icon--actual-start">⚑</span>
-				<span>Actual start</span>
+				<span>{{ t('Actual start') }}</span>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script>
+import { t, n, tc } from '../../../new/l10n.mjs'
 import RhombusMedium from 'vue-material-design-icons/RhombusMedium.vue'
 import Play from 'vue-material-design-icons/Play.vue'
 import Flag from 'vue-material-design-icons/Flag.vue'
@@ -198,20 +199,24 @@ export default {
 			const weeks = this.systemPlanning.float?.weeks
 			if (weeks === null || weeks === undefined) return ''
 			if (this.isPositiveFloat) {
-				return `Float (${weeks}w)`
+				return t('Float ({n}w)', { n: weeks })
 			}
-			return `Behind (${Math.abs(weeks)}w)`
+			return t('Behind ({n}w)', { n: Math.abs(weeks) })
 		},
 		floatTooltip() {
 			const weeks = this.systemPlanning.float?.weeks
 			if (weeks === null || weeks === undefined) return ''
 			if (this.isPositiveFloat) {
-				return `Available Float: +${weeks} week(s)`
+				return t('Available Float: +{n} week(s)', { n: weeks })
 			}
-			return `Negative Float: ${weeks} week(s) behind schedule`
+			return t('Negative Float: {n} week(s) behind schedule', { n: weeks })
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		parseDate(str) {
 			if (!str || typeof str !== 'string') return new Date()
 			const [y, m, d] = str.split('T')[0].split('-').map(Number)
@@ -234,7 +239,7 @@ export default {
 			if (!str || typeof str !== 'string') return ''
 			const parts = str.split('T')[0].split('-')
 			if (parts.length === 3) {
-				return `${parts[2]}/${parts[1]}/${parts[0]}`
+				return t('{day}/{month}/{year}', { day: parts[2], month: parts[1], year: parts[0] })
 			}
 			return str
 		},

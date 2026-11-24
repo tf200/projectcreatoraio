@@ -11,6 +11,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IGroupManager;
+use OCP\IL10N;
 
 /**
  * Single source of truth for "who may see or manage which project".
@@ -20,12 +21,16 @@ use OCP\IGroupManager;
  * to be taught in one place.
  */
 class ProjectAccessService {
+	private IL10N $l;
+
 	public function __construct(
 		private ProjectMapper $projectMapper,
 		private IGroupManager $groupManager,
 		private ?OrganizationUserMapper $organizationUserMapper = null,
 		private ?ExternalCollaboratorService $externals = null,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	/**
@@ -200,7 +205,7 @@ class ProjectAccessService {
 
 		if ($this->organizationUserMapper === null) {
 			if (!$this->isProjectGroupMember($userId, $project)) {
-				throw new OCSNotFoundException('Project not found');
+				throw new OCSNotFoundException($this->l->t('Project not found'));
 			}
 			return;
 		}
@@ -209,16 +214,16 @@ class ProjectAccessService {
 		if ($membership === null) {
 			$externalGrants = $this->getExternalProjectGrants($userId);
 			if ($externalGrants === []) {
-				throw new OCSForbiddenException('You are not assigned to an organization');
+				throw new OCSForbiddenException($this->l->t('You are not assigned to an organization'));
 			}
 			if (($externalGrants[(int)$project->getId()] ?? null) !== (int)$project->getOrganizationId()) {
-				throw new OCSNotFoundException('Project not found');
+				throw new OCSNotFoundException($this->l->t('Project not found'));
 			}
 			return;
 		}
 
 		if ($membership['organization_id'] !== (int)$project->getOrganizationId()) {
-			throw new OCSNotFoundException('Project not found');
+			throw new OCSNotFoundException($this->l->t('Project not found'));
 		}
 
 		if ($membership['role'] === 'admin') {
@@ -226,7 +231,7 @@ class ProjectAccessService {
 		}
 
 		if (!$this->isProjectGroupMember($userId, $project)) {
-			throw new OCSNotFoundException('Project not found');
+			throw new OCSNotFoundException($this->l->t('Project not found'));
 		}
 	}
 
@@ -242,16 +247,16 @@ class ProjectAccessService {
 		}
 
 		if ($this->organizationUserMapper === null) {
-			throw new OCSForbiddenException('Organization management is not available');
+			throw new OCSForbiddenException($this->l->t('Organization management is not available'));
 		}
 
 		$membership = $this->getOrganizationMembership($userId);
 		if ($membership === null) {
-			throw new OCSForbiddenException('You are not assigned to an organization');
+			throw new OCSForbiddenException($this->l->t('You are not assigned to an organization'));
 		}
 
 		if ($membership['organization_id'] !== $organizationId) {
-			throw new OCSNotFoundException('Organization not found');
+			throw new OCSNotFoundException($this->l->t('Organization not found'));
 		}
 
 		if ($membership['role'] !== 'admin') {
@@ -276,7 +281,7 @@ class ProjectAccessService {
 		if ($membership === null) {
 			$externalGrants = $this->getExternalProjectGrants($userId);
 			if ($externalGrants === []) {
-				throw new OCSForbiddenException('You are not assigned to an organization');
+				throw new OCSForbiddenException($this->l->t('You are not assigned to an organization'));
 			}
 
 			$projects = [];

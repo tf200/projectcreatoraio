@@ -21,6 +21,7 @@ use OCP\Talk\Exceptions\NoBackendException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
+use OCP\IL10N;
 
 class ProjectTalkIntegrationService {
 	private const SPREED_MANAGER_CLASS = 'OCA\\Talk\\Manager';
@@ -38,6 +39,10 @@ class ProjectTalkIntegrationService {
 	private const TALK_SYSTEM_MESSAGE_TYPE = 'system';
 	private const TALK_DELETED_MESSAGE_TYPE = 'comment_deleted';
 
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private readonly ?object $talkBroker,
 		private readonly IServerContainer $serverContainer,
@@ -48,7 +53,11 @@ class ProjectTalkIntegrationService {
 		private readonly ICommentsManager $commentsManager,
 		private readonly IL10NFactory $l10nFactory,
 		private readonly LoggerInterface $logger,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	public function isAvailable(): bool {
@@ -69,12 +78,12 @@ class ProjectTalkIntegrationService {
 	public function createProjectConversation(string $projectName, IUser $owner, array $memberIds): array {
 		try {
 			$conversation = $this->talkBroker->createConversation(
-				self::projectConversationName($projectName),
+				self::projectConversationName($projectName, $this->contentL10n->get()),
 				[$owner],
 				$this->talkBroker->newConversationOptions()->setPublic(),
 			);
 		} catch (NoBackendException $e) {
-			throw new RuntimeException('Talk is not available.', 0, $e);
+			throw new RuntimeException($this->l->t('Talk is not available.'), 0, $e);
 		}
 
 		$token = $conversation->getId();
@@ -118,12 +127,18 @@ class ProjectTalkIntegrationService {
 		];
 	}
 
-	public static function projectConversationName(string $projectName): string {
-		return self::fitRoomName(trim($projectName) . ' - Chat');
+	/**
+	 * Room names are shared by all participants: pass the server default language
+	 * translator (DefaultLanguageL10n::get()); that is also the fallback.
+	 */
+	public static function projectConversationName(string $projectName, ?IL10N $l = null): string {
+		$l ??= DefaultLanguageL10n::instance()->get();
+		return self::fitRoomName($l->t('%s - Chat', [trim($projectName)]));
 	}
 
-	public static function directConversationName(string $projectName, string $displayName1, string $displayName2): string {
-		return self::fitRoomName(sprintf('%s - %s & %s', trim($projectName), $displayName1, $displayName2));
+	public static function directConversationName(string $projectName, string $displayName1, string $displayName2, ?IL10N $l = null): string {
+		$l ??= DefaultLanguageL10n::instance()->get();
+		return self::fitRoomName($l->t('%1$s - %2$s & %3$s', [trim($projectName), $displayName1, $displayName2]));
 	}
 
 	private static function fitRoomName(string $name): string {
@@ -141,7 +156,7 @@ class ProjectTalkIntegrationService {
 		IUser $user1,
 		IUser $user2,
 	): array {
-		$roomName = self::directConversationName($projectName, $user1->getDisplayName(), $user2->getDisplayName());
+		$roomName = self::directConversationName($projectName, $user1->getDisplayName(), $user2->getDisplayName(), $this->contentL10n->get());
 
 		try {
 			$conversation = $this->talkBroker->createConversation(
@@ -150,7 +165,7 @@ class ProjectTalkIntegrationService {
 				$this->talkBroker->newConversationOptions(),
 			);
 		} catch (NoBackendException $e) {
-			throw new RuntimeException('Talk is not available.', 0, $e);
+			throw new RuntimeException($this->l->t('Talk is not available.'), 0, $e);
 		}
 
 		$token = $conversation->getId();
@@ -159,11 +174,13 @@ class ProjectTalkIntegrationService {
 			$room = $this->getTalkManager()->getRoomByToken($token);
 
 			if ($projectId > 0) {
-				$this->trySetRoomDescription($room, sprintf(
+				$this->trySetRoomDescription($room, $this->contentL10n->get()->t(
 					'Direct project chat for %s between %s and %s.',
-					trim($projectName),
-					$user1->getDisplayName(),
-					$user2->getDisplayName(),
+					[
+						trim($projectName),
+						$user1->getDisplayName(),
+						$user2->getDisplayName(),
+					],
 				));
 			}
 		} catch (Throwable $e) {
@@ -655,7 +672,7 @@ class ProjectTalkIntegrationService {
 			'projectFolderPath' => $folderPath,
 			'projectName' => $projectName,
 		]);
-		throw new RuntimeException(sprintf('File %d is not accessible for user "%s".', $fileId, $actor->getUID()));
+		throw new RuntimeException($this->l->t('File %d is not accessible for user "%s".', [$fileId, $actor->getUID()]));
 	}
 
 	private function resolveGlobalFileById(int $fileId): ?File {
@@ -756,7 +773,7 @@ class ProjectTalkIntegrationService {
 
 	private function resolveTalkService(string $serviceClass): object {
 		if (!class_exists($serviceClass)) {
-			throw new RuntimeException(sprintf('Talk service "%s" is not available.', $serviceClass));
+			throw new RuntimeException($this->l->t('Talk service "%s" is not available.', [$serviceClass]));
 		}
 
 		return $this->serverContainer->get($serviceClass);

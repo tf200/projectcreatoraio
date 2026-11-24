@@ -1,13 +1,13 @@
 <template>
-	<aside class="whatif-panel" aria-label="What-If scenario">
+	<aside class="whatif-panel" :aria-label="t('What-If scenario')">
 		<header class="whatif-panel__header">
 			<div class="whatif-panel__title">
 				<FlaskOutline :size="18" />
-				<h4>What-If</h4>
+				<h4>{{ t('What-If') }}</h4>
 				<NcLoadingIcon v-if="loading" :size="16" />
 			</div>
 			<p class="whatif-panel__hint">
-				Try changes on a copy of the plan. Nothing changes in Deck until you apply.
+				{{ t('Try changes on a copy of the plan. Nothing changes in Deck until you apply.') }}
 			</p>
 		</header>
 
@@ -18,36 +18,36 @@
 
 			<!-- Impact -->
 			<section v-if="planning" class="whatif-section">
-				<h5>Impact</h5>
+				<h5>{{ t('Impact') }}</h5>
 				<dl class="impact-list">
 					<div class="impact-row">
-						<dt>Earliest construction start</dt>
+						<dt>{{ t('Earliest construction start') }}</dt>
 						<dd>
 							<span>{{ formatDate(planning.minimumStartDate) }}</span>
 							<span v-if="planning.minimumStartShiftDays" class="shift-chip" :class="shiftClass(planning.minimumStartShiftDays)">
 								{{ formatShift(planning.minimumStartShiftDays) }}
 							</span>
-							<small v-if="planning.minimumStartShiftDays">was {{ formatDate(planning.baselineMinimumStartDate) }}</small>
+							<small v-if="planning.minimumStartShiftDays">{{ t('was {date}', { date: formatDate(planning.baselineMinimumStartDate) }) }}</small>
 						</dd>
 					</div>
 					<div class="impact-row">
-						<dt>Desired start</dt>
+						<dt>{{ t('Desired start') }}</dt>
 						<dd v-if="planning.desiredStartDate">
 							<span>{{ formatDate(planning.desiredStartDate) }}</span>
 							<span class="state-chip" :class="planning.desiredStartAchievable ? 'state-chip--ok' : 'state-chip--bad'">
-								{{ planning.desiredStartAchievable ? `Reachable, ${formatDays(planning.floatDays)} to spare` : `Missed by ${formatDays(planning.floatDays)}` }}
+								{{ planning.desiredStartAchievable ? t('Reachable, {duration} to spare', { duration: formatDays(planning.floatDays) }) : t('Missed by {duration}', { duration: formatDays(planning.floatDays) }) }}
 							</span>
 							<small v-if="planning.baselineFloatDays !== null && planning.baselineFloatDays !== planning.floatDays">
-								{{ planning.baselineDesiredStartAchievable ? `had ${formatDays(planning.baselineFloatDays)} to spare` : `was missed by ${formatDays(planning.baselineFloatDays)}` }}
+								{{ planning.baselineDesiredStartAchievable ? t('had {duration} to spare', { duration: formatDays(planning.baselineFloatDays) }) : t('was missed by {duration}', { duration: formatDays(planning.baselineFloatDays) }) }}
 							</small>
 						</dd>
 						<dd v-else class="impact-muted">
-							Not set
+							{{ t('Not set') }}
 						</dd>
 					</div>
 					<div class="impact-row">
-						<dt>Cards that move</dt>
-						<dd>{{ impact.movedTaskCount }}<small v-if="impact.deckCardUpdates.length"> · {{ impact.deckCardUpdates.length }} Deck {{ impact.deckCardUpdates.length === 1 ? 'card' : 'cards' }} to update</small></dd>
+						<dt>{{ t('Cards that move') }}</dt>
+						<dd>{{ impact.movedTaskCount }}<small v-if="impact.deckCardUpdates.length"> · {{ n('%n Deck card to update', '%n Deck cards to update', impact.deckCardUpdates.length) }}</small></dd>
 					</div>
 					<div v-for="milestone in movedMilestones" :key="milestone.phaseCategory" class="impact-row">
 						<dt>{{ milestone.label }}</dt>
@@ -58,17 +58,17 @@
 					</div>
 				</dl>
 				<ul class="legend">
-					<li><span class="legend__swatch legend__swatch--ghost" /> Where a card sits in the live plan</li>
-					<li><span class="legend__swatch legend__swatch--critical" /> Critical path: a delay here moves the start</li>
-					<li><span class="legend__swatch legend__swatch--changed" /> Card you changed</li>
+					<li><span class="legend__swatch legend__swatch--ghost" /> {{ t('Where a card sits in the live plan') }}</li>
+					<li><span class="legend__swatch legend__swatch--critical" /> {{ t('Critical path: a delay here moves the start') }}</li>
+					<li><span class="legend__swatch legend__swatch--changed" /> {{ t('Card you changed') }}</li>
 				</ul>
 			</section>
 
 			<!-- Changes -->
 			<section class="whatif-section">
-				<h5>Changes</h5>
+				<h5>{{ t('Changes') }}</h5>
 				<p v-if="!changes.length" class="impact-muted">
-					Click a card on the timeline to delay it, shorten it or overlap it with the card before it.
+					{{ t('Click a card on the timeline to delay it, shorten it or overlap it with the card before it.') }}
 				</p>
 				<ul v-else class="change-list">
 					<li v-for="(change, index) in changes" :key="index" class="change-item">
@@ -76,8 +76,8 @@
 						<button
 							type="button"
 							class="change-item__remove"
-							:aria-label="`Undo: ${describe(change)}`"
-							:title="'Undo this change'"
+							:aria-label="t('Undo: {change}', { change: describe(change) })"
+							:title="t('Undo this change')"
 							@click="$emit('remove-change', index)">
 							<Close :size="16" />
 						</button>
@@ -85,21 +85,21 @@
 				</ul>
 
 				<details class="planning-try">
-					<summary>Try a different desired start or preparation time</summary>
+					<summary>{{ t('Try a different desired start or preparation time') }}</summary>
 					<div class="planning-try__fields">
 						<label>
-							<span>Desired start</span>
+							<span>{{ t('Desired start') }}</span>
 							<input v-model="planningDraft.desiredStartDate" type="date">
 						</label>
 						<label>
-							<span>Preparation (weeks)</span>
+							<span>{{ t('Preparation (weeks)') }}</span>
 							<input v-model.number="planningDraft.requiredPreparationWeeks"
 								type="number"
 								min="0"
 								max="520">
 						</label>
 						<NcButton type="secondary" :disabled="!planningDraftChanged" @click="onTryPlanning">
-							Try it
+							{{ t('Try it') }}
 						</NcButton>
 					</div>
 				</details>
@@ -109,23 +109,23 @@
 
 			<!-- Fixes -->
 			<section v-if="slipDays > 0" class="whatif-section">
-				<h5>Ways to win back {{ formatDays(slipDays) }}</h5>
+				<h5>{{ t('Ways to win back {duration}', { duration: formatDays(slipDays) }) }}</h5>
 				<div v-if="suggestionsLoading" class="impact-muted">
-					<NcLoadingIcon :size="16" /> Looking for fixes…
+					<NcLoadingIcon :size="16" /> {{ t('Looking for fixes…') }}
 				</div>
 				<p v-else-if="!suggestions.length" class="impact-muted">
-					No fix found. Shortening and overlapping are limited to half a card’s length; you can go further by hand.
+					{{ t('No fix found. Shortening and overlapping are limited to half a card’s length; you can go further by hand.') }}
 				</p>
 				<ul v-else class="fix-list">
 					<li v-for="(fix, index) in suggestions" :key="index" class="fix-item">
 						<div class="fix-item__text">
 							<strong>{{ fix.changes.map(describe).join(' + ') }}</strong>
 							<span :class="fix.recoversFully ? 'fix-item__result--full' : 'fix-item__result--partial'">
-								{{ fix.recoversFully ? `Wins back all ${formatDays(fix.recoveredDays)}` : `Wins back ${formatDays(fix.recoveredDays)} of ${formatDays(slipDays)}` }}
+								{{ fix.recoversFully ? t('Wins back all {duration}', { duration: formatDays(fix.recoveredDays) }) : t('Wins back {duration} of {total}', { duration: formatDays(fix.recoveredDays), total: formatDays(slipDays) }) }}
 							</span>
 						</div>
 						<NcButton class="fix-item__try" type="secondary" @click="$emit('add-fix', fix)">
-							Try it
+							{{ t('Try it') }}
 						</NcButton>
 					</li>
 				</ul>
@@ -136,15 +136,15 @@
 			<NcButton
 				type="primary"
 				:disabled="!changes.length || loading || !!error || !canApply"
-				:title="canApply ? '' : 'Only timeline managers can apply a scenario'"
+				:title="canApply ? '' : t('Only timeline managers can apply a scenario')"
 				@click="$emit('apply')">
 				<template #icon>
 					<Check :size="16" />
 				</template>
-				Apply to plan
+				{{ t('Apply to plan') }}
 			</NcButton>
 			<NcButton type="tertiary" @click="$emit('discard')">
-				Discard
+				{{ t('Discard') }}
 			</NcButton>
 		</footer>
 	</aside>
@@ -156,6 +156,7 @@ import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import FlaskOutline from 'vue-material-design-icons/FlaskOutline.vue'
 
+import { t, n, tc } from '../../../new/l10n.mjs'
 import { describeChange, formatDays } from './whatIfChanges.js'
 
 export default {
@@ -248,6 +249,10 @@ export default {
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		formatDays,
 		describe(change) {
 			return describeChange(change, this.labelOf, this.formatDate)

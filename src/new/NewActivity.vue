@@ -1,18 +1,18 @@
 <template>
-	<section class="pc-view iz-app" aria-label="Project activity">
+	<section class="pc-view iz-app" :aria-label="t('Project activity')">
 		<header class="pc-view__head">
 			<div class="pc-view__heading">
 				<h2 class="pc-view__title">
-					Activity
+					{{ t('Activity') }}
 				</h2>
 				<p class="pc-view__lede">
-					Everything that happened in this project, newest first.
+					{{ t('Everything that happened in this project, newest first.') }}
 				</p>
 			</div>
 		</header>
 
 		<div class="iz-panel iz-panel--list pc-activity-panel">
-			<div class="pc-activity-filters" role="group" aria-label="Filter by source">
+			<div class="pc-activity-filters" role="group" :aria-label="t('Filter by source')">
 				<button v-for="option in sourceOptions"
 					:key="'source-' + option.value"
 					type="button"
@@ -26,16 +26,16 @@
 			</div>
 
 			<div v-if="loading && !events.length" class="pc-activity-state" role="status">
-				Loading activity…
+				{{ t('Loading activity…') }}
 			</div>
 			<div v-else-if="error && !events.length" class="pc-activity-state" role="alert">
 				<span>{{ error }}</span>
 				<button type="button" class="iz-btn iz-btn--sm" @click="fetchEvents">
-					Try again
+					{{ t('Try again') }}
 				</button>
 			</div>
 			<div v-else-if="!events.length" class="pc-activity-state">
-				{{ selectedSource ? 'No activity from this source yet.' : 'No activity yet.' }}
+				{{ selectedSource ? t('No activity from this source yet.') : t('No activity yet.') }}
 			</div>
 			<template v-else>
 				<section v-for="group in groupedEvents" :key="group.label" class="pc-activity-day">
@@ -52,7 +52,7 @@
 								class="pc-activity-row__avatar" />
 							<!-- The explicit space survives the template's whitespace condensing. -->
 							<p class="pc-activity-row__text">
-								<strong>{{ event.actorDisplayName || 'Unknown user' }}</strong>{{ ' ' }}<span>{{ formatDescription(event) }}</span>
+								<strong>{{ event.actorDisplayName || t('Unknown user') }}</strong>{{ ' ' }}<span>{{ formatDescription(event) }}</span>
 							</p>
 							<span class="iz-pill pc-source" :class="'pc-source--' + (event.source || 'internal')">{{ formatSource(event.source) }}</span>
 						</li>
@@ -61,14 +61,14 @@
 			</template>
 
 			<div v-if="events.length" class="iz-pagination pc-activity-footer">
-				<span>Showing {{ events.length }} {{ events.length === 1 ? 'event' : 'events' }}</span>
+				<span>{{ n('Showing %n event', 'Showing %n events', events.length) }}</span>
 				<span v-if="error" class="pc-activity-footer__error" role="alert">{{ error }}</span>
 				<button v-if="hasMore"
 					type="button"
 					class="iz-btn"
 					:disabled="loading"
 					@click="loadMore">
-					{{ loading ? 'Loading…' : 'Load more' }}
+					{{ loading ? t('Loading…') : t('Load more') }}
 				</button>
 			</div>
 		</div>
@@ -78,6 +78,7 @@
 <script>
 import ProjectActivity from '../components/ProjectActivity/ProjectActivity.vue'
 import { api, errorMessage } from './api.js'
+import { t, locale } from './l10n.mjs'
 
 // Grouping, descriptions (including redacted private notes and native Deck
 // events) and source labels come from the component the current interface
@@ -92,12 +93,12 @@ export default {
 	computed: {
 		sourceOptions() {
 			return [
-				{ value: '', label: 'All sources' },
-				{ value: 'internal', label: 'Project' },
-				{ value: 'deck', label: 'Deck' },
-				{ value: 'files', label: 'Files' },
-				{ value: 'talk', label: 'Talk' },
-				{ value: 'whiteboard', label: 'Whiteboard' },
+				{ value: '', label: t('All sources') },
+				{ value: 'internal', label: t('Project') },
+				{ value: 'deck', label: t('Deck') },
+				{ value: 'files', label: t('Files') },
+				{ value: 'talk', label: t('Talk') },
+				{ value: 'whiteboard', label: t('Whiteboard') },
 			]
 		},
 	},
@@ -144,7 +145,7 @@ export default {
 				this.nextCursor = data.nextCursor || null
 				this.offset += data.events.length
 			} catch (e) {
-				if (request === this.request) this.error = 'More activity could not be loaded. Try again.'
+				if (request === this.request) this.error = t('More activity could not be loaded. Try again.')
 			} finally {
 				if (request === this.request) this.loading = false
 			}
@@ -156,7 +157,7 @@ export default {
 		},
 		clockTime(value) {
 			const date = new Date(value)
-			return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+			return Number.isNaN(date.getTime()) ? '' : t('{time}', { time: date.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) })
 		},
 	},
 }

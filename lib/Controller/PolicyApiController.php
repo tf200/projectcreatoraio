@@ -32,6 +32,8 @@ use OCP\IRequest;
 use OCP\IUserSession;
 use OCP\IDBConnection;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class PolicyApiController extends Controller {
 	private const POLICY_VERSION_DRASCI = 2;
@@ -58,6 +60,10 @@ class PolicyApiController extends Controller {
 		'verify' => ['verifier'],
 	];
 
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -73,8 +79,38 @@ class PolicyApiController extends Controller {
 		private readonly IUserSession $userSession,
 		private readonly IDBConnection $db,
 		private readonly ?object $cardMapper = null, // OCA\Deck\Db\CardMapper
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
 		parent::__construct($appName, $request);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
+	}
+
+	/** Display name of a D-RASCI-VS role key, in the user's language. */
+	private function drasciRoleName(string $key): string {
+		return match ($key) {
+			'driver' => $this->l->t('Driver'),
+			'responsible' => $this->l->t('Responsible'),
+			'accountable' => $this->l->t('Accountable'),
+			'supportive' => $this->l->t('Supportive'),
+			'consulted' => $this->l->t('Consulted'),
+			'informed' => $this->l->t('Informed'),
+			'verifier' => $this->l->t('Verifier'),
+			'signer' => $this->l->t('Signer'),
+			default => self::DRASCI_ROLES[$key] ?? $key,
+		};
+	}
+
+	/** Name a standard functional role gets on a board: stored and shared, so in the server default language. */
+	private function standardFunctionalRoleName(string $key): string {
+		$l = $this->contentL10n->get();
+		return match ($key) {
+			'cpl' => $l->t('CPL'),
+			'client_developer' => $l->t('Client/Developer'),
+			'grid_operator' => $l->t('Grid operator (Elektra)'),
+			default => self::STANDARD_FUNCTIONAL_ROLES[$key] ?? $key,
+		};
 	}
 
 	#[NoAdminRequired]
@@ -181,8 +217,8 @@ class PolicyApiController extends Controller {
 		}
 
 		$drasciRoles = [];
-		foreach (self::DRASCI_ROLES as $key => $name) {
-			$drasciRoles[] = ['key' => $key, 'name' => $name];
+		foreach (array_keys(self::DRASCI_ROLES) as $key) {
+			$drasciRoles[] = ['key' => $key, 'name' => $this->drasciRoleName($key)];
 		}
 
 		return [
@@ -299,25 +335,25 @@ class PolicyApiController extends Controller {
 					$settings = $this->settingMapper->insert($settings);
 				} else {
 					if (!$this->settingMapper->incrementRevision($boardId)) {
-						throw new \RuntimeException('Unable to increment policy revision.');
+						throw new \RuntimeException($this->l->t('Unable to increment policy revision.'));
 					}
 					$settings = $this->settingMapper->findByBoard($boardId);
 					if ($settings === null) {
-						throw new \RuntimeException('Board policy settings disappeared during update.');
+						throw new \RuntimeException($this->l->t('Board policy settings disappeared during update.'));
 					}
 					$settings->setPermissionMode('card_policy');
 					$settings->setPolicyVersion(self::POLICY_VERSION_DRASCI);
 					$this->settingMapper->update($settings);
 				}
 
-				foreach (self::STANDARD_FUNCTIONAL_ROLES as $key => $name) {
+				foreach (array_keys(self::STANDARD_FUNCTIONAL_ROLES) as $key) {
 					if ($this->roleMapper->findByBoardAndKey($boardId, $key) !== null) {
 						continue;
 					}
 					$role = new BoardPolicyRole();
 					$role->setBoardId($boardId);
 					$role->setRoleKey($key);
-					$role->setRoleName($name);
+					$role->setRoleName($this->standardFunctionalRoleName($key));
 					$this->roleMapper->insert($role);
 				}
 
@@ -462,7 +498,7 @@ class PolicyApiController extends Controller {
 			$roleKey = trim(strtolower($roleKey));
 			$name = trim($name);
 			if ($roleKey === '' || $name === '') {
-				return new JSONResponse(['error' => 'Role key and name are required'], Http::STATUS_BAD_REQUEST);
+				return new JSONResponse(['error' => $this->l->t('Role key and name are required')], Http::STATUS_BAD_REQUEST);
 			}
 
 			$existing = $this->roleMapper->findByBoardAndKey($boardId, $roleKey);
@@ -506,7 +542,7 @@ class PolicyApiController extends Controller {
 
 			$role = $this->roleMapper->find($roleId);
 			if ($role === null || (int)$role->getBoardId() !== $boardId) {
-				return new JSONResponse(['error' => 'Role not found on this board'], Http::STATUS_NOT_FOUND);
+				return new JSONResponse(['error' => $this->l->t('Role not found on this board')], Http::STATUS_NOT_FOUND);
 			}
 
 			$this->db->beginTransaction();
@@ -552,13 +588,13 @@ class PolicyApiController extends Controller {
 
 			$role = $this->roleMapper->findByBoardAndKey($boardId, $roleKey);
 			if ($role === null) {
-				return new JSONResponse(['error' => 'Role not found on this board'], Http::STATUS_NOT_FOUND);
+				return new JSONResponse(['error' => $this->l->t('Role not found on this board')], Http::STATUS_NOT_FOUND);
 			}
 
 			$pTypeStr = $participantType === 0 ? 'user' : 'group';
 			$participant = trim($participant);
 			if ($participant === '') {
-				return new JSONResponse(['error' => 'Invalid participant'], Http::STATUS_BAD_REQUEST);
+				return new JSONResponse(['error' => $this->l->t('Invalid participant')], Http::STATUS_BAD_REQUEST);
 			}
 
 			$existing = $this->membershipMapper->findUnique((int)$role->getId(), $pTypeStr, $participant);
@@ -615,12 +651,12 @@ class PolicyApiController extends Controller {
 
 			$membership = $this->membershipMapper->find($membershipId);
 			if ($membership === null) {
-				return new JSONResponse(['error' => 'Membership record not found'], Http::STATUS_NOT_FOUND);
+				return new JSONResponse(['error' => $this->l->t('Membership record not found')], Http::STATUS_NOT_FOUND);
 			}
 
 			$role = $this->roleMapper->find((int)$membership->getRoleId());
 			if ($role === null || (int)$role->getBoardId() !== $boardId) {
-				return new JSONResponse(['error' => 'Role not found on this board'], Http::STATUS_NOT_FOUND);
+				return new JSONResponse(['error' => $this->l->t('Role not found on this board')], Http::STATUS_NOT_FOUND);
 			}
 
 			$settings = $this->settingMapper->findByBoard($boardId);
@@ -652,7 +688,7 @@ class PolicyApiController extends Controller {
 			$action = $cardAction;
 			$this->assertCanManagePolicy($boardId);
 			if (!in_array($action, self::ACTIONS, true)) {
-				throw new OCSException('Unsupported policy action.', Http::STATUS_BAD_REQUEST);
+				throw new OCSException($this->l->t('Unsupported policy action.'), Http::STATUS_BAD_REQUEST);
 			}
 			$this->assertCardBelongsToBoard($boardId, $cardId);
 
@@ -661,12 +697,12 @@ class PolicyApiController extends Controller {
 
 			$mode = $this->request->getParam('mode');
 			if (!is_string($mode) || !in_array($mode, ['inherit', 'override'], true)) {
-				throw new OCSException('Mode must be "inherit" or "override".', Http::STATUS_BAD_REQUEST);
+				throw new OCSException($this->l->t('Mode must be "inherit" or "override".'), Http::STATUS_BAD_REQUEST);
 			}
 
 			$rawRoleKeys = $this->request->getParam('allowedFunctionalRoleKeys', []);
 			if (!is_array($rawRoleKeys)) {
-				throw new OCSException('allowedFunctionalRoleKeys must be an array.', Http::STATUS_BAD_REQUEST);
+				throw new OCSException($this->l->t('allowedFunctionalRoleKeys must be an array.'), Http::STATUS_BAD_REQUEST);
 			}
 			$roleKeys = $this->normalizeFunctionalRoleKeys($rawRoleKeys);
 			$rolesByKey = [];
@@ -675,7 +711,7 @@ class PolicyApiController extends Controller {
 			}
 			$unknownRoleKeys = array_diff($roleKeys, array_keys($rolesByKey));
 			if ($unknownRoleKeys !== []) {
-				throw new OCSException('Unknown functional roles: ' . implode(', ', $unknownRoleKeys), Http::STATUS_BAD_REQUEST);
+				throw new OCSException($this->l->t('Unknown functional roles: %s', [implode(', ', $unknownRoleKeys)]), Http::STATUS_BAD_REQUEST);
 			}
 
 			$expectedRevision = $this->parseExpectedRevision($this->request->getParam('expectedRevision'));
@@ -684,7 +720,7 @@ class PolicyApiController extends Controller {
 				$this->incrementRevision($boardId, $expectedRevision);
 				$cardPolicy = $this->cardPolicyMapper->findByCard($cardId);
 				if ($cardPolicy !== null && (int)$cardPolicy->getBoardId() !== $boardId) {
-					throw new OCSException('Card policy belongs to another board.', Http::STATUS_CONFLICT);
+					throw new OCSException($this->l->t('Card policy belongs to another board.'), Http::STATUS_CONFLICT);
 				}
 
 				if ($mode === 'override' && $cardPolicy === null) {
@@ -750,7 +786,7 @@ class PolicyApiController extends Controller {
 			$this->assertCardBelongsToBoard($boardId, $cardId);
 			$settings = $this->settingMapper->findByBoard($boardId);
 			if ($settings !== null && $settings->getPolicyVersion() >= self::POLICY_VERSION_DRASCI) {
-				throw new OCSException('Use action-level overrides for board policy v2.', Http::STATUS_CONFLICT);
+				throw new OCSException($this->l->t('Use action-level overrides for board policy v2.'), Http::STATUS_CONFLICT);
 			}
 
 			$move = $this->request->getParam('move', []);
@@ -767,7 +803,7 @@ class PolicyApiController extends Controller {
 					$policy->setBoardId($boardId);
 					$existingPolicy = $this->cardPolicyMapper->insert($policy);
 				} elseif ((int)$existingPolicy->getBoardId() !== $boardId) {
-					throw new OCSException('Card policy belongs to another board.', Http::STATUS_CONFLICT);
+					throw new OCSException($this->l->t('Card policy belongs to another board.'), Http::STATUS_CONFLICT);
 				}
 
 				foreach ($this->cardPolicyRoleMapper->findByPolicy((int)$existingPolicy->getId()) as $role) {
@@ -827,7 +863,7 @@ class PolicyApiController extends Controller {
 				$existingPolicy = $this->cardPolicyMapper->findByCard($cardId);
 				if ($existingPolicy !== null) {
 					if ((int)$existingPolicy->getBoardId() !== $boardId) {
-						throw new OCSException('Card policy belongs to another board.', Http::STATUS_CONFLICT);
+						throw new OCSException($this->l->t('Card policy belongs to another board.'), Http::STATUS_CONFLICT);
 					}
 					foreach ($this->cardPolicyRoleMapper->findByPolicy((int)$existingPolicy->getId()) as $role) {
 						$this->cardPolicyRoleMapper->delete($role);
@@ -863,7 +899,7 @@ class PolicyApiController extends Controller {
 		$normalized = [];
 		foreach ($roleKeys as $roleKey) {
 			if (!is_string($roleKey) || !isset(self::DRASCI_ROLES[$roleKey])) {
-				throw new OCSException('DRASCIVS defaults may only contain: ' . implode(', ', array_keys(self::DRASCI_ROLES)), Http::STATUS_BAD_REQUEST);
+				throw new OCSException($this->l->t('DRASCIVS defaults may only contain: %s', [implode(', ', array_keys(self::DRASCI_ROLES))]), Http::STATUS_BAD_REQUEST);
 			}
 			$normalized[$roleKey] = true;
 		}
@@ -876,7 +912,7 @@ class PolicyApiController extends Controller {
 		$normalized = [];
 		foreach ($roleKeys as $roleKey) {
 			if (!is_string($roleKey) || trim($roleKey) === '') {
-				throw new OCSException('Functional role keys must be non-empty strings.', Http::STATUS_BAD_REQUEST);
+				throw new OCSException($this->l->t('Functional role keys must be non-empty strings.'), Http::STATUS_BAD_REQUEST);
 			}
 			$normalized[trim($roleKey)] = true;
 		}
@@ -887,13 +923,13 @@ class PolicyApiController extends Controller {
 	private function assertV2Settings(?BoardPolicySetting $settings): void {
 		if ($settings === null
 			|| $settings->getPolicyVersion() < self::POLICY_VERSION_DRASCI) {
-			throw new OCSException('Board policy v2 is not enabled.', Http::STATUS_CONFLICT);
+			throw new OCSException($this->l->t('Board policy v2 is not enabled.'), Http::STATUS_CONFLICT);
 		}
 	}
 
 	private function incrementRevision(int $boardId, ?int $expectedRevision): void {
 		if (!$this->settingMapper->incrementRevision($boardId, $expectedRevision)) {
-			throw new OCSException('Policy revision conflict.', Http::STATUS_CONFLICT);
+			throw new OCSException($this->l->t('Policy revision conflict.'), Http::STATUS_CONFLICT);
 		}
 	}
 
@@ -908,7 +944,7 @@ class PolicyApiController extends Controller {
 			return (int)$value;
 		}
 
-		throw new OCSException('expectedRevision must be a non-negative integer.', Http::STATUS_BAD_REQUEST);
+		throw new OCSException($this->l->t('expectedRevision must be a non-negative integer.'), Http::STATUS_BAD_REQUEST);
 	}
 
 	private function assertCardBelongsToBoard(int $boardId, int $cardId): void {
@@ -922,7 +958,7 @@ class PolicyApiController extends Controller {
 		$result = $qb->executeQuery();
 		try {
 			if ($result->fetch() === false) {
-				throw new OCSNotFoundException('Card not found on this board.');
+				throw new OCSNotFoundException($this->l->t('Card not found on this board.'));
 			}
 		} finally {
 			$result->closeCursor();
@@ -932,11 +968,11 @@ class PolicyApiController extends Controller {
 	private function assertCanManagePolicy(int $boardId): void {
 		$currentUser = $this->userSession->getUser();
 		if ($currentUser === null) {
-			throw new OCSForbiddenException('Authentication required');
+			throw new OCSForbiddenException($this->l->t('Authentication required'));
 		}
 
 		if (!$this->policyService->isBypassUser($boardId, $currentUser->getUID())) {
-			throw new OCSForbiddenException('Only board/project owners or admins can manage policies.');
+			throw new OCSForbiddenException($this->l->t('Only board/project owners or admins can manage policies.'));
 		}
 	}
 

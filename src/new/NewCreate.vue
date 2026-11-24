@@ -2,12 +2,12 @@
 	<section class="pc-view iz-app pc-create" aria-labelledby="pc-create-title">
 		<header class="pc-view__head pc-create__head">
 			<div class="pc-view__heading">
-				<a :href="backHref" class="pc-create__back" @click.prevent="$emit('cancel')">← {{ backLabel ? 'Back to ' + backLabel : 'Back to projects' }}</a>
+				<a :href="backHref" class="pc-create__back" @click.prevent="$emit('cancel')">{{ backLabel ? t('← Back to {project}', { project: backLabel }) : t('← Back to projects') }}</a>
 				<h2 id="pc-create-title" class="pc-view__title">
-					New project
+					{{ t('New project') }}
 				</h2>
 				<p class="pc-view__lede">
-					Name, number and type are enough to start; the rest can be filled in later.
+					{{ t('Name, number and type are enough to start; the rest can be filled in later.') }}
 				</p>
 			</div>
 		</header>
@@ -16,33 +16,33 @@
 			<div class="pc-create__form">
 				<section class="iz-panel pc-create__panel" aria-labelledby="pc-create-basics">
 					<h3 id="pc-create-basics" class="pc-create__panel-title">
-						Basics
+						{{ t('Basics') }}
 					</h3>
 					<div class="pc-create__row pc-create__row--name">
 						<label class="pc-create__field">
-							<span class="pc-create__label">Project name <span class="pc-create__req">Required</span></span>
+							<span class="pc-create__label">{{ t('Project name') }} <span class="pc-create__req">{{ t('Required') }}</span></span>
 							<input v-model="form.name"
 								class="iz-input"
 								type="text"
 								autocomplete="off"
 								required
 								:disabled="creating"
-								placeholder="e.g. Firma de Testerij">
+								:placeholder="t('e.g. Firma de Testerij')">
 						</label>
 						<label class="pc-create__field">
-							<span class="pc-create__label">Project number <span class="pc-create__req">Required</span></span>
+							<span class="pc-create__label">{{ t('Project number') }} <span class="pc-create__req">{{ t('Required') }}</span></span>
 							<input v-model="form.number"
 								class="iz-input"
 								type="text"
 								autocomplete="off"
 								required
 								:disabled="creating"
-								placeholder="e.g. P-2026-014">
+								:placeholder="t('e.g. P-2026-014')">
 						</label>
 					</div>
 					<fieldset class="pc-create__types" :disabled="creating">
 						<legend class="pc-create__label">
-							Project type <span class="pc-create__req">Required</span>
+							{{ t('Project type') }} <span class="pc-create__req">{{ t('Required') }}</span>
 						</legend>
 						<label v-for="type in types"
 							:key="type.id"
@@ -57,55 +57,55 @@
 						</label>
 					</fieldset>
 					<div v-if="isAdmin" class="pc-create__field">
-						<OrganizationsFetcher input-label="Organisation"
-							placeholder="Search for an organisation…"
+						<OrganizationsFetcher :input-label="t('Organisation')"
+							:placeholder="t('Search for an organisation…')"
 							:model-value="form.organizationId"
 							@update:modelValue="form.organizationId = $event"
-							@error="organizationError = 'Organisations could not be searched.'" />
-						<span class="pc-create__req pc-create__note">Required. Administrators choose the organisation the project goes to.</span>
+							@error="organizationError = t('Organisations could not be searched.')" />
+						<span class="pc-create__req pc-create__note">{{ t('Required. Administrators choose the organisation the project goes to.') }}</span>
 						<span v-if="organizationError" class="pc-create__error-text" role="alert">{{ organizationError }}</span>
 					</div>
 				</section>
 
 				<section class="iz-panel pc-create__panel" aria-labelledby="pc-create-client">
 					<h3 id="pc-create-client" class="pc-create__panel-title">
-						Client <span class="pc-create__optional">Optional</span>
+						{{ t('Client') }} <span class="pc-create__optional">{{ t('Optional') }}</span>
 					</h3>
 					<div class="pc-create__row pc-create__row--four">
 						<label class="pc-create__field">
-							<span class="pc-create__label">Client name</span>
+							<span class="pc-create__label">{{ t('Client name') }}</span>
 							<input v-model="form.clientName"
 								class="iz-input"
 								type="text"
 								:disabled="creating"
-								placeholder="e.g. ACME Corp">
+								:placeholder="t('e.g. ACME Corp')">
 						</label>
 						<label class="pc-create__field">
-							<span class="pc-create__label">Phone</span>
+							<span class="pc-create__label">{{ t('Phone') }}</span>
 							<input v-model="form.clientPhone"
 								class="iz-input"
 								type="tel"
 								:disabled="creating"
-								placeholder="e.g. +31 10 123 4567">
+								:placeholder="t('e.g. +31 10 123 4567')">
 						</label>
 						<label class="pc-create__field">
-							<span class="pc-create__label">Email</span>
+							<span class="pc-create__label">{{ t('Email') }}</span>
 							<input v-model="form.clientEmail"
 								class="iz-input"
 								type="email"
 								:disabled="creating"
-								placeholder="e.g. info@acme.nl">
+								:placeholder="t('e.g. info@acme.nl')">
 						</label>
 						<label class="pc-create__field">
-							<span class="pc-create__label">Address</span>
+							<span class="pc-create__label">{{ t('Address') }}</span>
 							<input v-model="form.clientAddress"
 								class="iz-input"
 								type="text"
 								:disabled="creating"
-								placeholder="e.g. Coolsingel 40, Rotterdam">
+								:placeholder="t('e.g. Coolsingel 40, Rotterdam')">
 						</label>
 					</div>
-					<RoleChips label="Client roles"
+					<RoleChips :label="t('Client roles')"
 						label-id="pc-create-roles"
 						:options="roleOptions"
 						:selected="form.clientRoles"
@@ -116,32 +116,32 @@
 				<section class="iz-panel pc-create__panel pc-create__panel--location" aria-labelledby="pc-create-location">
 					<div class="pc-create__location-fields">
 						<h3 id="pc-create-location" class="pc-create__panel-title">
-							Location <span class="pc-create__optional">Optional</span>
+							{{ t('Location') }} <span class="pc-create__optional">{{ t('Optional') }}</span>
 						</h3>
 						<label class="pc-create__field">
-							<span class="pc-create__label">Street</span>
+							<span class="pc-create__label">{{ t('Street') }}</span>
 							<input v-model="form.street"
 								class="iz-input"
 								type="text"
 								:disabled="creating"
-								placeholder="e.g. Kruiskade 12">
+								:placeholder="t('e.g. Kruiskade 12')">
 						</label>
 						<div class="pc-create__row pc-create__row--city">
 							<label class="pc-create__field">
-								<span class="pc-create__label">City</span>
+								<span class="pc-create__label">{{ t('City') }}</span>
 								<input v-model="form.city"
 									class="iz-input"
 									type="text"
 									:disabled="creating"
-									placeholder="e.g. Rotterdam">
+									:placeholder="t('e.g. Rotterdam')">
 							</label>
 							<label class="pc-create__field">
-								<span class="pc-create__label">ZIP</span>
+								<span class="pc-create__label">{{ t('ZIP') }}</span>
 								<input v-model="form.zip"
 									class="iz-input"
 									type="text"
 									:disabled="creating"
-									placeholder="e.g. 3012 EH">
+									:placeholder="t('e.g. 3012 EH')">
 							</label>
 						</div>
 					</div>
@@ -153,9 +153,9 @@
 
 				<section class="iz-panel pc-create__panel" aria-labelledby="pc-create-discipline">
 					<h3 id="pc-create-discipline" class="pc-create__panel-title">
-						Discipline <span class="pc-create__optional">Optional</span>
+						{{ t('Discipline') }} <span class="pc-create__optional">{{ t('Optional') }}</span>
 					</h3>
-					<RoleChips label="Choose one or more"
+					<RoleChips :label="t('Choose one or more')"
 						label-id="pc-create-discipline-choice"
 						:options="disciplineOptions"
 						:selected="form.disciplines"
@@ -165,20 +165,20 @@
 
 				<section class="iz-panel pc-create__panel" aria-labelledby="pc-create-description">
 					<h3 id="pc-create-description" class="pc-create__panel-title">
-						Description <span class="pc-create__optional">Optional</span>
+						{{ t('Description') }} <span class="pc-create__optional">{{ t('Optional') }}</span>
 					</h3>
 					<textarea v-model="form.description"
 						class="iz-input pc-create__textarea"
 						rows="3"
 						aria-labelledby="pc-create-description"
 						:disabled="creating"
-						placeholder="What the project is about, for everyone who joins it." />
+						:placeholder="t('What the project is about, for everyone who joins it.')" />
 				</section>
 			</div>
 
 			<aside class="iz-panel pc-create__aside" aria-labelledby="pc-create-setup">
 				<h3 id="pc-create-setup" class="pc-create__panel-title">
-					Create sets up
+					{{ t('Create sets up') }}
 				</h3>
 				<ul class="pc-create__setup">
 					<li v-for="item in setup" :key="item.key">
@@ -190,30 +190,30 @@
 				<div class="pc-create__plan">
 					<template v-if="plan">
 						<p class="pc-create__plan-line">
-							<span class="pc-create__plan-name">Plan{{ plan.organization ? ' for ' + plan.organization : '' }}</span>
-							<span :class="{ 'pc-create__plan-full': plan.full }">{{ plan.used }} of {{ plan.max }} projects used</span>
+							<span class="pc-create__plan-name">{{ plan.organization ? t('Plan for {organization}', { organization: plan.organization }) : t('Plan') }}</span>
+							<span :class="{ 'pc-create__plan-full': plan.full }">{{ t('{used} of {max} projects used', { used: plan.used, max: plan.max }) }}</span>
 						</p>
 						<span class="iz-meter pc-create__meter"
 							role="progressbar"
-							aria-label="Projects used"
+							:aria-label="t('Projects used')"
 							aria-valuemin="0"
 							:aria-valuemax="plan.max"
 							:aria-valuenow="plan.used">
 							<span class="iz-meter__fill" :class="{ 'iz-meter__fill--danger': plan.full }" :style="{ width: plan.percent + '%' }" />
 						</span>
-						<span class="pc-create__plan-note">{{ plan.full ? 'Every project on this plan is in use.' : 'This one makes ' + (plan.used + 1) + ' of ' + plan.max + '.' }}</span>
+						<span class="pc-create__plan-note">{{ plan.full ? t('Every project on this plan is in use.') : t('This one makes {n} of {max}.', { n: plan.used + 1, max: plan.max }) }}</span>
 					</template>
-					<span v-else-if="allowanceLoading" class="pc-create__plan-note" role="status">Checking the plan…</span>
+					<span v-else-if="allowanceLoading" class="pc-create__plan-note" role="status">{{ t('Checking the plan…') }}</span>
 					<span v-else-if="allowanceError" class="pc-create__plan-note">{{ allowanceError }}</span>
-					<span v-else-if="isAdmin && !form.organizationId" class="pc-create__plan-note">Choose an organisation to see its plan.</span>
+					<span v-else-if="isAdmin && !form.organizationId" class="pc-create__plan-note">{{ t('Choose an organisation to see its plan.') }}</span>
 				</div>
 
 				<div v-if="creating" class="pc-create__working" role="status">
 					<span class="pc-create__spinner" aria-hidden="true" />
-					Setting up {{ form.name.trim() }}. This takes a few seconds.
+					{{ t('Setting up {name}. This takes a few seconds.', { name: form.name.trim() }) }}
 				</div>
 				<div v-else-if="failure" class="pc-create__failure" role="alert">
-					<strong>The project was not created</strong>
+					<strong>{{ t('The project was not created') }}</strong>
 					<span>{{ failure }}</span>
 				</div>
 
@@ -226,10 +226,10 @@
 							class="iz-btn"
 							:disabled="creating"
 							@click="$emit('cancel')">
-							Cancel
+							{{ t('Cancel') }}
 						</button>
 						<button type="submit" class="iz-btn iz-btn--primary" :disabled="!ready || creating">
-							{{ creating ? 'Creating…' : 'Create project' }}
+							{{ creating ? t('Creating…') : t('Create project') }}
 						</button>
 					</div>
 				</div>
@@ -246,6 +246,7 @@ import RoleChips from './RoleChips.vue'
 import { DISCIPLINE_OPTIONS } from './discipline-options.js'
 import { api } from './api.js'
 import { toggled } from './members.js'
+import { t } from './l10n.mjs'
 import { TYPES, emptyForm, missingOf, sentence, payloadOf, setupOf, planOf, failureOf } from './create.js'
 
 // The New project page of the new layout. The same fields, rules and request
@@ -281,9 +282,9 @@ export default {
 		plan() { return planOf(this.allowance) },
 		ready() { return !this.missing.length && !this.plan?.full },
 		hint() {
-			if (this.missing.length) return 'Still needed: ' + sentence(this.missing) + '.'
-			if (this.plan?.full) return 'The plan has no room for another project.'
-			return 'Ready to create.'
+			if (this.missing.length) return t('Still needed: {items}.', { items: sentence(this.missing) })
+			if (this.plan?.full) return t('The plan has no room for another project.')
+			return t('Ready to create.')
 		},
 		setup() { return setupOf(this.form, this.allowance) },
 	},
@@ -309,7 +310,7 @@ export default {
 				if (request === this.allowanceRequest) this.allowance = allowance
 			} catch (error) {
 				// The plan line is a courtesy: Create still checks the limit itself.
-				if (request === this.allowanceRequest) this.allowanceError = error?.response?.data?.message || 'The plan could not be checked.'
+				if (request === this.allowanceRequest) this.allowanceError = error?.response?.data?.message || t('The plan could not be checked.')
 			} finally {
 				if (request === this.allowanceRequest) this.allowanceLoading = false
 			}
@@ -321,7 +322,7 @@ export default {
 			try {
 				const result = await api.createProject(payloadOf(this.form))
 				const projectId = Number(result?.projectId)
-				if (!(projectId > 0)) throw new Error('The project was created, but its page could not be opened.')
+				if (!(projectId > 0)) throw new Error(t('The project was created, but its page could not be opened.'))
 				this.$emit('created', { projectId, name: this.form.name.trim() })
 			} catch (error) {
 				this.failure = failureOf(error)

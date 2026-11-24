@@ -11,6 +11,7 @@ use OCA\ProjectCreatorAIO\ProjectStatus;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDateTimeZone;
 use OCP\IDBConnection;
+use OCP\IL10N;
 
 class ProjectPortfolioService {
 	/**
@@ -33,13 +34,17 @@ class ProjectPortfolioService {
 
 	private MemberLoadService $memberLoad;
 
+	private IL10N $l;
+
 	public function __construct(
 		private ProjectMapper $projectMapper,
 		private IDBConnection $db,
 		private ?IDateTimeZone $dateTimeZone = null,
 		?MemberLoadService $memberLoad = null,
+		?IL10N $l = null,
 	) {
 		$this->memberLoad = $memberLoad ?? new MemberLoadService($db);
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	public function getCompletion(int $organizationId, ?string $memberUid = null, ?int $teamId = null): array {
@@ -47,7 +52,7 @@ class ProjectPortfolioService {
 		if ($teamId !== null) {
 			$team = $this->loadTeam($organizationId, $teamId);
 			if ($team === null) {
-				throw new \InvalidArgumentException('Team does not belong to organization');
+				throw new \InvalidArgumentException($this->l->t('Team does not belong to organization'));
 			}
 			$teamProjectIds = $this->loadTeamProjectIds($organizationId, $teamId);
 			$allProjects = array_values(array_filter(
@@ -163,7 +168,7 @@ class ProjectPortfolioService {
 			}
 		}
 		if ($team === null) {
-			throw new \InvalidArgumentException('Team does not belong to organization');
+			throw new \InvalidArgumentException($this->l->t('Team does not belong to organization'));
 		}
 
 		$projects = $this->loadCapacityProjects($organizationId, $teamId);
@@ -249,7 +254,7 @@ class ProjectPortfolioService {
 		if ($scope === 'team' && $teamId !== null) {
 			$team = $this->loadTeam($organizationId, $teamId);
 			if ($team === null) {
-				throw new \InvalidArgumentException('Team does not belong to organization');
+				throw new \InvalidArgumentException($this->l->t('Team does not belong to organization'));
 			}
 			$capacitySummary = $this->getCapacity($organizationId, $teamId, $requestedMonday->format('Y-m-d'), $memberUid);
 			$rawProjects = $this->loadTableProjects($organizationId, $teamId);
@@ -346,8 +351,8 @@ class ProjectPortfolioService {
 				'0-24' => '0–24%',
 				'25-49' => '25–49%',
 				'50-74' => '50–74%',
-				'75-99' => '75–99% / Upcoming',
-				'100' => '100% ready for handover',
+				'75-99' => $this->l->t('75–99%% / Upcoming'),
+				'100' => $this->l->t('100%% ready for handover'),
 			];
 			$bucketLabel = $bucketLabels[$bucketKey] ?? self::BUCKETS[$bucketIndex]['label'];
 
@@ -358,7 +363,7 @@ class ProjectPortfolioService {
 			$actualEndMonday = $isCompleted ? $this->normalizeMonday($actualEnd) : null;
 
 			if ($isCompleted && $actualEndMonday !== null) {
-				$expectedOrAchievedLabel = '100% reached ' . $this->isoWeekLabel($actualEndMonday);
+				$expectedOrAchievedLabel = $this->l->t('100%% reached %s', [$this->isoWeekLabel($actualEndMonday)]);
 			} elseif ($plannedEnd !== null) {
 				$expectedOrAchievedLabel = $this->isoWeekLabel($this->normalizeMonday($plannedEnd));
 			} else {
@@ -379,11 +384,11 @@ class ProjectPortfolioService {
 					$diffWeeks = (int)round($diffDays / 7);
 					$startPrepCountdownWeeks = $diffWeeks;
 					if ($diffWeeks > 0) {
-						$startPrepCountdown = $diffWeeks . ' ' . ($diffWeeks === 1 ? 'week' : 'weeks');
+						$startPrepCountdown = $this->l->n('%n week', '%n weeks', $diffWeeks);
 					} elseif ($diffWeeks === 0) {
-						$startPrepCountdown = 'this week';
+						$startPrepCountdown = $this->l->t('this week');
 					} else {
-						$startPrepCountdown = abs($diffWeeks) . ' ' . (abs($diffWeeks) === 1 ? 'week ago' : 'weeks ago');
+						$startPrepCountdown = $this->l->n('%n week ago', '%n weeks ago', abs($diffWeeks));
 					}
 				}
 			} else {
@@ -416,11 +421,11 @@ class ProjectPortfolioService {
 				$diffDesiredWeeks = (int)round($diffDesiredDays / 7);
 				$desiredCountdownWeeks = $diffDesiredWeeks;
 				if ($diffDesiredWeeks > 0) {
-					$desiredCountdown = $diffDesiredWeeks . ' ' . ($diffDesiredWeeks === 1 ? 'week' : 'weeks');
+					$desiredCountdown = $this->l->n('%n week', '%n weeks', $diffDesiredWeeks);
 				} elseif ($diffDesiredWeeks === 0) {
-					$desiredCountdown = 'this week';
+					$desiredCountdown = $this->l->t('this week');
 				} else {
-					$desiredCountdown = abs($diffDesiredWeeks) . ' ' . (abs($diffDesiredWeeks) === 1 ? 'week ago' : 'weeks ago');
+					$desiredCountdown = $this->l->n('%n week ago', '%n weeks ago', abs($diffDesiredWeeks));
 				}
 			} else {
 				$desiredStartWeek = '—';
@@ -441,7 +446,7 @@ class ProjectPortfolioService {
 			if ($hasGap) {
 				$projectsWithGapsCount++;
 			}
-			$planningGapDisplay = $hasGap ? count($projectGaps) . (count($projectGaps) === 1 ? ' gap' : ' gaps') : 'None';
+			$planningGapDisplay = $hasGap ? $this->l->n('%n gap', '%n gaps', count($projectGaps)) : $this->l->t('None');
 			$gapWeeks = 0;
 			$gapSpan = null;
 			$missingEnd = $dates['invalidEnd'] || $endForPrep === null;
@@ -453,7 +458,7 @@ class ProjectPortfolioService {
 					'id' => 'project-plan:' . (int)$project['id'],
 					'projectId' => (int)$project['id'],
 					'projectName' => (string)$project['name'],
-					'note' => $missingEnd ? 'No valid project end date' : 'Desired start is before minimum execution start',
+					'note' => $missingEnd ? $this->l->t('No valid project end date') : $this->l->t('Desired start is before minimum execution start'),
 				];
 			}
 
@@ -501,13 +506,13 @@ class ProjectPortfolioService {
 
 		$totalProjects = count($projectRows);
 		$bucketSummaries = [
-			['key' => 'all', 'label' => 'All progression', 'count' => $totalProjects],
+			['key' => 'all', 'label' => $this->l->t('All progression'), 'count' => $totalProjects],
 			['key' => '0-24', 'label' => '0–24%', 'count' => $bucketCounters['0-24']],
 			['key' => '25-49', 'label' => '25–49%', 'count' => $bucketCounters['25-49']],
 			['key' => '50-74', 'label' => '50–74%', 'count' => $bucketCounters['50-74']],
-			['key' => '75-99', 'label' => '75–99% / Upcoming', 'count' => $bucketCounters['75-99']],
-			['key' => '100', 'label' => '100% ready for handover', 'count' => $bucketCounters['100']],
-			['key' => 'gaps', 'label' => 'Projects with gaps', 'count' => $projectsWithGapsCount],
+			['key' => '75-99', 'label' => $this->l->t('75–99%% / Upcoming'), 'count' => $bucketCounters['75-99']],
+			['key' => '100', 'label' => $this->l->t('100%% ready for handover'), 'count' => $bucketCounters['100']],
+			['key' => 'gaps', 'label' => $this->l->t('Projects with gaps'), 'count' => $projectsWithGapsCount],
 		];
 
 		return [
@@ -615,7 +620,7 @@ class ProjectPortfolioService {
 			$week['overCapacity'] = $overloaded > 0;
 			$week['freeSlots'] = $withFreeSlots && $minFree !== null ? max(0, $minFree) : null;
 			if ($week['overCapacity']) {
-				$week['message'] = $overloaded === 1 ? '1 person overloaded' : $overloaded . ' people overloaded';
+				$week['message'] = $this->l->n('%n person overloaded', '%n people overloaded', $overloaded);
 			}
 			$summary['weeks'][$index] = $week;
 		}
@@ -826,15 +831,15 @@ class ProjectPortfolioService {
 			}
 			$handover = $this->calendarDay($project['actualHandoverDate'] ?? null);
 			if ($handover !== null && $handover > $window['start']) {
-				$issues[] = ['id' => 'handover:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Handover after the actual start'];
+				$issues[] = ['id' => 'handover:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => $this->l->t('Handover after the actual start')];
 			}
 			if ($window['actualEnd'] === null && in_array((int)$project['status'], [ProjectStatus::DONE, ProjectStatus::ARCHIVED], true)) {
 				continue;
 			}
 			if ($window['end'] === null) {
-				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'Started but no end planned: set weeks on site'];
+				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => $this->l->t('Started but no end planned: set weeks on site')];
 			} elseif ($window['end'] < $window['start']) {
-				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => 'End before actual start'];
+				$issues[] = ['id' => 'execution:' . (int)$project['id'], 'projectId' => (int)$project['id'], 'projectName' => (string)$project['name'], 'note' => $this->l->t('End before actual start')];
 			}
 		}
 		return $issues;
@@ -877,7 +882,7 @@ class ProjectPortfolioService {
 				'ending' => $ending,
 				'continuing' => $continuing,
 				'totalActive' => $total,
-				'message' => $total === 0 ? 'No active projects' : 'Within capacity',
+				'message' => $total === 0 ? $this->l->t('No active projects') : $this->l->t('Within capacity'),
 			];
 		}
 
@@ -1307,14 +1312,14 @@ class ProjectPortfolioService {
 				$start = $this->dateString($card['startdate'] ?? null);
 				$end = $this->dateString($card['duedate'] ?? null);
 				$cardId = (int)($card['id'] ?? $index + 1);
-				$title = (string)($card['title'] ?? 'Untitled card');
+				$title = (string)($card['title'] ?? $this->l->t('Untitled card'));
 				if ($reportsIssues && ($start === null || $end === null || $end < $start)) {
 					$issues[] = [
 						'id' => 'card:' . $projectId . ':' . $cardId,
 						'projectId' => $projectId,
 						'projectName' => (string)$project['name'],
 						'cardId' => $cardId,
-						'note' => $end !== null && $start !== null && $end < $start ? 'End before start: ' . $title : 'Incomplete dates: ' . $title,
+						'note' => $end !== null && $start !== null && $end < $start ? $this->l->t('End before start: %s', [$title]) : $this->l->t('Incomplete dates: %s', [$title]),
 					];
 				}
 				if ($start === null && $end === null) {
@@ -1328,7 +1333,7 @@ class ProjectPortfolioService {
 			}
 			if ($intervals === []) {
 				if ($reportsIssues) {
-					$issues[] = ['id' => 'project:' . $projectId, 'projectId' => $projectId, 'projectName' => (string)$project['name'], 'note' => 'No dated Deck cards'];
+					$issues[] = ['id' => 'project:' . $projectId, 'projectId' => $projectId, 'projectName' => (string)$project['name'], 'note' => $this->l->t('No dated Deck cards')];
 				}
 				continue;
 			}
@@ -1344,7 +1349,7 @@ class ProjectPortfolioService {
 				$gap['projectIds'] = [$projectId];
 				$gap['before'] = $merged[$i - 1]['card'];
 				$gap['after'] = $merged[$i]['card'];
-				$gap['note'] = 'Between initiation cards · ' . $gap['startDate'] . ' – ' . $gap['endDate'];
+				$gap['note'] = $this->l->t('Between initiation cards · %1$s – %2$s', [$gap['startDate'], $gap['endDate']]);
 				$gaps[] = $gap;
 			}
 		}
@@ -1379,7 +1384,7 @@ class ProjectPortfolioService {
 						$gap['projectIds'] = [$previous['project']['id'], $interval['project']['id']];
 						$gap['before'] = $previous['project'];
 						$gap['after'] = $interval['project'];
-						$gap['note'] = 'Between projects · ' . $previous['project']['name'] . ' → ' . $interval['project']['name'];
+						$gap['note'] = $this->l->t('Between projects · %1$s → %2$s', [$previous['project']['name'], $interval['project']['name']]);
 						$gaps[] = $gap;
 					}
 				}
@@ -1417,7 +1422,7 @@ class ProjectPortfolioService {
 			return null;
 		}
 		$days = (int)$start->diff($end)->format('%a') + 1;
-		return ['type' => $type, 'startDate' => $startDate, 'endDate' => $endDate, 'days' => $days, 'duration' => $days . ($days === 1 ? ' day' : ' days')];
+		return ['type' => $type, 'startDate' => $startDate, 'endDate' => $endDate, 'days' => $days, 'duration' => $this->l->n('%n day', '%n days', $days)];
 	}
 
 	private function normalizeMonday(?string $value): DateTimeImmutable {

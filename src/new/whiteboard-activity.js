@@ -2,6 +2,8 @@
 // every ten seconds while someone draws. These helpers turn those saves into
 // editing sessions, grouped by day.
 
+import { t, locale, formatNumber } from './l10n.mjs'
+
 // Saves by one person less than this far apart belong to one sitting.
 export const SESSION_GAP_MS = 20 * 60 * 1000
 
@@ -30,7 +32,7 @@ export function sessionsOf(events) {
 			run.end = time(event)
 			run.saves.push(event)
 		} else {
-			const next = { actorUid: who, displayName: event.actorDisplayName || who || 'Unknown user', start: time(event), end: time(event), saves: [event] }
+			const next = { actorUid: who, displayName: event.actorDisplayName || who || t('Unknown user'), start: time(event), end: time(event), saves: [event] }
 			runs.push(next)
 			open.set(who, next)
 		}
@@ -83,19 +85,25 @@ function dayKey(ms) {
 	return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate()
 }
 
-export function dayLabel(ms, now = Date.now()) {
+// Whole days between the day of `ms` and today: 0 is today, 1 yesterday.
+export function daysAgo(ms, now = Date.now()) {
 	const today = new Date(now)
 	today.setHours(0, 0, 0, 0)
 	const day = new Date(ms)
 	day.setHours(0, 0, 0, 0)
-	const days = Math.round((today - day) / 86400000)
-	if (days === 0) return 'Today'
-	if (days === 1) return 'Yesterday'
-	return day.toLocaleDateString('en-GB', {
+	return Math.round((today - day) / 86400000)
+}
+
+export function dayLabel(ms, now = Date.now()) {
+	const days = daysAgo(ms, now)
+	if (days === 0) return t('Today')
+	if (days === 1) return t('Yesterday')
+	const day = new Date(ms)
+	return day.toLocaleDateString(locale(), {
 		weekday: 'long',
 		day: 'numeric',
 		month: 'long',
-		...(day.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}),
+		...(day.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}),
 	})
 }
 
@@ -106,7 +114,7 @@ export function daysOf(sessions, now = Date.now()) {
 		const key = dayKey(session.end)
 		let day = days[days.length - 1]
 		if (!day || day.key !== key) {
-			day = { key, label: dayLabel(session.end, now), sessions: [], minutes: 0, people: [] }
+			day = { key, daysAgo: daysAgo(session.end, now), label: dayLabel(session.end, now), sessions: [], minutes: 0, people: [] }
 			days.push(day)
 		}
 		day.sessions.push(session)
@@ -123,32 +131,33 @@ export function minutesOf(span) {
 }
 
 export function duration(minutes) {
-	if (minutes < 1) return 'under a minute'
-	if (minutes < 60) return minutes + ' min'
+	if (minutes < 1) return t('under a minute')
+	if (minutes < 60) return t('{n} min', { n: minutes })
 	const rest = minutes % 60
-	return Math.floor(minutes / 60) + ' h' + (rest ? ' ' + rest + ' min' : '')
+	const h = Math.floor(minutes / 60)
+	return rest ? t('{h} h {m} min', { h, m: rest }) : t('{h} h', { h })
 }
 
 export function clock(ms) {
-	return new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+	return new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })
 }
 
 export function range(span) {
 	const from = clock(span.start)
 	const to = clock(span.end)
-	return from === to ? from : from + ' – ' + to
+	return from === to ? from : t('{start} – {end}', { start: from, end: to })
 }
 
 export function names(people) {
 	const list = people.map(person => person.displayName)
 	if (list.length <= 1) return list.join('')
-	return list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1]
+	return t('{list} and {last}', { list: list.slice(0, -1).join(', '), last: list[list.length - 1] })
 }
 
 export function sizeChange(bytes) {
 	if (bytes === null || bytes === undefined) return ''
-	if (bytes === 0) return 'Board size unchanged'
+	if (bytes === 0) return t('Board size unchanged')
 	const abs = Math.abs(bytes)
-	const amount = abs >= 1048576 ? (abs / 1048576).toFixed(1) + ' MB' : abs >= 1024 ? Math.round(abs / 1024) + ' KB' : abs + ' bytes'
-	return 'Board ' + (bytes > 0 ? 'grew' : 'shrank') + ' by ' + amount
+	const amount = abs >= 1048576 ? formatNumber(abs / 1048576) + ' MB' : abs >= 1024 ? Math.round(abs / 1024) + ' KB' : t('{n} bytes', { n: abs })
+	return bytes > 0 ? t('Board grew by {amount}', { amount }) : t('Board shrank by {amount}', { amount })
 }

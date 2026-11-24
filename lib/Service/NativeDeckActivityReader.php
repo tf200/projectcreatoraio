@@ -15,8 +15,11 @@ use OCP\IDBConnection;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 class NativeDeckActivityReader {
+	private IL10N $l;
+
 	public function __construct(
 		private readonly ?IDBConnection $activityConnection,
 		private readonly ?CardMapper $cardMapper,
@@ -24,7 +27,9 @@ class NativeDeckActivityReader {
 		private readonly ?PermissionService $permissionService,
 		private readonly IUserManager $userManager,
 		private readonly LoggerInterface $logger,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	public function isAvailable(): bool {
@@ -197,7 +202,7 @@ class NativeDeckActivityReader {
 			$actorDisplayName = $this->userManager->getDisplayName($actorUid);
 			if ($actorDisplayName === null) {
 				$actorUid = '';
-				$actorDisplayName = 'Deleted user';
+				$actorDisplayName = $this->l->t('Deleted user');
 			}
 		}
 

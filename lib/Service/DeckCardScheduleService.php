@@ -8,24 +8,29 @@ use OCA\Deck\Db\CardMapper;
 use OCA\Deck\Model\OptionalNullableValue;
 use OCA\Deck\Service\CardService;
 use OCA\ProjectCreatorAIO\Db\Project;
+use OCP\IL10N;
 
 class DeckCardScheduleService
 {
+	private IL10N $l;
+
 	public function __construct(
 		private readonly ?CardMapper $cardMapper,
 		private readonly ?CardService $cardService,
+		?IL10N $l = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
 	}
 
 	public function updateCardSchedule(Project $project, int $cardId, DateTime $startDate, DateTime $endDate): Card
 	{
 		if ($endDate < $startDate) {
-			throw new \InvalidArgumentException('End date cannot be before start date');
+			throw new \InvalidArgumentException($this->l->t('End date cannot be before start date'));
 		}
 
 		$card = $this->assertCardCanBeRescheduled($project, $cardId);
 		if ($this->cardService === null) {
-			throw new \RuntimeException('Deck is not available');
+			throw new \RuntimeException($this->l->t('Deck is not available'));
 		}
 
 		return $this->cardService->update(
@@ -48,20 +53,20 @@ class DeckCardScheduleService
 	public function assertCardCanBeRescheduled(Project $project, int $cardId): Card
 	{
 		if ($this->cardMapper === null) {
-			throw new \RuntimeException('Deck is not available');
+			throw new \RuntimeException($this->l->t('Deck is not available'));
 		}
 
 		$boardId = (int)($project->getBoardId() ?? 0);
 		if ($boardId <= 0 || $this->cardMapper->findBoardId($cardId) !== $boardId) {
-			throw new \InvalidArgumentException('Deck card does not belong to this project');
+			throw new \InvalidArgumentException($this->l->t('Deck card does not belong to this project'));
 		}
 
 		$card = $this->cardMapper->find($cardId);
 		if ($card->getDeletedAt() !== 0 || $card->getArchived()) {
-			throw new \InvalidArgumentException('Deleted or archived Deck cards cannot be rescheduled');
+			throw new \InvalidArgumentException($this->l->t('Deleted or archived Deck cards cannot be rescheduled'));
 		}
 		if ($card->getDone() instanceof DateTime) {
-			throw new \InvalidArgumentException('Completed Deck cards cannot be rescheduled');
+			throw new \InvalidArgumentException($this->l->t('Completed Deck cards cannot be rescheduled'));
 		}
 
 		return $card;
@@ -84,7 +89,7 @@ class DeckCardScheduleService
 				continue;
 			}
 			if (!empty($baseline['isDone'])) {
-				throw new \InvalidArgumentException('Completed Deck cards cannot be rescheduled');
+				throw new \InvalidArgumentException($this->l->t('Completed Deck cards cannot be rescheduled'));
 			}
 			$changedTasks[] = $task;
 		}

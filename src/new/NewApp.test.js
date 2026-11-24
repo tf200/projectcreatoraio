@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 import { readRoute, interfaceUrl, normalizeTab } from './navigation.js'
 const script = readFileSync(new URL('./NewApp.vue', import.meta.url), 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '').replace('export default', 'globalThis.component =')
 function app(api, browser = {}) {
- const env = { history: { pushState() {}, replaceState() {} }, overviewState: {}, api, readRoute, interfaceUrl, normalizeTab, generateUrl: x => x, location: { pathname: '/apps/projectcreatoraio/', search: '' }, NcContent: {}, NcAppContent: {}, ProjectList: {}, ProjectShelf: {}, ProjectHeader: {}, NewOverview: {}, ProjectModule: {}, NewCreate: {}, errorMessage: () => 'error' }
+ const env = { ...l10n, history: { pushState() {}, replaceState() {} }, overviewState: {}, api, readRoute, interfaceUrl, normalizeTab, generateUrl: x => x, location: { pathname: '/apps/projectcreatoraio/', search: '' }, NcContent: {}, NcAppContent: {}, ProjectList: {}, ProjectShelf: {}, ProjectHeader: {}, NewOverview: {}, ProjectModule: {}, NewCreate: {}, errorMessage: () => 'error' }
  Object.assign(env, browser)
  vm.runInNewContext(script, env)
  const component = env.component

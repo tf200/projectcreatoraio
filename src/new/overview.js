@@ -1,4 +1,5 @@
 import { CRITICAL_LABELS } from './tasks-progress.js'
+import { t, n, locale } from './l10n.mjs'
 export function progressSummary(summary) {
  const process = summary?.processCompleted
  const total = Number(process?.totalRequired || 0), done = Number(process?.doneCount || 0)
@@ -7,7 +8,7 @@ export function progressSummary(summary) {
 }
 export function planningSummary(summary) {
  const phases = summary?.phases || []
- const pending = phases.filter(p => p.tasks?.length && !p.tasks.every(t => t.isDone))
+ const pending = phases.filter(p => p.tasks?.length && !p.tasks.every(task => task.isDone))
  const milestone = pending.map(p => p.milestone).filter(m => m?.date).sort((a, b) => a.date.localeCompare(b.date))[0] || null
  const conflict = summary?.desiredStartDate && Number.isFinite(summary.overallFloatDays) ? summary.overallFloatDays < 0 : null
  return { milestone, conflict, phases, currentPhase: pending[0]?.name || null }
@@ -30,28 +31,55 @@ export function recentFiles(tree) {
   if (node.type !== 'file' || /\.(whiteboard|excalidraw)$/i.test(node.name) || /^(public-note|private-note)\.md$/i.test(node.name) || seen.has(node.id)) return
   seen.add(node.id); result.push({ ...node, scope })
  })
- walk(tree.shared, 'Shared'); walk(tree.private, 'Private')
+ walk(tree.shared, t('Shared')); walk(tree.private, t('Private'))
  return result.sort((a, b) => Number(b.mtime || 0) - Number(a.mtime || 0)).slice(0, 3)
+}
+// What happened, by the server's event code; a code this list doesn't know is
+// shown as the code itself (underscores as spaces).
+const EVENT_LABELS = {
+ project_created: () => t('project created'), project_updated: () => t('project updated'), project_archived: () => t('project archived'),
+ project_restored: () => t('project restored'), project_deleted: () => t('project deleted'), project_handed_over: () => t('project handed over'),
+ member_added: () => t('member added'), member_removed: () => t('member removed'), owner_changed: () => t('owner changed'),
+ note_created: () => t('note created'), note_updated: () => t('note updated'), note_deleted: () => t('note deleted'), project_notes_updated: () => t('project notes updated'),
+ timeline_item_created: () => t('timeline item created'), timeline_item_updated: () => t('timeline item updated'), timeline_item_deleted: () => t('timeline item deleted'), timeline_reordered: () => t('timeline reordered'),
+ deck_card_created: () => t('deck card created'), deck_card_updated: () => t('deck card updated'), deck_card_deleted: () => t('deck card deleted'),
+ deck_acl_added: () => t('deck acl added'), deck_acl_removed: () => t('deck acl removed'), deck_acl_updated: () => t('deck acl updated'),
+ deck_board_created: () => t('deck board created'), deck_board_updated: () => t('deck board updated'), deck_board_deleted: () => t('deck board deleted'),
+ file_created: () => t('file created'), file_updated: () => t('file updated'), file_deleted: () => t('file deleted'), file_renamed: () => t('file renamed'), file_moved: () => t('file moved'), file_copied: () => t('file copied'),
+ folder_created: () => t('folder created'), folder_deleted: () => t('folder deleted'),
+ talk_message_sent: () => t('talk message sent'), talk_direct_message_sent: () => t('talk direct message sent'), talk_direct_chat_created: () => t('talk direct chat created'),
+ talk_participant_added: () => t('talk participant added'), talk_participant_removed: () => t('talk participant removed'), talk_call_started: () => t('talk call started'), talk_call_ended: () => t('talk call ended'),
+ talk_room_updated: () => t('talk room updated'), talk_reaction_added: () => t('talk reaction added'), talk_reaction_removed: () => t('talk reaction removed'), talk_user_joined: () => t('talk user joined'),
+ whiteboard_updated: () => t('whiteboard updated'),
 }
 export function activityText(event) {
  const payload = event.payload || {}
- if (payload.redacted) return 'Private note activity'
+ if (payload.redacted) return t('Private note activity')
  const title = payload.fileName || payload.cardTitle || payload.noteTitle || payload.title || ''
- const action = String(event.eventType || 'Project activity').replace(/_/g, ' ')
+ const label = EVENT_LABELS[event.eventType]
+ const action = label ? label() : event.eventType ? String(event.eventType).replace(/_/g, ' ') : t('Project activity')
  return title ? `${title} · ${action}` : action.charAt(0).toUpperCase() + action.slice(1)
 }
-export function dateLabel(value) {
- if (!value) return 'Not set'
- const date = new Date(typeof value === 'number' ? value * 1000 : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value + 'T12:00:00' : value)
- return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+// Where an activity came from, by the server's source code.
+const SOURCE_LABELS = { internal: () => t('Project'), deck: () => t('Deck'), files: () => t('Files'), talk: () => t('Talk'), whiteboard: () => t('Whiteboard') }
+export function sourceLabel(source) {
+ if (!source) return t('Project')
+ return SOURCE_LABELS[source] ? SOURCE_LABELS[source]() : String(source)
 }
-export function fileSize(value) { return value >= 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB` }
+export function dateLabel(value) {
+ if (!value) return t('Not set')
+ const date = new Date(typeof value === 'number' ? value * 1000 : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value + 'T12:00:00' : value)
+ return Number.isNaN(date.getTime()) ? t('Not set') : date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
+}
+const oneDecimal = value => { try { return new Intl.NumberFormat(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value) } catch { return value.toFixed(1) } }
+export function fileSize(value) { return value >= 1048576 ? t('{size} MB', { size: oneDecimal(value / 1048576) }) : t('{size} KB', { size: Math.max(1, Math.round(value / 1024)) }) }
 
 // The overview's Timeline panel, in the Planning tab's three groups and words.
 // Everything comes from the timeline summary; the status is the server's own.
-const PLANNING_STATUS = { on_track: ['success', 'On track'], attention_needed: ['warning', 'Attention needed'], behind_at_risk: ['danger', 'Behind / at risk'] }
-const count = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
-const signedWeeks = weeks => `${weeks > 0 ? '+' : ''}${count(weeks, 'week')}`
+const PLANNING_STATUS = { on_track: ['success', () => t('On track')], attention_needed: ['warning', () => t('Attention needed')], behind_at_risk: ['danger', () => t('Behind / at risk')] }
+const days = count => n('%n day', '%n days', count)
+const weeksText = count => n('%n week', '%n weeks', count)
+const signedWeeks = weeks => `${weeks > 0 ? '+' : ''}${weeksText(weeks)}`
 // A YYYY-MM-DD date as a day number, so differences are whole days in any time zone.
 const dayOf = value => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null }
 export function timelineOf(summary, now = Date.now()) {
@@ -67,40 +95,41 @@ export function timelineOf(summary, now = Date.now()) {
  const ended = s.actualEndDate || null
  const floatDays = Number.isFinite(s.overallFloatDays) ? s.overallFloatDays : null
  const floatWeeks = Number.isFinite(s.overallFloatWeeks) ? s.overallFloatWeeks : null
- const [tone, label] = PLANNING_STATUS[s.planningStatus] || PLANNING_STATUS.on_track
- let text = 'No desired start yet, so there is no float to check.'
+ const [tone, statusLabel] = PLANNING_STATUS[s.planningStatus] || PLANNING_STATUS.on_track
+ const label = statusLabel()
+ let text = t('No desired start yet, so there is no float to check.')
  if (desired && floatDays !== null) {
-  if (floatDays < 0) text = `Desired start is ${count(-floatDays, 'day')} before the earliest possible start · float ${signedWeeks(floatWeeks ?? Math.round(floatDays / 7 * 10) / 10)}.`
-  else if (floatDays === 0) text = 'Desired start is the earliest possible start · no float.'
-  else text = `Float of ${signedWeeks(floatWeeks ?? Math.round(floatDays / 7 * 10) / 10)} before the desired start.`
+  if (floatDays < 0) text = t('Desired start is {days} before the earliest possible start · float {weeks}.', { days: days(-floatDays), weeks: signedWeeks(floatWeeks ?? Math.round(floatDays / 7 * 10) / 10) })
+  else if (floatDays === 0) text = t('Desired start is the earliest possible start · no float.')
+  else text = t('Float of {weeks} before the desired start.', { weeks: signedWeeks(floatWeeks ?? Math.round(floatDays / 7 * 10) / 10) })
  }
  const pendingWeeks = Number.isFinite(s.coordinationPendingPeriod?.weeks) ? s.coordinationPendingPeriod.weeks : null
  const missing = Array.isArray(process.missingTitles) ? process.missingTitles.length : 0
  let stepsNote = ''
- if (!configured) stepsNote = 'No process steps configured'
- else if (stepsDone) stepsNote = process.date ? `Completed ${dateLabel(process.date)}` : 'All steps done'
- else if (missing) stepsNote = `${count(missing, 'required card')} missing from the board`
- else if (pendingWeeks !== null) stepsNote = `${count(pendingWeeks, 'week')} since the request`
+ if (!configured) stepsNote = t('No process steps configured')
+ else if (stepsDone) stepsNote = process.date ? t('Completed {date}', { date: dateLabel(process.date) }) : t('All steps done')
+ else if (missing) stepsNote = n('%n required card missing from the board', '%n required cards missing from the board', missing)
+ else if (pendingWeeks !== null) stepsNote = t('{weeks} since the request', { weeks: weeksText(pendingWeeks) })
  const weeks = Number.isFinite(s.executionWeeks) ? s.executionWeeks : null
  const planned = !ended && s.plannedEndDate ? s.plannedEndDate : null
- let endNote = 'Set the actual start in Planning to plan it'
- if (ended) endNote = 'Work on site finished'
- else if (planned) endNote = `${count(weeks ?? 0, 'week')} on site from the actual start`
- else if (actual) endNote = 'Set weeks on site in Planning to plan it'
+ let endNote = t('Set the actual start in Planning to plan it')
+ if (ended) endNote = t('Work on site finished')
+ else if (planned) endNote = t('{weeks} on site from the actual start', { weeks: weeksText(weeks ?? 0) })
+ else if (actual) endNote = t('Set weeks on site in Planning to plan it')
  const warnings = Array.isArray(s.handoverWarnings) ? s.handoverWarnings : []
- const handoverNote = warnings.length ? warnings.join(' · ') : handover ? 'Handed to the execution team' : 'After the process steps'
+ const handoverNote = warnings.length ? warnings.join(' · ') : handover ? t('Handed to the execution team') : t('After the process steps')
  const preparation = Math.max(0, Number(s.requiredPreparationWeeks) || 0)
  // The server's warnings when a start misses the plan, as on the Planning tab.
  const listOf = value => (Array.isArray(value) ? value : [])
  const desiredWarnings = listOf(s.dateWarnings?.desiredStart)
  const actualWarnings = listOf(s.dateWarnings?.actualStart)
  return {
-  status: { tone, label: desired ? label : label + ' (no target)', text },
+  status: { tone, label: desired ? label : t('{status} (no target)', { status: label }), text },
   // Which group the project is in: 0 Initiation until the handover, 1 Execution
   // until the actual start, 2 Delivery on site, 3 ended.
   stage: ended ? 3 : actual ? 2 : handover ? 1 : 0,
   initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0, handover, handoverNote, handoverWarn: warnings.length > 0 },
-  execution: { minimumStart: s.minimumStartDate || null, note: preparation ? `${count(preparation, 'week')} preparation after the process steps` : 'Right after the process steps', desired, actual, desiredNote: desiredWarnings.join(' · '), actualNote: actualWarnings.join(' · ') },
+  execution: { minimumStart: s.minimumStartDate || null, note: preparation ? t('{weeks} preparation after the process steps', { weeks: weeksText(preparation) }) : t('Right after the process steps'), desired, actual, desiredNote: desiredWarnings.join(' · '), actualNote: actualWarnings.join(' · ') },
   delivery: { end: ended || planned, planned: !!planned, note: endNote, weeks },
   overall: overallOf(s, ended, planned, dayOf(s.kpis?.today) ?? dayOf(new Date(now).toISOString())),
  }
@@ -115,9 +144,9 @@ function overallOf(s, ended, planned, today) {
  const requestDate = s.requestDate || null
  const from = dayOf(requestDate)
  const none = text => ({ percent: null, estimate: false, text, note: '' })
- if (from === null) return none('of the timeline · no request date yet')
+ if (from === null) return none(t('of the timeline · no request date yet'))
  let end = ended || planned
- let label = ended ? 'ended' : 'planned end'
+ let label = ended ? t('ended') : t('planned end')
  let note = ''
  const which = s.desiredStartDate ? 'desired' : 'minimum'
  const start = s.desiredStartDate || s.minimumStartDate || null
@@ -125,19 +154,20 @@ function overallOf(s, ended, planned, today) {
   const weeks = Number.isFinite(s.executionWeeks) ? Math.max(0, s.executionWeeks) : null
   if (weeks !== null) {
    end = isoOf(dayOf(start) + 7 * weeks)
-   label = 'estimated end'
-   note = `Estimated from the ${which} start, ${dateLabel(start)}, + ${count(weeks, 'week')} on site.`
+   label = t('estimated end')
+   const vars = { date: dateLabel(start), weeks: weeksText(weeks) }
+   note = which === 'desired' ? t('Estimated from the desired start, {date}, + {weeks} on site.', vars) : t('Estimated from the minimum start, {date}, + {weeks} on site.', vars)
   } else {
    end = start
-   label = `${which} start`
-   note = `Measured to the ${which} start, as weeks on site aren't set yet.`
+   label = which === 'desired' ? t('desired start') : t('minimum start')
+   note = which === 'desired' ? t("Measured to the desired start, as weeks on site aren't set yet.") : t("Measured to the minimum start, as weeks on site aren't set yet.")
   }
-  note += ' It becomes the planned end once the actual start and weeks on site are set.'
+  note += ' ' + t('It becomes the planned end once the actual start and weeks on site are set.')
  }
  const to = dayOf(end)
- if (to === null) return none('of the timeline · no end date planned yet, so there is nothing to measure against')
+ if (to === null) return none(t('of the timeline · no end date planned yet, so there is nothing to measure against'))
  const percent = ended ? 100 : to <= from ? (today >= to ? 100 : 0) : Math.min(100, Math.max(0, Math.round((today - from) / (to - from) * 100)))
- return { percent, estimate: note !== '', text: `of the timeline · ${dateLabel(requestDate)} → ${label} ${dateLabel(end)}`, note }
+ return { percent, estimate: note !== '', text: t('of the timeline · {from} → {label} {end}', { from: dateLabel(requestDate), label, end: dateLabel(end) }), note }
 }
 
 // The header's next milestone: the open task whose due date comes up first.
@@ -160,6 +190,6 @@ export function nextMilestoneOf(stacks, now = Date.now()) {
  const lead = group[0]
  const state = overdue.length ? 'overdue' : lead.day === today ? 'today' : 'upcoming'
  const late = today - lead.day
- const when = state === 'overdue' ? (late === 1 ? '1 day late' : late + ' days late') : state === 'today' ? 'today' : dateLabel(lead.due)
+ const when = state === 'overdue' ? n('%n day late', '%n days late', late) : state === 'today' ? t('today') : dateLabel(lead.due)
  return { title: lead.title, when, state, more: group.length - 1, tasks: group.map(task => task.title) }
 }

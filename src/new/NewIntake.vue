@@ -1,23 +1,23 @@
 <template>
-	<section class="pc-view iz-app" aria-label="Intake form">
+	<section class="pc-view iz-app" :aria-label="t('Intake form')">
 		<header class="pc-view__head">
 			<div class="pc-view__heading">
 				<h2 class="pc-view__title">
-					Intake form
+					{{ t('Intake form') }}
 				</h2>
 				<p class="pc-view__lede">
-					Your answers decide which cards appear on the task board.
+					{{ t('Your answers decide which cards appear on the task board.') }}
 				</p>
 			</div>
 			<div v-if="!loading && !error && questions.length" class="pc-view__tools">
 				<div class="pc-intake-progress">
 					<div class="pc-intake-progress__label">
-						<span>Answered</span>
-						<strong>{{ answeredCount }} of {{ questions.length }}</strong>
+						<span>{{ t('Answered') }}</span>
+						<strong>{{ t('{answered} of {total}', { answered: answeredCount, total: questions.length }) }}</strong>
 					</div>
 					<div class="iz-meter iz-meter--thin"
 						role="progressbar"
-						aria-label="Questions answered"
+						:aria-label="t('Questions answered')"
 						aria-valuemin="0"
 						:aria-valuemax="questions.length"
 						:aria-valuenow="answeredCount">
@@ -26,7 +26,7 @@
 				</div>
 				<span v-if="dirtyCount" class="pc-view__state">
 					<span class="iz-dot pc-view__state-dot" />
-					{{ dirtyCount === 1 ? '1 unsaved change' : dirtyCount + ' unsaved changes' }}
+					{{ n('%n unsaved change', '%n unsaved changes', dirtyCount) }}
 				</span>
 				<button v-if="canEdit"
 					type="button"
@@ -35,24 +35,24 @@
 					@click="save">
 					<NcLoadingIcon v-if="saving" :size="16" />
 					<ContentSave v-else :size="16" />
-					{{ saving ? 'Saving…' : 'Save configuration' }}
+					{{ saving ? t('Saving…') : t('Save configuration') }}
 				</button>
 			</div>
 		</header>
 
 		<div v-if="loading" class="iz-empty" role="status">
-			Loading settings…
+			{{ t('Loading settings…') }}
 		</div>
 		<div v-else-if="error" class="iz-empty pc-view__failure" role="alert">
 			<span>{{ error }}</span>
 			<button type="button" class="iz-btn" @click="load">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</div>
 		<template v-else>
 			<p v-if="!canEdit" class="pc-view__notice">
 				<InformationOutline :size="16" />
-				Read-only: only project managers can update these settings.
+				{{ t('Read-only: only project managers can update these settings.') }}
 			</p>
 			<p v-if="successMessage" class="pc-view__notice pc-view__notice--ok" role="status">
 				<CheckCircle :size="16" />
@@ -63,17 +63,17 @@
 				{{ saveError }}
 			</p>
 			<div v-if="!questions.length" class="iz-empty">
-				No intake questions are configured for this project.
+				{{ t('No intake questions are configured for this project.') }}
 			</div>
 			<ul v-else class="iz-panel iz-panel--list pc-intake-list">
 				<li v-for="question in questions" :key="question.field" class="iz-row pc-intake-row">
 					<div class="pc-intake-row__head">
 						<span v-if="questionParts(question).label" class="iz-label pc-intake-row__label">{{ questionParts(question).label }}</span>
 						<span :id="'pc-intake-' + question.field" class="pc-intake-row__question">{{ questionParts(question).title }}</span>
-						<span v-if="isFieldDirty(question.field)" class="iz-dot pc-intake-row__dirty" title="Changed, not saved">
-							<span class="pc-sr-only">Changed, not saved</span>
+						<span v-if="isFieldDirty(question.field)" class="iz-dot pc-intake-row__dirty" :title="t('Changed, not saved')">
+							<span class="pc-sr-only">{{ t('Changed, not saved') }}</span>
 						</span>
-						<span v-else-if="answers[question.field] === null" class="iz-pill iz-pill--warning pc-intake-row__pill">Not answered</span>
+						<span v-else-if="answers[question.field] === null" class="iz-pill iz-pill--warning pc-intake-row__pill">{{ t('Not answered') }}</span>
 						<span v-if="questionParts(question).hint" class="pc-intake-row__hint">{{ questionParts(question).hint }}</span>
 					</div>
 					<div class="pc-intake-options" role="radiogroup" :aria-labelledby="'pc-intake-' + question.field">
@@ -98,6 +98,7 @@
 
 <script>
 import ProjectCardVisibilityTab from '../components/ProjectCardVisibilityTab.vue'
+import { t } from './l10n.mjs'
 
 // The questionnaire, its answers, dirty tracking and the save cycle all come
 // from the component the current interface uses; only the markup is new, so
@@ -126,7 +127,7 @@ export default {
 			const text = String(question.question || '').trim()
 			if (category && text.toLocaleLowerCase().startsWith(category.toLocaleLowerCase())) {
 				const rest = text.slice(category.length).trim().replace(/^\((.*)\)\.?$/s, '$1').replace(/^[\s,.:;-]+|[\s.]+$/g, '')
-				return { label: '', title: category, hint: rest ? rest.charAt(0).toLocaleUpperCase() + rest.slice(1) + '.' : '' }
+				return { label: '', title: category, hint: rest ? t('{rest}.', { rest: rest.charAt(0).toLocaleUpperCase() + rest.slice(1) }) : '' }
 			}
 			return { label: category, title: text, hint: '' }
 		},

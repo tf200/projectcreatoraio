@@ -5,11 +5,11 @@
 			<div class="project-calendar__stats">
 				<div class="project-calendar__stat-card project-calendar__stat-card--proposals">
 					<span class="project-calendar__stat-value">{{ proposalCount }}</span>
-					<span class="project-calendar__stat-label">Active Proposals</span>
+					<span class="project-calendar__stat-label">{{ t('Active Proposals') }}</span>
 				</div>
 				<div class="project-calendar__stat-card project-calendar__stat-card--confirmed">
 					<span class="project-calendar__stat-value">{{ confirmedCount }}</span>
-					<span class="project-calendar__stat-label">Confirmed Meetings</span>
+					<span class="project-calendar__stat-label">{{ t('Confirmed Meetings') }}</span>
 				</div>
 			</div>
 
@@ -19,21 +19,21 @@
 					class="filter-pill"
 					:class="{ 'filter-pill--active': filterType === 'all' }"
 					@click="filterType = 'all'">
-					All Events ({{ events.length }})
+					{{ t('All Events ({n})', { n: events.length }) }}
 				</button>
 				<button
 					type="button"
 					class="filter-pill"
 					:class="{ 'filter-pill--active': filterType === 'proposals' }"
 					@click="filterType = 'proposals'">
-					Proposals ({{ proposalCount }})
+					{{ t('Proposals ({n})', { n: proposalCount }) }}
 				</button>
 				<button
 					type="button"
 					class="filter-pill"
 					:class="{ 'filter-pill--active': filterType === 'meetings' }"
 					@click="filterType = 'meetings'">
-					Confirmed ({{ confirmedCount }})
+					{{ t('Confirmed ({n})', { n: confirmedCount }) }}
 				</button>
 			</div>
 		</header>
@@ -41,21 +41,21 @@
 		<!-- Main content -->
 		<div v-if="loading" class="project-calendar__loading">
 			<NcLoadingIcon :size="48" />
-			<span>Loading calendar events...</span>
+			<span>{{ t('Loading calendar events...') }}</span>
 		</div>
 
 		<div v-else-if="error" class="project-calendar__error-banner">
 			<AlertCircle :size="24" />
 			<span>{{ error }}</span>
 			<NcButton type="secondary" @click="loadEvents">
-				Retry
+				{{ t('Retry') }}
 			</NcButton>
 		</div>
 
 		<div v-else-if="filteredEvents.length === 0" class="project-calendar__empty">
 			<NcEmptyContent
-				name="No events found"
-				description="There are no calendar events or proposals associated with this project.">
+				:name="t('No events found')"
+				:description="t('There are no calendar events or proposals associated with this project.')">
 				<template #icon>
 					<Calendar :size="48" />
 				</template>
@@ -74,12 +74,12 @@
 						<span
 							class="calendar-card__badge"
 							:class="event['@type'] === 'MeetingProposal' ? 'calendar-card__badge--proposal' : 'calendar-card__badge--meeting'">
-							{{ event['@type'] === 'MeetingProposal' ? 'Voting Proposal' : 'Confirmed Meeting' }}
+							{{ event['@type'] === 'MeetingProposal' ? t('Voting Proposal') : t('Confirmed Meeting') }}
 						</span>
 						<div class="calendar-card__meta">
 							<span class="meta-item">
 								<ClockOutline :size="16" class="meta-item__icon" />
-								{{ event.duration }} min
+								{{ t('{n} min', { n: event.duration }) }}
 							</span>
 							<span v-if="event.location" class="meta-item">
 								<MapMarker :size="16" class="meta-item__icon" />
@@ -102,7 +102,7 @@
 						<div class="calendar-card__section calendar-card__section--dates">
 							<h4 class="section-title">
 								<Calendar :size="16" />
-								<span>{{ event['@type'] === 'MeetingProposal' ? 'Proposed Dates' : 'Date & Time' }}</span>
+								<span>{{ event['@type'] === 'MeetingProposal' ? t('Proposed Dates') : t('Date & Time') }}</span>
 							</h4>
 
 							<!-- Confirmed Meeting Date/Time -->
@@ -116,7 +116,7 @@
 									v-for="(dateOpt, index) in event.dates"
 									:key="dateOpt.id"
 									class="proposed-date-item">
-									<span class="date-option-number">Option {{ index + 1 }}</span>
+									<span class="date-option-number">{{ t('Option {n}', { n: index + 1 }) }}</span>
 									<span class="date-option-value">{{ formatDateTime(dateOpt.date) }}</span>
 								</li>
 							</ul>
@@ -126,7 +126,7 @@
 						<div v-if="event.participants && event.participants.length > 0" class="calendar-card__section calendar-card__section--participants">
 							<h4 class="section-title">
 								<AccountMultiple :size="16" />
-								<span>Participants</span>
+								<span>{{ t('Participants') }}</span>
 							</h4>
 							<ul class="participants-list">
 								<li
@@ -160,7 +160,7 @@
 					<template #icon>
 						<NcLoadingIcon v-if="loadingMore" :size="16" />
 					</template>
-					{{ loadingMore ? 'Loading more events...' : 'Load older events' }}
+					{{ loadingMore ? t('Loading more events...') : t('Load older events') }}
 				</NcButton>
 			</div>
 		</div>
@@ -179,6 +179,7 @@ import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
 import { CalendarService } from '../Services/calendar.js'
+import { t, locale } from '../new/l10n.mjs'
 
 const calendarService = CalendarService.getInstance()
 
@@ -238,6 +239,7 @@ export default {
 		},
 	},
 	methods: {
+		t,
 		async loadEvents() {
 			const id = Number(this.projectId)
 			if (!Number.isFinite(id) || id <= 0) {
@@ -259,7 +261,7 @@ export default {
 				this.hasMore = this.events.length === this.limit
 			} catch (err) {
 				console.error('Failed to load project calendar events:', err)
-				this.error = 'Failed to retrieve calendar events. Please try again.'
+				this.error = t('Failed to retrieve calendar events. Please try again.')
 			} finally {
 				this.loading = false
 			}
@@ -285,7 +287,7 @@ export default {
 				}
 			} catch (err) {
 				console.error('Failed to load more calendar events:', err)
-				this.error = 'Failed to retrieve more calendar events.'
+				this.error = t('Failed to retrieve more calendar events.')
 			} finally {
 				this.loadingMore = false
 			}
@@ -294,7 +296,7 @@ export default {
 			if (!isoString) return ''
 			try {
 				const date = new Date(isoString)
-				return date.toLocaleString(undefined, {
+				return date.toLocaleString(locale(), {
 					weekday: 'short',
 					year: 'numeric',
 					month: 'short',
@@ -310,52 +312,52 @@ export default {
 			if (!startIso) return ''
 			try {
 				const start = new Date(startIso)
-				const startDateStr = start.toLocaleDateString(undefined, {
+				const startDateStr = start.toLocaleDateString(locale(), {
 					weekday: 'short',
 					year: 'numeric',
 					month: 'short',
 					day: 'numeric',
 				})
-				const startTimeStr = start.toLocaleTimeString(undefined, {
+				const startTimeStr = start.toLocaleTimeString(locale(), {
 					hour: '2-digit',
 					minute: '2-digit',
 				})
 
 				if (!endIso) {
-					return `${startDateStr} at ${startTimeStr}`
+					return t('{date} at {time}', { date: startDateStr, time: startTimeStr })
 				}
 
 				const end = new Date(endIso)
-				const endTimeStr = end.toLocaleTimeString(undefined, {
+				const endTimeStr = end.toLocaleTimeString(locale(), {
 					hour: '2-digit',
 					minute: '2-digit',
 				})
 
 				const isSameDay = start.toDateString() === end.toDateString()
 				if (isSameDay) {
-					return `${startDateStr}, ${startTimeStr} - ${endTimeStr}`
+					return t('{date}, {start} - {end}', { date: startDateStr, start: startTimeStr, end: endTimeStr })
 				} else {
-					const endDateStr = end.toLocaleDateString(undefined, {
+					const endDateStr = end.toLocaleDateString(locale(), {
 						weekday: 'short',
 						year: 'numeric',
 						month: 'short',
 						day: 'numeric',
 					})
-					return `${startDateStr}, ${startTimeStr} - ${endDateStr}, ${endTimeStr}`
+					// Across days the end carries its own date: "Mon 1 Jun, 10:00 - Tue 2 Jun, 11:00".
+					return t('{date}, {start} - {end}', { date: startDateStr, start: startTimeStr, end: `${endDateStr}, ${endTimeStr}` })
 				}
 			} catch (e) {
 				return `${startIso} - ${endIso || ''}`
 			}
 		},
 		formatStatus(status) {
-			if (!status) return 'Needs Action'
-			const map = {
-				'needs-action': 'Needs Action',
-				accepted: 'Accepted',
-				declined: 'Declined',
-				tentative: 'Tentative',
+			switch ((status || 'needs-action').toLowerCase()) {
+			case 'needs-action': return t('Needs Action')
+			case 'accepted': return t('Accepted')
+			case 'declined': return t('Declined')
+			case 'tentative': return t('Tentative')
+			default: return status
 			}
-			return map[status.toLowerCase()] || status
 		},
 	},
 }

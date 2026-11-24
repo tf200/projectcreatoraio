@@ -2,41 +2,41 @@
 	<div class="project-activity">
 		<div class="project-activity__header">
 			<History :size="18" />
-			<span class="project-activity__title">Activity</span>
+			<span class="project-activity__title">{{ t('Activity') }}</span>
 			<div class="project-activity__spacer" />
 			<select
 				v-model="selectedSource"
 				class="project-activity__source-filter"
-				aria-label="Filter by source"
+				:aria-label="t('Filter by source')"
 				@change="fetchEvents">
 				<option value="">
-					All sources
+					{{ t('All sources') }}
 				</option>
 				<option value="internal">
-					Project
+					{{ t('Project') }}
 				</option>
 				<option value="deck">
-					Deck
+					{{ t('Deck') }}
 				</option>
 				<option value="files">
-					Files
+					{{ t('Files') }}
 				</option>
 				<option value="talk">
-					Talk
+					{{ t('Talk') }}
 				</option>
 				<option value="whiteboard">
-					Whiteboard
+					{{ t('Whiteboard') }}
 				</option>
 			</select>
 		</div>
 
 		<div v-if="loading && events.length === 0" class="project-activity__loading">
 			<NcLoadingIcon :size="20" />
-			<span>Loading activity...</span>
+			<span>{{ t('Loading activity...') }}</span>
 		</div>
 
 		<div v-else-if="events.length === 0" class="project-activity__empty">
-			No activity yet.
+			{{ t('No activity yet.') }}
 		</div>
 
 		<div v-else class="project-activity__timeline">
@@ -55,7 +55,7 @@
 						class="project-activity__avatar" />
 					<div class="project-activity__details">
 						<div class="project-activity__details-top">
-							<span class="project-activity__actor">{{ event.actorDisplayName || 'Unknown user' }}</span>
+							<span class="project-activity__actor">{{ event.actorDisplayName || t('Unknown user') }}</span>
 							<span class="project-activity__description">{{ formatDescription(event) }}</span>
 						</div>
 						<div class="project-activity__meta">
@@ -77,7 +77,7 @@
 				<template #icon>
 					<NcLoadingIcon v-if="loading" :size="16" />
 				</template>
-				Load more
+				{{ t('Load more') }}
 			</NcButton>
 		</div>
 	</div>
@@ -89,7 +89,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import History from 'vue-material-design-icons/History.vue'
 import { ProjectsService } from '../../Services/projects.js'
-import { DEFAULT_NOTE_TYPE, NOTE_TYPES, noteTypeLabel } from '../../constants/note-types.js'
+import { t, locale } from '../../new/l10n.mjs'
 
 const projectsService = ProjectsService.getInstance()
 
@@ -138,11 +138,11 @@ export default {
 
 				let label
 				if (eventDate.getTime() === today.getTime()) {
-					label = 'Today'
+					label = t('Today')
 				} else if (eventDate.getTime() === yesterday.getTime()) {
-					label = 'Yesterday'
+					label = t('Yesterday')
 				} else {
-					label = eventDate.toLocaleDateString(undefined, {
+					label = eventDate.toLocaleDateString(locale(), {
 						year: 'numeric',
 						month: 'long',
 						day: 'numeric',
@@ -167,6 +167,7 @@ export default {
 		},
 	},
 	methods: {
+		t,
 		async fetchEvents() {
 			if (!this.normalizedProjectId) {
 				this.events = []
@@ -209,169 +210,206 @@ export default {
 			}
 		},
 		formatDescription(event) {
-			const type = event.eventType
+			const type = String(event.eventType || '')
 			const payload = event.payload || {}
 			if (payload.redacted === true) {
-				return `${type.replace('note_', '')} a private note`
+				// The server's redaction of someone else's private note.
+				if (type === 'note_created') return t('created a private note')
+				if (type === 'note_deleted') return t('deleted a private note')
+				return t('updated a private note')
 			}
 			if (payload.nativeActivity === true) {
 				return this.formatNativeDeckDescription(payload.nativeSubject, payload)
 			}
 
+			const untitled = () => t('Untitled')
+			const someone = () => t('someone')
+			const aFile = () => t('a file')
 			switch (type) {
 			// Internal
 			case 'project_created':
-				return 'created the project'
+				return t('created the project')
 			case 'project_updated':
-				return `updated the project (${(payload.changedFields || []).join(', ') || 'details'})`
+				return t('updated the project ({fields})', { fields: (payload.changedFields || []).join(', ') || t('details') })
 			case 'project_archived':
-				return 'archived the project'
+				return t('archived the project')
 			case 'project_restored':
-				return 'restored the project'
+				return t('restored the project')
 			case 'member_added':
-				return `added ${payload.memberDisplayName || payload.memberUid || 'a member'}`
+				return t('added {member}', { member: payload.memberDisplayName || payload.memberUid || t('a member') })
 			case 'member_removed':
-				return `removed ${payload.memberDisplayName || payload.memberUid || 'a member'}`
+				return t('removed {member}', { member: payload.memberDisplayName || payload.memberUid || t('a member') })
 			case 'note_created':
-				return `created ${this.formatNoteType(payload.noteType)}note "${payload.title || 'Untitled'}"`
+				return this.formatNoteSentence((vars) => t('created {type}note "{title}"', vars), payload)
 			case 'note_updated':
-				return `updated ${this.formatNoteType(payload.noteType)}note "${payload.title || 'Untitled'}"`
+				return this.formatNoteSentence((vars) => t('updated {type}note "{title}"', vars), payload)
 			case 'note_deleted':
-				return `deleted ${this.formatNoteType(payload.noteType)}note "${payload.title || 'Untitled'}"`
+				return this.formatNoteSentence((vars) => t('deleted {type}note "{title}"', vars), payload)
 			case 'project_notes_updated':
-				return 'updated project notes'
+				return t('updated project notes')
 			case 'timeline_item_created':
-				return `created timeline item "${payload.label || 'Untitled'}"`
+				return t('created timeline item "{label}"', { label: payload.label || untitled() })
 			case 'timeline_item_updated':
-				return `updated timeline item "${payload.label || 'Untitled'}"`
+				return t('updated timeline item "{label}"', { label: payload.label || untitled() })
 			case 'timeline_item_deleted':
-				return `deleted timeline item "${payload.label || 'Untitled'}"`
+				return t('deleted timeline item "{label}"', { label: payload.label || untitled() })
 			case 'timeline_reordered':
-				return 'reordered timeline items'
+				return t('reordered timeline items')
 
 			// Deck
 			case 'deck_card_created':
-				return `created Deck card "${payload.cardTitle || 'Untitled'}"`
+				return t('created Deck card "{title}"', { title: payload.cardTitle || untitled() })
 			case 'deck_card_updated':
-				return `updated Deck card "${payload.cardTitle || 'Untitled'}"`
+				return t('updated Deck card "{title}"', { title: payload.cardTitle || untitled() })
 			case 'deck_card_deleted':
-				return `deleted Deck card "${payload.cardTitle || 'Untitled'}"`
+				return t('deleted Deck card "{title}"', { title: payload.cardTitle || untitled() })
 			case 'deck_acl_added':
-				return `added ${payload.participant || 'someone'} to the Deck board`
+				return t('added {participant} to the Deck board', { participant: payload.participant || someone() })
 			case 'deck_acl_removed':
-				return `removed ${payload.participant || 'someone'} from the Deck board`
+				return t('removed {participant} from the Deck board', { participant: payload.participant || someone() })
 			case 'deck_acl_updated':
-				return `updated access for ${payload.participant || 'someone'} on the Deck board`
+				return t('updated access for {participant} on the Deck board', { participant: payload.participant || someone() })
 			case 'deck_board_created':
-				return 'created the Deck board'
+				return t('created the Deck board')
 			case 'deck_board_updated':
-				return 'updated the Deck board'
+				return t('updated the Deck board')
 			case 'deck_board_deleted':
-				return 'deleted the Deck board'
+				return t('deleted the Deck board')
 
 			// Files
 			case 'file_created':
-				return `created "${payload.fileName || 'a file'}"`
+				return t('created "{file}"', { file: payload.fileName || aFile() })
 			case 'file_updated':
-				return `updated "${payload.fileName || 'a file'}"`
+				return t('updated "{file}"', { file: payload.fileName || aFile() })
 			case 'file_deleted':
-				return `deleted "${payload.fileName || 'a file'}"`
+				return t('deleted "{file}"', { file: payload.fileName || aFile() })
 			case 'file_renamed':
-				return `renamed "${payload.oldName || 'a file'}" to "${payload.newName || 'new name'}"`
+				return t('renamed "{old}" to "{new}"', { old: payload.oldName || aFile(), new: payload.newName || t('new name') })
 			case 'file_moved':
-				return `moved "${payload.fileName || 'a file'}"`
+				return t('moved "{file}"', { file: payload.fileName || aFile() })
 			case 'file_copied':
-				return `copied "${payload.fileName || 'a file'}"`
+				return t('copied "{file}"', { file: payload.fileName || aFile() })
 			case 'folder_created':
-				return `created folder "${payload.folderName || 'Untitled'}"`
+				return t('created folder "{folder}"', { folder: payload.folderName || untitled() })
 			case 'folder_deleted':
-				return `deleted folder "${payload.folderName || 'a folder'}"`
+				return t('deleted folder "{folder}"', { folder: payload.folderName || t('a folder') })
 
 			// Talk
 			case 'talk_message_sent':
-				return `sent a Talk message${payload.messagePreview ? ': "' + payload.messagePreview + '"' : ''}`
+				return payload.messagePreview
+					? t('sent a Talk message: "{preview}"', { preview: payload.messagePreview })
+					: t('sent a Talk message')
 			case 'talk_participant_added':
-				return `added ${payload.participantDisplayName || payload.participantUid || 'someone'} to Talk`
+				return t('added {participant} to Talk', { participant: payload.participantDisplayName || payload.participantUid || someone() })
 			case 'talk_participant_removed':
-				return `removed ${payload.participantDisplayName || payload.participantUid || 'someone'} from Talk`
+				return t('removed {participant} from Talk', { participant: payload.participantDisplayName || payload.participantUid || someone() })
 			case 'talk_call_started':
-				return 'started a call'
+				return t('started a call')
 			case 'talk_call_ended':
-				return 'ended a call'
+				return t('ended a call')
 			case 'talk_room_updated':
-				return 'updated the Talk conversation'
+				return t('updated the Talk conversation')
 			case 'talk_reaction_added':
-				return `reacted with ${payload.reaction || ''} to a message`
+				return t('reacted with {reaction} to a message', { reaction: payload.reaction || '' })
 			case 'talk_reaction_removed':
-				return `removed reaction ${payload.reaction || ''} from a message`
+				return t('removed reaction {reaction} from a message', { reaction: payload.reaction || '' })
 			case 'talk_user_joined':
-				return 'joined the Talk conversation'
+				return t('joined the Talk conversation')
 
 			// Whiteboard
 			case 'whiteboard_updated':
-				return 'updated the whiteboard'
+				return t('updated the whiteboard')
 
 			default:
-				return type.replace(/_/g, ' ')
+				// An event type without a sentence yet: its own code, in words.
+				return t('{event type}', { 'event type': type.replace(/_/g, ' ') })
 			}
 		},
 		formatNativeDeckDescription(subject, payload) {
-			const card = `Deck card "${payload.cardTitle || 'Untitled'}"`
-			const board = payload.boardTitle ? `Deck board "${payload.boardTitle}"` : 'the Deck board'
+			const card = t('Deck card "{title}"', { title: payload.cardTitle || t('Untitled') })
+			const board = payload.boardTitle ? t('Deck board "{title}"', { title: payload.boardTitle }) : t('the Deck board')
+			const stack = payload.stackTitle || t('Untitled')
+			const user = payload.assignedUserDisplayName || payload.assignedUserUid || t('a user')
+			const label = payload.labelTitle || t('Untitled')
 			switch (subject) {
-			case 'board_create': return `created ${board}`
+			case 'board_create': return t('created {board}', { board })
 			case 'board_update':
-			case 'board_update_title': return `updated ${board}`
-			case 'board_update_archived': return `archived ${board}`
-			case 'board_delete': return `deleted ${board}`
-			case 'board_restore': return `restored ${board}`
-			case 'board_share': return `shared ${board}`
-			case 'board_unshare': return `unshared ${board}`
-			case 'stack_create': return `created Deck stack "${payload.stackTitle || 'Untitled'}"`
+			case 'board_update_title': return t('updated {board}', { board })
+			case 'board_update_archived': return t('archived {board}', { board })
+			case 'board_delete': return t('deleted {board}', { board })
+			case 'board_restore': return t('restored {board}', { board })
+			case 'board_share': return t('shared {board}', { board })
+			case 'board_unshare': return t('unshared {board}', { board })
+			case 'stack_create': return t('created Deck stack "{stack}"', { stack })
 			case 'stack_update':
 			case 'stack_update_title':
-			case 'stack_update_order': return `updated Deck stack "${payload.stackTitle || 'Untitled'}"`
-			case 'stack_delete': return `deleted Deck stack "${payload.stackTitle || 'Untitled'}"`
-			case 'card_create': return `created ${card}`
-			case 'card_delete': return `deleted ${card}`
-			case 'card_restore': return `restored ${card}`
-			case 'card_update_title': return `renamed ${card}`
-			case 'card_update_description': return `updated the description of ${card}`
-			case 'card_update_duedate': return `updated the due date of ${card}`
-			case 'card_update_archive': return `archived ${card}`
-			case 'card_update_unarchive': return `unarchived ${card}`
-			case 'card_update_done': return `marked ${card} as done`
-			case 'card_update_undone': return `marked ${card} as not done`
-			case 'card_update_stackId': return `moved ${card} to "${payload.stackTitle || 'another stack'}"`
-			case 'card_user_assign': return `assigned ${payload.assignedUserDisplayName || payload.assignedUserUid || 'a user'} to ${card}`
-			case 'card_user_unassign': return `unassigned ${payload.assignedUserDisplayName || payload.assignedUserUid || 'a user'} from ${card}`
-			case 'label_assign': return `added label "${payload.labelTitle || 'Untitled'}" to ${card}`
-			case 'label_unassign': return `removed label "${payload.labelTitle || 'Untitled'}" from ${card}`
-			case 'attachment_create': return `added an attachment to ${card}`
-			case 'attachment_update': return `updated an attachment on ${card}`
-			case 'attachment_delete': return `deleted an attachment from ${card}`
-			case 'attachment_restore': return `restored an attachment on ${card}`
-			case 'card_comment_create': return `commented on ${card}`
-			default: return `updated ${card}`
+			case 'stack_update_order': return t('updated Deck stack "{stack}"', { stack })
+			case 'stack_delete': return t('deleted Deck stack "{stack}"', { stack })
+			case 'card_create': return t('created {card}', { card })
+			case 'card_delete': return t('deleted {card}', { card })
+			case 'card_restore': return t('restored {card}', { card })
+			case 'card_update_title': return t('renamed {card}', { card })
+			case 'card_update_description': return t('updated the description of {card}', { card })
+			case 'card_update_duedate': return t('updated the due date of {card}', { card })
+			case 'card_update_archive': return t('archived {card}', { card })
+			case 'card_update_unarchive': return t('unarchived {card}', { card })
+			case 'card_update_done': return t('marked {card} as done', { card })
+			case 'card_update_undone': return t('marked {card} as not done', { card })
+			case 'card_update_stackId': return t('moved {card} to "{stack}"', { card, stack: payload.stackTitle || t('another stack') })
+			case 'card_user_assign': return t('assigned {user} to {card}', { user, card })
+			case 'card_user_unassign': return t('unassigned {user} from {card}', { user, card })
+			case 'label_assign': return t('added label "{label}" to {card}', { label, card })
+			case 'label_unassign': return t('removed label "{label}" from {card}', { label, card })
+			case 'attachment_create': return t('added an attachment to {card}', { card })
+			case 'attachment_update': return t('updated an attachment on {card}', { card })
+			case 'attachment_delete': return t('deleted an attachment from {card}', { card })
+			case 'attachment_restore': return t('restored an attachment on {card}', { card })
+			case 'card_comment_create': return t('commented on {card}', { card })
+			default: return t('updated {card}', { card })
 			}
 		},
+		/*
+		 * A note sentence: 'created {type}note "{title}"' and its siblings.
+		 *
+		 * English glues the type onto "note" ("created decision note", plain
+		 * "created note" for a general note); Dutch puts it in brackets ("heeft
+		 * de notitie ‘X’ (besluit) aangemaakt"). {type} is filled with the label
+		 * between two markers, then an empty bracket goes, a label glued to the
+		 * next word gets its space, and the markers go. Only the markers are
+		 * matched, so a note title is never touched. Same as employee_dashboard's
+		 * activityFeed.mjs.
+		 */
+		formatNoteSentence(sentence, payload) {
+			const label = this.formatNoteType(payload.noteType)
+			return sentence({ type: '\u0001' + label + '\u0002', title: payload.title || t('Untitled') })
+				.replace(/\s*\(\u0001\u0002\)/, '')
+				.replace('\u0001\u0002', '')
+				.replace(/\u0001([^\u0002]*)\u0002(?=[^\s)\]}.,;:!?])/, '$1 ')
+				.replace(/\u0001([^\u0002]*)\u0002/, '$1')
+		},
+		// The note type as the sentence names it, lower case and without "note";
+		// '' for a general note.
 		formatNoteType(value) {
-			const normalized = NOTE_TYPES.some((type) => type.value === value) ? value : DEFAULT_NOTE_TYPE
-			if (normalized === DEFAULT_NOTE_TYPE) {
-				return ''
+			switch (value) {
+			case 'customer': return t('customer')
+			case 'internal': return t('internal')
+			case 'decision': return t('decision')
+			case 'risk_blocker': return t('risk / blocker')
+			case 'action_point': return t('action point')
+			case 'technical': return t('technical')
+			case 'audit': return t('audit')
+			default: return ''
 			}
-			const label = noteTypeLabel(normalized).toLowerCase().replace(/ note$/, '')
-			return `${label} `
 		},
 		formatSource(source) {
-			const labels = {
-				internal: 'Project',
-				deck: 'Deck',
-				files: 'Files',
-				talk: 'Talk',
-				whiteboard: 'Whiteboard',
+			switch (source) {
+			case 'internal': return t('Project')
+			case 'deck': return t('Deck')
+			case 'files': return t('Files')
+			case 'talk': return t('Talk')
+			case 'whiteboard': return t('Whiteboard')
+			default: return source || t('Project')
 			}
-			return labels[source] || source || 'Project'
 		},
 		formatTime(dateStr) {
 			if (!dateStr) {
@@ -386,21 +424,21 @@ export default {
 			const diffDay = Math.floor(diffHr / 24)
 
 			if (diffSec < 60) {
-				return 'Just now'
+				return t('Just now')
 			}
 			if (diffMin < 60) {
-				return `${diffMin}m ago`
+				return t('{n}m ago', { n: diffMin })
 			}
 			if (diffHr < 24) {
-				return `${diffHr}h ago`
+				return t('{n}h ago', { n: diffHr })
 			}
 			if (diffDay === 1) {
-				return 'Yesterday'
+				return t('Yesterday')
 			}
 			if (diffDay < 7) {
-				return `${diffDay}d ago`
+				return t('{n}d ago', { n: diffDay })
 			}
-			return date.toLocaleDateString(undefined, {
+			return date.toLocaleDateString(locale(), {
 				month: 'short',
 				day: 'numeric',
 				year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,

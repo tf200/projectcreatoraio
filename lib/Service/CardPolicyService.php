@@ -20,11 +20,16 @@ use OCP\IGroupManager;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\Server;
+use OCP\IL10N;
 
 class CardPolicyService {
 	private const TYPE_COMBI = 0;
 	private const POLICY_VERSION_DRASCI = 2;
 	private const ACTIONS = ['view', 'move', 'sign', 'verify'];
+
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
 
 	public function __construct(
 		private readonly BoardPolicySettingMapper $settingMapper,
@@ -43,7 +48,11 @@ class CardPolicyService {
 		private readonly ?object $cardMapper, // OCA\Deck\Db\CardMapper
 		private readonly ?object $stackMapper, // OCA\Deck\Db\StackMapper
 		private readonly ?ProjectAccessService $access = null,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/**
@@ -136,7 +145,7 @@ class CardPolicyService {
 		}
 
 		if (!$this->assertActionLogic($card, $boardId, $action, $userId)) {
-			throw new \OCA\Deck\NoPermissionException("Action '$action' not permitted on this card by card policy.");
+			throw new \OCA\Deck\NoPermissionException($this->l->t("Action '%s' not permitted on this card by card policy.", [$action]));
 		}
 	}
 
@@ -163,7 +172,7 @@ class CardPolicyService {
 		}
 
 		if (!$this->assertActionLogic($card, $boardId, $action, $userId)) {
-			throw new \OCA\Deck\NoPermissionException("Action '$action' not permitted on this card by card policy.");
+			throw new \OCA\Deck\NoPermissionException($this->l->t("Action '%s' not permitted on this card by card policy.", [$action]));
 		}
 	}
 
@@ -489,21 +498,31 @@ class CardPolicyService {
 		$settings->setRevision(1);
 
 		// Stack identity is persisted by ID; titles are only used during initial setup.
+		// Default stacks are named in the server default language, so accept the
+		// English title and every translation of it.
+		$approvedTitles = ['approved'];
+		$doneTitles = ['done'];
+		foreach ($this->contentL10n->all() as $l) {
+			$approvedTitles[] = mb_strtolower($l->t('Approved'));
+			$doneTitles[] = mb_strtolower($l->t('Done'));
+		}
 		foreach ($stacks as $stack) {
-			$title = strtolower($stack->getTitle());
-			if ($title === 'approved') {
+			$title = mb_strtolower(trim((string)$stack->getTitle()));
+			if (in_array($title, $approvedTitles, true)) {
 				$settings->setApprovedStackId((int)$stack->getId());
-			} elseif ($stack->getIsDoneColumn() || ($settings->getDoneStackId() === null && $title === 'done')) {
+			} elseif ($stack->getIsDoneColumn() || ($settings->getDoneStackId() === null && in_array($title, $doneTitles, true))) {
 				$settings->setDoneStackId((int)$stack->getId());
 			}
 		}
 		$this->settingMapper->insert($settings);
 
 		// 2. Create the three default roles
+		// Stored on the board and shared by its members: server default language.
+		$cl = $this->contentL10n->get();
 		$roles = [
-			'cpl' => 'CPL',
-			'client_developer' => 'Client/Developer',
-			'grid_operator' => 'Grid operator (Elektra)',
+			'cpl' => $cl->t('CPL'),
+			'client_developer' => $cl->t('Client/Developer'),
+			'grid_operator' => $cl->t('Grid operator (Elektra)'),
 		];
 		$createdRoles = [];
 		foreach ($roles as $key => $name) {

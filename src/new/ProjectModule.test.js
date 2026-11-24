@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 import { sharedZipUrl } from './documents.js'
 
 const source = readFileSync(new URL('./ProjectModule.vue', import.meta.url), 'utf8')
@@ -9,7 +10,7 @@ const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
 	.replace(/^import .*$/gm, '')
 	.replace('export default', 'globalThis.component =')
 function host(get) {
-	const sandbox = { axios: { get }, generateUrl: value => value, generateRemoteUrl: value => '/remote.php/' + value, sharedZipUrl, Download: {}, t: (_app, value) => value }
+	const sandbox = { axios: { get }, generateUrl: value => value, generateRemoteUrl: value => '/remote.php/' + value, sharedZipUrl, Download: {}, ...l10n }
 	vm.runInNewContext(script, sandbox)
 	const options = sandbox.component
 	const instance = { project: { id: 1, type: 0 }, context: { userId: 'alice', organizationId: 4 }, tab: 'documents', ...options.data() }

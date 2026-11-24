@@ -20,9 +20,13 @@ use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCS\OCSNotFoundException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
+use OCP\IL10N;
 
 class OcrApiController extends Controller
 {
+    private IL10N $l;
+
     public function __construct(
         string $appName,
         IRequest $request,
@@ -32,8 +36,10 @@ class OcrApiController extends Controller
         private readonly FileProcessingPipelineService $fileProcessingPipelineService,
         private readonly ProjectDeckOcrAttachmentService $projectDeckOcrAttachmentService,
         private readonly ProjectAccessService $access,
+        ?IL10N $l = null,
     ) {
         parent::__construct($appName, $request);
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
     }
 
     #[NoCSRFRequired]
@@ -163,7 +169,7 @@ class OcrApiController extends Controller
         }
 
         if (!is_int($document_type_id) || $document_type_id <= 0) {
-            throw new OCSException('A document type ID is required.', 400);
+            throw new OCSException($this->l->t('A document type ID is required.'), 400);
         }
 
         $record = $this->ocrDocumentService->assignDocumentTypeToFile($project, $userId, $fileId, $document_type_id);
@@ -201,7 +207,7 @@ class OcrApiController extends Controller
         $params = $this->request->getParams();
         $fields = is_array($params['fields'] ?? null) ? $params['fields'] : null;
         if ($fields === null) {
-            throw new OCSException('A fields payload is required.', 400);
+            throw new OCSException($this->l->t('A fields payload is required.'), 400);
         }
 
         $record = $this->ocrDocumentService->updateExtractedFields($project, $fileId, $fields);
@@ -240,7 +246,7 @@ class OcrApiController extends Controller
         }
 
         if (!is_int($document_type_id) || $document_type_id <= 0) {
-            throw new OCSException('A document type ID is required.', 400);
+            throw new OCSException($this->l->t('A document type ID is required.'), 400);
         }
 
         $result = $this->projectDeckOcrAttachmentService->uploadAndAttach($project, $userId, $cardId, $document_type_id);
@@ -262,10 +268,10 @@ class OcrApiController extends Controller
         $processingId = is_numeric((string) ($params['processing_id'] ?? null)) ? (int) $params['processing_id'] : 0;
         $fields = is_array($params['fields'] ?? null) ? $params['fields'] : null;
         if ($processingId <= 0) {
-            throw new OCSException('A processing ID is required.', 400);
+            throw new OCSException($this->l->t('A processing ID is required.'), 400);
         }
         if ($fields === null) {
-            throw new OCSException('A fields payload is required.', 400);
+            throw new OCSException($this->l->t('A fields payload is required.'), 400);
         }
 
         $result = $this->projectDeckOcrAttachmentService->finalizePendingAttachment($project, $userId, $cardId, $processingId, $fields);
@@ -280,7 +286,7 @@ class OcrApiController extends Controller
     {
         $project = $this->projectMapper->find($projectId);
         if ($project === null) {
-            throw new OCSNotFoundException(sprintf('Project with ID %d not found', $projectId));
+            throw new OCSNotFoundException($this->l->t('Project with ID %d not found', [$projectId]));
         }
 
         return $project;
@@ -290,11 +296,11 @@ class OcrApiController extends Controller
     {
         $currentUser = $this->userSession->getUser();
         if ($currentUser === null) {
-            throw new OCSForbiddenException('Authentication required');
+            throw new OCSForbiddenException($this->l->t('Authentication required'));
         }
 
         $userId = $currentUser->getUID();
-        $this->access->assertCanManageOrganization($userId, $organizationId, 'Organization admin privilege required to manage OCR document types');
+        $this->access->assertCanManageOrganization($userId, $organizationId, $this->l->t('Organization admin privilege required to manage OCR document types'));
 
         return $userId;
     }
@@ -303,7 +309,7 @@ class OcrApiController extends Controller
     {
         $currentUser = $this->userSession->getUser();
         if ($currentUser === null) {
-            throw new OCSForbiddenException('Authentication required');
+            throw new OCSForbiddenException($this->l->t('Authentication required'));
         }
 
         $userId = $currentUser->getUID();

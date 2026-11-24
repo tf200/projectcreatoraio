@@ -2,9 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 const script = readFileSync(new URL('./overview-state.js', import.meta.url), 'utf8').replace(/^import .*$/gm, '').replace(/export (async )?function/g, '$1function').replace('export default', 'globalThis.mixin =')
 function setup(get) {
- const env = { axios: { get }, generateUrl: x => x }
+ const env = { ...l10n, axios: { get }, generateUrl: x => x }
  vm.runInNewContext(script, env)
  const instance = { ...env.mixin.data(), project: { id: 21, boardId: 31 }, requestVersion: 1, context: { userId: 'alice', features: { deck: true } }, $set(object, key, value) { object[key] = value } }
  for (const [name, method] of Object.entries(env.mixin.methods)) instance[name] = method.bind(instance)

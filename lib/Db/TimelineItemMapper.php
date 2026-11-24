@@ -2,7 +2,9 @@
 
 namespace OCA\ProjectCreatorAIO\Db;
 
+use OCA\ProjectCreatorAIO\Service\DefaultLanguageL10n;
 use OCP\IDBConnection;
+use OCP\IL10N;
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use DateTime;
@@ -12,9 +14,12 @@ class TimelineItemMapper extends QBMapper
 {
     public const TABLE_NAME = "project_timeline_items";
 
-    public function __construct(IDBConnection $db)
+    private IL10N $l;
+
+    public function __construct(IDBConnection $db, ?IL10N $l = null)
     {
         parent::__construct($db, self::TABLE_NAME, TimelineItem::class);
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
     }
 
     /**
@@ -182,7 +187,7 @@ class TimelineItemMapper extends QBMapper
         sort($givenIds);
 
         if ($givenIds !== $expectedIds) {
-            throw new \InvalidArgumentException('Invalid reorder payload');
+            throw new \InvalidArgumentException($this->l->t('Invalid reorder payload'));
         }
 
         $orderIndex = 0;
@@ -192,7 +197,7 @@ class TimelineItemMapper extends QBMapper
             foreach ($orderedIds as $id) {
                 $item = $itemsById[$id] ?? null;
                 if ($item === null) {
-                    throw new \InvalidArgumentException('Invalid reorder payload');
+                    throw new \InvalidArgumentException($this->l->t('Invalid reorder payload'));
                 }
 
                 $item->setOrderIndex($orderIndex);

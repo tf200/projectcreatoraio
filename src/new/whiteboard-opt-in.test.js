@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import * as l10n from './l10n.mjs'
 
 // The whiteboard components are shared with the current interface, so every
 // modern behaviour is a prop the legacy callers never pass.
@@ -12,7 +13,7 @@ function load(file, sandbox) {
 		// The registry names the stripped imports; only options are under test.
 		.replace(/^\tcomponents: \{[\s\S]*?^\t\},$/m, '')
 		.replace('export default', 'globalThis.component =')
-	const context = { console: { error() {} }, ...sandbox }
+	const context = { ...l10n, console: { error() {} }, ...sandbox }
 	vm.runInNewContext(script, context)
 	return context.component
 }

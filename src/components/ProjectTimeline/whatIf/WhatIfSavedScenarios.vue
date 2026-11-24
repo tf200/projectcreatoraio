@@ -1,41 +1,41 @@
 <template>
 	<section class="whatif-saved">
 		<div class="whatif-saved__heading">
-			<h5>Saved scenarios</h5>
+			<h5>{{ t('Saved scenarios') }}</h5>
 			<NcButton v-if="scenarios.length" type="tertiary" @click="$emit('compare')">
 				<template #icon>
 					<CompareHorizontal :size="16" />
 				</template>
-				Compare
+				{{ t('Compare') }}
 			</NcButton>
 		</div>
 
 		<form v-if="hasChanges" class="whatif-saved__save" @submit.prevent="onSave">
-			<label class="hidden-visually" for="whatif-scenario-name">Scenario name</label>
+			<label class="hidden-visually" for="whatif-scenario-name">{{ t('Scenario name') }}</label>
 			<input
 				id="whatif-scenario-name"
 				v-model="name"
 				type="text"
 				maxlength="120"
-				placeholder="Name this scenario">
+				:placeholder="t('Name this scenario')">
 			<NcButton native-type="submit" type="secondary" :disabled="!name.trim() || saving">
-				Save
+				{{ t('Save') }}
 			</NcButton>
 		</form>
 		<NcButton
 			v-if="hasChanges && activeModified && activeScenario && activeScenario.canEdit"
 			type="tertiary"
-			:title="`Overwrite “${activeScenario.name}” with the changes open now`"
+			:title="t('Overwrite “{name}” with the changes open now', { name: activeScenario.name })"
 			:disabled="saving"
 			@click="$emit('update', activeScenario)">
-			Save changes to the open scenario
+			{{ t('Save changes to the open scenario') }}
 		</NcButton>
 
 		<p v-if="loading && !scenarios.length" class="whatif-saved__muted">
-			<NcLoadingIcon :size="16" /> Loading saved scenarios…
+			<NcLoadingIcon :size="16" /> {{ t('Loading saved scenarios…') }}
 		</p>
 		<p v-else-if="!scenarios.length" class="whatif-saved__muted">
-			Save a scenario to come back to it later or compare it with others.
+			{{ t('Save a scenario to come back to it later or compare it with others.') }}
 		</p>
 		<ul v-else class="whatif-saved__list">
 			<li
@@ -45,34 +45,34 @@
 				:class="{ 'saved-item--active': scenario.id === activeId }">
 				<div class="saved-item__text">
 					<strong>{{ scenario.name }}</strong>
-					<small>by {{ scenario.createdByDisplayName }}<template v-if="scenario.id === activeId"> · {{ activeModified ? 'open, with changes' : 'open now' }}</template></small>
+					<small>{{ t('by {name}', { name: scenario.createdByDisplayName }) }}<template v-if="scenario.id === activeId"> · {{ activeModified ? t('open, with changes') : t('open now') }}</template></small>
 					<span v-if="scenario.error" class="saved-item__error">{{ scenario.error }}</span>
 					<span v-else-if="scenario.impact" class="saved-item__impact">
-						Start {{ formatDate(scenario.impact.minimumStartDate) }}
+						{{ t('Start {date}', { date: formatDate(scenario.impact.minimumStartDate) }) }}
 						<template v-if="scenario.impact.minimumStartShiftDays">({{ formatShift(scenario.impact.minimumStartShiftDays) }})</template>
 						<template v-if="scenario.impact.desiredStartAchievable !== null">
-							· {{ scenario.impact.desiredStartAchievable ? 'desired start reachable' : 'desired start missed' }}
+							· {{ scenario.impact.desiredStartAchievable ? t('desired start reachable') : t('desired start missed') }}
 						</template>
 					</span>
 				</div>
 				<div class="saved-item__actions">
 					<template v-if="pendingDeleteId === scenario.id">
 						<NcButton type="error" @click="confirmDelete(scenario)">
-							Delete
+							{{ t('Delete') }}
 						</NcButton>
 						<NcButton type="tertiary" @click="pendingDeleteId = null">
-							Keep
+							{{ t('Keep') }}
 						</NcButton>
 					</template>
 					<template v-else>
 						<NcButton type="tertiary" :disabled="scenario.id === activeId" @click="$emit('load', scenario)">
-							Open
+							{{ t('Open') }}
 						</NcButton>
 						<NcButton
 							v-if="scenario.canEdit"
 							type="tertiary"
-							:aria-label="`Delete ${scenario.name}`"
-							title="Delete"
+							:aria-label="t('Delete {name}', { name: scenario.name })"
+							:title="t('Delete')"
 							@click="pendingDeleteId = scenario.id">
 							<template #icon>
 								<Delete :size="16" />
@@ -90,6 +90,7 @@ import { NcButton, NcLoadingIcon } from '@nextcloud/vue'
 import CompareHorizontal from 'vue-material-design-icons/CompareHorizontal.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
 
+import { t, n, tc } from '../../../new/l10n.mjs'
 import { formatShiftBadge } from './whatIfChanges.js'
 
 export default {
@@ -144,6 +145,10 @@ export default {
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		formatShift: formatShiftBadge,
 		onSave() {
 			this.$emit('save', this.name.trim())

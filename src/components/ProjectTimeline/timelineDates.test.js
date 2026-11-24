@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { dateRefusal, plannedDateBounds, FIRST_DAY, LAST_DAY } from './timelineDates.js'
+// Dates are formatted in the user's Nextcloud locale; these tests pin British English.
+globalThis._nc_l10n_locale = 'en_GB'
+const { dateRefusal, plannedDateBounds, FIRST_DAY, LAST_DAY } = await import('./timelineDates.js')
 
 test('handover, actual start and end can only be picked in that order', () => {
 	const bounds = plannedDateBounds({ actualHandoverDate: '2026-10-01', actualStartDate: '2026-10-05T00:00:00', actualEndDate: '2026-11-30' })
@@ -30,10 +32,12 @@ test('nothing is picked before the request date', () => {
 	assert.equal(plannedDateBounds({ requestDate: '2026-10-05', actualHandoverDate: '2026-10-12' }).actualStart.min, '2026-10-12')
 })
 
-test('the desired start is a plan, so only the request date holds it', () => {
+test('the desired start is a plan: held by the request date and the minimum start', () => {
 	const kpis = { requestDate: '2026-10-05', actualHandoverDate: '2026-11-02', minimumStartDate: '2026-12-07' }
-	assert.deepEqual(plannedDateBounds(kpis).desiredStart, { min: '2026-10-05', max: LAST_DAY })
-	assert.equal(dateRefusal(kpis, 'desiredStart', '2026-10-19'), '')
+	assert.deepEqual(plannedDateBounds(kpis).desiredStart, { min: '2026-12-07', max: LAST_DAY })
+	assert.deepEqual(plannedDateBounds({ requestDate: '2026-10-05' }).desiredStart, { min: '2026-10-05', max: LAST_DAY })
+	assert.equal(dateRefusal(kpis, 'desiredStart', '2026-12-14'), '')
+	assert.equal(dateRefusal(kpis, 'desiredStart', '2026-10-19'), 'The desired start (19 Oct 2026) can’t be before the minimum start (7 Dec 2026).')
 	assert.equal(dateRefusal(kpis, 'desiredStart', '2026-09-28'), 'The desired start (28 Sept 2026) can’t be before the request date (5 Oct 2026).')
 })
 

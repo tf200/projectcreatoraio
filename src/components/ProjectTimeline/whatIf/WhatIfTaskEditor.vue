@@ -9,7 +9,7 @@
 					{{ formatDate(task.startDate) }} – {{ formatDate(task.endDate) }} · {{ formatDays(task.durationDays) }}
 				</p>
 				<p v-if="moved" class="whatif-editor__muted">
-					Live plan: {{ formatDate(info.baselineStartDate) }} – {{ formatDate(info.baselineEndDate) }}
+					{{ t('Live plan: {start} – {end}', { start: formatDate(info.baselineStartDate), end: formatDate(info.baselineEndDate) }) }}
 				</p>
 				<p v-if="slackText" class="whatif-editor__slack" :class="{ 'whatif-editor__slack--critical': info.isCritical }">
 					{{ slackText }}
@@ -17,12 +17,12 @@
 			</header>
 
 			<p v-if="task.isDone" class="whatif-editor__muted">
-				This card is completed, so its dates can’t change.
+				{{ t('This card is completed, so its dates can’t change.') }}
 			</p>
 
 			<template v-else>
 				<section class="whatif-editor__section">
-					<h4>Delay or finish earlier</h4>
+					<h4>{{ t('Delay or finish earlier') }}</h4>
 					<div class="quick-buttons">
 						<button v-for="days in quickDelays"
 							:key="days"
@@ -34,72 +34,72 @@
 					</div>
 					<form class="field-row" @submit.prevent="addDelay">
 						<label>
-							<span>Days (negative finishes earlier)</span>
+							<span>{{ t('Days (negative finishes earlier)') }}</span>
 							<input v-model.number="delayDays" type="number" step="1">
 						</label>
 						<NcButton native-type="submit" type="secondary" :disabled="!Number.isInteger(delayDays) || delayDays === 0">
-							Add
+							{{ t('Add') }}
 						</NcButton>
 					</form>
 				</section>
 
 				<section class="whatif-editor__section">
-					<h4>Length or end date</h4>
+					<h4>{{ t('Length or end date') }}</h4>
 					<form class="field-row" @submit.prevent="add({ type: 'duration', taskId: task.id, days: durationDays })">
 						<label>
-							<span>Length in days</span>
+							<span>{{ t('Length in days') }}</span>
 							<input v-model.number="durationDays"
 								type="number"
 								min="1"
 								step="1">
 						</label>
 						<NcButton native-type="submit" type="secondary" :disabled="!Number.isInteger(durationDays) || durationDays < 1 || durationDays === task.durationDays">
-							Set
+							{{ t('Set') }}
 						</NcButton>
 					</form>
 					<form class="field-row" @submit.prevent="add({ type: 'endDate', taskId: task.id, date: endDate })">
 						<label>
-							<span>Ends on</span>
+							<span>{{ t('Ends on') }}</span>
 							<input v-model="endDate" type="date">
 						</label>
 						<NcButton native-type="submit" type="secondary" :disabled="!endDate || endDate === task.endDate">
-							Set
+							{{ t('Set') }}
 						</NcButton>
 					</form>
 				</section>
 
 				<section class="whatif-editor__section">
-					<h4>Can’t start before</h4>
+					<h4>{{ t('Can’t start before') }}</h4>
 					<form class="field-row" @submit.prevent="add({ type: 'startNotBefore', taskId: task.id, date: startLimit })">
 						<label>
-							<span>Earliest start</span>
+							<span>{{ t('Earliest start') }}</span>
 							<input v-model="startLimit" type="date">
 						</label>
 						<NcButton native-type="submit" type="secondary" :disabled="!startLimit">
-							Set
+							{{ t('Set') }}
 						</NcButton>
 						<NcButton type="tertiary" @click="add({ type: 'startNotBefore', taskId: task.id, date: null })">
-							Remove limit
+							{{ t('Remove limit') }}
 						</NcButton>
 					</form>
 				</section>
 
 				<section v-if="predecessors.length" class="whatif-editor__section">
-					<h4>Start before the previous card ends</h4>
+					<h4>{{ t('Start before the previous card ends') }}</h4>
 					<form
 						v-for="predecessor in predecessors"
 						:key="predecessor.id"
 						class="field-row"
 						@submit.prevent="addOverlap(predecessor)">
 						<label>
-							<span>Days before “{{ predecessor.label }}” ends</span>
+							<span>{{ t('Days before “{card}” ends', { card: predecessor.label }) }}</span>
 							<input v-model.number="overlaps[predecessor.id]"
 								type="number"
 								min="0"
 								step="1">
 						</label>
 						<NcButton native-type="submit" type="secondary" :disabled="!Number.isInteger(overlaps[predecessor.id]) || overlaps[predecessor.id] < 0 || overlaps[predecessor.id] === predecessor.overlapDays">
-							Set
+							{{ t('Set') }}
 						</NcButton>
 					</form>
 				</section>
@@ -111,6 +111,7 @@
 <script>
 import { NcButton, NcModal } from '@nextcloud/vue'
 
+import { t, n, tc } from '../../../new/l10n.mjs'
 import { formatDays } from './whatIfChanges.js'
 
 export default {
@@ -158,12 +159,16 @@ export default {
 				return ''
 			}
 			if (this.info.isCritical) {
-				return 'On the critical path: any delay here moves the construction start.'
+				return t('On the critical path: any delay here moves the construction start.')
 			}
-			return `Can slip ${formatDays(this.info.floatDays)} before the construction start moves.`
+			return t('Can slip {duration} before the construction start moves.', { duration: formatDays(this.info.floatDays) })
 		},
 	},
 	methods: {
+		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
+		t,
+		n,
+		tc,
 		formatDays,
 		add(change) {
 			this.$emit('add-change', change)

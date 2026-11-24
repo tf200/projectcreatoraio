@@ -10,6 +10,7 @@ use OCA\ProjectCreatorAIO\Db\ProjectMapper;
 use OCA\ProjectCreatorAIO\Db\TimelineItemMapper;
 use OCP\IDBConnection;
 use OCP\IUser;
+use OCP\IL10N;
 
 /**
  * Makes a What-If scenario the plan: Deck card dates, saved overlaps and start limits,
@@ -17,6 +18,10 @@ use OCP\IUser;
  */
 class TimelineScenarioApplyService
 {
+	private IL10N $l;
+
+	private DefaultLanguageL10n $contentL10n;
+
 	public function __construct(
 		private readonly TimelineScenarioService $scenarioService,
 		private readonly TimelinePhaseService $phaseService,
@@ -25,7 +30,11 @@ class TimelineScenarioApplyService
 		private readonly ProjectMapper $projectMapper,
 		private readonly ProjectActivityService $activityService,
 		private readonly IDBConnection $db,
+		?IL10N $l = null,
+		?DefaultLanguageL10n $contentL10n = null,
 	) {
+		$this->l = $l ?? DefaultLanguageL10n::userL10n();
+		$this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
 	}
 
 	/**
@@ -36,7 +45,7 @@ class TimelineScenarioApplyService
 	public function apply(Project $project, array $changes, ?array $expectedDeckCardUpdates, ?IUser $user): array
 	{
 		if ($changes === []) {
-			throw new \InvalidArgumentException('The scenario has no changes to apply');
+			throw new \InvalidArgumentException($this->l->t('The scenario has no changes to apply'));
 		}
 
 		$baseline = $this->phaseService->getProjectPhaseHierarchy($project);
@@ -51,7 +60,7 @@ class TimelineScenarioApplyService
 		$cardUpdates = $scenario['impact']['deckCardUpdates'];
 
 		if ($expectedDeckCardUpdates !== null && $this->fingerprint($expectedDeckCardUpdates) !== $this->fingerprint($cardUpdates)) {
-			throw new TimelineScenarioConflictException('The plan changed since this scenario was previewed. Review the scenario again before applying it.');
+			throw new TimelineScenarioConflictException($this->l->t('The plan changed since this scenario was previewed. Review the scenario again before applying it.'));
 		}
 		foreach ($cardUpdates as $update) {
 			$this->deckCardScheduleService->assertCardCanBeRescheduled($project, (int)$update['cardId']);
@@ -105,6 +114,7 @@ class TimelineScenarioApplyService
 		$mismatches = $this->findMismatches($scenario['phases'], $after['phases']);
 
 		if ($user !== null) {
+			$cl = $this->contentL10n->get();
 			$this->activityService->record(
 				$project,
 				ProjectActivityService::EVENT_TIMELINE_ITEM_UPDATED,
@@ -112,13 +122,16 @@ class TimelineScenarioApplyService
 				$user,
 				[
 					'scenario' => $normalized['changes'],
-					'message' => sprintf(
+					// Stored in the project activity, shared by all members: server default language.
+					'message' => $cl->t(
 						'What-If scenario applied by %s: %d %s, %d Deck %s rescheduled',
-						$user->getDisplayName(),
-						count($normalized['changes']),
-						count($normalized['changes']) === 1 ? 'change' : 'changes',
-						count($cardUpdates),
-						count($cardUpdates) === 1 ? 'card' : 'cards',
+						[
+							$user->getDisplayName(),
+							count($normalized['changes']),
+							count($normalized['changes']) === 1 ? $cl->t('change') : $cl->t('changes'),
+							count($cardUpdates),
+							count($cardUpdates) === 1 ? $cl->t('card') : $cl->t('cards'),
+						],
 					),
 				],
 			);

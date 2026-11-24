@@ -19,10 +19,15 @@ use OCP\IUserManager;
 use OCP\Server;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use OCP\IL10N;
 
 class ProjectHandoverService
 {
     private const DECK_ACL_TYPE_USER = 0;
+
+    private IL10N $l;
+
+    private DefaultLanguageL10n $contentL10n;
 
     public function __construct(
         private readonly ProjectMapper $projectMapper,
@@ -39,7 +44,11 @@ class ProjectHandoverService
         private readonly LoggerInterface $logger,
         private readonly ?ProjectAdministratorAccessService $administratorAccessService = null,
         private readonly ?ProjectAccessService $access = null,
+        ?IL10N $l = null,
+        ?DefaultLanguageL10n $contentL10n = null,
     ) {
+        $this->l = $l ?? DefaultLanguageL10n::userL10n();
+        $this->contentL10n = $contentL10n ?? DefaultLanguageL10n::instance();
     }
 
     /**
@@ -67,25 +76,25 @@ class ProjectHandoverService
         $targetUserId = trim($targetUserId);
 
         if ($sourceUserId === '' || $targetUserId === '') {
-            throw new OCSException('Source and target user IDs are required.', 400);
+            throw new OCSException($this->l->t('Source and target user IDs are required.'), 400);
         }
 
         if ($sourceUserId === $targetUserId) {
-            throw new OCSException('Source and target user must be different users.', 400);
+            throw new OCSException($this->l->t('Source and target user must be different users.'), 400);
         }
 
         $sourceUser = $this->userManager->get($sourceUserId);
         if ($sourceUser === null) {
-            throw new OCSException(sprintf('Source user "%s" does not exist.', $sourceUserId), 404);
+            throw new OCSException($this->l->t('Source user "%s" does not exist.', [$sourceUserId]), 404);
         }
 
         $targetUser = $this->userManager->get($targetUserId);
         if ($targetUser === null) {
-            throw new OCSException(sprintf('Target user "%s" does not exist.', $targetUserId), 404);
+            throw new OCSException($this->l->t('Target user "%s" does not exist.', [$targetUserId]), 404);
         }
 
-        $this->assertUserBelongsToOrganization($sourceUserId, $organizationId, 'Source user');
-        $this->assertUserBelongsToOrganization($targetUserId, $organizationId, 'Target user');
+        $this->assertUserBelongsToOrganization($sourceUserId, $organizationId, $this->l->t('Source user'));
+        $this->assertUserBelongsToOrganization($targetUserId, $organizationId, $this->l->t('Target user'));
 
         $ownedProjects = $this->projectMapper->findOwnedByUserAndOrganization($sourceUserId, $organizationId);
         $memberProjects = $this->projectMapper->findByUserIdAndOrganizationId($sourceUserId, $organizationId);
@@ -109,7 +118,7 @@ class ProjectHandoverService
             if ($groupGid !== '' && !$this->groupManager->isInGroup($targetUserId, $groupGid)) {
                 $group = $this->groupManager->get($groupGid);
                 if ($group === null) {
-                    throw new OCSException(sprintf('Project group "%s" was not found.', $groupGid), 404);
+                    throw new OCSException($this->l->t('Project group "%s" was not found.', [$groupGid]), 404);
                 }
 
                 $group->addUser($targetUser);
@@ -261,10 +270,10 @@ class ProjectHandoverService
     private function assertUserBelongsToOrganization(string $userId, int $organizationId, string $label): void
     {
         if ($this->access === null || !$this->access->hasOrganizations()) {
-            throw new OCSException('Organization service is not available.', 500);
+            throw new OCSException($this->l->t('Organization service is not available.'), 500);
         }
         if (!$this->access->belongsToOrganization($userId, $organizationId)) {
-            throw new OCSException(sprintf('%s does not belong to organization %d.', $label, $organizationId), 403);
+            throw new OCSException($this->l->t('%s does not belong to organization %d.', [$label, $organizationId]), 403);
         }
     }
 
@@ -272,17 +281,18 @@ class ProjectHandoverService
     {
         $projectId = (int) ($project->getId() ?? 0);
         if ($projectId <= 0) {
-            throw new OCSException('Invalid project while creating private folder.', 500);
+            throw new OCSException($this->l->t('Invalid project while creating private folder.'), 500);
         }
 
         try {
             $userFolder = $this->rootFolder->getUserFolder($userId);
             $projectName = trim((string) ($project->getName() ?? ''));
             if ($projectName === '') {
-                $projectName = 'Project';
+                $projectName = $this->contentL10n->get()->t('Project');
             }
 
-            $privateFolderName = $this->getUniqueFolderName($projectName, 'Private Files', $userFolder);
+            // Default folder name in the server default language, like at project creation.
+            $privateFolderName = $this->getUniqueFolderName($projectName, $this->contentL10n->get()->t('Private Files'), $userFolder);
             $privateFolder = $userFolder->newFolder($privateFolderName);
 
             $this->projectMapper->createPrivateFolderLink(
@@ -292,7 +302,7 @@ class ProjectHandoverService
                 $privateFolder->getPath(),
             );
         } catch (Throwable $e) {
-            throw new OCSException('Unable to provision private files for target user: ' . $e->getMessage(), 500, $e);
+            throw new OCSException($this->l->t('Unable to provision private files for target user: %s', [$e->getMessage()]), 500, $e);
         }
     }
 

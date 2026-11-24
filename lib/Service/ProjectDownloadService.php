@@ -18,7 +18,10 @@ use OCP\Files\IRootFolder;
 use OCP\Files\Node;
 use OCP\Files\NotFoundException;
 use OCP\IUser;
+use OCP\IL10N;
 use OCP\IUserManager;
+use OCP\L10N\IFactory;
+use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 class ProjectDownloadService
@@ -36,7 +39,15 @@ class ProjectDownloadService
 		private readonly IRootFolder $rootFolder,
 		private readonly IUserManager $userManager,
 		private readonly LoggerInterface $logger,
+		private readonly ?IFactory $l10nFactory = null,
 	) {
+	}
+
+	/** The export is a personal download: written in the language of the user who asked for it. */
+	private function l10nFor(IUser $user): IL10N
+	{
+		$factory = $this->l10nFactory ?? Server::get(IFactory::class);
+		return $factory->get(self::APP_ID, $factory->getUserLanguage($user));
 	}
 
 	/**
@@ -72,13 +83,14 @@ class ProjectDownloadService
 			return null;
 		}
 
+		$l = $this->l10nFor($user);
 		try {
-			$zip->addFromString('00-Project-Overview.md', $this->buildOverviewMarkdown($project));
-			$zip->addFromString('01-Members.md', $this->buildMembersMarkdown($project));
-			$zip->addFromString('02-Notes.md', $this->buildNotesMarkdown($projectId));
-			$zip->addFromString('03-Deck-Board.md', $this->buildDeckMarkdown($project));
-			$zip->addFromString('04-Timeline.md', $this->buildTimelineMarkdown($projectId));
-			$zip->addFromString('05-Activity-Log.md', $this->buildActivityMarkdown($projectId));
+			$zip->addFromString($l->t('00-Project-Overview.md'), $this->buildOverviewMarkdown($project, $l));
+			$zip->addFromString($l->t('01-Members.md'), $this->buildMembersMarkdown($project, $l));
+			$zip->addFromString($l->t('02-Notes.md'), $this->buildNotesMarkdown($projectId, $l));
+			$zip->addFromString($l->t('03-Deck-Board.md'), $this->buildDeckMarkdown($project, $l));
+			$zip->addFromString($l->t('04-Timeline.md'), $this->buildTimelineMarkdown($projectId, $l));
+			$zip->addFromString($l->t('05-Activity-Log.md'), $this->buildActivityMarkdown($projectId, $l));
 
 			$this->addSharedFilesToZip($project, $user, $zip);
 
@@ -233,10 +245,21 @@ class ProjectDownloadService
 
 	// ─── Markdown Builders ──────────────────────────────────────────
 
-	private function buildOverviewMarkdown(Project $project): string
+	/** One "| label | value |" table row; the label is already translated. */
+	private function tableRow(string $label, string $value): string
 	{
-		$typeLabel = self::typeIdToLabel((int) ($project->getType() ?? -1));
-		$statusLabel = self::statusIdToLabel((int) ($project->getStatus() ?? ProjectStatus::ACTIVE));
+		return "| {$label} | {$value} |\n";
+	}
+
+	private function fieldValueHeader(IL10N $l): string
+	{
+		return "| {$l->t('Field')} | {$l->t('Value')} |\n|-------|-------|\n";
+	}
+
+	private function buildOverviewMarkdown(Project $project, IL10N $l): string
+	{
+		$typeLabel = self::typeIdToLabel((int) ($project->getType() ?? -1), $l);
+		$statusLabel = ProjectStatus::getLabel((int) ($project->getStatus() ?? ProjectStatus::ACTIVE), $l);
 		$createdAt = $project->getCreatedAt() instanceof DateTime
 			? $project->getCreatedAt()->format('Y-m-d H:i:s')
 			: '—';
@@ -244,41 +267,38 @@ class ProjectDownloadService
 			? $project->getUpdatedAt()->format('Y-m-d H:i:s')
 			: '—';
 
-		$md = "# Project Overview\n\n";
-		$md .= "| Field | Value |\n";
-		$md .= "|-------|-------|\n";
-		$md .= "| Name | {$this->escapeTableCell($project->getName())} |\n";
-		$md .= "| Number | {$this->escapeTableCell($project->getNumber())} |\n";
-		$md .= "| Type | {$typeLabel} |\n";
-		$md .= "| Status | {$statusLabel} |\n";
-		$md .= "| Description | {$this->escapeTableCell($project->getDescription())} |\n";
-		$md .= "| Created | {$createdAt} |\n";
-		$md .= "| Updated | {$updatedAt} |\n";
+		$md = '# ' . $l->t('Project Overview') . "\n\n";
+		$md .= $this->fieldValueHeader($l);
+		$md .= $this->tableRow($l->t('Name'), $this->escapeTableCell($project->getName()));
+		$md .= $this->tableRow($l->t('Number'), $this->escapeTableCell($project->getNumber()));
+		$md .= $this->tableRow($l->t('Type'), $typeLabel);
+		$md .= $this->tableRow($l->t('Status'), $statusLabel);
+		$md .= $this->tableRow($l->t('Description'), $this->escapeTableCell($project->getDescription()));
+		$md .= $this->tableRow($l->t('Created'), $createdAt);
+		$md .= $this->tableRow($l->t('Updated'), $updatedAt);
 
 		$prepWeeks = $project->getRequiredPreparationWeeks();
-		$md .= "| Required Prep Weeks | " . ($prepWeeks !== null ? (string) $prepWeeks : '—') . " |\n";
+		$md .= $this->tableRow($l->t('Required Prep Weeks'), $prepWeeks !== null ? (string) $prepWeeks : '—');
 
-		$md .= "\n## Client Information\n\n";
-		$md .= "| Field | Value |\n";
-		$md .= "|-------|-------|\n";
-		$md .= "| Name | {$this->escapeTableCell($project->getClientName())} |\n";
-		$md .= "| Role | {$this->escapeTableCell($project->getClientRole())} |\n";
-		$md .= "| Phone | {$this->escapeTableCell($project->getClientPhone())} |\n";
-		$md .= "| Email | {$this->escapeTableCell($project->getClientEmail())} |\n";
-		$md .= "| Address | {$this->escapeTableCell($project->getClientAddress())} |\n";
+		$md .= "\n## " . $l->t('Client Information') . "\n\n";
+		$md .= $this->fieldValueHeader($l);
+		$md .= $this->tableRow($l->t('Name'), $this->escapeTableCell($project->getClientName()));
+		$md .= $this->tableRow($l->t('Role'), $this->escapeTableCell($project->getClientRole()));
+		$md .= $this->tableRow($l->t('Phone'), $this->escapeTableCell($project->getClientPhone()));
+		$md .= $this->tableRow($l->t('Email'), $this->escapeTableCell($project->getClientEmail()));
+		$md .= $this->tableRow($l->t('Address'), $this->escapeTableCell($project->getClientAddress()));
 
-		$md .= "\n## Location\n\n";
-		$md .= "| Field | Value |\n";
-		$md .= "|-------|-------|\n";
-		$md .= "| Street | {$this->escapeTableCell($project->getLocStreet())} |\n";
-		$md .= "| City | {$this->escapeTableCell($project->getLocCity())} |\n";
-		$md .= "| ZIP | {$this->escapeTableCell($project->getLocZip())} |\n";
-		$md .= "| External Ref | {$this->escapeTableCell($project->getExternalRef())} |\n";
+		$md .= "\n## " . $l->t('Location') . "\n\n";
+		$md .= $this->fieldValueHeader($l);
+		$md .= $this->tableRow($l->t('Street'), $this->escapeTableCell($project->getLocStreet()));
+		$md .= $this->tableRow($l->t('City'), $this->escapeTableCell($project->getLocCity()));
+		$md .= $this->tableRow($l->t('ZIP'), $this->escapeTableCell($project->getLocZip()));
+		$md .= $this->tableRow($l->t('External Ref'), $this->escapeTableCell($project->getExternalRef()));
 
 		return $md;
 	}
 
-	private function buildMembersMarkdown(Project $project): string
+	private function buildMembersMarkdown(Project $project, IL10N $l): string
 	{
 		$groupGid = trim((string) ($project->getProjectGroupGid() ?? ''));
 		$ownerId = trim((string) ($project->getOwnerId() ?? ''));
@@ -291,8 +311,8 @@ class ProjectDownloadService
 			$memberIds[] = $ownerId;
 		}
 
-		$md = "# Project Members\n\n";
-		$md .= "| Name | User ID | Email | Role |\n";
+		$md = '# ' . $l->t('Project Members') . "\n\n";
+		$md .= "| {$l->t('Name')} | {$l->t('User ID')} | {$l->t('Email')} | {$l->t('Role')} |\n";
 		$md .= "|------|---------|-------|------|\n";
 
 		foreach ($memberIds as $uid) {
@@ -302,21 +322,21 @@ class ProjectDownloadService
 			}
 			$displayName = $user->getDisplayName() ?: $uid;
 			$email = $user->getEMailAddress() ?: '—';
-			$role = ($ownerId !== '' && $uid === $ownerId) ? 'Owner' : 'Member';
+			$role = ($ownerId !== '' && $uid === $ownerId) ? $l->t('Owner') : $l->t('Member');
 			$md .= "| {$this->escapeTableCell($displayName)} | {$uid} | {$this->escapeTableCell($email)} | {$role} |\n";
 		}
 
 		return $md;
 	}
 
-	private function buildNotesMarkdown(int $projectId): string
+	private function buildNotesMarkdown(int $projectId, IL10N $l): string
 	{
 		$notes = $this->noteMapper->findPublicByProject($projectId);
 
-		$md = "# Project Notes (Public)\n\n";
+		$md = '# ' . $l->t('Project Notes (Public)') . "\n\n";
 
 		if (empty($notes)) {
-			$md .= "_No public notes._\n";
+			$md .= '_' . $l->t('No public notes.') . "_\n";
 			return $md;
 		}
 
@@ -324,14 +344,14 @@ class ProjectDownloadService
 			$title = trim((string) ($note->getTitle() ?? ''));
 			$content = trim((string) ($note->getContent() ?? ''));
 			$userId = (string) ($note->getUserId() ?? '');
-			$noteType = ProjectNote::noteTypeLabel($note->getNoteType());
+			$noteType = ProjectNote::noteTypeLabel($note->getNoteType(), $l);
 			$createdAt = $note->getCreatedAt() instanceof DateTime
 				? $note->getCreatedAt()->format('Y-m-d H:i:s')
 				: '—';
 
-			$heading = $title !== '' ? $title : 'Untitled';
+			$heading = $title !== '' ? $title : $l->t('Untitled');
 			$md .= "## {$heading}\n\n";
-			$md .= "_{$noteType} by {$userId} on {$createdAt}_\n\n";
+			$md .= '_' . $l->t('%1$s by %2$s on %3$s', [$noteType, $userId, $createdAt]) . "_\n\n";
 
 			if ($content !== '') {
 				$md .= $content . "\n";
@@ -343,31 +363,31 @@ class ProjectDownloadService
 		return $md;
 	}
 
-	private function buildDeckMarkdown(Project $project): string
+	private function buildDeckMarkdown(Project $project, IL10N $l): string
 	{
 		$boardIdRaw = $project->getBoardId();
 		$boardId = (int) ($boardIdRaw ?? 0);
 
-		$md = "# Deck Board\n\n";
+		$md = '# ' . $l->t('Deck Board') . "\n\n";
 
 		if ($this->stackMapper === null || $this->cardMapper === null || $boardId <= 0) {
-			$md .= "_No deck board linked to this project._\n";
+			$md .= '_' . $l->t('No deck board linked to this project.') . "_\n";
 			return $md;
 		}
 
 		$stacks = $this->stackMapper->findAll($boardId);
 		if (empty($stacks)) {
-			$md .= "_No stacks found on this board._\n";
+			$md .= '_' . $l->t('No stacks found on this board.') . "_\n";
 			return $md;
 		}
 
 		foreach ($stacks as $stack) {
-			$stackTitle = trim((string) ($stack->getTitle() ?? 'Untitled'));
+			$stackTitle = trim((string) ($stack->getTitle() ?? $l->t('Untitled')));
 			$md .= "## {$this->escapeInlineMarkdown($stackTitle)}\n\n";
 
 			$cards = $this->cardMapper->findAll((int) $stack->getId());
 			if (empty($cards)) {
-				$md .= "_No cards._\n\n";
+				$md .= '_' . $l->t('No cards.') . "_\n\n";
 				continue;
 			}
 
@@ -379,11 +399,11 @@ class ProjectDownloadService
 				$dueDateStr = $dueDate instanceof DateTime ? $dueDate->format('Y-m-d') : '—';
 
 				$md .= "### {$this->escapeInlineMarkdown($cardTitle)}\n\n";
-				$md .= "- **Owner**: {$owner}\n";
-				$md .= "- **Due**: {$dueDateStr}\n";
+				$md .= "- **{$l->t('Owner')}**: {$owner}\n";
+				$md .= "- **{$l->t('Due')}**: {$dueDateStr}\n";
 
 				if ($description !== '') {
-					$md .= "- **Description**:\n\n  ";
+					$md .= "- **{$l->t('Description')}**:\n\n  ";
 					$md .= str_replace("\n", "\n  ", $description) . "\n";
 				}
 
@@ -394,25 +414,25 @@ class ProjectDownloadService
 		return $md;
 	}
 
-	private function buildTimelineMarkdown(int $projectId): string
+	private function buildTimelineMarkdown(int $projectId, IL10N $l): string
 	{
 		$items = $this->timelineItemMapper->findByProject($projectId);
 
-		$md = "# Timeline\n\n";
+		$md = '# ' . $l->t('Timeline') . "\n\n";
 
 		if (empty($items)) {
-			$md .= "_No timeline items._\n";
+			$md .= '_' . $l->t('No timeline items.') . "_\n";
 			return $md;
 		}
 
-		$md .= "| # | Label | Type | Start | End |\n";
+		$md .= "| # | {$l->t('Label')} | {$l->t('Type')} | {$l->t('Start')} | {$l->t('End')} |\n";
 		$md .= "|---|-------|------|-------|-----|\n";
 
 		$index = 1;
 		foreach ($items as $item) {
 			$label = $this->escapeTableCell($item->getLabel());
 			$itemType = trim((string) ($item->getItemType() ?? 'phase'));
-			$itemType = $itemType === 'milestone' ? 'Milestone' : 'Phase';
+			$itemType = $itemType === 'milestone' ? $l->t('Milestone') : $l->t('Phase');
 
 			$startDate = $item->getStartDate() instanceof DateTime
 				? $item->getStartDate()->format('Y-m-d')
@@ -428,18 +448,18 @@ class ProjectDownloadService
 		return $md;
 	}
 
-	private function buildActivityMarkdown(int $projectId): string
+	private function buildActivityMarkdown(int $projectId, IL10N $l): string
 	{
 		$events = $this->activityEventMapper->findForProject($projectId, null, 100, 0);
 
-		$md = "# Activity Log (Last 100 events)\n\n";
+		$md = '# ' . $l->t('Activity Log (Last 100 events)') . "\n\n";
 
 		if (empty($events)) {
-			$md .= "_No activity recorded._\n";
+			$md .= '_' . $l->t('No activity recorded.') . "_\n";
 			return $md;
 		}
 
-		$md .= "| When | Who | Event | Details |\n";
+		$md .= "| {$l->t('When')} | {$l->t('Who')} | {$l->t('Event')} | {$l->t('Details')} |\n";
 		$md .= "|------|-----|-------|--------|\n";
 
 		foreach ($events as $event) {
@@ -448,7 +468,7 @@ class ProjectDownloadService
 				: '—';
 			$actor = $this->escapeTableCell($event->getActorDisplayName() ?? $event->getActorUid() ?? '');
 			$eventType = $this->humanizeEventType($event->getEventType() ?? '');
-			$details = $this->summarizeEventPayload($event->getEventType() ?? '', $event->getPayloadArray());
+			$details = $this->summarizeEventPayload($event->getEventType() ?? '', $event->getPayloadArray(), $l);
 
 			$md .= "| {$occurredAt} | {$actor} | {$eventType} | {$this->escapeTableCell($details)} |\n";
 		}
@@ -545,26 +565,14 @@ class ProjectDownloadService
 		return $name !== '' ? substr($name, 0, 50) : 'project';
 	}
 
-	private static function typeIdToLabel(int $type): string
+	private static function typeIdToLabel(int $type, IL10N $l): string
 	{
 		return match ($type) {
-			0 => 'Combi',
-			1 => 'Solo Elektra',
-			2 => 'Solo Water',
-			3 => 'Custom',
-			default => 'Unknown',
-		};
-	}
-
-	private static function statusIdToLabel(int $status): string
-	{
-		return match ($status) {
-			ProjectStatus::ACTIVE => 'Active',
-			ProjectStatus::WAITING_ON_CUSTOMER => 'Waiting on Customer',
-			ProjectStatus::ON_HOLD => 'On Hold',
-			ProjectStatus::DONE => 'Done',
-			ProjectStatus::ARCHIVED => 'Archived',
-			default => 'Unknown',
+			0 => $l->t('Combi'),
+			1 => $l->t('Solo Elektra'),
+			2 => $l->t('Solo Water'),
+			3 => $l->t('Custom'),
+			default => $l->t('Unknown'),
 		};
 	}
 
@@ -573,14 +581,14 @@ class ProjectDownloadService
 		return ucwords(str_replace('_', ' ', $eventType));
 	}
 
-	private function summarizeEventPayload(string $eventType, array $payload): string
+	private function summarizeEventPayload(string $eventType, array $payload, IL10N $l): string
 	{
 		return match ($eventType) {
-			'project_updated' => 'Changed: ' . implode(', ', $payload['changed_fields'] ?? []),
-			'member_added' => 'Added ' . ($payload['member_uid'] ?? '') . ' to project',
-			'member_removed' => 'Removed ' . ($payload['member_uid'] ?? '') . ' from project',
-			'note_created', 'note_updated', 'note_deleted' => ($payload['note_title'] ?? 'Untitled'),
-			'deck_card_created', 'deck_card_updated', 'deck_card_deleted' => 'Card: ' . ($payload['card_title'] ?? ''),
+			'project_updated' => $l->t('Changed: %s', [implode(', ', $payload['changed_fields'] ?? [])]),
+			'member_added' => $l->t('Added %s to project', [$payload['member_uid'] ?? '']),
+			'member_removed' => $l->t('Removed %s from project', [$payload['member_uid'] ?? '']),
+			'note_created', 'note_updated', 'note_deleted' => ($payload['note_title'] ?? $l->t('Untitled')),
+			'deck_card_created', 'deck_card_updated', 'deck_card_deleted' => $l->t('Card: %s', [$payload['card_title'] ?? '']),
 			'file_created', 'file_updated', 'file_deleted' => ($payload['file_name'] ?? ''),
 			'timeline_item_created', 'timeline_item_updated', 'timeline_item_deleted' => ($payload['item_label'] ?? ''),
 			default => '',

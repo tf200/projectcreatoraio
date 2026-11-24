@@ -2,30 +2,30 @@
 	<section class="pc-wb-activity iz-app" aria-labelledby="pc-wb-activity-title">
 		<div class="pc-wb-activity__head">
 			<h3 id="pc-wb-activity-title" class="pc-wb-activity__title">
-				Activity
+				{{ t('Activity') }}
 			</h3>
-			<span class="pc-wb-activity__hint">Saves less than 20 minutes apart are one session</span>
+			<span class="pc-wb-activity__hint">{{ t('Saves less than 20 minutes apart are one session') }}</span>
 			<div v-if="days.length" class="pc-wb-activity__tools">
 				<button type="button" class="iz-btn iz-btn--ghost iz-btn--sm" @click="expandAll">
-					Expand all
+					{{ t('Expand all') }}
 				</button>
 				<button type="button" class="iz-btn iz-btn--ghost iz-btn--sm" @click="collapseAll">
-					Collapse all
+					{{ t('Collapse all') }}
 				</button>
 			</div>
 		</div>
 
 		<div v-if="loading && !events.length" class="iz-empty" role="status">
-			Loading activity…
+			{{ t('Loading activity…') }}
 		</div>
 		<div v-else-if="error && !events.length" class="iz-empty pc-view__failure" role="alert">
 			<span>{{ error }}</span>
 			<button type="button" class="iz-btn" @click="load">
-				Try again
+				{{ t('Try again') }}
 			</button>
 		</div>
 		<div v-else-if="!days.length" class="iz-empty">
-			No one has edited the whiteboard yet.
+			{{ t('No one has edited the whiteboard yet.') }}
 		</div>
 
 		<ul v-else class="pc-wb-days">
@@ -75,7 +75,7 @@
 									:disable-tooltip="true" />
 							</span>
 							<span class="pc-wb-session__text">
-								<strong>{{ names(session.lanes) }}</strong>{{ ' ' }}<span>{{ session.lanes.length > 1 ? 'edited together' : 'edited the board' }}</span>
+								<template v-for="(part, index) in sessionText(session)"><strong v-if="part.name" :key="index">{{ part.text }}</strong><span v-else :key="index">{{ part.text }}</span></template>
 							</span>
 							<span class="pc-wb-session__range">{{ range(session) }}</span>
 							<span class="iz-pill pc-wb-session__duration">{{ duration(minutesOf(session)) }}</span>
@@ -91,11 +91,11 @@
 										:disable-tooltip="true" />
 									<span class="pc-wb-lane__name">{{ lane.displayName }}</span>
 									<span class="pc-wb-lane__range">{{ range(lane) }}</span>
-									<span class="pc-wb-lane__saves">{{ lane.saves === 1 ? '1 save' : lane.saves + ' saves' }}</span>
+									<span class="pc-wb-lane__saves">{{ n('%n save', '%n saves', lane.saves) }}</span>
 								</li>
 							</ul>
 							<p class="pc-wb-session__facts">
-								<span>{{ session.saves === 1 ? '1 save' : session.saves + ' saves' }}</span>
+								<span>{{ n('%n save', '%n saves', session.saves) }}</span>
 								<span v-if="sizeChange(session.sizeChange)">{{ sizeChange(session.sizeChange) }}</span>
 							</p>
 						</div>
@@ -111,7 +111,7 @@
 				class="iz-btn iz-btn--sm"
 				:disabled="loading"
 				@click="loadOlder">
-				{{ loading ? 'Loading…' : 'Older activity' }}
+				{{ loading ? t('Loading…') : t('Older activity') }}
 			</button>
 		</div>
 	</section>
@@ -122,6 +122,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import { api, errorMessage } from './api.js'
 import { sessionsOf, daysOf, minutesOf, duration, range, names, sizeChange } from './whiteboard-activity.js'
+import { t, n } from './l10n.mjs'
 
 // The endpoint pages by save (at most 100 per read). One sitting can be
 // dozens of saves, so the view reads this many at a time.
@@ -216,7 +217,7 @@ export default {
 				await this.readBatch(request)
 			} catch (e) {
 				if (request !== this.request) return
-				this.error = 'Older activity could not be loaded. Please try again.'
+				this.error = t('Older activity could not be loaded. Please try again.')
 			} finally {
 				if (request === this.request) this.loading = false
 			}
@@ -225,7 +226,7 @@ export default {
 		// yesterday are open and older days are closed.
 		isDayOpen(day) {
 			if (day.key in this.openDays) return this.openDays[day.key]
-			return !this.touched && (day === this.days[0] || day.label === 'Today' || day.label === 'Yesterday')
+			return !this.touched && (day === this.days[0] || day.daysAgo === 0 || day.daysAgo === 1)
 		},
 		toggleDay(day) {
 			this.$set(this.openDays, day.key, !this.isDayOpen(day))
@@ -247,8 +248,17 @@ export default {
 			this.openSessions = {}
 		},
 		daySummary(day) {
-			const count = day.sessions.length
-			return (count === 1 ? '1 session' : count + ' sessions') + ' · ' + duration(day.minutes)
+			return n('%n session', '%n sessions', day.sessions.length) + ' · ' + duration(day.minutes)
+		},
+		// "Emma and Thomas edited together" as one translatable sentence, split
+		// around the names so they can stay bold wherever the language puts them.
+		sessionText(session) {
+			const marker = '\u0001'
+			const who = names(session.lanes)
+			const sentence = session.lanes.length > 1
+				? t('{names} edited together', { names: marker })
+				: t('{name} edited the board', { name: marker })
+			return sentence.split(marker).flatMap((text, index) => index ? [{ name: true, text: who }, { text }] : [{ text }]).filter(part => part.text)
 		},
 	},
 }
