@@ -6,7 +6,7 @@ import { t, formatNumber } from './l10n.mjs'
 // The id is what the server stores; label and text are read in the user's
 // language each time they are shown.
 export const TYPES = [
-	{ id: 0, get label() { return t('Combi') }, get text() { return t('Starts with the 20 Combi process tasks and the intake form.') } },
+	{ id: 0, get label() { return t('Combi') }, get text() { return t('Starts with the 20 Combi process tasks.') } },
 	{ id: 1, get label() { return t('Solo Elektra') }, get text() { return t('The six standard columns, without seeded tasks.') } },
 	{ id: 2, get label() { return t('Solo Water') }, get text() { return t('The six standard columns, without seeded tasks.') } },
 	{ id: 3, get label() { return t('Custom') }, get text() { return t('The six standard columns, to shape yourself.') } },

@@ -77,3 +77,27 @@ test('the project shelf starts folded while a project is open', () => {
 	assert.match(shelf, /<button v-if="selectedId" class="pc-secondary pc-shelf-toggle" :aria-expanded="String\(!folded\)"/)
 	assert.match(shelf, /folded\(value\) \{ if \(!value\) this\.revealSelection\(\) \}/, 'unfolding scrolls to the open project')
 })
+
+test('the Intake form is hidden: no tab, and its old links open the Overview', async () => {
+	const { readRoute, interfaceUrl } = await import('./navigation.js')
+	const base = '/apps/projectcreatoraio'
+	for (const tab of ['intake', 'cardVisibility']) {
+		assert.deepEqual(readRoute(base + '/21', '?tab=' + tab), { projectId: 21, tab: 'overview' }, tab)
+		assert.equal(interfaceUrl(base, { projectId: 21, tab }), base + '/21', tab)
+	}
+	assert.doesNotMatch(read('./ProjectHeader.vue'), /id: 'intake'/)
+	assert.match(read('./create.js'), /t\('Starts with the 20 Combi process tasks\.'\)/)
+	const nl = JSON.parse(read('../../l10n/nl.json')).translations
+	assert.equal(nl['Starts with the 20 Combi process tasks.'], 'Dit project begint met de 20 Combi-procestaken.')
+	assert.equal(nl['Starts with the 20 Combi process tasks and the intake form.'], undefined)
+	assert.match(read('../../l10n/nl.js'), /"Starts with the 20 Combi process tasks\.": "Dit project begint met de 20 Combi-procestaken\."/)
+})
+
+test('the overview timeline shows the plain line Process steps uses, without ≈', () => {
+	const overview = read('./NewOverview.vue')
+	assert.doesNotMatch(overview, /≈|pc-timeline-approx|pc-timeline-meter--estimate/)
+	assert.match(overview, /<div class="pc-timeline-overall"><p><strong>\{\{ timeline\.overall\.percent === null \? '—' : timeline\.overall\.percent \+ '%' \}\}<\/strong>/)
+	assert.match(overview, /class="iz-pill iz-pill--muted pc-timeline-estimate">\{\{ t\('Estimate'\) \}\}/, 'the Estimate label stays')
+	const css = read('./new-ui.css')
+	assert.doesNotMatch(css, /pc-timeline-overall \.pc-timeline-meter\{height|meter--estimate|repeating-linear-gradient\(-45deg/)
+})

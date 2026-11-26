@@ -71,7 +71,6 @@ export default {
     { id: 'notes', label: t('Notes'), icon: NoteTextOutline },
     { id: 'planning', label: t('Planning'), icon: CalendarMonthOutline },
     { id: 'documents', label: t('Documents'), icon: FolderOutline },
-    ...(Number(this.project.type) === 0 ? [{ id: 'intake', label: t('Intake form'), icon: ClipboardCheckOutline }] : []),
     { id: 'whiteboard', label: t('Whiteboard'), icon: Draw },
     { id: 'members', label: t('Members'), icon: AccountGroupOutline },
     { id: 'activity', label: t('Activity'), icon: History },

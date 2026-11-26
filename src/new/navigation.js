@@ -1,7 +1,10 @@
 const legacyTabs = { overview: 'overview', tasks: 'deck', notes: 'notes', planning: 'timeline', documents: 'files', intake: 'cardVisibility', whiteboard: 'whiteboard', members: 'members', activity: 'activity', agenda: 'calendar' }
 export const tabs = Object.keys(legacyTabs)
+// The Intake form is hidden for now; its old links open the Overview. Its data stays.
+const hiddenTabs = ['intake']
 export function normalizeTab(value) {
- return tabs.includes(value) ? value : (tabs.find(key => legacyTabs[key] === value) || 'overview')
+ const tab = tabs.includes(value) ? value : (tabs.find(key => legacyTabs[key] === value) || 'overview')
+ return hiddenTabs.includes(tab) ? 'overview' : tab
 }
 function projectId(value) {
  const raw = String(value ?? '')

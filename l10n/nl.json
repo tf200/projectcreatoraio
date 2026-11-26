@@ -1653,7 +1653,7 @@
         "Started before the minimum start": "Gestart vóór de vroegst mogelijke start",
         "Started but no end planned: set weeks on site": "Gestart, maar geen einde gepland: vul het aantal weken op locatie in",
         "Starts in {weeks}": "Start over {weeks}",
-        "Starts with the 20 Combi process tasks and the intake form.": "Dit project begint met de 20 Combi-procestaken.",
+        "Starts with the 20 Combi process tasks.": "Dit project begint met de 20 Combi-procestaken.",
         "Starts {date} ({shift})": "Start {date} ({shift})",
         "Status changed to {status}.": "Status gewijzigd in {status}.",
         "Steps": "Stappen",

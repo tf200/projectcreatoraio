@@ -4,13 +4,14 @@ import { readRoute, interfaceUrl, filterProjects } from './navigation.js'
 const base = '/nextcloud/index.php/apps/projectcreatoraio'
 test('the app\'s own addresses, old tab names and old /new links select the corresponding module', () => {
  assert.deepEqual(readRoute(base + '/21', '?tab=tasks'), { projectId: 21, tab: 'tasks' })
- assert.deepEqual(readRoute(base + '/21', '?tab=cardVisibility'), { projectId: 21, tab: 'intake' })
+ assert.deepEqual(readRoute(base + '/21', '?tab=agenda'), { projectId: 21, tab: 'agenda' })
+ assert.deepEqual(readRoute(base + '/21', '?tab=calendar'), { projectId: 21, tab: 'agenda' })
  assert.deepEqual(readRoute(base + '/new/projects/21', '?tab=tasks'), { projectId: 21, tab: 'tasks' })
  assert.equal(readRoute(base + '/', '').projectId, null)
  assert.equal(readRoute(base, '').projectId, null)
 })
 test('addresses keep subdirectories and translate tab names; the old interface lives at /legacy', () => {
- for (const [modern, legacy] of [['tasks','deck'],['planning','timeline'],['documents','files'],['intake','cardVisibility'],['agenda','calendar'],['notes','notes']]) {
+ for (const [modern, legacy] of [['tasks','deck'],['planning','timeline'],['documents','files'],['agenda','calendar'],['notes','notes']]) {
   assert.equal(interfaceUrl(base, { projectId: 21, tab: modern }, false), base + '/legacy/21?tab=' + legacy)
   assert.equal(interfaceUrl(base, { projectId: 21, tab: legacy }, true), base + '/21?tab=' + modern)
  }
