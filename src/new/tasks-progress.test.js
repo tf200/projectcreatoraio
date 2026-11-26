@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import * as l10n from './l10n.mjs'
 import * as tp from './tasks-progress.js'
+import * as steps from './step-names.mjs'
 
 // Dates are formatted in the user's Nextcloud locale; these tests pin British English.
 globalThis._nc_l10n_locale = 'en_GB'
@@ -104,7 +105,7 @@ function view(deckStacks) {
 	const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
 		.replace(/^import .*$/gm, '')
 		.replace('export default', 'globalThis.component =')
-	const context = { ...l10n, ...tp, api: { deckStacks }, errorMessage: e => e?.response?.status === 403 ? 'You do not have access to this data.' : 'The data could not be loaded. Please try again.', Date, Array, Error, Number, Math }
+	const context = { ...l10n, ...tp, ...steps, api: { deckStacks }, errorMessage: e => e?.response?.status === 403 ? 'You do not have access to this data.' : 'The data could not be loaded. Please try again.', Date, Array, Error, Number, Math }
 	vm.runInNewContext(script, context)
 	const options = context.component
 	const instance = { ...options.data(), boardId: 31, refreshKey: 0, $refs: {}, $nextTick: fn => fn && fn() }

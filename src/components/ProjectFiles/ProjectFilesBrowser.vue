@@ -83,7 +83,7 @@
 							:type="'button'"
 							class="project-files__crumb"
 							@click="selectFolder(crumb)">
-							{{ crumb.name }}
+							{{ folderDisplayName(crumb.name) }}
 						</button>
 						<span v-if="selectedChain.length === 0" class="project-files__muted">{{ t('No folder selected') }}</span>
 					</div>
@@ -150,7 +150,7 @@
 						</div>
 						<div class="project-files__modal-content">
 							<div class="project-files__modal-filename">
-								{{ selectedFolderNode?.name || t('Selected folder') }}
+								{{ folderDisplayName(selectedFolderNode?.name) || t('Selected folder') }}
 							</div>
 							<label class="project-files__upload-modal-label" for="project-files-upload-type">{{ t('Document type') }}</label>
 							<select
@@ -215,7 +215,7 @@
 						</div>
 						<div class="project-files__modal-content">
 							<div class="project-files__modal-filename">
-								{{ selectedFolderNode?.name || t('Selected folder') }}
+								{{ folderDisplayName(selectedFolderNode?.name) || t('Selected folder') }}
 							</div>
 							<div class="project-files__signer-picker">
 								<div class="project-files__upload-modal-label">
@@ -681,6 +681,7 @@ import { ProjectsService } from '../../Services/projects.js'
 import FolderTreeItem from './FolderTreeItem.vue'
 import PdfPlacementStudio from './PdfPlacementStudio.vue'
 import { t, n, formatNumber } from '../../new/l10n.mjs'
+import { folderDisplayName } from '../../new/folder-names.mjs'
 
 function getRequestToken() {
 	// Nextcloud exposes it on `OC.requestToken` and as a meta tag.
@@ -891,7 +892,7 @@ export default {
 				if (!name.includes(q)) {
 					return
 				}
-				const pathLabel = chain.slice(0, -1).map((n) => n.name).join(' / ')
+				const pathLabel = chain.slice(0, -1).map((n) => folderDisplayName(n.name)).join(' / ')
 				hits.push({ node, chain, pathLabel })
 			})
 
@@ -956,6 +957,7 @@ export default {
 		this.ensureSelection('private')
 	},
 	methods: {
+		folderDisplayName,
 		t,
 		n,
 		resetOcrState() {

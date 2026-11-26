@@ -44,7 +44,7 @@
 							<span v-for="step in segments"
 								:key="step.id"
 								class="pc-progress__segment"
-								:title="step.title + ' — ' + step.column"
+								:title="step.title + ' — ' + stepDisplayName(step.column)"
 								:style="{ background: colorOf(step) }" />
 						</div>
 					</div>
@@ -72,7 +72,7 @@
 											class="pc-progress__stops"
 											aria-hidden="true"
 											:style="{ gridTemplateColumns: 'repeat(' + board.columns.length + ', minmax(0, 1fr))' }">
-											<span v-for="column in board.columns" :key="column.id">{{ column.title }}</span>
+											<span v-for="column in board.columns" :key="column.id">{{ stepDisplayName(column.title) }}</span>
 										</span>
 										<span v-else aria-hidden="true">{{ t('Column') }}</span>
 									</th>
@@ -121,6 +121,7 @@
 <script>
 import { api, errorMessage } from './api.js'
 import { t } from './l10n.mjs'
+import { stepDisplayName } from './step-names.mjs'
 import { boardOf, countsOf, stepsOf, dueOf } from './tasks-progress.js'
 
 // The most columns the per-step track shows; a board with more gets a pill.
@@ -170,6 +171,7 @@ export default {
 		this.request++
 	},
 	methods: {
+		stepDisplayName,
 		dueOf(step) { return dueOf(step, this.now) },
 		async load() {
 			const request = ++this.request

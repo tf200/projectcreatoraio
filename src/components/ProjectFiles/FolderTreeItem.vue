@@ -15,7 +15,7 @@
 				<span v-else class="folder-tree-item__chev folder-tree-item__chev--empty" />
 			</span>
 			<FolderOutline class="folder-tree-item__icon" :class="{ 'folder-tree-item__icon--selected': isSelected }" :size="20" />
-			<span class="folder-tree-item__name">{{ node.name }}</span>
+			<span class="folder-tree-item__name">{{ folderDisplayName(node.name) }}</span>
 			<span v-if="fileCount !== null" class="folder-tree-item__meta">{{ fileCount }}</span>
 		</button>
 
@@ -38,6 +38,7 @@
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
+import { folderDisplayName } from '../../new/folder-names.mjs'
 
 export default {
 	name: 'FolderTreeItem',
@@ -101,6 +102,7 @@ export default {
 		},
 	},
 	methods: {
+		folderDisplayName,
 		countFiles(node) {
 			if (!node) {
 				return 0

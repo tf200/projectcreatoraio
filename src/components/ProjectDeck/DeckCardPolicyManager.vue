@@ -57,7 +57,7 @@
 				<div class="pc-toolbar-filters">
 					<select v-model.number="stackFilter" class="pc-stack-select" :aria-label="t('Filter cards by stack')">
 						<option :value="0">{{ n('All stacks (%n card)', 'All stacks (%n cards)', cards.length) }}</option>
-						<option v-for="s in stacks" :key="s.id" :value="Number(s.id)">{{ s.title }}</option>
+						<option v-for="s in stacks" :key="s.id" :value="Number(s.id)">{{ stepDisplayName(s.title) }}</option>
 					</select>
 					<label class="pc-filter-checkbox">
 						<input type="checkbox" v-model="showOnlyCustom">
@@ -413,6 +413,8 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t, n, tc, locale } from '../../new/l10n.mjs'
+import { stepDisplayName } from '../../new/step-names.mjs'
+import { roleDisplayName } from '../../new/members.js'
 
 import ShieldAccount from 'vue-material-design-icons/ShieldAccount.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
@@ -631,6 +633,7 @@ export default {
 		},
 	},
 	methods: {
+		stepDisplayName,
 		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
 		t,
 		n,
@@ -703,7 +706,7 @@ export default {
 					{ key: 'verifier', name: t('Verifier') },
 					{ key: 'signer', name: t('Signer') },
 				]
-				this.roles = data.functionalRoles || data.roles || []
+				this.roles = (data.functionalRoles || data.roles || []).map(r => ({ ...r, name: roleDisplayName(r.roleKey, r.name) }))
 				this.memberships = data.memberships || []
 				const defaults = data.defaults || data.defaultRoleKeys || { move: [], sign: [], verify: [], view: [] }
 				const legacyApprove = Array.isArray(defaults.approve) ? defaults.approve : []

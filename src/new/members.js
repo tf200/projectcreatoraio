@@ -27,7 +27,21 @@ export function drascivsLabel(value) {
 // keeps its colour for as long as the project's role list does.
 const TONES = [3, 5, 4, 2, 1]
 export function projectRoleOptions(functionalRoles) {
-	return (functionalRoles || []).map((role, index) => ({ value: role.key, label: role.name || role.key, tone: TONES[index % TONES.length] }))
+	return (functionalRoles || []).map((role, index) => ({ value: role.key, label: roleDisplayName(role.key, role.name) || role.key, tone: TONES[index % TONES.length] }))
+}
+
+// The three standard project roles are stored per board under the name they
+// got when the board was made, so older boards hold the English names. Those
+// are shown in the user's language; a name the team changed is shown as typed.
+const STANDARD_ROLE_NAMES = {
+	cpl: 'CPL',
+	client_developer: 'Client/Developer',
+	grid_operator: 'Grid operator (Elektra)',
+}
+export function roleDisplayName(key, name) {
+	const english = STANDARD_ROLE_NAMES[key]
+	const value = String(name ?? '')
+	return english && value.trim().toLowerCase() === english.toLowerCase() ? t(english) : value
 }
 
 // Who holds each responsibility, worked out from the members' own roles.

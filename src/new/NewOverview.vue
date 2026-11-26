@@ -17,7 +17,7 @@
    </div>
    <div id="pc-task-panel" role="tabpanel" :aria-labelledby="'pc-task-tab-' + taskView">
     <div v-if="!shownTasks.length" class="pc-panel-empty pc-empty-outline"><ClipboardCheckOutline :size="28" /><template v-if="taskView === 'mine'"><strong>{{ t('No open tasks assigned directly to you') }}</strong><p>{{ t('Switch to All tasks to see the rest of the board.') }}</p></template><template v-else><strong>{{ t('No open tasks on the board') }}</strong><p>{{ t('Everything on the task board is done or archived.') }}</p></template></div>
-    <ol v-else class="pc-task-summary"><li v-for="(task, index) in shownTasks.slice(0, 3)" :key="task.id"><span>{{ index + 1 }}</span><div><button @click="open('tasks')">{{ task.title }}</button><small>{{ task.stackTitle }}</small></div></li></ol>
+    <ol v-else class="pc-task-summary"><li v-for="(task, index) in shownTasks.slice(0, 3)" :key="task.id"><span>{{ index + 1 }}</span><div><button @click="open('tasks')">{{ task.title }}</button><small>{{ stepDisplayName(task.stackTitle) }}</small></div></li></ol>
    </div>
   </OverviewPanel>
   <OverviewPanel name="timeline" :title="t('5. Timeline')" icon="progress" :state="overview.planning" @retry="retry('planning')">
@@ -60,6 +60,7 @@ import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import { timelineOf, assignedTasks, openTasks, recentFiles, activityText, sourceLabel, dateLabel, fileSize } from './overview.js'
 import { t, formatNumber } from './l10n.mjs'
+import { stepDisplayName } from './step-names.mjs'
 import { DISCIPLINE_OPTIONS } from './discipline-options.js'
 export default {
  components: { OverviewPanel, FlagOutline, EyeOutline, History, ClipboardCheckOutline, FolderOutline, FileDocumentOutline },
@@ -79,6 +80,7 @@ export default {
   files() { return this.overview.files.data ? recentFiles(this.overview.files.data) : [] },
  },
  methods: {
+  stepDisplayName,
   activityText, source: sourceLabel, date: dateLabel, size: fileSize, formatNumber,
   open(tab) { this.$emit('navigate', tab) }, retry(section) { this.$emit('retry', section) },
   openDetails() { this.$emit('edit-details') },

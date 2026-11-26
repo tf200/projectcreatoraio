@@ -50,6 +50,13 @@ class ProjectService {
 	/** Name of the public notes folder in projects created before folder names were translated. */
 	private const PUBLIC_NOTES_FOLDER = 'Public Notes';
 
+	/**
+	 * Earlier Dutch names of that folder. Projects created between 24 and
+	 * 26 November 2026 got "Openbare notities" before the client renamed it to
+	 * "Gedeelde notities"; their notes must still be found.
+	 */
+	private const FORMER_PUBLIC_NOTES_FOLDERS = ['Openbare notities'];
+
 	/** Order of the 'Done' stack among the default stacks of a new board. */
 	private const DONE_STACK_ORDER = 5;
 
@@ -2318,12 +2325,12 @@ class ProjectService {
 
 	/**
 	 * Name of the public notes folder: the one the project already has (the
-	 * original English name or a translated one), otherwise the name in the
-	 * server default language for a new folder.
+	 * original English name, an earlier Dutch name or the current translation),
+	 * otherwise the name in the server default language for a new folder.
 	 */
 	private function publicNotesFolderName(Folder $projectRoot): string {
 		$translated = $this->contentL10n->get()->t('Public Notes');
-		foreach (array_unique([self::PUBLIC_NOTES_FOLDER, $translated]) as $candidate) {
+		foreach (array_unique([self::PUBLIC_NOTES_FOLDER, ...self::FORMER_PUBLIC_NOTES_FOLDERS, $translated]) as $candidate) {
 			if ($projectRoot->nodeExists($candidate)) {
 				return $candidate;
 			}
