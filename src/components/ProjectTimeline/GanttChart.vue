@@ -50,13 +50,13 @@
 				</div>
 
 				<div class="control-group">
-					<NcButton type="tertiary" :title="t('Zoom out')" @click="zoomOut">
+					<NcButton type="tertiary" :title="t('Zoom out')" :disabled="!canZoomOut" @click="zoomOut">
 						<template #icon>
 							<MagnifyMinusOutline :size="18" />
 						</template>
 					</NcButton>
 					<span class="zoom-indicator" :title="t('Zoom level')">{{ t('{n}%', { n: zoomPercent }) }}</span>
-					<NcButton type="tertiary" :title="t('Zoom in')" @click="zoomIn">
+					<NcButton type="tertiary" :title="t('Zoom in')" :disabled="!canZoomIn" @click="zoomIn">
 						<template #icon>
 							<MagnifyPlusOutline :size="18" />
 						</template>
@@ -879,7 +879,10 @@ export default {
 				'#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 				'#27272a', '#71717a',
 			],
-			dayWidth: DEFAULT_DAY_WIDTH,
+			// The zoom chosen with the magnifiers; dayWidth is this or wider, to fill the space.
+			zoomDayWidth: DEFAULT_DAY_WIDTH,
+			// Width the dates can use, kept up to date by fitTimeline().
+			availableWidth: 0,
 			isDragging: false,
 			dragPointerId: null,
 			dragStartX: 0,
@@ -915,6 +918,22 @@ export default {
 		/** The zoom as a share of the zoom the planning opens at: 4 px per day is 100%. */
 		zoomPercent() {
 			return Math.round((this.dayWidth / DEFAULT_DAY_WIDTH) * 100)
+		},
+		/** The day width at which the whole plan fills the space, so a short plan leaves no empty band. */
+		fitDayWidth() {
+			if (!(this.availableWidth > 0) || !(this.totalDays > 0)) return 0
+			return Math.floor((this.availableWidth / this.totalDays) * 100) / 100
+		},
+		/** Pixels per day on screen: the chosen zoom, or wider when that would not fill the space. */
+		dayWidth() {
+			return Math.max(this.zoomDayWidth, this.fitDayWidth)
+		},
+		canZoomIn() {
+			return this.dayWidth < ZOOM_LEVELS[ZOOM_LEVELS.length - 1]
+		},
+		// Zooming out below the fitted zoom would only bring the empty band back.
+		canZoomOut() {
+			return this.dayWidth > Math.max(ZOOM_LEVELS[0], this.fitDayWidth)
 		},
 		/** The planning summary on screen: the scenario's while in What-If */
 		activeSummary() {
@@ -1443,6 +1462,22 @@ export default {
 			},
 			immediate: true,
 		},
+		// The chart appears after loading and its length changes with the plan.
+		loading() { this.$nextTick(this.fitTimeline) },
+		totalDays() { this.$nextTick(this.fitTimeline) },
+	},
+	mounted() {
+		if (typeof ResizeObserver === 'function') {
+			this.resizeObserver = new ResizeObserver(() => this.fitTimeline())
+			this.resizeObserver.observe(this.$el)
+		} else {
+			window.addEventListener('resize', this.fitTimeline)
+		}
+		this.$nextTick(this.fitTimeline)
+	},
+	beforeDestroy() {
+		this.resizeObserver?.disconnect()
+		window.removeEventListener('resize', this.fitTimeline)
 	},
 	methods: {
 		// Own t/n/tc so the template works under both entry points (the legacy mixin has another signature).
@@ -2229,17 +2264,22 @@ export default {
 			if (!el) return
 			el.scrollLeft = Math.max(0, el.scrollLeft + px)
 		},
+		// Measure the width the dates can use; dayWidth follows through fitDayWidth.
+		fitTimeline() {
+			const width = this.getTimelineScroller()?.width || 0
+			if (Math.abs(width - this.availableWidth) >= 1) this.availableWidth = width
+		},
 		setZoom(nextDayWidth) {
 			const scroller = this.getTimelineScroller()
 			if (!scroller) {
-				this.dayWidth = nextDayWidth
+				this.zoomDayWidth = nextDayWidth
 				return
 			}
 			const { el, width } = scroller
 			const oldDayWidth = this.dayWidth
 			const centerPx = el.scrollLeft + width / 2
 			const centerDays = oldDayWidth > 0 ? centerPx / oldDayWidth : 0
-			this.dayWidth = nextDayWidth
+			this.zoomDayWidth = nextDayWidth
 			this.$nextTick(() => {
 				const target = Math.max(0, centerDays * this.dayWidth - width / 2)
 				el.scrollLeft = target
@@ -2249,7 +2289,9 @@ export default {
 			this.setZoom(ZOOM_LEVELS.find(level => level > this.dayWidth) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1])
 		},
 		zoomOut() {
-			this.setZoom([...ZOOM_LEVELS].reverse().find(level => level < this.dayWidth) ?? ZOOM_LEVELS[0])
+			const step = [...ZOOM_LEVELS].reverse().find(level => level < this.dayWidth) ?? ZOOM_LEVELS[0]
+			// Below the fitted zoom means back to fitting, as when the page opens, so a narrower window fits again.
+			this.setZoom(step < this.fitDayWidth ? Math.min(DEFAULT_DAY_WIDTH, this.fitDayWidth) : step)
 		},
 		onPointerDown(e) {
 			if (e.button !== undefined && e.button !== 0) return

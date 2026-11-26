@@ -107,20 +107,60 @@ test('the Planning zoom reads as a percentage, 100% where the planning opens', (
 	assert.match(gantt, /<span class="zoom-indicator" :title="t\('Zoom level'\)">\{\{ t\('\{n\}%', \{ n: zoomPercent \}\) \}\}<\/span>/)
 	assert.doesNotMatch(gantt, /px\/d/)
 	assert.match(gantt, /const DEFAULT_DAY_WIDTH = 4\n/)
-	assert.match(gantt, /dayWidth: DEFAULT_DAY_WIDTH,/)
+	assert.match(gantt, /zoomDayWidth: DEFAULT_DAY_WIDTH,/)
 	// Click through every step both ways with the component's own code.
-	const levels = JSON.parse(gantt.match(/const ZOOM_LEVELS = (\[[^\]]*\])/)[1])
-	const method = name => gantt.match(new RegExp(name + '\\(\\) \\{([\\s\\S]*?)\\n\\t\\t\\}'))[1]
-	const make = body => new Function('ZOOM_LEVELS', 'DEFAULT_DAY_WIDTH', 'return function () {' + body + '}')(levels, 4)
-	const chart = { dayWidth: 4, setZoom(value) { this.dayWidth = value } }
-	const zoomIn = make(method('zoomIn')).bind(chart), zoomOut = make(method('zoomOut')).bind(chart), percent = make(method('zoomPercent')).bind(chart)
-	const seen = [percent()]
-	for (let i = 0; i < 4; i++) { zoomIn(); seen.push(percent()) }
-	for (let i = 0; i < 7; i++) { zoomOut(); seen.push(percent()) }
-	for (let i = 0; i < 2; i++) { zoomIn(); seen.push(percent()) }
+	const chart = ganttModel(gantt)
+	const seen = [chart.zoomPercent]
+	for (let i = 0; i < 4; i++) { chart.zoomIn(); seen.push(chart.zoomPercent) }
+	for (let i = 0; i < 7; i++) { chart.zoomOut(); seen.push(chart.zoomPercent) }
+	for (let i = 0; i < 2; i++) { chart.zoomIn(); seen.push(chart.zoomPercent) }
 	assert.deepEqual(seen, [100, 150, 200, 300, 400, 300, 200, 150, 100, 75, 50, 50, 75, 100], 'one step at a time, both ways, stopping at 50% and 400%')
 	const nl = JSON.parse(read('../../l10n/nl.json')).translations
 	assert.equal(nl['{n}%'], '{n}%')
 	assert.equal(nl['Zoom level'], 'Zoomniveau')
 	assert.equal(nl['{n}px/d'], undefined)
+})
+
+// GanttChart's zoom, built from the component's own computed properties and methods.
+function ganttModel(gantt, { availableWidth = 0, totalDays = 0 } = {}) {
+	const levels = JSON.parse(gantt.match(/const ZOOM_LEVELS = (\[[^\]]*\])/)[1])
+	const body = name => gantt.match(new RegExp('\\n\\t\\t' + name + '\\(\\) \\{([\\s\\S]*?)\\n\\t\\t\\}'))[1]
+	const make = name => new Function('ZOOM_LEVELS', 'DEFAULT_DAY_WIDTH', 'return function () {' + body(name) + '}')(levels, 4)
+	const chart = { zoomDayWidth: 4, availableWidth, totalDays, setZoom(value) { this.zoomDayWidth = value } }
+	for (const name of ['fitDayWidth', 'dayWidth', 'zoomPercent', 'canZoomIn', 'canZoomOut']) Object.defineProperty(chart, name, { get: make(name) })
+	for (const name of ['zoomIn', 'zoomOut']) chart[name] = make(name)
+	return chart
+}
+
+test('a short plan fills the width; a long plan keeps its zoom and scrolls', () => {
+	const gantt = read('../components/ProjectTimeline/GanttChart.vue')
+	// Discipline check on a 1920 px screen: 180 days, 1246 px for the dates.
+	const short = ganttModel(gantt, { availableWidth: 1246, totalDays: 180 })
+	assert.equal(short.dayWidth, 6.92)
+	assert.ok(short.dayWidth * short.totalDays <= 1246, 'never wider than the space, so no scrollbar')
+	assert.equal(short.zoomPercent, 173)
+	assert.equal(short.canZoomOut, false, 'zoom out stops at the fitted zoom')
+	assert.equal(short.canZoomIn, true)
+	short.zoomIn(); assert.equal(short.zoomPercent, 200)
+	short.zoomOut(); assert.equal(short.zoomPercent, 173, 'back to the fitted zoom, not below')
+	short.availableWidth = 766; assert.equal(short.zoomPercent, 106, 'after zooming back out, a narrower window fits again')
+	short.availableWidth = 2000; assert.equal(short.zoomPercent, 278, 'a wider window fits again')
+	// Just below 100%: zooming out goes to the fitted zoom, not past it.
+	const near = ganttModel(gantt, { availableWidth: 630, totalDays: 180 })
+	assert.equal(near.zoomPercent, 100)
+	near.zoomOut(); assert.equal(near.zoomPercent, 88)
+	assert.equal(near.canZoomOut, false)
+	// Firma de Testerij: 761 days do not fit, so 100% and scrolling, as before.
+	const long = ganttModel(gantt, { availableWidth: 1246, totalDays: 761 })
+	assert.equal(long.zoomPercent, 100)
+	assert.equal(long.canZoomOut, true)
+	// Before the chart is measured nothing changes.
+	assert.equal(ganttModel(gantt).zoomPercent, 100)
+	// Measured after loading, when the plan changes, and on every resize.
+	assert.match(gantt, /loading\(\) \{ this\.\$nextTick\(this\.fitTimeline\) \},\n\t\ttotalDays\(\) \{ this\.\$nextTick\(this\.fitTimeline\) \},/)
+	assert.match(gantt, /new ResizeObserver\(\(\) => this\.fitTimeline\(\)\)/)
+	assert.match(gantt, /beforeDestroy\(\) \{\n\t\tthis\.resizeObserver\?\.disconnect\(\)/)
+	assert.match(gantt, /:disabled="!canZoomOut" @click="zoomOut"/)
+	assert.match(gantt, /:disabled="!canZoomIn" @click="zoomIn"/)
+	assert.doesNotMatch(gantt, /this\.dayWidth = /, 'only the chosen zoom is ever set')
 })
