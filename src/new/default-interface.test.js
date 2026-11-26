@@ -101,3 +101,26 @@ test('the overview timeline shows the plain line Process steps uses, without ≈
 	const css = read('./new-ui.css')
 	assert.doesNotMatch(css, /pc-timeline-overall \.pc-timeline-meter\{height|meter--estimate|repeating-linear-gradient\(-45deg/)
 })
+
+test('the Planning zoom reads as a percentage, 100% where the planning opens', () => {
+	const gantt = read('../components/ProjectTimeline/GanttChart.vue')
+	assert.match(gantt, /<span class="zoom-indicator" :title="t\('Zoom level'\)">\{\{ t\('\{n\}%', \{ n: zoomPercent \}\) \}\}<\/span>/)
+	assert.doesNotMatch(gantt, /px\/d/)
+	assert.match(gantt, /const DEFAULT_DAY_WIDTH = 4\n/)
+	assert.match(gantt, /dayWidth: DEFAULT_DAY_WIDTH,/)
+	// Click through every step both ways with the component's own code.
+	const levels = JSON.parse(gantt.match(/const ZOOM_LEVELS = (\[[^\]]*\])/)[1])
+	const method = name => gantt.match(new RegExp(name + '\\(\\) \\{([\\s\\S]*?)\\n\\t\\t\\}'))[1]
+	const make = body => new Function('ZOOM_LEVELS', 'DEFAULT_DAY_WIDTH', 'return function () {' + body + '}')(levels, 4)
+	const chart = { dayWidth: 4, setZoom(value) { this.dayWidth = value } }
+	const zoomIn = make(method('zoomIn')).bind(chart), zoomOut = make(method('zoomOut')).bind(chart), percent = make(method('zoomPercent')).bind(chart)
+	const seen = [percent()]
+	for (let i = 0; i < 4; i++) { zoomIn(); seen.push(percent()) }
+	for (let i = 0; i < 7; i++) { zoomOut(); seen.push(percent()) }
+	for (let i = 0; i < 2; i++) { zoomIn(); seen.push(percent()) }
+	assert.deepEqual(seen, [100, 150, 200, 300, 400, 300, 200, 150, 100, 75, 50, 50, 75, 100], 'one step at a time, both ways, stopping at 50% and 400%')
+	const nl = JSON.parse(read('../../l10n/nl.json')).translations
+	assert.equal(nl['{n}%'], '{n}%')
+	assert.equal(nl['Zoom level'], 'Zoomniveau')
+	assert.equal(nl['{n}px/d'], undefined)
+})

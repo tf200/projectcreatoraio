@@ -55,7 +55,7 @@
 							<MagnifyMinusOutline :size="18" />
 						</template>
 					</NcButton>
-					<span class="zoom-indicator">{{ t('{n}px/d', { n: dayWidth }) }}</span>
+					<span class="zoom-indicator" :title="t('Zoom level')">{{ t('{n}%', { n: zoomPercent }) }}</span>
 					<NcButton type="tertiary" :title="t('Zoom in')" @click="zoomIn">
 						<template #icon>
 							<MagnifyPlusOutline :size="18" />
@@ -798,6 +798,10 @@ import { addChange, changeForResize, changesForMove, formatDays, formatShiftBadg
 import { DAY_MS, daysSinceMonday, formatShortDate, getIsoWeekInfo } from './timelineDates.js'
 
 const DRAG_THRESHOLD_PX = 4
+// The zoom the planning opens at; the toolbar shows other zooms relative to it (100%).
+const DEFAULT_DAY_WIDTH = 4
+// The zoom steps, in pixels per day: 50% · 75% · 100% · 150% · 200% · 300% · 400%.
+const ZOOM_LEVELS = [2, 3, 4, 6, 8, 12, 16]
 
 export default {
 	name: 'GanttChart',
@@ -875,7 +879,7 @@ export default {
 				'#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 				'#27272a', '#71717a',
 			],
-			dayWidth: 4,
+			dayWidth: DEFAULT_DAY_WIDTH,
 			isDragging: false,
 			dragPointerId: null,
 			dragStartX: 0,
@@ -908,6 +912,10 @@ export default {
 		}
 	},
 	computed: {
+		/** The zoom as a share of the zoom the planning opens at: 4 px per day is 100%. */
+		zoomPercent() {
+			return Math.round((this.dayWidth / DEFAULT_DAY_WIDTH) * 100)
+		},
 		/** The planning summary on screen: the scenario's while in What-If */
 		activeSummary() {
 			if (this.whatIf.active && this.whatIf.result?.summary) {
@@ -2238,16 +2246,10 @@ export default {
 			})
 		},
 		zoomIn() {
-			const levels = [3, 4, 6, 8, 12, 16]
-			const idx = levels.findIndex(l => l >= this.dayWidth)
-			const next = levels[Math.min(levels.length - 1, idx + 1)]
-			this.setZoom(next)
+			this.setZoom(ZOOM_LEVELS.find(level => level > this.dayWidth) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1])
 		},
 		zoomOut() {
-			const levels = [2, 3, 4, 6, 8, 12]
-			const idx = levels.findIndex(l => l >= this.dayWidth)
-			const next = levels[Math.max(0, idx - 1)]
-			this.setZoom(next)
+			this.setZoom([...ZOOM_LEVELS].reverse().find(level => level < this.dayWidth) ?? ZOOM_LEVELS[0])
 		},
 		onPointerDown(e) {
 			if (e.button !== undefined && e.button !== 0) return
