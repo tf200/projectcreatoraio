@@ -15,8 +15,12 @@ use OCP\Server;
  *
  * Content that is created once and then shared by everyone in a project
  * (default folders, Deck stacks and cards, calendar names, automatic notes)
- * must not depend on the language of whoever happened to trigger it, so it
- * uses the server default language (`default_language` in config.php).
+ * must not depend on the language of whoever happened to trigger it. It uses
+ * this app's `content_language` setting when one is set
+ * (occ config:app:set projectcreatoraio content_language --value=nl), so the
+ * shared content can be Dutch without changing the default language of every
+ * user on the server; otherwise the server default language (`default_language`
+ * in config.php), otherwise English.
  */
 final class DefaultLanguageL10n
 {
@@ -30,11 +34,14 @@ final class DefaultLanguageL10n
 	) {
 	}
 
-	/** Translator in the server default language, for shared default content. */
+	/** Translator in the content language, for shared default content. */
 	public function get(): IL10N
 	{
 		if ($this->l === null) {
-			$language = $this->config->getSystemValueString('default_language', 'en');
+			$language = trim($this->config->getAppValue(Application::APP_ID, 'content_language', ''));
+			if ($language === '') {
+				$language = $this->config->getSystemValueString('default_language', 'en');
+			}
 			$this->l = $this->factory->get(Application::APP_ID, $language !== '' ? $language : 'en');
 		}
 		return $this->l;

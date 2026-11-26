@@ -160,3 +160,23 @@ test('only the new layout asks Deck for the In Zicht card face', () => {
 	assert.match(deckBoard, /embedOptions\(\) \{\s*return \{\}/, 'the current interface keeps Deck’s own cards')
 	assert.match(deckBoard, /EmbeddedTasks\.mount\(\{ el, boardId, \.\.\.this\.embedOptions\(\) \}\)/)
 })
+
+test('the critical label is recognised in its new and former spellings', () => {
+	for (const title of ['Kritieke processtap', 'Kritieke Processtap', 'kritieke processtap ', 'Belangrijk']) {
+		assert.equal(tp.isCriticalLabel({ title }), true, title)
+	}
+	assert.equal(tp.isCriticalLabel({ title: 'Kritiek' }), false)
+	assert.equal(tp.isCriticalLabel(null), false)
+	const { cards } = tp.boardOf([{ id: 1, order: 0, cards: [{ id: 5, title: 'X', labels: [{ title: 'Kritieke processtap' }] }] }])
+	assert.equal(cards[0].critical, true)
+})
+
+test('default cards renamed to the approved spelling keep their place in the process order', () => {
+	const stacks = [{ id: 1, order: 0, cards: [
+		{ id: 1, title: 'Garantieovereenkomst', labels: [{ title: 'Kritieke processtap' }] },
+		{ id: 2, title: 'Situatietekening', labels: [{ title: 'Kritieke processtap' }] },
+		{ id: 3, title: 'Zakelijk recht', labels: [{ title: 'Kritieke processtap' }] },
+	] }]
+	const { cards } = tp.boardOf(stacks)
+	assert.deepEqual(tp.stepsOf(cards).map(step => step.title), ['Situatietekening', 'Zakelijk recht', 'Garantieovereenkomst'])
+})

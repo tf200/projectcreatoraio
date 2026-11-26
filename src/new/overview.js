@@ -1,4 +1,4 @@
-import { CRITICAL_LABELS } from './tasks-progress.js'
+import { isCriticalLabel } from './tasks-progress.js'
 import { t, n, locale } from './l10n.mjs'
 export function progressSummary(summary) {
  const process = summary?.processCompleted
@@ -180,7 +180,7 @@ export function nextMilestoneOf(stacks, now = Date.now()) {
  const columns = (Array.isArray(stacks) ? stacks : []).filter(stack => !stack.deletedAt).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
  const tasks = columns.flatMap((stack, stage) => (stack.cards || [])
   .filter(card => !card.archived && !card.deletedAt && !card.done && card.duedate)
-  .map(card => ({ title: String(card.title || ''), due: card.duedate, day: localDay(card.duedate), stage, critical: (card.labels || []).some(label => CRITICAL_LABELS.includes(label?.title)) })))
+  .map(card => ({ title: String(card.title || ''), due: card.duedate, day: localDay(card.duedate), stage, critical: (card.labels || []).some(isCriticalLabel) })))
   .filter(task => task.day !== null)
  if (!tasks.length) return null
  const order = (a, b) => a.day - b.day || Number(b.critical) - Number(a.critical) || b.stage - a.stage || a.title.localeCompare(b.title)

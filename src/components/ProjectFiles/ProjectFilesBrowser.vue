@@ -358,7 +358,7 @@
 									<FolderOutline v-if="hit.node.type === 'folder'" :size="20" class="project-files__row-icon" />
 									<FileOutline v-else :size="20" class="project-files__row-icon" />
 									<div class="project-files__row-info">
-										<span class="project-files__row-name">{{ hit.node.name }}</span>
+										<span class="project-files__row-name">{{ folderDisplayName(hit.node.name) }}</span>
 										<span class="project-files__row-sub">{{ hit.pathLabel || t('Root') }}</span>
 									</div>
 								</div>
@@ -389,7 +389,7 @@
 									<FileOutline v-else :size="20" class="project-files__row-icon" />
 
 									<div class="project-files__row-info">
-										<span class="project-files__row-name">{{ entry.name }}</span>
+										<span class="project-files__row-name">{{ folderDisplayName(entry.name) }}</span>
 										<span class="project-files__row-sub">
 											<span v-if="entry.type === 'folder'">{{ n('%n file', '%n files', countFiles(entry)) }}</span>
 											<span v-else>{{ formatBytes(entry.size) }}</span>

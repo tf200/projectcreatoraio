@@ -51,7 +51,7 @@
 				</div>
 
 				<p v-if="!steps.length" class="pc-progress__none">
-					{{ t('No critical process steps on this board. Label a card “Kritieke Processtap” in Deck to follow it here.') }}
+					{{ t('No critical process steps on this board. Label a card “Kritieke processtap” in Deck to follow it here.') }}
 				</p>
 				<div v-else class="pc-progress__wrap" :class="{ 'pc-progress__wrap--more': more }">
 					<div ref="scroller"

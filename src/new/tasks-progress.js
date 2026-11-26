@@ -3,9 +3,23 @@
 // steps in process order.
 import { t, n, locale } from './l10n.mjs'
 
-// A card is a critical process step when it carries this label ("Belangrijk"
-// is its former name on older boards), as Deck's dashboard counts them.
-export const CRITICAL_LABELS = ['Kritieke Processtap', 'Belangrijk']
+// A card is a critical process step when it carries this label. "Kritieke
+// Processtap" and "Belangrijk" are its former names on older boards; the match
+// ignores case, as Deck's dashboard does.
+export const CRITICAL_LABELS = ['Kritieke processtap', 'Kritieke Processtap', 'Belangrijk']
+export function isCriticalLabel(label) {
+	const title = String(label?.title ?? '').trim().toLowerCase()
+	return CRITICAL_LABELS.some(name => name.toLowerCase() === title)
+}
+
+// Default card titles the client corrected (review of 25 November 2026), so
+// boards renamed afterwards still sort in process order.
+const RENAMED_TITLES = {
+	Situatietekening: 'Situatie tekening',
+	Garantieovereenkomst: 'Garantie overeenkomst',
+	'Zakelijk recht': 'Zakelijkrecht',
+	'Intake inplannen en leiden': 'Intake inplannen & hosten',
+}
 
 // The Combi process in timeline order, by card title. Mirrors
 // ProjectTypeDeckDefaults::getDefaultCardKeysInTimelineOrder(); a test keeps
@@ -38,7 +52,7 @@ export function boardOf(stacks) {
 			done: card.done || null,
 			duedate: card.duedate || null,
 			completed: !!card.done || column.done,
-			critical: (card.labels || []).some(label => CRITICAL_LABELS.includes(label?.title)),
+			critical: (card.labels || []).some(isCriticalLabel),
 			dependsOn: Array.isArray(card.dependentCards) ? card.dependentCards.map(Number) : [],
 		})))
 	return { columns: columns.map(({ cards: _cards, ...column }) => column), cards }
@@ -82,7 +96,8 @@ export function stepsOf(cards) {
 	}))
 	const rank = card => {
 		// New boards may carry the default titles in the server's language.
-		const index = TIMELINE_ORDER.findIndex(title => title === card.title || t(title) === card.title)
+		const canonical = RENAMED_TITLES[card.title] ?? card.title
+		const index = TIMELINE_ORDER.findIndex(title => title === canonical || t(title) === card.title)
 		return [index === -1 ? TIMELINE_ORDER.length : index, Number.isNaN(time(card.duedate)) ? Infinity : time(card.duedate), card.title]
 	}
 	const before = (a, b) => {

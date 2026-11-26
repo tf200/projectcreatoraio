@@ -48,7 +48,7 @@
 import overviewState from './overview-state.js'
 import { t } from './l10n.mjs'
 
-import NcContent from '@nextcloud/vue/components/NcContent'
+import NcContent from './nc-content.mjs'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import { generateUrl } from '@nextcloud/router'
 import { api, errorMessage } from './api.js'

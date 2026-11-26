@@ -19,8 +19,10 @@ use Throwable;
 
 class DeckDefaultCardsService
 {
-	private const IMPORTANT_LABEL_TITLE = 'Kritieke Processtap';
-	private const LEGACY_IMPORTANT_LABEL_TITLES = ['Belangrijk'];
+	/** Spelling approved by the client in the review of 25 November 2026. */
+	private const IMPORTANT_LABEL_TITLE = 'Kritieke processtap';
+	/** Earlier names of that label; a board that still has one gets it renamed. */
+	private const LEGACY_IMPORTANT_LABEL_TITLES = ['Kritieke Processtap', 'Belangrijk'];
 	private const IMPORTANT_LABEL_COLOR = 'FF0000';
 	private const DEFAULT_CARD_DEADLINE_INTERVAL = 'P3M';
 
