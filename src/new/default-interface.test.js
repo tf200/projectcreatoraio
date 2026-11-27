@@ -93,6 +93,18 @@ test('the Intake form is hidden: no tab, and its old links open the Overview', a
 	assert.match(read('../../l10n/nl.js'), /"Starts with the 20 Combi process tasks\.": "Dit project begint met de 20 Combi-procestaken\."/)
 })
 
+test('the overview timeline uses the Planning tab’s numbered key-date rows', () => {
+	const overview = read('./NewOverview.vue')
+	const steps = [...overview.matchAll(/<span class="pc-timeline-step"[^>]*>(\d)<\/span>/g)].map(m => m[1])
+	assert.deepEqual(steps, ['1', '2', '3', '4', '5', '6', '7', '8'])
+	for (const label of ["t('Request date')", "t('Process steps')", "t('PROCESS COMPLETION DATE')", "t('Handover')", "t('REQUIRED PREPARATION TIME')", "t('MINIMUM START DATE')", "t('START DATES')", "t('DESIRED')", "t('ACTUAL')", "t('End date')", "t('Weeks on site')"]) assert.ok(overview.includes(label), label)
+	assert.doesNotMatch(overview, /<h3 id="pc-timeline-\w+"><i/, 'no phase dot; Planning has none')
+	assert.match(overview, /<span class="pc-sr-only">\{\{ stageText\(0\) \}\}<\/span>/, 'screen readers still hear the current phase')
+	assert.doesNotMatch(overview, /<input|@click="set|Hand over/, 'read-only')
+	const css = read('./new-ui.css')
+	assert.doesNotMatch(css, /pc-timeline-group h3 i\{|pc-timeline-group dl\{/)
+	assert.match(css, /\.pc-new \.pc-timeline-steps>li\{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var\(--iz-border\)\}/)
+})
 test('the overview timeline shows the plain line Process steps uses, without ≈', () => {
 	const overview = read('./NewOverview.vue')
 	assert.doesNotMatch(overview, /≈|pc-timeline-approx|pc-timeline-meter--estimate/)

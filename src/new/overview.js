@@ -1,5 +1,5 @@
 import { isCriticalLabel } from './tasks-progress.js'
-import { t, n, locale } from './l10n.mjs'
+import { t, n, locale, formatNumber } from './l10n.mjs'
 export function progressSummary(summary) {
  const process = summary?.processCompleted
  const total = Number(process?.totalRequired || 0), done = Number(process?.doneCount || 0)
@@ -82,6 +82,11 @@ const weeksText = count => n('%n week', '%n weeks', count)
 const signedWeeks = weeks => `${weeks > 0 ? '+' : ''}${weeksText(weeks)}`
 // A YYYY-MM-DD date as a day number, so differences are whole days in any time zone.
 const dayOf = value => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null }
+// The process steps' pill and count badge, as the Planning tab shows them.
+function processPill(status, done) {
+ const [tone, label] = { complete: ['success', () => t('READY')], incomplete: ['warning', () => t('IN PROGRESS')], missing_cards: ['muted', () => t('INITIAL')], not_configured: ['muted', () => t('N/A')] }[status] || ['muted', () => t('PENDING')]
+ return { tone, label: label(), badge: status === 'complete' ? 'success' : done > 0 ? 'progress' : 'muted' }
+}
 export function timelineOf(summary, now = Date.now()) {
  const s = summary || {}
  const process = s.processCompleted || {}
@@ -119,6 +124,7 @@ export function timelineOf(summary, now = Date.now()) {
  const warnings = Array.isArray(s.handoverWarnings) ? s.handoverWarnings : []
  const handoverNote = warnings.length ? warnings.join(' · ') : handover ? t('Handed to the execution team') : t('After the process steps')
  const preparation = Math.max(0, Number(s.requiredPreparationWeeks) || 0)
+ const minimumWeeks = Number(s.minimumDurationWeeks ?? s.kpis?.minimumDurationWeeks) || 0
  // The server's warnings when a start misses the plan, as on the Planning tab.
  const listOf = value => (Array.isArray(value) ? value : [])
  const desiredWarnings = listOf(s.dateWarnings?.desiredStart)
@@ -128,8 +134,8 @@ export function timelineOf(summary, now = Date.now()) {
   // Which group the project is in: 0 Initiation until the handover, 1 Execution
   // until the actual start, 2 Delivery on site, 3 ended.
   stage: ended ? 3 : actual ? 2 : handover ? 1 : 0,
-  initiation: { requestDate: s.requestDate || null, done, total, configured, percent: configured ? Math.round(done / total * 100) : 0, note: stepsNote, warn: configured && !stepsDone && missing > 0, handover, handoverNote, handoverWarn: warnings.length > 0 },
-  execution: { minimumStart: s.minimumStartDate || null, note: preparation ? t('{weeks} preparation after the process steps', { weeks: weeksText(preparation) }) : t('Right after the process steps'), desired, actual, desiredNote: desiredWarnings.join(' · '), actualNote: actualWarnings.join(' · ') },
+  initiation: { requestDate: s.requestDate || null, done, total, configured, stepsDone, steps: processPill(process.status, done), note: stepsNote, warn: configured && !stepsDone && missing > 0, completedOn: process.date || null, handover, handoverNote, handoverWarn: warnings.length > 0 },
+  execution: { preparation, preparationText: weeksText(preparation), duration: t('Min. Duration: {min}w (Initiation: {init}w + Prep: {prep}w)', { min: formatNumber(minimumWeeks), init: formatNumber(Number(s.kpis?.deckTasksWeeks) || 0), prep: formatNumber(preparation) }), minimumStart: s.minimumStartDate || null, desired, actual, float: desired && floatWeeks !== null ? { tone: floatWeeks < 0 ? 'danger' : 'success', text: (floatWeeks > 0 ? '+' : '') + t('{n}w', { n: formatNumber(floatWeeks) }) } : null, desiredNote: desiredWarnings.join(' · '), actualNote: actualWarnings.join(' · ') },
   delivery: { end: ended || planned, planned: !!planned, note: endNote, weeks },
   overall: overallOf(s, ended, planned, dayOf(s.kpis?.today) ?? dayOf(new Date(now).toISOString())),
  }
